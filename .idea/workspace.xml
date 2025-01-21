@@ -1,0 +1,188 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="SELECTIVE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="관전 및 대기 시 시간체크 안함" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ComposerSettings">
+    <execution />
+  </component>
+  <component name="FileTemplateManagerImpl">
+    <option name="RECENT_TEMPLATES">
+      <list>
+        <option value="JavaScript File" />
+      </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 7
+}</component>
+  <component name="ProjectId" id="2r7l58KaWw74uvfICExyDyU09XG" />
+  <component name="ProjectLevelVcsManager">
+    <OptionsSetting value="false" id="Update" />
+  </component>
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "master",
+    "ignore.virus.scanning.warn.message": "true",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "settings.editor.selected.configurable": "preferences.pluginManager",
+    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\PhpStorm 2023.1.2\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-js-predefined-d6986cc7102b-deb605915726-JavaScript-PS-243.22562.233" />
+        <option value="bundled-php-predefined-a98d8de5180a-7980c7aaca61-com.jetbrains.php.sharedIndexes-PS-243.22562.233" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="애플리케이션 수준" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="디폴트 작업">
+      <changelist id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="" />
+      <created>1735917807473</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1735917807473</updated>
+      <workItem from="1735917808523" duration="12721000" />
+      <workItem from="1735931592459" duration="28068000" />
+      <workItem from="1736164509123" duration="5000" />
+      <workItem from="1736169127412" duration="1208000" />
+      <workItem from="1736242568522" duration="9187000" />
+      <workItem from="1736254005981" duration="7797000" />
+      <workItem from="1736527210806" duration="70000" />
+      <workItem from="1737460594316" duration="687000" />
+      <workItem from="1737461728778" duration="4067000" />
+    </task>
+    <task id="LOCAL-00001" summary="필요없는 파일 제거">
+      <option name="closed" value="true" />
+      <created>1735929180746</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1735929180746</updated>
+    </task>
+    <task id="LOCAL-00002" summary="저장 1">
+      <option name="closed" value="true" />
+      <created>1735964398961</created>
+      <option name="number" value="00002" />
+      <option name="presentableId" value="LOCAL-00002" />
+      <option name="project" value="LOCAL" />
+      <updated>1735964398961</updated>
+    </task>
+    <task id="LOCAL-00003" summary="저장 1">
+      <option name="closed" value="true" />
+      <created>1735964420011</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1735964420011</updated>
+    </task>
+    <task id="LOCAL-00004" summary="저장 1">
+      <option name="closed" value="true" />
+      <created>1735964438376</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1735964438376</updated>
+    </task>
+    <task id="LOCAL-00005" summary="저장 1">
+      <option name="closed" value="true" />
+      <created>1735979101786</created>
+      <option name="number" value="00005" />
+      <option name="presentableId" value="LOCAL-00005" />
+      <option name="project" value="LOCAL" />
+      <updated>1735979101786</updated>
+    </task>
+    <task id="LOCAL-00006" summary="1. 활동시간 측정 시 [관전], [대기]는 미포함 하는 함수 추가&#10;2. 30분마다 변수의 데이터 JSON에 저장 및 변수 초기화&#10;- 활동중인 사용자의 데이터 재설정&#10;3. 사용자별 시간 출력하는 함수 추가">
+      <option name="closed" value="true" />
+      <created>1736245124091</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1736245124091</updated>
+    </task>
+    <task id="LOCAL-00007" summary="JS 중복 함수 제거 및 불필요 파일 삭제">
+      <option name="closed" value="true" />
+      <created>1736245343975</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1736245343975</updated>
+    </task>
+    <task id="LOCAL-00008" summary="코드 최적화">
+      <option name="closed" value="true" />
+      <created>1736246680036</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1736246680036</updated>
+    </task>
+    <task id="LOCAL-00009" summary="관전 및 대기 시 시간체크 안함 - 완성">
+      <option name="closed" value="true" />
+      <created>1736527258326</created>
+      <option name="number" value="00009" />
+      <option name="presentableId" value="LOCAL-00009" />
+      <option name="project" value="LOCAL" />
+      <updated>1736527258326</updated>
+    </task>
+    <task id="LOCAL-00010" summary="관전 및 대기 시 시간체크 안함">
+      <option name="closed" value="true" />
+      <created>1737465828347</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1737465828347</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="필요없는 파일 제거" />
+    <MESSAGE value="저장 1" />
+    <MESSAGE value="1. 활동시간 측정 시 [관전], [대기]는 미포함 하는 함수 추가&#10;2. 30분마다 변수의 데이터 JSON에 저장 및 변수 초기화&#10;- 활동중인 사용자의 데이터 재설정&#10;3. 사용자별 시간 출력하는 함수 추가" />
+    <MESSAGE value="JS 중복 함수 제거 및 불필요 파일 삭제" />
+    <MESSAGE value="코드 최적화" />
+    <MESSAGE value="관전 및 대기 시 시간체크 안함 - 완성" />
+    <MESSAGE value="관전 및 대기 시 시간체크 안함" />
+    <option name="LAST_COMMIT_MESSAGE" value="관전 및 대기 시 시간체크 안함" />
+  </component>
+</project>
