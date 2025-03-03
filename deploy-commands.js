@@ -4,7 +4,7 @@ require('dotenv').config();
 const commands = [
     {
         name: "gap_list",
-        description: "유저 활동 시간 및 잠수자 출력",
+        description: "역할별 활동 시간 출력",
         options: [
             {
                 name: 'role',
@@ -34,7 +34,7 @@ const commands = [
     },
     {
         name: "gap_reset",
-        description: "지정된 역할의 모든 사용자의 활동 시간을 초기화",
+        description: "역할별 활동 시간 초기화",
         options: [
             {
                 name: "role",
@@ -58,7 +58,7 @@ const commands = [
     },
     {
         name: "gap_save",
-        description: "활동 데이터를 저장하고 초기화",
+        description: "활동 데이터를 최신화(봇 리셋 시 사용)",
     },
 ];
 
