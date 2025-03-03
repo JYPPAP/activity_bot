@@ -1,6 +1,8 @@
 const fs = require('fs');
 const path = require('path');
-const { Client, GatewayIntentBits, Events, PermissionsBitField, MessageFlags } = require("discord.js");
+const { Client, GatewayIntentBits, Events, PermissionsBitField, MessageFlags, AttachmentBuilder, EmbedBuilder, ChannelType } = require("discord.js");
+
+const { parse } = require('json2csv'); // json을 csv로 변환하는 라이브러리 필요
 require('dotenv').config();
 const keepAlive = require("./server");
 
@@ -14,6 +16,47 @@ const excludedChannelIds = [
     process.env.EXCLUDE_CHANNELID_5
 ];
 
+const logChannelId = process.env.LOG_CHANNEL_ID; // 로그를 출력할 채널 ID
+let logMessages = [];
+let logTimeout = null;
+
+function logActivity(message, membersInChannel = []) {
+    logMessages.push({ message, members: membersInChannel });
+
+    if (logTimeout) {
+        clearTimeout(logTimeout);
+    }
+
+    logTimeout = setTimeout(async () => {
+        const logChannel = client.channels.cache.get(logChannelId);
+        if (!logChannel) return;
+
+        for (const log of logMessages) {
+            const embed = new EmbedBuilder()
+                .setColor('#0099ff') // 파란색
+                .setTitle('🔊 음성 채널 활동 로그')
+                .setDescription(`**${log.message}**`)
+                .setFooter({ text: `로그 기록 시간: ${new Date().toLocaleString()}` });
+
+            // 현재 음성 채널의 인원 목록을 인원 수 포함 + 한 줄씩 출력
+            const membersText = `**현재 인원: (${log.members.length}명)**\n${log.members.length > 0 ? log.members.join(',\n') : '없음'}`;
+
+            embed.addFields({ name: '👥 현재 남아있는 멤버', value: membersText });
+
+            await logChannel.send({ embeds: [embed] });
+        }
+
+        logMessages = []; // 로그 초기화
+    }, 30000); // 테스트 30초, 5분 (300,000ms)
+}
+
+
+async function getVoiceChannelMembers(channel) {
+    if (!channel) return [];
+    const freshChannel = await channel.guild.channels.fetch(channel.id);
+    return freshChannel.members.map(member => member.displayName);
+}
+
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
@@ -24,7 +67,9 @@ const client = new Client({
 });
 
 let roleActivityConfig = {};
-let channelActivityTime = {};
+let channelActivityTime = new Map();
+let saveActivityTimeout = null;
+
 
 function loadJSON(filePath) {
     if (fs.existsSync(filePath)) {
@@ -45,8 +90,18 @@ function saveJSON(filePath, data) {
     }
 }
 
+function loadMapFromJSON(filePath) {
+    const jsonData = loadJSON(filePath);
+    return new Map(Object.entries(jsonData));
+}
+
+function saveMapToJSON(filePath, mapData) {
+    const jsonData = Object.fromEntries(mapData);
+    saveJSON(filePath, jsonData);
+}
+
 function loadActivityData() {
-    channelActivityTime = loadJSON(activityFilePath);
+    channelActivityTime = loadMapFromJSON(activityFilePath);
 }
 
 function loadRoleActivityConfig() {
@@ -57,20 +112,31 @@ async function saveActivityData() {
     const now = Date.now();
 
     // Load existing activity data from JSON
-    const existingActivityData = loadJSON(activityFilePath);
+    const existingActivityData = loadMapFromJSON(activityFilePath);
 
     // Update totalTime for each user based on their startTime
-    for (const userId in channelActivityTime) {
-        const userActivity = channelActivityTime[userId];
+    for (const [userId, userActivity] of channelActivityTime) {
         if (userActivity.startTime) {
-            const existingTotalTime = existingActivityData[userId]?.totalTime || 0;
+            const existingTotalTime = existingActivityData.get(userId)?.totalTime || 0;
             userActivity.totalTime = existingTotalTime + (now - userActivity.startTime);
             userActivity.startTime = now; // Reset startTime to now
         }
     }
 
     // Save the updated activity data including startTime
-    saveJSON(activityFilePath, channelActivityTime);
+    saveMapToJSON(activityFilePath, channelActivityTime);
+}
+
+function debounceSaveActivityData() {
+    // 기존 예약된 saveActivityData 실행을 취소
+    if (saveActivityTimeout) {
+        clearTimeout(saveActivityTimeout);
+    }
+
+    // 10분(600,000ms) 후 실행 예약
+    saveActivityTimeout = setTimeout(async () => {
+        await saveActivityData();
+    }, 600000); // 10분
 }
 
 async function clearAndReinitializeActivityData() {
@@ -79,12 +145,12 @@ async function clearAndReinitializeActivityData() {
     const now = Date.now();
     const guild = client.guilds.cache.get(process.env.GUILDID);
 
-    channelActivityTime = {};
+    channelActivityTime = new Map();
     guild.members.fetch().then(members => {
         members.forEach(member => {
             const voiceState = member.voice;
             if (voiceState && voiceState.channelId && !excludedChannelIds.includes(voiceState.channelId)) {
-                channelActivityTime[member.id] = { startTime: now, totalTime: 0 };
+                channelActivityTime.set(member.id, { startTime: now, totalTime: 0 });
             }
         });
     }).catch(error => {
@@ -92,13 +158,42 @@ async function clearAndReinitializeActivityData() {
     });
 }
 
-function splitContentByLines(content, maxLines) {
-    const lines = content.split('\n');
-    const chunks = [];
-    for (let i = 0; i < lines.length; i += maxLines) {
-        chunks.push(lines.slice(i, i + maxLines).join('\n'));
+async function initializeActivityData(guild) {
+    // 역할 활동 설정 불러오기
+    if (!fs.existsSync(configFilePath)) {
+        console.error("❌ role_activity_config.json 파일이 없습니다.");
+        return;
     }
-    return chunks;
+    const roleActivityConfig = loadJSON(configFilePath);
+
+    // 기존 저장된 사용자 데이터 불러오기
+    let activityData = loadMapFromJSON(activityFilePath);
+
+    // 길드(서버)의 모든 멤버 불러오기
+    const members = await guild.members.fetch();
+
+    members.forEach(member => {
+        const userId = member.user.id;
+        const userRoles = member.roles.cache.map(role => role.name); // 사용자의 역할 이름 가져오기
+
+        // 사용자의 역할 중 role_activity_config에 있는 역할이 있는지 확인
+        const hasTrackedRole = userRoles.some(role => roleActivityConfig.hasOwnProperty(role));
+
+        if (hasTrackedRole) {
+            if (!activityData.has(userId)) {
+                // 사용자가 activity_info.json에 없으면 추가
+                activityData.set(userId, {
+                    startTime: 0,
+                    totalTime: 0
+                });
+                // console.log(`✅ ${member.displayName} (${userId}) 추가됨 (초기화 상태)`);
+            }
+        }
+    });
+
+    // 변경된 데이터 저장
+    saveMapToJSON(activityFilePath, activityData);
+    console.log("✔ 활동 정보가 초기화되었습니다.");
 }
 
 function formatTime(totalTime) {
@@ -107,18 +202,78 @@ function formatTime(totalTime) {
     return `${hours}시간 ${minutes}분`;
 }
 
-client.once("ready", () => {
+async function sendActivityCSV(interaction, activeUsers, inactiveUsers) {
+    // CSV 데이터 변환을 위한 배열
+    const allUsersData = [
+        ...activeUsers.map(user => ({
+            상태: '활동 중',
+            이름: user.nickname,
+            '총 활동 시간': `${Math.floor(user.totalTime / 1000 / 60 / 60)}시간 ${Math.floor((user.totalTime / 1000 / 60) % 60)}분`,
+        })),
+        ...inactiveUsers.map(user => ({
+            상태: '잠수',
+            이름: user.nickname,
+            '총 활동 시간': `${Math.floor(user.totalTime / 1000 / 60 / 60)}시간 ${Math.floor((user.totalTime / 1000 / 60) % 60)}분`,
+        }))
+    ];
+
+    // CSV 변환
+    const csv = parse(allUsersData, { fields: ['상태', '이름', '총 활동 시간'] });
+
+    // 파일 경로 설정
+    const filePath = path.join(__dirname, 'activity_data.csv');
+
+    // CSV 파일 저장
+    fs.writeFileSync(filePath, csv, 'utf-8');
+
+    // Discord에서 파일 첨부
+    const fileAttachment = new AttachmentBuilder(filePath);
+
+    try {
+        // DM으로 파일 전송
+        await interaction.user.send({
+            content: '📊 활동 데이터 CSV 파일입니다.',
+            files: [fileAttachment],
+        });
+
+        // 명령어 실행한 채널에도 알림 (DM 보냈다고)
+        await interaction.followUp({
+            content: '📩 활동 데이터 CSV 파일을 DM으로 전송했습니다!',
+            flags: MessageFlags.Ephemeral,
+        });
+    } catch (error) {
+        console.error('DM 전송 실패:', error);
+
+        // DM 전송 실패 시 채널에서 직접 파일 제공
+        await interaction.followUp({
+            content: '📂 DM 전송에 실패했습니다. 여기에서 다운로드하세요:',
+            files: [fileAttachment],
+            flags: MessageFlags.Ephemeral,
+        });
+    }
+
+    // 파일 삭제 (임시 파일 정리)
+    setTimeout(() => fs.unlinkSync(filePath), 30000); // 30초 후 파일 삭제
+}
+
+
+client.once("ready", async () => {
     console.log(`Logged in as ${client.user.tag}!`);
     loadActivityData();
     loadRoleActivityConfig();
 
-    setInterval(() => {
-        saveActivityData();
-        clearAndReinitializeActivityData();
-    }, 30 * 60 * 1000);
+    const guild = client.guilds.cache.get(process.env.GUILDID);
+
+    if (guild) {
+        await initializeActivityData(guild);
+    }
+
+    const now = new Date();
+    const formattedDate = now.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+    console.log(`봇이 켜졌습니다: ${formattedDate}`);
 });
 
-client.on(Events.VoiceStateUpdate, (oldState, newState) => {
+client.on(Events.VoiceStateUpdate, async (oldState, newState) => {
     const userId = newState.id;
     const now = Date.now();
     const member = newState.member;
@@ -126,18 +281,25 @@ client.on(Events.VoiceStateUpdate, (oldState, newState) => {
     if (member && (member.displayName.includes('[관전]') || member.displayName.includes('[대기]'))) return;
 
     if (newState.channelId && !excludedChannelIds.includes(newState.channelId)) {
-        if (!channelActivityTime[userId]) {
-            channelActivityTime[userId] = { startTime: now, totalTime: 0 };
-        } else if (!channelActivityTime[userId].startTime) {
-            channelActivityTime[userId].startTime = now;
+        if (!channelActivityTime.has(userId)) {
+            channelActivityTime.set(userId, { startTime: now, totalTime: 0 });
+            const membersInChannel = await getVoiceChannelMembers(newState.channel);
+            logActivity(`${member.displayName}님이 음성채널 ${newState.channel.name}에 참가했습니다.`, membersInChannel);
+        } else if (!channelActivityTime.get(userId).startTime) {
+            channelActivityTime.get(userId).startTime = now;
+            const membersInChannel = await getVoiceChannelMembers(newState.channel);
+            logActivity(`${member.displayName}님이 음성채널 ${newState.channel.name}에 참가했습니다.`, membersInChannel);
         }
     } else if (oldState.channelId && !excludedChannelIds.includes(oldState.channelId)) {
-        if (channelActivityTime[userId] && channelActivityTime[userId].startTime) {
-            channelActivityTime[userId].totalTime += now - channelActivityTime[userId].startTime;
-            channelActivityTime[userId].startTime = null;
+        if (channelActivityTime.has(userId) && channelActivityTime.get(userId).startTime) {
+            const userActivity = channelActivityTime.get(userId);
+            userActivity.totalTime += now - userActivity.startTime;
+            userActivity.startTime = null;
+            const membersInChannel = await getVoiceChannelMembers(oldState.channel);
+            logActivity(`${member.displayName}님이 음성채널 ${oldState.channel.name}에서 퇴장했습니다.`, membersInChannel);
         }
     }
-    saveActivityData();
+    debounceSaveActivityData();
 });
 
 client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
@@ -145,19 +307,29 @@ client.on(Events.GuildMemberUpdate, (oldMember, newMember) => {
     const now = Date.now();
 
     if (newMember.displayName.includes('[관전]') || newMember.displayName.includes('[대기]')) {
-        if (channelActivityTime[userId] && channelActivityTime[userId].startTime) {
-            channelActivityTime[userId].totalTime += now - channelActivityTime[userId].startTime;
-            channelActivityTime[userId].startTime = null;
+        if (channelActivityTime.has(userId) && channelActivityTime.get(userId).startTime) {
+            const userActivity = channelActivityTime.get(userId);
+            userActivity.totalTime += now - userActivity.startTime;
+            userActivity.startTime = null;
         }
     } else {
         const voiceState = newMember.voice;
         if (voiceState && voiceState.channelId && !excludedChannelIds.includes(voiceState.channelId)) {
-            if (!channelActivityTime[userId]) {
-                channelActivityTime[userId] = { startTime: now, totalTime: 0 };
-            } else if (!channelActivityTime[userId].startTime) {
-                channelActivityTime[userId].startTime = now;
+            if (!channelActivityTime.has(userId)) {
+                channelActivityTime.set(userId, { startTime: now, totalTime: 0 });
+            } else if (!channelActivityTime.get(userId).startTime) {
+                channelActivityTime.get(userId).startTime = now;
             }
-            saveActivityData();
+            debounceSaveActivityData();
+        }
+    }
+});
+
+client.on(Events.ChannelUpdate, async (oldChannel, newChannel) => {
+    if (newChannel.type === ChannelType.GuildVoice) { // ChannelType 올바르게 사용
+        if (oldChannel.name !== newChannel.name) {
+            const membersInChannel = await getVoiceChannelMembers(newChannel);
+            logActivity(`🔄 음성채널 이름이 변경되었습니다: \`${oldChannel.name}\` → \`${newChannel.name}\``, membersInChannel);
         }
     }
 });
@@ -182,11 +354,14 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             const role = interaction.options.getString("role").split(',').map(r => r.trim());
             const guild = interaction.guild;
+
+            await initializeActivityData(guild);
+
             const members = await guild.members.fetch();
             const roleMembers = members.filter(member => member.roles.cache.some(r => role.includes(r.name)));
 
             saveActivityData();
-            const activityData = loadJSON(activityFilePath);
+            const activityData = loadMapFromJSON(activityFilePath);
             const roleActivityConfig = loadJSON(configFilePath);
             const minActivityTime = roleActivityConfig[role] ? roleActivityConfig[role] * 60 * 60 * 1000 : 0;
 
@@ -195,7 +370,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
             roleMembers.forEach(member => {
                 const userId = member.user.id;
-                const activity = activityData[userId] || { totalTime: 0 };
+                const activity = activityData.get(userId) || { totalTime: 0 };
                 const userData = {
                     userId: userId,
                     nickname: member.displayName,
@@ -212,48 +387,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             activeUsers.sort((a, b) => b.totalTime - a.totalTime);
             inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
 
-            const formatData = (data) => data.map(user => ({
-                '이름': user.nickname,
-                '활동 시간': `${Math.floor(user.totalTime / 1000 / 60 / 60)}시간 ${Math.floor((user.totalTime / 1000 / 60) % 60)}분`
-            }));
+            await sendActivityCSV(interaction, activeUsers, inactiveUsers);
 
-            const formattedActiveData = formatData(activeUsers);
-            const formattedInactiveData = formatData(inactiveUsers);
-
-            const maxNameLength = Math.max(...formattedActiveData.map(data => data['이름'].length), ...formattedInactiveData.map(data => data['이름'].length), 5);
-            const maxTimeLength = Math.max(...formattedActiveData.map(data => data['활동 시간'].length), ...formattedInactiveData.map(data => data['활동 시간'].length), 5);
-
-            const formattedActiveString = formattedActiveData.map(data =>
-                `이름: ${data['이름'].padEnd(maxNameLength)}  활동 시간: ${data['활동 시간'].padEnd(maxTimeLength)}`
-            ).join('\n');
-
-            const formattedInactiveString = formattedInactiveData.map(data =>
-                `이름: ${data['이름'].padEnd(maxNameLength)}  활동 시간: ${data['활동 시간'].padEnd(maxTimeLength)}`
-            ).join('\n');
-
-            const activeChunks = splitContentByLines(`활동 시간 데이터:\n\n**활동 사용자:**\n${formattedActiveString}`, 30);
-            const inactiveChunks = splitContentByLines(`\n\n**잠수 사용자:**\n${formattedInactiveString}`, 30);
-
-            for (const chunk of activeChunks) {
-                await interaction.followUp({
-                    content: chunk,
-                    flags: MessageFlags.Ephemeral,
-                });
-            }
-
-            for (const chunk of inactiveChunks) {
-                await interaction.followUp({
-                    content: chunk,
-                    flags: MessageFlags.Ephemeral,
-                });
-            }
-
-            // saveActivityData();
-        // } else if (commandName === "is_bot_alive") {
-        //     await interaction.reply({
-        //         content: "봇이 살아있습니다!",
-        //         flags: MessageFlags.Ephemeral,
-        //     });
         } else if (commandName === "gap_config") {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -267,6 +402,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 content: `역할 ${role} 의 최소 활동시간을 ${hours} 시간으로 설정 했습니다!`,
                 flags: MessageFlags.Ephemeral,
             });
+
         } else if (commandName === "gap_reset") {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -274,17 +410,18 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const members = interaction.guild.members.cache.filter(member => member.roles.cache.some(r => r.name === role));
 
             members.forEach(member => {
-                if (channelActivityTime[member.user.id]) {
-                    delete channelActivityTime[member.user.id];
+                if (channelActivityTime.has(member.user.id)) {
+                    channelActivityTime.delete(member.user.id);
                 }
             });
 
-            saveActivityData();
+            await initializeActivityData(interaction.guild);
 
             await interaction.followUp({
                 content: `역할 ${role} 의 모든 사용자의 활동 시간이 초기화되었습니다.`,
                 flags: MessageFlags.Ephemeral,
             });
+
         } else if (commandName === "gap_check") {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
@@ -292,21 +429,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
             const userId = user.id;
 
             saveActivityData();
-            const activityData = loadJSON(activityFilePath);
-            const activity = activityData[userId] || { totalTime: 0 };
-
-            console.log('Activity Data:');
-            console.table(Object.entries(activityData).map(([id, data]) => ({
-                userId: id,
-                startTime: data.startTime,
-                totalTime: formatTime(data.totalTime)
-            })));
-            console.log('User Activity:');
-            console.table({
-                userId: userId,
-                startTime: activity.startTime,
-                totalTime: formatTime(activity.totalTime)
-            });
+            const activityData = loadMapFromJSON(activityFilePath);
+            const activity = activityData.get(userId) || { totalTime: 0 };
 
             const totalTime = activity.totalTime;
             const hours = Math.floor(totalTime / 1000 / 60 / 60);
@@ -317,24 +441,30 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 flags: MessageFlags.Ephemeral,
             });
 
-            // saveActivityData();
         } else if (commandName === "gap_save") {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             await saveActivityData();
-            clearAndReinitializeActivityData();
+            await clearAndReinitializeActivityData();
 
             await interaction.followUp({
-                content: "활동 데이터가 저장되고 초기화되었습니다.",
+                content: "활동 데이터가 최신화되었습니다.",
                 flags: MessageFlags.Ephemeral,
             });
         }
+
     } catch (error) {
         console.error("Error handling interaction:", error);
         await interaction.reply({
             content: "요청 수행 중 에러 발생!",
             flags: MessageFlags.Ephemeral,
         });
+    }
+});
+
+client.on(Events.ChannelCreate, (channel) => {
+    if (channel.type === 'GUILD_VOICE') {
+        logActivity(`봇이 음성채널 ${channel.name}을 생성했습니다.`, []);
     }
 });
 
