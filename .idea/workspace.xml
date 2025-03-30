@@ -4,15 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="ES6+ 로 변경">
-      <change afterPath="$PROJECT_DIR$/src/services/databaseManager.js" afterDir="false" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="SQLite 로 마이그레이션">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/readMe.md" beforeDir="false" afterPath="$PROJECT_DIR$/readMe.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/activityTracker.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityTracker.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -109,7 +102,7 @@
       <workItem from="1741277828822" duration="6000" />
       <workItem from="1743341771327" duration="397000" />
       <workItem from="1743342178670" duration="952000" />
-      <workItem from="1743346363296" duration="6449000" />
+      <workItem from="1743346363296" duration="7032000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -207,7 +200,15 @@
       <option name="project" value="LOCAL" />
       <updated>1743353766783</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="SQLite 로 마이그레이션">
+      <option name="closed" value="true" />
+      <created>1743357141422</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1743357141422</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -233,6 +234,7 @@
     <MESSAGE value="관전 및 대기 시 시간체크 안함 - 완성" />
     <MESSAGE value="관전 및 대기 시 시간체크 안함" />
     <MESSAGE value="ES6+ 로 변경" />
-    <option name="LAST_COMMIT_MESSAGE" value="ES6+ 로 변경" />
+    <MESSAGE value="SQLite 로 마이그레이션" />
+    <option name="LAST_COMMIT_MESSAGE" value="SQLite 로 마이그레이션" />
   </component>
 </project>
