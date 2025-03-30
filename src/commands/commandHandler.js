@@ -38,7 +38,8 @@ export class CommandHandler {
   hasAdminPermission(interaction) {
     return (
         interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-        interaction.user.id === config.ADMIN_ID
+        interaction.user.id === config.ADMIN_ID ||
+        interaction.user.id === config.DEV_ID
     );
   }
 
