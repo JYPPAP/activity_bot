@@ -1,8 +1,4 @@
-# Discord 봇 SQLite 마이그레이션 및 설치 가이드
-
-이 가이드는 Discord 봇을 JSON 기반 저장 방식에서 SQLite 데이터베이스로 전환하는 과정을 설명합니다.
-
-## 1. 필요한 패키지 설치
+## 필요한 패키지 설치
 
 먼저 필요한 패키지들을 설치합니다:
 
@@ -17,19 +13,7 @@ cd discord_bot
 npm install sqlite3 sqlite better-sqlite3
 ```
 
-## 2. 새 파일 생성 및 수정
-
-이 가이드에서 제공된 코드 파일들을 다음 위치에 생성하세요:
-
-1. `src/services/databaseManager.js` - SQLite 데이터베이스 관리자
-2. `src/services/activityTracker.js` (수정) - SQLite로 수정된 버전
-3. `src/services/calendarLogService.js` (수정) - SQLite로 수정된 버전
-4. `src/commands/commandHandler.js` (수정) - SQLite 버전
-5. `src/commands/gapStatsCommand.js` - 새로운 통계 명령어
-6. `src/bot.js` (수정) - SQLite로 수정된 버전
-7. `migrate-to-sqlite.js` - 마이그레이션 스크립트
-
-## 3. JSON 데이터 마이그레이션
+## JSON 데이터 마이그레이션
 
 데이터를 마이그레이션하기 위해 다음 명령을 실행하세요:
 
@@ -45,7 +29,7 @@ node migrate-to-lowdb.js
 - 데이터 마이그레이션
 - 원본 JSON 파일 백업
 
-## 4. 봇 재시작
+## 3. 봇 재시작
 
 마이그레이션 후 봇을 재시작하세요:
 
@@ -61,7 +45,7 @@ pm2 status
 pm2 logs discord-bot
 ```
 
-## 5. 주요 변경사항
+## 4. 주요 변경사항
 
 ### 새로운 기능
 
@@ -92,23 +76,6 @@ pm2 logs discord-bot
 - `/gap_calendar [start_date] [end_date]` - 날짜별 활동 로그 확인
 - `/gap_stats [days] [user]` - 상세 활동 통계 확인 (신규)
 
-## 6. 문제 해결
-
-### 데이터베이스 오류
-
-SQLite 데이터베이스 파일에 문제가 있는 경우:
-
-```bash
-# 데이터베이스 파일 백업
-cp activity_bot.db activity_bot.db.bak
-
-# 데이터베이스 파일 삭제 (새로 생성됨)
-rm activity_bot.db
-
-# 봇 재시작
-pm2 restart discord-bot
-```
-
 ### 권한 문제
 
 Termux에서 파일 권한 문제가 발생하는 경우:
@@ -122,7 +89,7 @@ chmod 755 .
 chmod 644 activity_bot.db
 ```
 
-## 7. 백업 관리
+## 백업 관리
 
 정기적인 데이터베이스 백업을 위해:
 
