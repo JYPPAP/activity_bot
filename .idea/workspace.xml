@@ -4,7 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="로그 메세지 색상 변경">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="로그 출력시간 변경">
       <change beforePath="$PROJECT_DIR$/src/config/constants.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/constants.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -107,7 +107,7 @@
       <workItem from="1741277828822" duration="6000" />
       <workItem from="1743341771327" duration="397000" />
       <workItem from="1743342178670" duration="952000" />
-      <workItem from="1743346363296" duration="12273000" />
+      <workItem from="1743346363296" duration="12570000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -309,7 +309,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743363036425</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="로그 출력시간 변경">
+      <option name="closed" value="true" />
+      <created>1743363384508</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1743363384508</updated>
+    </task>
+    <task id="LOCAL-00027" summary="로그 출력시간 변경">
+      <option name="closed" value="true" />
+      <created>1743363438005</created>
+      <option name="number" value="00027" />
+      <option name="presentableId" value="LOCAL-00027" />
+      <option name="project" value="LOCAL" />
+      <updated>1743363438005</updated>
+    </task>
+    <option name="localTasksCounter" value="28" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -344,6 +360,7 @@
     <MESSAGE value="개발자 ID 추가" />
     <MESSAGE value="파일 매니저 &gt; DB 매니저로 변경" />
     <MESSAGE value="로그 메세지 색상 변경" />
-    <option name="LAST_COMMIT_MESSAGE" value="로그 메세지 색상 변경" />
+    <MESSAGE value="로그 출력시간 변경" />
+    <option name="LAST_COMMIT_MESSAGE" value="로그 출력시간 변경" />
   </component>
 </project>

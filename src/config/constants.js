@@ -24,15 +24,15 @@ export const COLORS = {
   ACTIVE: '#00FF00',
   INACTIVE: '#FF0000',
   LOG: '#0099ff',
-  PASTEL_BLUE: '#A7C7E7',   // 파스텔 파란색
-  PASTEL_RED: '#FFCCCB',    // 파스텔 빨간색
-  PASTEL_GREEN: '#C1E1C1',  // 파스텔 초록색
+  PASTEL_BLUE: '#4A86E8',   // 매우 진한 파스텔 파란색
+  PASTEL_RED: '#E67C73',    // 매우 진한 파스텔 빨간색
+  PASTEL_GREEN: '#57BB8A',  // 매우 진한 파스텔 초록색
 };
 
 // 메시지 타입 상수
 export const MESSAGE_TYPES = {
-  JOIN: '🔵 음성채널 입장',
-  LEAVE: '🔴 음성채널 퇴장',
+  JOIN: '음성채널 입장',
+  LEAVE: '음성채널 퇴장',
   CHANNEL_RENAME: '🔄 음성채널 이름 변경',
   CHANNEL_CREATE: '🤖 음성채널 생성',
 };
