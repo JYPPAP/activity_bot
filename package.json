@@ -1,15 +1,27 @@
 {
-  "name": "bot_test_v1",
+  "name": "discord-activity-tracker",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "Discord 음성 채널 활동 추적 봇",
+  "main": "src/index.js",
+  "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
   },
+  "keywords": [
+    "discord",
+    "bot",
+    "activity",
+    "tracker"
+  ],
   "author": "",
   "license": "ISC",
-  "description": "",
   "dependencies": {
-    "discord.js": "^14.17.2",
-    "dotenv": "^16.4.7"
+    "discord.js": "^14.14.1",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
   }
 }
