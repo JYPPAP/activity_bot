@@ -1,25 +1,30 @@
-// src/commands/commandHandler.js - 명령어 핸들러
+// src/commands/commandHandler.js - 명령어 핸들러 (SQLite 버전)
 import { PermissionsBitField, MessageFlags } from 'discord.js';
 import { GapListCommand } from './gapListCommand.js';
 import { GapConfigCommand } from './gapConfigCommand.js';
 import { GapResetCommand } from './gapResetCommand.js';
 import { GapCheckCommand } from './gapCheckCommand.js';
 import { GapSaveCommand } from './gapSaveCommand.js';
+import { GapCalendarCommand } from './gapCalendarCommand.js';
+import { GapStatsCommand } from './gapStatsCommand.js'; // 새로운 통계 명령어 추가
 import { config } from '../config/env.js';
 
 export class CommandHandler {
-  constructor(client, activityTracker, fileManager) {
+  constructor(client, activityTracker, dbManager, calendarLogService) {
     this.client = client;
     this.activityTracker = activityTracker;
-    this.fileManager = fileManager;
-    
-    // 사용 가능한 명령어 목록 초기화
+    this.dbManager = dbManager;
+    this.calendarLogService = calendarLogService;
+
+    // 사용 가능한 명령어 목록 초기화 (SQLite 사용하도록 변경)
     this.commands = new Map([
-      ['gap_list', new GapListCommand(activityTracker, fileManager)],
-      ['gap_config', new GapConfigCommand(fileManager)],
+      ['gap_list', new GapListCommand(activityTracker, dbManager)],
+      ['gap_config', new GapConfigCommand(dbManager)],
       ['gap_reset', new GapResetCommand(activityTracker)],
-      ['gap_check', new GapCheckCommand(activityTracker, fileManager)],
-      ['gap_save', new GapSaveCommand(activityTracker)]
+      ['gap_check', new GapCheckCommand(activityTracker, dbManager)],
+      ['gap_save', new GapSaveCommand(activityTracker)],
+      ['gap_calendar', new GapCalendarCommand(calendarLogService)],
+      ['gap_stats', new GapStatsCommand(dbManager)] // 새로운 통계 명령어 추가
     ]);
   }
 
@@ -30,8 +35,8 @@ export class CommandHandler {
    */
   hasAdminPermission(interaction) {
     return (
-      interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-      interaction.user.id === config.DEV_ID
+        interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+        interaction.user.id === config.ADMIN_ID
     );
   }
 
@@ -62,7 +67,7 @@ export class CommandHandler {
       }
     } catch (error) {
       console.error("명령어 처리 오류:", error);
-      
+
       // 이미 응답한 상호작용이 아닐 경우에만 응답
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
