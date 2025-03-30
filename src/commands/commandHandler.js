@@ -1,4 +1,6 @@
-// src/commands/commandHandler.js - 명령어 핸들러 (SQLite 버전)
+// src/commands/commandHandler.js - 명령어 핸들러
+console.log('>>> commandHandler.js 파일이 로드되었습니다.');
+
 import { PermissionsBitField, MessageFlags } from 'discord.js';
 import { GapListCommand } from './gapListCommand.js';
 import { GapConfigCommand } from './gapConfigCommand.js';
