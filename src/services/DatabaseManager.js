@@ -1,6 +1,6 @@
 // src/services/databaseManager.js - LowDB 버전
 import low from 'lowdb';
-import FileSync from 'lowdb/adapters/FileSync';
+import FileSync from 'lowdb/adapters/FileSync.js';
 import path from 'path';
 
 export class DatabaseManager {
