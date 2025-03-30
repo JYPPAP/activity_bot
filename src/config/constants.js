@@ -24,6 +24,9 @@ export const COLORS = {
   ACTIVE: '#00FF00',
   INACTIVE: '#FF0000',
   LOG: '#0099ff',
+  PASTEL_BLUE: '#A7C7E7',   // 파스텔 파란색
+  PASTEL_RED: '#FFCCCB',    // 파스텔 빨간색
+  PASTEL_GREEN: '#C1E1C1',  // 파스텔 초록색
 };
 
 // 메시지 타입 상수

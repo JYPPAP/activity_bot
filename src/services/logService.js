@@ -15,9 +15,15 @@ export class LogService {
    * 음성 채널 활동을 로그에 기록합니다.
    * @param {string} message - 로그 메시지
    * @param {Array<string>} membersInChannel - 채널에 있는 멤버 목록
+   * @param {string} type - 로그 타입 (선택 사항)
    */
-  logActivity(message, membersInChannel = []) {
-    this.logMessages.push({ message, members: membersInChannel });
+  logActivity(message, membersInChannel = [], type = 'INFO') {
+    // 방-생성하기 메시지 필터링
+    if (message.includes('╭방-생성하기')) {
+      return; // 방-생성하기 관련 로그는 기록하지 않음
+    }
+
+    this.logMessages.push({ message, members: membersInChannel, type });
 
     // 이전 타임아웃 취소
     if (this.logTimeout) {
@@ -38,7 +44,23 @@ export class LogService {
     if (!logChannel) return;
 
     for (const log of this.logMessages) {
-      const embed = EmbedFactory.createLogEmbed(log.message, log.members);
+      // 로그 타입에 따라 색상 결정
+      let color = COLORS.LOG;
+
+      if (log.message.includes(MESSAGE_TYPES.JOIN)) {
+        color = COLORS.PASTEL_BLUE;
+      } else if (log.message.includes(MESSAGE_TYPES.LEAVE)) {
+        color = COLORS.PASTEL_RED;
+      } else if (log.message.includes(MESSAGE_TYPES.CHANNEL_RENAME)) {
+        color = COLORS.PASTEL_GREEN;
+      } else if (log.message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
+        color = COLORS.PASTEL_BLUE;
+      }
+
+      // 음성 채널 생성 로그의 경우 멤버 목록 숨기기
+      const showMembers = !log.message.includes(MESSAGE_TYPES.CHANNEL_CREATE);
+
+      const embed = EmbedFactory.createLogEmbed(log.message, log.members, color, showMembers);
       await logChannel.send({ embeds: [embed] });
     }
 

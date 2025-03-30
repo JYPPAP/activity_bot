@@ -40,26 +40,31 @@ export class EmbedFactory {
     return embed;
   }
 
-  /**
-   * 로그 메시지 임베드를 생성합니다.
-   * @param {string} message - 로그 메시지
-   * @param {Array<string>} members - 채널에 있는 멤버 목록
-   * @returns {EmbedBuilder} - 생성된 임베드
-   */
-  static createLogEmbed(message, members) {
-    const embed = new EmbedBuilder()
-      .setColor(COLORS.LOG)
-      .setDescription(`**${message}**`)
-      .setFooter({ 
-        text: `로그 기록 시간: ${formatKoreanDate(new Date())}` 
-      });
+    /**
+     * 로그 메시지 임베드를 생성합니다.
+     * @param {string} message - 로그 메시지
+     * @param {Array<string>} members - 채널에 있는 멤버 목록
+     * @param {string} color - 임베드 색상 (hex 코드)
+     * @param {boolean} showMembers - 멤버 목록 표시 여부
+     * @returns {EmbedBuilder} - 생성된 임베드
+     */
+    static createLogEmbed(message, members, color = COLORS.LOG, showMembers = true) {
+        const embed = new EmbedBuilder()
+            .setColor(color)
+            .setDescription(`**${message}**`)
+            .setFooter({
+                text: `로그 기록 시간: ${formatKoreanDate(new Date())}`
+            });
 
-    // 현재 음성 채널의 인원 목록
-    const membersText = formatMembersList(members);
-    embed.addFields({ name: '👥 현재 남아있는 멤버', value: membersText });
-    
-    return embed;
-  }
+        // 멤버 목록 표시 여부 확인
+        if (showMembers) {
+            // 현재 음성 채널의 인원 목록
+            const membersText = formatMembersList(members);
+            embed.addFields({ name: '👥 현재 남아있는 멤버', value: membersText });
+        }
+
+        return embed;
+    }
 
   /**
    * 단순 알림 임베드를 생성합니다.
