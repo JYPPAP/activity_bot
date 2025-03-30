@@ -5,8 +5,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="활동내역 출력시 달력 서버로 변경">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -108,7 +107,7 @@
       <workItem from="1741277828822" duration="6000" />
       <workItem from="1743341771327" duration="397000" />
       <workItem from="1743342178670" duration="952000" />
-      <workItem from="1743346363296" duration="10189000" />
+      <workItem from="1743346363296" duration="10467000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -262,7 +261,15 @@
       <option name="project" value="LOCAL" />
       <updated>1743360570652</updated>
     </task>
-    <option name="localTasksCounter" value="20" />
+    <task id="LOCAL-00020" summary="활동내역 출력시 달력 서버로 변경">
+      <option name="closed" value="true" />
+      <created>1743361151412</created>
+      <option name="number" value="00020" />
+      <option name="presentableId" value="LOCAL-00020" />
+      <option name="project" value="LOCAL" />
+      <updated>1743361151412</updated>
+    </task>
+    <option name="localTasksCounter" value="21" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
