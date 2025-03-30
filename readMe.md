@@ -33,9 +33,10 @@ npm install sqlite3 sqlite better-sqlite3
 
 데이터를 마이그레이션하기 위해 다음 명령을 실행하세요:
 
+node migrate-to-sqlite.js (사용 X)
 ```bash
 # 마이그레이션 스크립트 실행
-node migrate-to-sqlite.js
+node migrate-to-lowdb.js
 ```
 
 이 스크립트는 다음 작업을 수행합니다:
