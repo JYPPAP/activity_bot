@@ -1,8 +1,13 @@
-// migrate-to-lowdb.js
-const fs = require('fs');
-const path = require('path');
-const low = require('lowdb');
-const FileSync = require('lowdb/adapters/FileSync');
+// migrate-to-lowdb.js - ES 모듈 버전
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import low from 'lowdb';
+import FileSync from 'lowdb/adapters/FileSync';
+
+// ES 모듈에서 __dirname 구현
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const ACTIVITY_FILE = path.join(__dirname, 'activity_info.json');
 const ROLE_CONFIG_FILE = path.join(__dirname, 'role_activity_config.json');
@@ -14,6 +19,10 @@ try {
     // 기존 파일 존재 확인
     if (!fs.existsSync(ACTIVITY_FILE) || !fs.existsSync(ROLE_CONFIG_FILE)) {
         console.error('마이그레이션할 JSON 파일이 없습니다!');
+        console.error(`확인된 경로: 
+      - ${ACTIVITY_FILE} (${fs.existsSync(ACTIVITY_FILE) ? '존재' : '없음'})
+      - ${ROLE_CONFIG_FILE} (${fs.existsSync(ROLE_CONFIG_FILE) ? '존재' : '없음'})
+    `);
         process.exit(1);
     }
 
@@ -68,7 +77,7 @@ try {
         if (resetTime) {
             db.get('reset_history')
                 .push({
-                    id: Date.now() + '-' + roleName,
+                    id: `${Date.now()}-${roleName}`,
                     roleName,
                     resetTime,
                     reason: 'JSON 데이터 마이그레이션'
