@@ -1,12 +1,11 @@
-// src/commands/gapCheckCommand.js - gap_check 명령어
+// src/commands/gapCheckCommand.js - gap_check 명령어 (수정)
 import { MessageFlags } from 'discord.js';
-import { PATHS } from '../config/constants.js';
 import { formatTime } from '../utils/formatters.js';
 
 export class GapCheckCommand {
-  constructor(activityTracker, fileManager) {
+  constructor(activityTracker, dbManager) {
     this.activityTracker = activityTracker;
-    this.fileManager = fileManager;
+    this.db = dbManager;
   }
 
   /**
@@ -23,10 +22,9 @@ export class GapCheckCommand {
 
       // 현재 활동 데이터 저장 (최신 데이터 확보)
       await this.activityTracker.saveActivityData();
-      
+
       // 활동 데이터 로드
-      const activityData = this.fileManager.loadMapFromJSON(PATHS.ACTIVITY_INFO);
-      const activity = activityData.get(userId) || { totalTime: 0 };
+      const activity = await this.db.getUserActivity(userId) || { totalTime: 0 };
 
       // 총 활동 시간 포맷팅
       const formattedTime = formatTime(activity.totalTime);

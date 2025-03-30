@@ -30,9 +30,9 @@ export class Bot {
       ],
     });
 
-    // 각 서비스 인스턴스 생성 (FileManager → DatabaseManager로 변경)
+    // 각 서비스 인스턴스 생성 (FileManager 제거)
     this.dbManager = new DatabaseManager();
-    this.fileManager = new FileManager(); // 마이그레이션용으로 유지
+    // this.fileManager = new FileManager(); // 이 줄 제거
     this.logService = new LogService(this.client, config.LOG_CHANNEL_ID);
     this.calendarLogService = new CalendarLogService(this.client, this.dbManager);
     this.activityTracker = new ActivityTracker(this.client, this.dbManager, this.logService);

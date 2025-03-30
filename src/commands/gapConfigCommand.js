@@ -1,11 +1,10 @@
-// src/commands/gapConfigCommand.js - gap_config 명령어
+// src/commands/gapConfigCommand.js - gap_config 명령어 (수정)
 import { MessageFlags } from 'discord.js';
-import { PATHS } from '../config/constants.js';
 import { cleanRoleName } from '../utils/formatters.js';
 
 export class GapConfigCommand {
-  constructor(fileManager) {
-    this.fileManager = fileManager;
+  constructor(dbManager) {
+    this.db = dbManager;
   }
 
   /**
@@ -19,16 +18,10 @@ export class GapConfigCommand {
       // 명령어 옵션 가져오기
       const role = cleanRoleName(interaction.options.getString("role"));
       const hours = interaction.options.getInteger("hours");
-      
-      // 역할 활동 설정 파일 로드
-      const roleActivityConfig = this.fileManager.loadJSON(PATHS.ROLE_CONFIG);
-      
-      // 설정 업데이트
-      roleActivityConfig[role] = hours;
-      
-      // 설정 저장
-      this.fileManager.saveJSON(PATHS.ROLE_CONFIG, roleActivityConfig);
-      
+
+      // 역할 설정 업데이트
+      await this.db.updateRoleConfig(role, hours);
+
       // 응답 전송
       await interaction.followUp({
         content: `역할 ${role}의 최소 활동시간을 ${hours}시간으로 설정했습니다!`,

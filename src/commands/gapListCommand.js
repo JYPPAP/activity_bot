@@ -1,13 +1,12 @@
-// src/commands/gapListCommand.js - gap_list 명령어
+// src/commands/gapListCommand.js - gap_list 명령어 (수정)
 import { MessageFlags } from 'discord.js';
-import { PATHS } from '../config/constants.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { cleanRoleName } from '../utils/formatters.js';
 
 export class GapListCommand {
-  constructor(activityTracker, fileManager) {
+  constructor(activityTracker, dbManager) {
     this.activityTracker = activityTracker;
-    this.fileManager = fileManager;
+    this.db = dbManager;
   }
 
   /**
@@ -28,20 +27,20 @@ export class GapListCommand {
 
       // 역할 멤버 가져오기
       const members = await guild.members.fetch();
-      const roleMembers = members.filter(member => 
-        member.roles.cache.some(r => roles.includes(r.name))
+      const roleMembers = members.filter(member =>
+          member.roles.cache.some(r => roles.includes(r.name))
       );
 
       // 현재 활동 데이터 저장
       await this.activityTracker.saveActivityData();
-      
+
       // 최신 데이터로 활성/비활성 사용자 분류
-      const { activeUsers, inactiveUsers, resetTime, minHours } = 
-        await this.classifyUsers(roles[0], roleMembers);
+      const { activeUsers, inactiveUsers, resetTime, minHours } =
+          await this.classifyUsers(roles[0], roleMembers);
 
       // 임베드 전송
       await this.sendActivityEmbed(interaction, activeUsers, inactiveUsers, roles[0], resetTime, minHours);
-      
+
     } catch (error) {
       console.error('gap_list 명령어 실행 오류:', error);
       await interaction.followUp({
@@ -58,24 +57,30 @@ export class GapListCommand {
    * @returns {Object} - 분류된 사용자 목록과 설정 정보
    */
   async classifyUsers(role, roleMembers) {
-    const activityData = this.fileManager.loadMapFromJSON(PATHS.ACTIVITY_INFO);
-    const roleActivityConfig = this.fileManager.loadJSON(PATHS.ROLE_CONFIG);
-    
+    // 활동 데이터와 설정 가져오기
+    const activities = await this.db.getAllUserActivity();
+    const roleConfig = await this.db.getRoleConfig(role);
+
+    // 활동 데이터를 Map으로 변환
+    const activityMap = new Map();
+    activities.forEach(activity => {
+      activityMap.set(activity.userId, activity);
+    });
+
     // 역할에 필요한 최소 활동 시간(밀리초)
-    const minActivityHours = roleActivityConfig[role] || 0;
+    const minActivityHours = roleConfig ? roleConfig.minHours : 0;
     const minActivityTime = minActivityHours * 60 * 60 * 1000;
-    
+
     // 리셋 시간 가져오기
-    const resetTimes = activityData.get('resetTimes') || {};
-    const resetTime = resetTimes[role] || null;
+    const resetTime = roleConfig ? roleConfig.resetTime : null;
 
     const activeUsers = [];
     const inactiveUsers = [];
 
     roleMembers.forEach(member => {
       const userId = member.user.id;
-      const activity = activityData.get(userId) || { totalTime: 0 };
-      
+      const activity = activityMap.get(userId) || { totalTime: 0 };
+
       const userData = {
         userId,
         nickname: member.displayName,
@@ -94,11 +99,11 @@ export class GapListCommand {
     activeUsers.sort((a, b) => b.totalTime - a.totalTime);
     inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
 
-    return { 
-      activeUsers, 
-      inactiveUsers, 
-      resetTime, 
-      minHours: minActivityHours 
+    return {
+      activeUsers,
+      inactiveUsers,
+      resetTime,
+      minHours: minActivityHours
     };
   }
 
