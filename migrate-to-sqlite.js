@@ -1,5 +1,5 @@
 // migrate-to-sqlite.js - JSON 데이터를 SQLite로 마이그레이션하는 스크립트
-import { DatabaseManager } from './src/services/databaseManager.js';
+import { DatabaseManager } from './src/services/DatabaseManager.js';
 import { FileManager } from './src/services/fileManager.js';
 import { PATHS } from './src/config/constants.js';
 import fs from 'fs';

@@ -6,7 +6,7 @@ import { LogService } from './services/logService.js';
 import { CalendarLogService } from './services/calendarLogService.js';
 import { CommandHandler } from './commands/commandHandler.js';
 import { FileManager } from './services/fileManager.js'; // 마이그레이션용으로 유지
-import { DatabaseManager } from './services/databaseManager.js'; // 새로운 DB 관리자
+import { DatabaseManager } from './services/DatabaseManager.js'; // 새로운 DB 관리자
 import { config } from './config/env.js';
 import { PATHS } from './config/constants.js';
 import fs from 'fs';
