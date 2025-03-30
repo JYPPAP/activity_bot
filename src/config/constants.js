@@ -15,7 +15,7 @@ export const PATHS = {
 
 // 시간 관련 상수 (밀리초 단위)
 export const TIME = {
-  LOG_DELAY: 300000, // 5분
+  LOG_DELAY: 30000, // 30초
   SAVE_ACTIVITY_DELAY: 600000, // 10분
 };
 
