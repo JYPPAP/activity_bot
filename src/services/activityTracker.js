@@ -254,7 +254,7 @@ export class ActivityTracker {
           userId,
           'JOIN',
           newState.channelId,
-          newState.channel.name,
+          newState.channel ? newState.channel.name : '알 수 없는 채널',
           membersInChannel
       );
     }
@@ -262,12 +262,22 @@ export class ActivityTracker {
     else if (oldState.channelId && !config.EXCLUDED_CHANNELS.includes(oldState.channelId)) {
       const membersInChannel = await this.logService.getVoiceChannelMembers(oldState.channel);
 
-      // 로그 서비스를 통한 로깅
-      this.logService.logActivity(
-          `${MESSAGE_TYPES.LEAVE}: ${member.displayName}님이 ${oldState.channel.name}에서 퇴장했습니다.`,
-          membersInChannel,
-          'LEAVE'
-      );
+      // 채널 객체가 존재하는지 확인
+      if (oldState.channel) {
+        // 로그 서비스를 통한 로깅
+        this.logService.logActivity(
+            `${MESSAGE_TYPES.LEAVE}: ${member.displayName}님이 ${oldState.channel.name}에서 퇴장했습니다.`,
+            membersInChannel,
+            'LEAVE'
+        );
+      } else {
+        // 채널 객체가 없는 경우
+        this.logService.logActivity(
+            `${MESSAGE_TYPES.LEAVE}: ${member.displayName}님이 알 수 없는 채널에서 퇴장했습니다.`,
+            membersInChannel,
+            'LEAVE'
+        );
+      }
 
       // 데이터베이스에도 로깅
       await this.db.logActivity(

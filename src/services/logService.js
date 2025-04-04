@@ -62,7 +62,7 @@ export class LogService {
    */
   async getVoiceChannelMembers(channel) {
     if (!channel) return [];
-    
+
     try {
       const freshChannel = await channel.guild.channels.fetch(channel.id);
       return freshChannel.members.map(member => member.displayName);
@@ -82,8 +82,9 @@ export class LogService {
       if (oldChannel.name !== newChannel.name) {
         const membersInChannel = await this.getVoiceChannelMembers(newChannel);
         this.logActivity(
-          `${MESSAGE_TYPES.CHANNEL_RENAME}: \`${oldChannel.name}\` → \`${newChannel.name}\``, 
-          membersInChannel
+            `${MESSAGE_TYPES.CHANNEL_RENAME}: \`${oldChannel.name}\` → \`${newChannel.name}\``,
+            membersInChannel,
+            'CHANNEL_RENAME'
         );
       }
     }
@@ -95,7 +96,7 @@ export class LogService {
    */
   async handleChannelCreate(channel) {
     if (channel.type === ChannelType.GuildVoice) {
-      this.logActivity(`${MESSAGE_TYPES.CHANNEL_CREATE}: ${channel.name}`, []);
+      this.logActivity(`${MESSAGE_TYPES.CHANNEL_CREATE}: ${channel.name}`, [], 'CHANNEL_CREATE');
     }
   }
 }
