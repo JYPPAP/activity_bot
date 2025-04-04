@@ -28,15 +28,8 @@ export const formatKoreanDate = (date) => {
  */
 export const formatMembersList = (members = []) => {
   const count = members?.length || 0;
-
-  if (count === 0) {
-    return `(0명)`;
-  }
-
-  // 각 멤버 이름을 콤마로 구분하고 코드 블록으로 감싸기
-  const list = members.join(', ');
-  // 코드 블록으로 감싸서 배경색과 테두리가 있는 형태로 표시
-  return `(${count}명)\n\`\`\`${list}\`\`\``;
+  const list = count > 0 ? members.map(member => `[${member}]`).join(', ') : '없음';
+  return `**현재 멤버: (${count}명)** ${list}`;
 };
 
 /**
