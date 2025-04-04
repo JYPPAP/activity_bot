@@ -59,7 +59,7 @@ export class EmbedFactory {
         if (!message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
             // 현재 음성 채널의 인원 목록
             const membersText = members.length > 0
-                ? `**현재 멤버 (${members.length}명):**\n${members.map(m => `\`${m}\``).join(' ')}`
+                ? `**현재 멤버 (${members.length}명):**\n${members.map(m => `\` ${m} \``).join(' ')}`
                 : `**현재 멤버 (0명)**`;
 
             embed.addFields({ name: '\u200B', value: membersText });

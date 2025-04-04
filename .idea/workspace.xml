@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="로그 출력부분 수정" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="readMe 수정">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -109,7 +111,7 @@
       <workItem from="1743346363296" duration="12726000" />
       <workItem from="1743413493059" duration="216000" />
       <workItem from="1743506567826" duration="108000" />
-      <workItem from="1743748216523" duration="3055000" />
+      <workItem from="1743748216523" duration="4789000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -375,7 +377,23 @@
       <option name="project" value="LOCAL" />
       <updated>1743750975467</updated>
     </task>
-    <option name="localTasksCounter" value="34" />
+    <task id="LOCAL-00034" summary="로그 출력부분 색상 수정">
+      <option name="closed" value="true" />
+      <created>1743751404770</created>
+      <option name="number" value="00034" />
+      <option name="presentableId" value="LOCAL-00034" />
+      <option name="project" value="LOCAL" />
+      <updated>1743751404770</updated>
+    </task>
+    <task id="LOCAL-00035" summary="readMe 수정">
+      <option name="closed" value="true" />
+      <created>1743752323043</created>
+      <option name="number" value="00035" />
+      <option name="presentableId" value="LOCAL-00035" />
+      <option name="project" value="LOCAL" />
+      <updated>1743752323043</updated>
+    </task>
+    <option name="localTasksCounter" value="36" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -404,7 +422,6 @@
     <MESSAGE value="SQLite 로 마이그레이션" />
     <MESSAGE value="파일 이동" />
     <MESSAGE value="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생" />
-    <MESSAGE value="readMe 수정" />
     <MESSAGE value="활동내역 출력시 달력 서버로 변경" />
     <MESSAGE value="DB 매니저 수정" />
     <MESSAGE value="개발자 ID 추가" />
@@ -416,6 +433,8 @@
     <MESSAGE value="로그 출력부분 수정 후&#10;에러 수정" />
     <MESSAGE value="로그 출력부분 수정 후 에러 수정" />
     <MESSAGE value="로그 출력부분 수정" />
-    <option name="LAST_COMMIT_MESSAGE" value="로그 출력부분 수정" />
+    <MESSAGE value="로그 출력부분 색상 수정" />
+    <MESSAGE value="readMe 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="readMe 수정" />
   </component>
 </project>
