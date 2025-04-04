@@ -48,7 +48,20 @@ export class LogService {
     if (!logChannel) return;
 
     for (const log of this.logMessages) {
-      const embed = EmbedFactory.createLogEmbed(log.message, log.members);
+      // 이벤트 유형에 따라 색상 결정
+      let colorCode = COLORS.LOG; // 기본 색상
+
+      if (log.eventType === 'JOIN' || log.message.includes(MESSAGE_TYPES.JOIN)) {
+        colorCode = COLORS.LOG_JOIN;
+      } else if (log.eventType === 'LEAVE' || log.message.includes(MESSAGE_TYPES.LEAVE)) {
+        colorCode = COLORS.LOG_LEAVE;
+      } else if (log.eventType === 'CHANNEL_CREATE' || log.message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
+        colorCode = COLORS.LOG_CREATE;
+      } else if (log.eventType === 'CHANNEL_RENAME' || log.message.includes(MESSAGE_TYPES.CHANNEL_RENAME)) {
+        colorCode = COLORS.LOG_RENAME;
+      }
+
+      const embed = EmbedFactory.createLogEmbed(log.message, log.members, colorCode);
       await logChannel.send({ embeds: [embed] });
     }
 

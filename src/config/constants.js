@@ -23,10 +23,11 @@ export const TIME = {
 export const COLORS = {
   ACTIVE: '#00FF00',
   INACTIVE: '#FF0000',
-  LOG: '#0099ff',
-  PASTEL_BLUE: '#4A86E8',   // 매우 진한 파스텔 파란색
-  PASTEL_RED: '#E67C73',    // 매우 진한 파스텔 빨간색
-  PASTEL_GREEN: '#57BB8A',  // 매우 진한 파스텔 초록색
+  LOG: '#0099ff',           // 기본 로그 색상 (파란색)
+  LOG_JOIN: '#4A86E8',      // 입장 로그 색상 (파스텔 파란색)
+  LOG_RENAME: '#4A86E8',    // 이름 변경 로그 색상 (파스텔 파란색)
+  LOG_LEAVE: '#E67C73',     // 퇴장 로그 색상 (파스텔 빨간색)
+  LOG_CREATE: '#57BB8A',    // 생성 로그 색상 (파스텔 초록색)
 };
 
 // 메시지 타입 상수
