@@ -1,4 +1,4 @@
-// src/config/env.js - 환경변수 처리 (수정)
+// src/config/env.js - 환경변수 처리
 import dotenv from 'dotenv';
 
 // .env 파일 로드
@@ -17,17 +17,15 @@ export const config = {
     process.env.EXCLUDE_CHANNELID_2,
     process.env.EXCLUDE_CHANNELID_3,
     process.env.EXCLUDE_CHANNELID_4,
-    process.env.EXCLUDE_CHANNELID_5
+    process.env.EXCLUDE_CHANNELID_5,
+    process.env.EXCLUDE_CHANNELID_6, // 방-생성하기 채널 ID 추가
   ].filter(Boolean), // null 또는 undefined 값 제거
 
   // 개발자 ID
   DEV_ID: process.env.DEV_ID,
 
-  // 달력 로그 채널 ID
-  CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID,
-
-  // 관리자 ID
-  ADMIN_ID: process.env.ADMIN_ID
+  // 목록 출력 채널
+  // CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID
 };
 
 // 필수 환경변수 확인
