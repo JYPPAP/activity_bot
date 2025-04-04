@@ -232,12 +232,22 @@ export class ActivityTracker {
     if (newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId)) {
       const membersInChannel = await this.logService.getVoiceChannelMembers(newState.channel);
 
-      // 로그 서비스를 통한 로깅
-      this.logService.logActivity(
-          `${MESSAGE_TYPES.JOIN}: ${member.displayName}님이 ${newState.channel.name}에 입장했습니다.`,
-          membersInChannel,
-          'JOIN'
-      );
+      // 채널 객체가 존재하는지 확인
+      if (newState.channel) {
+        // 로그 서비스를 통한 로깅
+        this.logService.logActivity(
+            `${MESSAGE_TYPES.JOIN}: ${member.displayName}님이 ${newState.channel.name}에 입장했습니다.`,
+            membersInChannel,
+            'JOIN'
+        );
+      } else {
+        // 채널 객체가 없는 경우
+        this.logService.logActivity(
+            `${MESSAGE_TYPES.JOIN}: ${member.displayName}님이 알 수 없는 채널에 입장했습니다.`,
+            membersInChannel,
+            'JOIN'
+        );
+      }
 
       // 데이터베이스에도 로깅
       await this.db.logActivity(

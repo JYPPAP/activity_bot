@@ -4,7 +4,7 @@ import { cleanRoleName } from '../utils/formatters.js';
 
 export class GapConfigCommand {
   constructor(dbManager) {
-    this.db = dbManager;
+    this.dbManager = dbManager;
   }
 
   /**
@@ -20,7 +20,7 @@ export class GapConfigCommand {
       const hours = interaction.options.getInteger("hours");
 
       // 역할 설정 업데이트
-      await this.db.updateRoleConfig(role, hours);
+      await this.dbManager.updateRoleConfig(role, hours);
 
       // 응답 전송
       await interaction.followUp({
