@@ -236,14 +236,14 @@ export class ActivityTracker {
       if (newState.channel) {
         // 로그 서비스를 통한 로깅
         this.logService.logActivity(
-            `${MESSAGE_TYPES.JOIN}: \' ${member.displayName} \'님이 \' ${newState.channel.name} \'에 입장했습니다.`,
+            `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${newState.channel.name} \`에 입장했습니다.`,
             membersInChannel,
             'JOIN'
         );
       } else {
         // 채널 객체가 없는 경우
         this.logService.logActivity(
-            `${MESSAGE_TYPES.JOIN}: \' ${member.displayName} \'님이 알 수 없는 채널에 입장했습니다.`,
+            `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 알 수 없는 채널에 입장했습니다.`,
             membersInChannel,
             'JOIN'
         );
@@ -266,14 +266,14 @@ export class ActivityTracker {
       if (oldState.channel) {
         // 로그 서비스를 통한 로깅
         this.logService.logActivity(
-            `${MESSAGE_TYPES.LEAVE}: \' ${member.displayName} \'님이 \' ${oldState.channel.name} \'에서 퇴장했습니다.`,
+            `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${oldState.channel.name} \`에서 퇴장했습니다.`,
             membersInChannel,
             'LEAVE'
         );
       } else {
         // 채널 객체가 없는 경우
         this.logService.logActivity(
-            `${MESSAGE_TYPES.LEAVE}: \' ${member.displayName} \'님이 알 수 없는 채널에서 퇴장했습니다.`,
+            `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 알 수 없는 채널에서 퇴장했습니다.`,
             membersInChannel,
             'LEAVE'
         );
