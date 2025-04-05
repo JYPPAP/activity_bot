@@ -28,7 +28,7 @@ export const formatKoreanDate = (date) => {
  */
 export const formatMembersList = (members = []) => {
   const count = members?.length || 0;
-  const list = count > 0 ? members.map(member => `\`${member}\``).join(' ') : '없음';
+  const list = count > 0 ? members.map(member => `\` ${member} \``).join(' ') : '없음';
   return `**현재 멤버: (${count}명)**\n${list}`;
 };
 

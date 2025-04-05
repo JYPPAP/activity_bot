@@ -34,7 +34,7 @@ export class LogService {
       clearTimeout(this.logTimeout);
     }
 
-    // 새 타임아웃 설정 - 5분(300,000ms) 후 로그 전송
+    // 새 타임아웃 설정 - 30초(30,000ms) 후 로그 전송
     this.logTimeout = setTimeout(async () => {
       await this.sendLogMessages();
     }, TIME.LOG_DELAY);
@@ -95,7 +95,7 @@ export class LogService {
       if (oldChannel.name !== newChannel.name) {
         const membersInChannel = await this.getVoiceChannelMembers(newChannel);
         this.logActivity(
-            `${MESSAGE_TYPES.CHANNEL_RENAME}: \`${oldChannel.name}\` → \`${newChannel.name}\``,
+            `${MESSAGE_TYPES.CHANNEL_RENAME}: \` ${oldChannel.name} \` → \` ${newChannel.name} \``,
             membersInChannel,
             'CHANNEL_RENAME'
         );
@@ -109,7 +109,7 @@ export class LogService {
    */
   async handleChannelCreate(channel) {
     if (channel.type === ChannelType.GuildVoice) {
-      this.logActivity(`${MESSAGE_TYPES.CHANNEL_CREATE}: ${channel.name}`, [], 'CHANNEL_CREATE');
+      this.logActivity(`${MESSAGE_TYPES.CHANNEL_CREATE}: \` ${channel.name} \``, [], 'CHANNEL_CREATE');
     }
   }
 }
