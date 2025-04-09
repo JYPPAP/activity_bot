@@ -9,8 +9,8 @@ import { GapCheckCommand } from './gapCheckCommand.js';
 import { GapSaveCommand } from './gapSaveCommand.js';
 import { GapCalendarCommand } from './gapCalendarCommand.js';
 import { GapStatsCommand } from './gapStatsCommand.js'; // 새로운 통계 명령어 추가
-// import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
-// import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
+import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
+import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
 import { config } from '../config/env.js';
 
 export class CommandHandler {
@@ -20,18 +20,24 @@ export class CommandHandler {
     this.dbManager = dbManager;
     this.calendarLogService = calendarLogService;
 
-    // 사용 가능한 명령어 목록 초기화 (SQLite 사용하도록 변경)
-    this.commands = new Map([
-      ['gap_list', new GapListCommand(activityTracker, dbManager)],
-      ['gap_config', new GapConfigCommand(dbManager)],
-      ['gap_reset', new GapResetCommand(activityTracker)],
-      ['gap_check', new GapCheckCommand(activityTracker, dbManager)],
-      ['gap_save', new GapSaveCommand(activityTracker)],
-      ['gap_calendar', new GapCalendarCommand(calendarLogService)],
-      ['gap_stats', new GapStatsCommand(dbManager)] // 새로운 통계 명령어 추가
-      // ['gap_report', new GapReportCommand(dbManager, activityTracker)], // 보고서 명령어 추가
-      // ['gap_cycle', new GapCycleCommand(dbManager)] // 주기 설정 명령어 추가
-    ]);
+    this.commands = new Map();
+
+    // 각 명령어 개별적으로 추가
+    try {
+      this.commands.set('gap_list', new GapListCommand(activityTracker, dbManager));
+      this.commands.set('gap_config', new GapConfigCommand(dbManager));
+      this.commands.set('gap_reset', new GapResetCommand(activityTracker));
+      this.commands.set('gap_check', new GapCheckCommand(activityTracker, dbManager));
+      this.commands.set('gap_save', new GapSaveCommand(activityTracker));
+      this.commands.set('gap_calendar', new GapCalendarCommand(calendarLogService));
+      this.commands.set('gap_stats', new GapStatsCommand(dbManager));
+      this.commands.set('gap_report', new GapReportCommand(dbManager, activityTracker));
+      this.commands.set('gap_cycle', new GapCycleCommand(dbManager));
+
+      console.log('명령어 초기화 완료:', [...this.commands.keys()]);
+    } catch (error) {
+      console.error('명령어 초기화 오류:', error);
+    }
   }
 
   /**

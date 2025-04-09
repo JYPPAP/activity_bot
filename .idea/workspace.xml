@@ -4,7 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="주간 활동인원 출력 수정" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="주간 활동인원 출력 수정">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -115,7 +120,8 @@
       <workItem from="1743853139520" duration="803000" />
       <workItem from="1743945546176" duration="1414000" />
       <workItem from="1744023867831" duration="1000" />
-      <workItem from="1744211653768" duration="1605000" />
+      <workItem from="1744211653768" duration="2678000" />
+      <workItem from="1744214376141" duration="711000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -429,7 +435,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744213009577</updated>
     </task>
-    <option name="localTasksCounter" value="40" />
+    <task id="LOCAL-00040" summary="주간 활동인원 출력 수정">
+      <option name="closed" value="true" />
+      <created>1744213316881</created>
+      <option name="number" value="00040" />
+      <option name="presentableId" value="LOCAL-00040" />
+      <option name="project" value="LOCAL" />
+      <updated>1744213316881</updated>
+    </task>
+    <option name="localTasksCounter" value="41" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -473,5 +487,17 @@
     <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
     <MESSAGE value="주간 활동인원 출력 수정" />
     <option name="LAST_COMMIT_MESSAGE" value="주간 활동인원 출력 수정" />
+  </component>
+  <component name="XDebuggerManager">
+    <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" type="javascript">
+          <url>file://$PROJECT_DIR$/src/commands/commandHandler.js</url>
+          <line>15</line>
+          <properties lambdaOrdinal="-1" />
+          <option name="timeStamp" value="1" />
+        </line-breakpoint>
+      </breakpoints>
+    </breakpoint-manager>
   </component>
 </project>
