@@ -9,8 +9,8 @@ import { GapCheckCommand } from './gapCheckCommand.js';
 import { GapSaveCommand } from './gapSaveCommand.js';
 import { GapCalendarCommand } from './gapCalendarCommand.js';
 import { GapStatsCommand } from './gapStatsCommand.js'; // 새로운 통계 명령어 추가
-import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
-import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
+// import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
+// import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
 import { config } from '../config/env.js';
 
 export class CommandHandler {
@@ -29,8 +29,8 @@ export class CommandHandler {
       ['gap_save', new GapSaveCommand(activityTracker)],
       ['gap_calendar', new GapCalendarCommand(calendarLogService)],
       ['gap_stats', new GapStatsCommand(dbManager)] // 새로운 통계 명령어 추가
-      ['gap_report', new GapReportCommand(dbManager, activityTracker)], // 보고서 명령어 추가
-      ['gap_cycle', new GapCycleCommand(dbManager)] // 주기 설정 명령어 추가
+      // ['gap_report', new GapReportCommand(dbManager, activityTracker)], // 보고서 명령어 추가
+      // ['gap_cycle', new GapCycleCommand(dbManager)] // 주기 설정 명령어 추가
     ]);
   }
 

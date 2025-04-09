@@ -4,18 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="로그 상 인원 목록 출력 시 UI 개선">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapListCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapListCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapStatsCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapStatsCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/activityTracker.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityTracker.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/calendarLogService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/calendarLogService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/formatters.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/formatters.js" afterDir="false" />
-    </list>
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="주간 활동인원 출력 수정" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -126,7 +115,7 @@
       <workItem from="1743853139520" duration="803000" />
       <workItem from="1743945546176" duration="1414000" />
       <workItem from="1744023867831" duration="1000" />
-      <workItem from="1744211653768" duration="1283000" />
+      <workItem from="1744211653768" duration="1605000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -432,7 +421,15 @@
       <option name="project" value="LOCAL" />
       <updated>1743853729747</updated>
     </task>
-    <option name="localTasksCounter" value="39" />
+    <task id="LOCAL-00039" summary="주간 활동인원 출력 수정">
+      <option name="closed" value="true" />
+      <created>1744213009577</created>
+      <option name="number" value="00039" />
+      <option name="presentableId" value="LOCAL-00039" />
+      <option name="project" value="LOCAL" />
+      <updated>1744213009577</updated>
+    </task>
+    <option name="localTasksCounter" value="40" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -450,7 +447,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="필요없는 파일 제거" />
     <MESSAGE value="저장 1" />
     <MESSAGE value="1. 활동시간 측정 시 [관전], [대기]는 미포함 하는 함수 추가&#10;2. 30분마다 변수의 데이터 JSON에 저장 및 변수 초기화&#10;- 활동중인 사용자의 데이터 재설정&#10;3. 사용자별 시간 출력하는 함수 추가" />
     <MESSAGE value="JS 중복 함수 제거 및 불필요 파일 삭제" />
@@ -475,6 +471,7 @@
     <MESSAGE value="로그 출력부분 색상 수정" />
     <MESSAGE value="readMe 수정" />
     <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
-    <option name="LAST_COMMIT_MESSAGE" value="로그 상 인원 목록 출력 시 UI 개선" />
+    <MESSAGE value="주간 활동인원 출력 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="주간 활동인원 출력 수정" />
   </component>
 </project>
