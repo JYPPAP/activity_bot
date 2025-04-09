@@ -376,4 +376,59 @@ export class ActivityTracker {
       }
     }
   }
+
+  async classifyUsersByRole(roleName, roleMembers) {
+    try {
+      // 역할에 필요한 최소 활동 시간 조회
+      const roleConfig = await this.db.getRoleConfig(roleName);
+      const minActivityHours = roleConfig ? roleConfig.minHours : 0;
+      const minActivityTime = minActivityHours * 60 * 60 * 1000;
+
+      // 리셋 시간 가져오기
+      const resetTime = roleConfig ? roleConfig.resetTime : null;
+
+      const activeUsers = [];
+      const inactiveUsers = [];
+      const afkUsers = []; // 잠수 멤버용 배열
+
+      for (const [userId, member] of roleMembers.entries()) {
+        // 사용자 활동 데이터 조회
+        const userActivity = await this.db.getUserActivity(userId);
+        const totalTime = userActivity ? userActivity.totalTime : 0;
+
+        const userData = {
+          userId,
+          nickname: member.displayName,
+          totalTime
+        };
+
+        // 잠수 역할이 있는 경우 afkUsers에 추가
+        if (member.roles.cache.some(r => r.name.includes('잠수'))) {
+          afkUsers.push(userData);
+        }
+        // 그 외는 활동 시간 기준으로 분류
+        else if (totalTime >= minActivityTime) {
+          activeUsers.push(userData);
+        } else {
+          inactiveUsers.push(userData);
+        }
+      }
+
+      // 활동 시간 기준으로 정렬
+      activeUsers.sort((a, b) => b.totalTime - a.totalTime);
+      inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
+      afkUsers.sort((a, b) => b.totalTime - a.totalTime);
+
+      return {
+        activeUsers,
+        inactiveUsers,
+        afkUsers,
+        resetTime,
+        minHours: minActivityHours
+      };
+    } catch (error) {
+      console.error('사용자 분류 오류:', error);
+      return { activeUsers: [], inactiveUsers: [], afkUsers: [], resetTime: null, minHours: 0 };
+    }
+  }
 }

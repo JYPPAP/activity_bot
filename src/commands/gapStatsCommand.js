@@ -1,7 +1,7 @@
 // src/commands/gapStatsCommand.js - 상세 통계 명령어
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import { COLORS } from '../config/constants.js';
-import { formatTime, formatKoreanDate } from '../utils/formatters.js';
+import {MessageFlags, EmbedBuilder} from 'discord.js';
+import {COLORS} from '../config/constants.js';
+import {formatTime, formatKoreanDate} from '../utils/formatters.js';
 
 export class GapStatsCommand {
     constructor(dbManager) {
@@ -13,7 +13,7 @@ export class GapStatsCommand {
      * @param {Interaction} interaction - 상호작용 객체
      */
     async execute(interaction) {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
         try {
             // 기간 옵션 가져오기 (기본: 7일)
@@ -94,7 +94,7 @@ export class GapStatsCommand {
         });
 
         const peakHours = hourStats
-            .map((count, hour) => ({ hour, count }))
+            .map((count, hour) => ({hour, count}))
             .sort((a, b) => b.count - a.count)
             .slice(0, 3)
             .map(item => `${item.hour}시 (${item.count}회)`);
@@ -114,9 +114,12 @@ export class GapStatsCommand {
             .setTitle(`📊 ${user.username}님의 활동 통계`)
             .setThumbnail(user.displayAvatarURL())
             .addFields(
-                { name: '📅 조회 기간', value: `${formatKoreanDate(new Date(startTime))} ~ ${formatKoreanDate(new Date(endTime))}` },
-                { name: '⏱️ 총 활동 시간', value: formatTime(userActivity?.totalTime || 0) },
-                { name: '📈 활동 요약', value: `입장: ${joins}회\n퇴장: ${leaves}회\n활동 일수: ${activeDays.size}일` },
+                {
+                    name: '📅 조회 기간',
+                    value: `${formatKoreanDate(new Date(startTime))} ~ ${formatKoreanDate(new Date(endTime))}`
+                },
+                {name: '⏱️ 총 활동 시간', value: formatTime(userActivity?.totalTime || 0)},
+                {name: '📈 활동 요약', value: `입장: ${joins}회\n퇴장: ${leaves}회\n활동 일수: ${activeDays.size}일`},
                 {
                     name: '🔊 자주 사용한 채널',
                     value: topChannels.length > 0
@@ -130,7 +133,7 @@ export class GapStatsCommand {
             );
 
         if (recentLogs.length > 0) {
-            statsEmbed.addFields({ name: '🕒 최근 활동 내역', value: recentLogs.join('\n') });
+            statsEmbed.addFields({name: '🕒 최근 활동 내역', value: recentLogs.join('\n')});
         }
 
         // 통계 전송
@@ -151,13 +154,14 @@ export class GapStatsCommand {
         const totalJoins = dailyStats.reduce((sum, day) => sum + day.joins, 0);
         const totalLeaves = dailyStats.reduce((sum, day) => sum + day.leaves, 0);
 
-        // 활동적인 사용자 TOP 5
+
+        // 활동적인 사용자 조회 시 사용자 정보 가져오기 추가
         const activeUsersQuery = `
-      SELECT userId, eventType, COUNT(*) as eventCount
-      FROM activity_logs
-      WHERE timestamp BETWEEN ? AND ?
-      GROUP BY userId, eventType
-    `;
+            SELECT userId, eventType, COUNT(*) as eventCount
+            FROM activity_logs
+            WHERE timestamp BETWEEN ? AND ?
+            GROUP BY userId, eventType
+        `;
 
         const userEvents = await this.db.db.all(activeUsersQuery, startTime, endTime);
 
@@ -165,7 +169,7 @@ export class GapStatsCommand {
         const userActivityMap = new Map();
         for (const event of userEvents) {
             if (!userActivityMap.has(event.userId)) {
-                userActivityMap.set(event.userId, { joins: 0, leaves: 0 });
+                userActivityMap.set(event.userId, {joins: 0, leaves: 0});
             }
 
             const userData = userActivityMap.get(event.userId);
@@ -183,7 +187,20 @@ export class GapStatsCommand {
 
             // 사용자 데이터 조회
             const userActivity = await this.db.getUserActivity(userId);
-            const displayName = userActivity?.displayName || userId;
+
+            // 디스코드 서버에서 직접 멤버 정보 가져오기 추가
+            let displayName = userActivity?.displayName || userId;
+            try {
+                const guild = interaction.guild;
+                if (guild) {
+                    const member = await guild.members.fetch(userId).catch(() => null);
+                    if (member) {
+                        displayName = member.displayName;
+                    }
+                }
+            } catch (error) {
+                console.error(`사용자 정보 조회 실패: ${userId}`, error);
+            }
 
             activeUsers.push({
                 name: displayName,
@@ -199,26 +216,28 @@ export class GapStatsCommand {
 
         // 가장 활동적인 채널 조회
         const activeChannelsQuery = `
-      SELECT channelName, COUNT(*) as eventCount
-      FROM activity_logs
-      WHERE timestamp BETWEEN ? AND ?
-      GROUP BY channelName
-      ORDER BY eventCount DESC
-      LIMIT 5
-    `;
+            SELECT channelName, COUNT(*) as eventCount
+            FROM activity_logs
+            WHERE timestamp BETWEEN ? AND ?
+              AND channelName != '방-생성하기'
+              AND channelId NOT IN (${config.EXCLUDED_CHANNELS.map(id => `'${id}'`).join(',')})
+            GROUP BY channelName
+            ORDER BY eventCount DESC
+                LIMIT 5
+        `;
 
         const topChannels = await this.db.db.all(activeChannelsQuery, startTime, endTime);
 
         // 시간대별 활동 통계
         const hourlyStatsQuery = `
-      SELECT strftime('%H', timestamp/1000, 'unixepoch', 'localtime') as hour, 
+            SELECT strftime('%H', timestamp/1000, 'unixepoch', 'localtime') as hour, 
              COUNT(*) as eventCount
-      FROM activity_logs
-      WHERE timestamp BETWEEN ? AND ?
-      GROUP BY hour
-      ORDER BY eventCount DESC
-      LIMIT 5
-    `;
+            FROM activity_logs
+            WHERE timestamp BETWEEN ? AND ?
+            GROUP BY hour
+            ORDER BY eventCount DESC
+                LIMIT 5
+        `;
 
         const peakHours = await this.db.db.all(hourlyStatsQuery, startTime, endTime);
 
@@ -227,8 +246,11 @@ export class GapStatsCommand {
             .setColor(COLORS.LOG)
             .setTitle(`📊 서버 활동 통계 (최근 ${days}일)`)
             .addFields(
-                { name: '📅 조회 기간', value: `${formatKoreanDate(new Date(startTime))} ~ ${formatKoreanDate(new Date(endTime))}` },
-                { name: '📈 활동 요약', value: `입장: ${totalJoins}회\n퇴장: ${totalLeaves}회\n활동 일수: ${dailyStats.length}일` },
+                {
+                    name: '📅 조회 기간',
+                    value: `${formatKoreanDate(new Date(startTime))} ~ ${formatKoreanDate(new Date(endTime))}`
+                },
+                {name: '📈 활동 요약', value: `입장: ${totalJoins}회\n퇴장: ${totalLeaves}회\n활동 일수: ${dailyStats.length}일`},
                 {
                     name: '👥 가장 활동적인 사용자 TOP 5',
                     value: topActiveUsers.length > 0

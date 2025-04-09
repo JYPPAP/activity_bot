@@ -368,4 +368,210 @@ export class CalendarLogService {
         embed.setTimestamp();
         return embed;
     }
+
+    // 추가할 메서드 내용 (CalendarLogService.js)
+
+    /**
+     * 주간 요약 로그 초기화 (매일 자정에 실행하여 역할별 출력 주기 확인)
+     */
+    initWeeklySummary() {
+        // 다음 자정까지의 시간 계산
+        const now = new Date();
+        const tomorrow = new Date(now);
+        tomorrow.setDate(now.getDate() + 1);
+        tomorrow.setHours(0, 0, 0, 0);
+
+        const timeUntilMidnight = tomorrow.getTime() - now.getTime();
+
+        // 타이머 설정
+        setTimeout(async () => {
+            await this.checkRoleReports();
+
+            // 이후 매일 자정마다 실행
+            setInterval(async () => {
+                await this.checkRoleReports();
+            }, 24 * 60 * 60 * 1000);
+        }, timeUntilMidnight);
+
+        console.log(`다음 보고서 확인은 ${formatKoreanDate(tomorrow)}에 예정되어 있습니다.`);
+    }
+
+    /**
+     * 역할별 보고서 출력 확인 및 실행
+     */
+    async checkRoleReports() {
+        try {
+            // 모든 역할 설정 가져오기
+            const roleConfigs = await this.db.getAllRoleConfigs();
+            const today = new Date();
+
+            for (const config of roleConfigs) {
+                // 역할별 다음 보고서 예정 시간 확인
+                const nextReportTime = await this.db.getNextReportTime(config.roleName);
+                if (!nextReportTime) continue;
+
+                const nextReportDate = new Date(nextReportTime);
+
+                // 오늘이 보고서 출력일인지 확인
+                if (today.getDate() === nextReportDate.getDate() &&
+                    today.getMonth() === nextReportDate.getMonth() &&
+                    today.getFullYear() === nextReportDate.getFullYear()) {
+
+                    // 보고서 생성 및 출력
+                    await this.generateAndSendRoleReport(config.roleName, false);
+
+                    // 새로운 리셋 타임 설정 (자동 출력 시 리셋 포함)
+                    await this.db.updateRoleResetTime(
+                        config.roleName,
+                        today.getTime(),
+                        '자동 보고서 출력 시 리셋'
+                    );
+
+                    console.log(`${config.roleName} 역할의 자동 보고서가 출력되었습니다.`);
+                }
+            }
+        } catch (error) {
+            console.error('역할별 보고서 확인 오류:', error);
+        }
+    }
+
+    /**
+     * 역할별 보고서 생성 및 전송
+     * @param {string} role - 역할 이름
+     * @param {boolean} isTestMode - 테스트 모드 여부
+     */
+    async generateAndSendRoleReport(role, isTestMode = false) {
+        try {
+            if (!this.calendarChannel) return;
+
+            // 역할 설정 가져오기
+            const roleConfig = await this.db.getRoleConfig(role);
+            if (!roleConfig) return;
+
+            // 역할의 최소 활동 시간
+            const minHours = roleConfig.minHours;
+            const minActivityTime = minHours * 60 * 60 * 1000;
+
+            // 마지막 리셋 시간 가져오기
+            const lastResetTime = roleConfig.resetTime || Date.now() - (7 * 24 * 60 * 60 * 1000);
+
+            // 현재 역할을 가진 멤버 가져오기
+            const guild = this.client.guilds.cache.first();
+            if (!guild) return;
+
+            const members = await guild.members.fetch();
+            const roleMembers = members.filter(member =>
+                member.roles.cache.some(r => r.name === role)
+            );
+
+            // 활성/비활성 사용자 분류
+            const activeUsers = [];
+            const inactiveUsers = [];
+
+            // 사용자 활동 데이터 조회 및 분류
+            for (const [userId, member] of roleMembers.entries()) {
+                const userActivity = await this.db.getUserActivity(userId);
+
+                const userData = {
+                    userId,
+                    nickname: member.displayName,
+                    totalTime: userActivity ? userActivity.totalTime : 0
+                };
+
+                // 최소 활동 시간 기준으로 사용자 분류
+                if (userData.totalTime >= minActivityTime) {
+                    activeUsers.push(userData);
+                } else {
+                    inactiveUsers.push(userData);
+                }
+            }
+
+            // 활동 시간 기준으로 정렬
+            activeUsers.sort((a, b) => b.totalTime - a.totalTime);
+            inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
+
+            // 보고서 생성
+            const reportEmbeds = this.createRoleReportEmbeds(role, activeUsers, inactiveUsers, lastResetTime, minHours);
+
+            // 보고서 전송
+            await this.calendarChannel.send({
+                content: `🗓️ ${role} 역할 활동 보고서 ${isTestMode ? "(테스트 모드)" : ""}`,
+                embeds: reportEmbeds
+            });
+
+            return true;
+        } catch (error) {
+            console.error('역할별 보고서 생성 오류:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 역할별 보고서 임베드 생성
+     * @param {string} role - 역할 이름
+     * @param {Array<Object>} activeUsers - 활성 사용자 목록
+     * @param {Array<Object>} inactiveUsers - 비활성 사용자 목록
+     * @param {number} resetTime - 마지막 리셋 시간
+     * @param {number} minHours - 최소 활동 시간(시)
+     * @returns {Array<EmbedBuilder>} - 생성된 임베드 배열
+     */
+    createRoleReportEmbeds(role, activeUsers, inactiveUsers, resetTime, minHours) {
+        // 날짜 범위 설정 (시작일: 리셋 시간, 종료일: 현재)
+        const now = new Date();
+        const startDate = resetTime ? new Date(resetTime) : now;
+
+        // 날짜 형식을 YYYY.MM.DD 형태로 포맷팅
+        const formatSimpleDate = (date) => {
+            return `${date.getFullYear()}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`;
+        };
+
+        const startDateStr = formatSimpleDate(startDate);
+        const endDateStr = formatSimpleDate(now);
+
+        // 활성 사용자 임베드
+        const activeEmbed = new EmbedBuilder()
+            .setColor(COLORS.ACTIVE)
+            .setTitle(`📊 ${role} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+        // 활성 멤버 정보 추가
+        activeEmbed.addFields(
+            { name: `✅ 활동 기준 달성 멤버 (${activeUsers.length}명)`, value: '\u200B' }
+        );
+
+        if (activeUsers.length > 0) {
+            activeEmbed.addFields(
+                { name: '이름', value: activeUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: activeUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            activeEmbed.addFields(
+                { name: '\u200B', value: '기준 달성 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        // 비활성 사용자 임베드
+        const inactiveEmbed = new EmbedBuilder()
+            .setColor(COLORS.INACTIVE)
+            .setTitle(`📊 ${role} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+        // 비활성 멤버 정보 추가
+        inactiveEmbed.addFields(
+            { name: `❌ 활동 기준 미달성 멤버 (${inactiveUsers.length}명)`, value: '\u200B' }
+        );
+
+        if (inactiveUsers.length > 0) {
+            inactiveEmbed.addFields(
+                { name: '이름', value: inactiveUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: inactiveUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            inactiveEmbed.addFields(
+                { name: '\u200B', value: '기준 미달성 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        return [activeEmbed, inactiveEmbed];
+    }
 }

@@ -299,8 +299,6 @@ export class DatabaseManager {
         }));
     }
 
-    // 여기에 새로운 메서드들 추가
-
     /**
      * 특정 기간의 활동 멤버 목록 가져오기
      * @param {number} startTime - 시작 시간 (타임스탬프)
@@ -371,6 +369,54 @@ export class DatabaseManager {
             console.error('활동적인 채널 조회 오류:', error);
             return [];
         }
+    }
+
+    /**
+     * 역할 설정 업데이트/삽입 (주기 필드 추가)
+     */
+    async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
+        this.db.get('role_config')
+            .set(roleName, {
+                roleName,
+                minHours,
+                resetTime,
+                reportCycle // 1: 매주, 2: 격주, 4: 월간 (주 단위)
+            })
+            .write();
+        return true;
+    }
+
+    /**
+     * 역할 보고서 주기 업데이트
+     */
+    async updateRoleReportCycle(roleName, reportCycle) {
+        const roleConfig = await this.getRoleConfig(roleName);
+        if (roleConfig) {
+            await this.updateRoleConfig(
+                roleName,
+                roleConfig.minHours,
+                roleConfig.resetTime,
+                reportCycle
+            );
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 역할별 다음 보고서 예정 시간 확인
+     * @param {string} roleName - 역할 이름
+     * @returns {number} - 다음 보고서 예정 시간 (타임스탬프)
+     */
+    async getNextReportTime(roleName) {
+        const roleConfig = await this.getRoleConfig(roleName);
+        if (!roleConfig) return null;
+
+        const reportCycle = roleConfig.reportCycle || 1; // 기본값: 1주
+        const lastResetTime = roleConfig.resetTime || Date.now();
+
+        // 마지막 리셋 시간에서 보고서 주기(주 단위)만큼 더한 시간
+        return lastResetTime + (reportCycle * 7 * 24 * 60 * 60 * 1000);
     }
 
     // ======== 마이그레이션 메서드 ========

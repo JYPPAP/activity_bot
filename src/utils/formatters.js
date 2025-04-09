@@ -22,6 +22,19 @@ export const formatKoreanDate = (date) => {
 };
 
 /**
+ * 날짜를 YYYY.MM.DD 형식으로 포맷팅합니다.
+ * @param {Date|number} date - 포맷팅할 날짜 또는 타임스탬프
+ * @returns {string} - YYYY.MM.DD 형식의 날짜 문자열
+ */
+export const formatShortDate = (date) => {
+  const dateObj = date instanceof Date ? date : new Date(date);
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  return `${year}.${month}.${day}`;
+};
+
+/**
  * 멤버 목록 텍스트를 생성합니다.
  * @param {Array<string>} members - 멤버 이름 배열
  * @returns {string} - 포맷팅된 멤버 목록 문자열

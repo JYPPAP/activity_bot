@@ -76,19 +76,25 @@ export class GapListCommand {
 
     const activeUsers = [];
     const inactiveUsers = [];
+    const afkUsers = []; // 잠수 멤버용 배열 추가
 
     roleMembers.forEach(member => {
       const userId = member.user.id;
-      const activity = activityMap.get(userId) || { totalTime: 0 };
+      const activity = activityData.get(userId) || { totalTime: 0 };
 
       const userData = {
         userId,
         nickname: member.displayName,
-        totalTime: activity.totalTime
+        totalTime: activity.totalTime,
+        isAfk: member.roles.cache.some(r => r.name.includes('잠수')) // 잠수 역할 확인
       };
 
-      // 최소 활동 시간 기준으로 사용자 분류
-      if (userData.totalTime >= minActivityTime) {
+      // 잠수 역할이 있는 경우 afkUsers에 추가
+      if (userData.isAfk) {
+        afkUsers.push(userData);
+      }
+      // 그 외는 기존 로직대로 분류
+      else if (userData.totalTime >= minActivityTime) {
         activeUsers.push(userData);
       } else {
         inactiveUsers.push(userData);
@@ -102,6 +108,7 @@ export class GapListCommand {
     return {
       activeUsers,
       inactiveUsers,
+      afkUsers, // 잠수 멤버 목록 추가
       resetTime,
       minHours: minActivityHours
     };
@@ -116,7 +123,7 @@ export class GapListCommand {
    * @param {number} resetTime - 마지막 리셋 시간
    * @param {number} minHours - 최소 활동 시간(시)
    */
-  async sendActivityEmbed(interaction, activeUsers, inactiveUsers, role, resetTime, minHours) {
+  async sendActivityEmbed(interaction, activeUsers, inactiveUsers, afkUsers, role, resetTime, minHours) {
     // 활성 사용자 임베드 생성
     const activeEmbed = EmbedFactory.createActivityEmbed('active', {
       role: cleanRoleName(role),
@@ -133,10 +140,31 @@ export class GapListCommand {
       minActivityTime: minHours
     });
 
+    // 잠수 사용자 임베드 생성
+    const afkEmbed = new EmbedBuilder()
+        .setColor('#808080') // 회색으로 설정
+        .setTitle(`💤 잠수 중인 멤버 (${afkUsers.length}명)`)
+        .setDescription(`역할: ${cleanRoleName(role)}`)
+        .addFields(
+            {
+              name: '이름',
+              value: afkUsers.map(user => user.nickname).join('\n') || '없음',
+              inline: true
+            },
+            {
+              name: '총 활동 시간',
+              value: afkUsers.map(user => formatTime(user.totalTime)).join('\n') || '없음',
+              inline: true
+            }
+        );
+
     try {
       // DM으로 임베드 전송
       await interaction.user.send({ embeds: [activeEmbed] });
       await interaction.user.send({ embeds: [inactiveEmbed] });
+      if (afkUsers.length > 0) {
+        await interaction.user.send({ embeds: [afkEmbed] });
+      }
 
       // 명령어 실행한 채널에 알림
       await interaction.followUp({

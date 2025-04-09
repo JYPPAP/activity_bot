@@ -69,7 +69,105 @@ export class Bot {
 
       // 달력 로그 서비스 초기화
       await this.calendarLogService.initialize();
+
+      // 여러 역할 출력 일정 설정 추가
+      await this.scheduleRoleListings(guild);
     });
+  }
+
+  // 새로운 메서드 추가
+  async scheduleRoleListings(guild) {
+    try {
+      // 모든 역할 설정 가져오기
+      const roleConfigs = await this.dbManager.getAllRoleConfigs();
+      if (!roleConfigs || roleConfigs.length === 0) {
+        console.log('설정된 역할이 없습니다.');
+        return;
+      }
+
+      console.log(`${roleConfigs.length}개 역할에 대한 출력 일정을 설정합니다.`);
+
+      for (const roleConfig of roleConfigs) {
+        const roleName = roleConfig.roleName;
+        // 역할별 출력 주기 설정 (인턴은 1주일, 나머지는 2주일)
+        const interval = roleName.toLowerCase().includes('인턴')
+            ? 7 * 24 * 60 * 60 * 1000  // 1주일
+            : 14 * 24 * 60 * 60 * 1000; // 2주일
+
+        // 일정 시간 후 첫 출력 실행 (역할별로 시간차를 두어 동시 출력 방지)
+        const initialDelay = 1000 * 60 * 60 * (1 + roleConfigs.indexOf(roleConfig)); // 역할별로 1시간씩 차이
+
+        setTimeout(() => {
+          // 첫 출력 실행
+          this.generateRoleReport(guild, roleName);
+
+          // 이후 정기적으로 실행
+          setInterval(() => {
+            this.generateRoleReport(guild, roleName);
+          }, interval);
+
+          console.log(`${roleName} 역할의 출력 일정이 설정되었습니다 (주기: ${interval/(24*60*60*1000)}일)`);
+        }, initialDelay);
+      }
+    } catch (error) {
+      console.error('역할 출력 일정 설정 오류:', error);
+    }
+  }
+
+  // 역할별 보고서 생성 메서드
+  async generateRoleReport(guild, roleName) {
+    try {
+      console.log(`${roleName} 역할에 대한 보고서 생성 시작...`);
+
+      // 로그 채널 가져오기
+      const logChannelId = config.LOG_CHANNEL_ID;
+      const logChannel = await this.client.channels.fetch(logChannelId);
+      if (!logChannel) {
+        console.error('로그 채널을 찾을 수 없습니다.');
+        return;
+      }
+
+      // 역할 멤버 가져오기
+      const members = await guild.members.fetch();
+      const roleMembers = members.filter(member =>
+          member.roles.cache.some(r => r.name === roleName)
+      );
+
+      // 활동 데이터 분석
+      const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
+          await this.activityTracker.classifyUsersByRole(roleName, roleMembers);
+
+      // 보고서 임베드 생성
+      const activeEmbed = this.createRoleReportEmbed('active', {
+        role: roleName,
+        users: activeUsers,
+        resetTime,
+        minActivityTime: minHours
+      });
+
+      const inactiveEmbed = this.createRoleReportEmbed('inactive', {
+        role: roleName,
+        users: inactiveUsers,
+        resetTime,
+        minActivityTime: minHours
+      });
+
+      // 임베드 전송
+      await logChannel.send({ embeds: [activeEmbed] });
+      await logChannel.send({ embeds: [inactiveEmbed] });
+
+      if (afkUsers && afkUsers.length > 0) {
+        const afkEmbed = this.createRoleReportEmbed('afk', {
+          role: roleName,
+          users: afkUsers
+        });
+        await logChannel.send({ embeds: [afkEmbed] });
+      }
+
+      console.log(`${roleName} 역할에 대한 보고서가 생성되었습니다.`);
+    } catch (error) {
+      console.error(`${roleName} 역할 보고서 생성 오류:`, error);
+    }
   }
 
   /**

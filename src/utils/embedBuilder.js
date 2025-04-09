@@ -1,6 +1,6 @@
 // src/utils/embedBuilder.js - 임베드 생성 유틸리티
 import { EmbedBuilder } from 'discord.js';
-import { COLORS, MESSAGE_TYPES } from '../config/constants.js'; // MESSAGE_TYPES 추가
+import { COLORS } from '../config/constants.js';
 import { formatTime, formatKoreanDate, formatMembersList } from './formatters.js';
 
 /**
@@ -10,31 +10,48 @@ export class EmbedFactory {
     /**
      * 활동 데이터 임베드를 생성합니다.
      * @param {string} type - 임베드 타입 ('active' 또는 'inactive')
-     * @param {Object} data - 임베드에 표시할
+     * @param {Object} data - 임베드에 표시할 데이터
      * @returns {EmbedBuilder} - 생성된 임베드
      */
     static createActivityEmbed(type, data) {
         const { role, users, resetTime, minActivityTime } = data;
-        const resetTimeFormatted = resetTime ? formatKoreanDate(resetTime) : 'N/A';
 
+        // 날짜 범위 설정 (시작일: 리셋 시간, 종료일: 현재)
+        const now = new Date();
+        const startDate = resetTime ? new Date(resetTime) : now;
+
+        // 날짜 형식을 YYYY.MM.DD 형태로 포맷팅
+        const formatSimpleDate = (date) => {
+            return `${date.getFullYear()}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`;
+        };
+
+        const startDateStr = formatSimpleDate(startDate);
+        const endDateStr = formatSimpleDate(now);
+
+        // 임베드 생성
         const embed = new EmbedBuilder()
-            .setTitle(`📊 활동 데이터 (역할: ${role})`)
-            .setDescription(`마지막 리셋 시간: ${resetTimeFormatted}\n지정된 최소 활동 시간: ${minActivityTime}시간`)
+            .setTitle(`📊 ${role} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minActivityTime}시간`)
             .addFields(
-                { name: '상태', value: type === 'active' ? '달성' : '부족', inline: true },
                 {
-                    name: '이름',
-                    value: users.map(user => user.nickname).join('\n') || '없음',
-                    inline: true
-                },
-                {
-                    name: '총 활동 시간',
-                    value: users.map(user => formatTime(user.totalTime)).join('\n') || '없음',
-                    inline: true
+                    name: `${type === 'active' ? '✅ 활동 기준 달성 멤버' : '❌ 활동 기준 미달성 멤버'} (${users.length}명)`,
+                    value: '\u200B'
                 }
             );
 
-        // 임베드 색상 설정
+        // 테이블 형식으로 데이터 표시
+        if (users.length > 0) {
+            embed.addFields(
+                { name: '이름', value: users.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: users.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            embed.addFields(
+                { name: '\u200B', value: '기록된 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        // 임베드 색상 설정 (활성: 초록색, 비활성: 빨간색)
         embed.setColor(type === 'active' ? COLORS.ACTIVE : COLORS.INACTIVE);
 
         return embed;
@@ -44,26 +61,19 @@ export class EmbedFactory {
      * 로그 메시지 임베드를 생성합니다.
      * @param {string} message - 로그 메시지
      * @param {Array<string>} members - 채널에 있는 멤버 목록
-     * @param {string} color - 임베드 색상 (hex 코드)
      * @returns {EmbedBuilder} - 생성된 임베드
      */
-    static createLogEmbed(message, members, color = COLORS.LOG) {
+    static createLogEmbed(message, members) {
         const embed = new EmbedBuilder()
-            .setColor(color)
+            .setColor(COLORS.LOG)
             .setDescription(`**${message}**`)
             .setFooter({
                 text: `로그 기록 시간: ${formatKoreanDate(new Date())}`
             });
 
-        // 채널 생성 메시지일 경우 멤버 목록을 표시하지 않음
-        if (!message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
-            // 현재 음성 채널의 인원 목록
-            const membersText = members.length > 0
-                ? `**현재 멤버 (${members.length}명):**\n${members.map(m => `\` ${m} \``).join(' ')}`
-                : `**현재 멤버 (0명)**`;
-
-            embed.addFields({ name: '\u200B', value: membersText });
-        }
+        // 현재 음성 채널의 인원 목록
+        const membersText = formatMembersList(members);
+        embed.addFields({ name: '👥 현재 남아있는 멤버', value: membersText });
 
         return embed;
     }
