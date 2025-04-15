@@ -50,19 +50,42 @@ export class GapReportCommand {
                 member.roles.cache.some(r => r.name === role)
             );
 
-            // 활성/비활성 사용자 분류
+            // 활성/비활성/잠수 사용자 분류
             const activeUsers = [];
             const inactiveUsers = [];
+            const afkUsers = []; // 잠수 사용자 배열 추가
 
             // 사용자 활동 데이터 조회 및 분류
             for (const [userId, member] of roleMembers.entries()) {
                 const userActivity = await this.db.getUserActivity(userId);
+                const afkStatus = await this.db.getUserAfkStatus(userId);
 
                 const userData = {
                     userId,
                     nickname: member.displayName,
                     totalTime: userActivity ? userActivity.totalTime : 0
                 };
+
+                // 잠수 상태 확인
+                if (afkStatus) {
+                    const now = Date.now();
+                    // 잠수 기간이 아직 유효한지 확인
+                    if (afkStatus.afkUntil > now) {
+                        // 잠수 해제 날짜 추가
+                        userData.afkUntil = afkStatus.afkUntil;
+                        afkUsers.push(userData);
+                        continue; // 다음 사용자로 넘어감
+                    } else {
+                        // 잠수 기간이 만료되었으면 상태 해제
+                        await this.db.clearUserAfkStatus(userId);
+
+                        // 잠수 역할 제거
+                        const afkRole = guild.roles.cache.find(role => role.name === "잠수");
+                        if (afkRole && member.roles.cache.has(afkRole.id)) {
+                            await member.roles.remove(afkRole);
+                        }
+                    }
+                }
 
                 // 최소 활동 시간 기준으로 사용자 분류
                 if (userData.totalTime >= minActivityTime) {
@@ -75,26 +98,28 @@ export class GapReportCommand {
             // 활동 시간 기준으로 정렬
             activeUsers.sort((a, b) => b.totalTime - a.totalTime);
             inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
+            afkUsers.sort((a, b) => b.totalTime - a.totalTime);
 
             // 보고서 생성 및 전송
-            const reportEmbeds = this.createReportEmbeds(role, activeUsers, inactiveUsers, lastResetTime, minHours);
+            const reportEmbeds = this.createReportEmbeds(role, activeUsers, inactiveUsers, afkUsers, lastResetTime, minHours);
 
-            // 보고서 전송
-            await interaction.followUp({
-                content: isTestMode ? "⚠️ 테스트 모드로 실행됩니다. 리셋 시간이 기록되지 않습니다." : "✅ 보고서가 생성되었습니다.",
-                embeds: reportEmbeds,
-                flags: MessageFlags.Ephemeral,
-            });
-
-            // 로그 채널에도 전송
-            const logChannelId = interaction.options.getChannel("log_channel")?.id || process.env.LOG_CHANNEL_ID;
-            if (logChannelId) {
-                const logChannel = await interaction.client.channels.fetch(logChannelId);
-                if (logChannel) {
-                    await logChannel.send({
-                        content: `🗓️ ${role} 역할 활동 보고서 (${isTestMode ? "테스트 모드" : "정식 출력"})`,
-                        embeds: reportEmbeds
-                    });
+            if (isTestMode) { // 테스트 인 경우 보고서 전송 (서버 내 Embed로 전송)
+                await interaction.followUp({
+                    content: isTestMode ? "⚠️ 테스트 모드로 실행됩니다. 리셋 시간이 기록되지 않습니다." : "✅ 보고서가 생성되었습니다.",
+                    embeds: reportEmbeds,
+                    flags: MessageFlags.Ephemeral,
+                });
+            } else {
+                // 날짜 채널에 전송
+                const logChannelId = interaction.options.getChannel("log_channel")?.id || process.env.CALENDAR_LOG_CHANNEL_ID;
+                if (logChannelId) {
+                    const logChannel = await interaction.client.channels.fetch(logChannelId);
+                    if (logChannel) {
+                        await logChannel.send({
+                            content: `🗓️ ${role} 역할 활동 보고서 (${isTestMode ? "테스트 모드" : "정식 출력"})`,
+                            embeds: reportEmbeds
+                        });
+                    }
                 }
             }
 
@@ -122,11 +147,12 @@ export class GapReportCommand {
      * @param {string} role - 역할 이름
      * @param {Array<Object>} activeUsers - 활성 사용자 목록
      * @param {Array<Object>} inactiveUsers - 비활성 사용자 목록
+     * @param {Array<Object>} afkUsers - 잠수 사용자 목록
      * @param {number} resetTime - 마지막 리셋 시간
      * @param {number} minHours - 최소 활동 시간(시)
      * @returns {Array<EmbedBuilder>} - 생성된 임베드 배열
      */
-    createReportEmbeds(role, activeUsers, inactiveUsers, resetTime, minHours) {
+    createReportEmbeds(role, activeUsers, inactiveUsers, afkUsers, resetTime, minHours) {
         // 날짜 범위 설정 (시작일: 리셋 시간, 종료일: 현재)
         const now = new Date();
         const startDate = resetTime ? new Date(resetTime) : now;
@@ -183,6 +209,36 @@ export class GapReportCommand {
             );
         }
 
-        return [activeEmbed, inactiveEmbed];
+        // 임베드 배열 (기본 임베드)
+        const embeds = [activeEmbed, inactiveEmbed];
+
+        // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
+        if (afkUsers.length > 0) {
+            // 잠수 사용자 임베드
+            const afkEmbed = new EmbedBuilder()
+                .setColor('#808080') // 회색으로 설정
+                .setTitle(`📊 ${role} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
+                .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+            // 잠수 멤버 정보 추가
+            afkEmbed.addFields(
+                { name: `💤 잠수 상태 멤버 (${afkUsers.length}명)`, value: '\u200B' }
+            );
+
+            afkEmbed.addFields(
+                { name: '이름', value: afkUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: afkUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true },
+                {
+                    name: '잠수 해제 예정일',
+                    value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil))).join('\n'),
+                    inline: true
+                }
+            );
+
+            // 잠수 임베드 추가
+            embeds.push(afkEmbed);
+        }
+
+        return embeds;
     }
 }

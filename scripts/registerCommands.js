@@ -1,19 +1,13 @@
 // scripts/registerCommands.js - 슬래시 명령어 등록 스크립트
 import { REST } from '@discordjs/rest';
-import { Routes, ApplicationCommandOptionType } from 'discord-api-types/v9';
-import dotenv from 'dotenv';
-
-// .env 파일 로드
-dotenv.config();
-
-// 환경 변수 확인
-const { TOKEN, CLIENT_ID, GUILDID } = process.env;
+import { Routes, ApplicationCommandOptionType } from 'discord-api-types/v10';
+import { config } from '../src/config/env.js';
 
 // 명령어 정의
 const commands = [
     {
         name: 'gap_list',
-        description: '역할별 활동 시간 목록을 표시합니다.',
+        description: '역할별 활동 시간 목록을 표시합니다.(사용X)',
         options: [
             {
                 name: 'role',
@@ -43,7 +37,7 @@ const commands = [
     },
     {
         name: 'gap_reset',
-        description: '역할의 활동 시간을 초기화합니다.',
+        description: '역할의 활동 시간을 초기화합니다.(사용X)',
         options: [
             {
                 name: 'role',
@@ -118,7 +112,7 @@ const commands = [
             },
             {
                 name: 'test_mode',
-                description: '테스트 모드 (리셋 시간을 기록하지 않음)',
+                description: '테스트 모드 (리셋 시간을 기록하지 않음, 기본이 테스트 모드)',
                 type: ApplicationCommandOptionType.Boolean,
                 required: false
             },
@@ -130,7 +124,7 @@ const commands = [
             },
             {
                 name: 'log_channel',
-                description: '보고서를 출력할 채널 (지정하지 않으면 기본 로그 채널)',
+                description: '보고서를 출력할 채널 (지정하지 않으면 날짜-확인 채널)',
                 type: ApplicationCommandOptionType.Channel,
                 required: false
             }
@@ -159,27 +153,44 @@ const commands = [
                 ]
             }
         ]
+    },
+    {
+        name: 'gap_afk',
+        description: '사용자를 지정된 날짜까지 잠수 상태로 설정합니다.',
+        options: [
+            {
+                name: 'user',
+                description: '잠수 상태로 설정할 사용자',
+                type: ApplicationCommandOptionType.User,
+                required: true
+            },
+            {
+                name: 'until_date',
+                description: '잠수 상태 유지 기한 (YYMMDD 형식, 예: 250510)',
+                type: ApplicationCommandOptionType.String,
+                required: true
+            }
+        ]
     }
 ];
 
 // REST 클라이언트 생성
-const rest = new REST({ version: '9' }).setToken(TOKEN);
+const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 
-// 명령어 등록 함수
-async function registerCommands() {
+(async () => {
     try {
-        console.log('슬래시 명령어 등록 중...');
+        console.log('슬래시 명령어 등록을 시작합니다...');
 
         await rest.put(
-            Routes.applicationGuildCommands(CLIENT_ID, GUILDID),
+            Routes.applicationGuildCommands(
+                config.CLIENT_ID, // Discord 개발자 포털에서 가져온 애플리케이션 ID
+                config.GUILDID    // 서버 ID
+            ),
             { body: commands }
         );
 
         console.log('슬래시 명령어가 성공적으로 등록되었습니다!');
     } catch (error) {
-        console.error('슬래시 명령어 등록 중 오류 발생:', error);
+        console.error('명령어 등록 중 오류 발생:', error);
     }
-}
-
-// 명령어 등록 실행
-registerCommands();
+})();

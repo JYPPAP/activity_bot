@@ -11,6 +11,7 @@ import { GapCalendarCommand } from './gapCalendarCommand.js';
 import { GapStatsCommand } from './gapStatsCommand.js'; // 새로운 통계 명령어 추가
 import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
 import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
+import { GapAfkCommand } from './gapAfkCommand.js'; // 잠수 명령어 추가
 import { config } from '../config/env.js';
 
 export class CommandHandler {
@@ -33,6 +34,7 @@ export class CommandHandler {
       this.commands.set('gap_stats', new GapStatsCommand(dbManager));
       this.commands.set('gap_report', new GapReportCommand(dbManager, activityTracker));
       this.commands.set('gap_cycle', new GapCycleCommand(dbManager));
+      this.commands.set('gap_afk', new GapAfkCommand(client, dbManager));
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {
@@ -48,7 +50,6 @@ export class CommandHandler {
   hasAdminPermission(interaction) {
     return (
         interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-        interaction.user.id === config.ADMIN_ID ||
         interaction.user.id === config.DEV_ID
     );
   }
@@ -84,12 +85,12 @@ export class CommandHandler {
       // 이미 응답한 상호작용이 아닐 경우에만 응답
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
-          content: "요청 수행 중 오류가 발생했습니다!",
+          content: "요청 수행 중 오류가 발생했습니다!_001",
           flags: MessageFlags.Ephemeral,
         });
       } else if (interaction.deferred) {
         await interaction.followUp({
-          content: "요청 수행 중 오류가 발생했습니다!",
+          content: "요청 수행 중 오류가 발생했습니다!_002",
           flags: MessageFlags.Ephemeral,
         });
       }

@@ -419,8 +419,6 @@ export class DatabaseManager {
         return lastResetTime + (reportCycle * 7 * 24 * 60 * 60 * 1000);
     }
 
-    // ======== 마이그레이션 메서드 ========
-
     /**
      * JSON 데이터에서 마이그레이션
      */
@@ -472,6 +470,145 @@ export class DatabaseManager {
         } catch (error) {
             console.error('JSON 데이터 마이그레이션 오류:', error);
             throw error;
+        }
+    }
+
+    /**
+     * 사용자의 잠수 상태 설정
+     * @param {string} userId - 사용자 ID
+     * @param {string} displayName - 사용자 표시 이름
+     * @param {number} untilTimestamp - 잠수 상태 유지 기한 (타임스탬프)
+     * @returns {boolean} - 성공 여부
+     */
+    async setUserAfkStatus(userId, displayName, untilTimestamp) {
+        try {
+            // 기존 user_activity 데이터 가져오기
+            const userActivity = this.db.get('user_activity').get(userId).value() || {
+                userId,
+                totalTime: 0,
+                startTime: null,
+                displayName: displayName
+            };
+
+            // afk 필드 추가
+            userActivity.afkUntil = untilTimestamp;
+            userActivity.displayName = displayName;
+
+            // 업데이트
+            this.db.get('user_activity')
+                .set(userId, userActivity)
+                .write();
+
+            return true;
+        } catch (error) {
+            console.error('잠수 상태 설정 오류:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 사용자의 잠수 상태 확인
+     * @param {string} userId - 사용자 ID
+     * @returns {Object|null} - 잠수 상태 정보 또는 null
+     */
+    async getUserAfkStatus(userId) {
+        try {
+            const userActivity = this.db.get('user_activity').get(userId).value();
+            if (!userActivity || !userActivity.afkUntil) {
+                return null;
+            }
+
+            return {
+                userId,
+                displayName: userActivity.displayName,
+                afkUntil: userActivity.afkUntil,
+                totalTime: userActivity.totalTime || 0
+            };
+        } catch (error) {
+            console.error('잠수 상태 조회 오류:', error);
+            return null;
+        }
+    }
+
+    /**
+     * 사용자의 잠수 상태 해제
+     * @param {string} userId - 사용자 ID
+     * @returns {boolean} - 성공 여부
+     */
+    async clearUserAfkStatus(userId) {
+        try {
+            const userActivity = this.db.get('user_activity').get(userId).value();
+            if (userActivity) {
+                // afkUntil 필드 제거
+                delete userActivity.afkUntil;
+
+                // 업데이트
+                this.db.get('user_activity')
+                    .set(userId, userActivity)
+                    .write();
+            }
+            return true;
+        } catch (error) {
+            console.error('잠수 상태 해제 오류:', error);
+            return false;
+        }
+    }
+
+    /**
+     * 모든 잠수 사용자 조회
+     * @returns {Array<Object>} - 잠수 상태인 사용자 목록
+     */
+    async getAllAfkUsers() {
+        try {
+            const allUsers = this.db.get('user_activity').value();
+            const afkUsers = [];
+
+            for (const [userId, userActivity] of Object.entries(allUsers)) {
+                if (userActivity.afkUntil) {
+                    afkUsers.push({
+                        userId,
+                        displayName: userActivity.displayName || userId,
+                        afkUntil: userActivity.afkUntil,
+                        totalTime: userActivity.totalTime || 0
+                    });
+                }
+            }
+
+            return afkUsers;
+        } catch (error) {
+            console.error('잠수 사용자 조회 오류:', error);
+            return [];
+        }
+    }
+
+    /**
+     * 만료된 잠수 상태 확인 및 해제
+     * @returns {Array<string>} - 잠수 상태가 해제된 사용자 ID 목록
+     */
+    async clearExpiredAfkStatus() {
+        try {
+            const now = Date.now();
+            const allUsers = this.db.get('user_activity').value();
+            const clearedUsers = [];
+
+            for (const [userId, userActivity] of Object.entries(allUsers)) {
+                if (userActivity.afkUntil && userActivity.afkUntil < now) {
+                    // afkUntil 필드 제거
+                    delete userActivity.afkUntil;
+
+                    // 업데이트
+                    this.db.get('user_activity')
+                        .set(userId, userActivity)
+                        .write();
+
+                    clearedUsers.push(userId);
+                }
+            }
+
+            return clearedUsers;
+        } catch (error) {
+            console.error('잠수 상태 만료 처리 오류:', error);
+            return [];
         }
     }
 }
