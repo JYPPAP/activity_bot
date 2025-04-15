@@ -3,6 +3,7 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { cleanRoleName, formatTime } from '../utils/formatters.js';
 import { COLORS } from '../config/constants.js';
+import { formatSimpleDate, calculateNextSunday } from '../utils/dateUtils.js';
 
 export class GapListCommand {
   constructor(activityTracker, dbManager) {
@@ -90,8 +91,17 @@ export class GapListCommand {
         // 잠수 상태 정보 조회
         const afkStatus = await this.db.getUserAfkStatus(userId);
 
-        // 잠수 해제 예정일 추가 (있으면 사용, 없으면 기본값으로 1주일 후)
-        userData.afkUntil = afkStatus?.afkUntil || (Date.now() + 7 * 24 * 60 * 60 * 1000);
+        if (afkStatus && afkStatus.afkUntil) {
+          // DB에 저장된 잠수 해제 예정일 사용
+          userData.afkUntil = afkStatus.afkUntil;
+        } else {
+          // 해제 일정이 없으면 현재 날짜의 다음 일요일로 계산
+          const nextSunday = calculateNextSunday(new Date());
+          userData.afkUntil = nextSunday.getTime();
+
+          // DB에 저장
+          await this.db.setUserAfkStatus(userId, member.displayName, userData.afkUntil);
+        }
 
         // 잠수 멤버 배열에 추가
         afkUsers.push(userData);
@@ -134,11 +144,6 @@ export class GapListCommand {
     // 날짜 범위 설정 (시작일: 리셋 시간, 종료일: 현재)
     const now = new Date();
     const startDate = resetTime ? new Date(resetTime) : now;
-
-    // 날짜 형식을 YYYY.MM.DD 형태로 포맷팅
-    const formatSimpleDate = (date) => {
-      return `${date.getFullYear()}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`;
-    };
 
     const startDateStr = formatSimpleDate(startDate);
     const endDateStr = formatSimpleDate(now);
@@ -192,7 +197,7 @@ export class GapListCommand {
     if (afkUsers.length > 0) {
       // 잠수 사용자 임베드 (파스텔 톤 회색으로 변경)
       const afkEmbed = new EmbedBuilder()
-          .setColor('#D3D3D3') // 파스텔 톤의 라이트 그레이
+          .setColor(COLORS.SLEEP)
           .setTitle(`📊 ${cleanRoleName(role)} 역할 활동 목록 (${startDateStr} ~ ${endDateStr})`)
           .setDescription(`최소 활동 시간: ${minHours}시간`);
 
