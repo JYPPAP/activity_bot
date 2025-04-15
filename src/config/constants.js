@@ -23,6 +23,7 @@ export const TIME = {
 export const COLORS = {
   ACTIVE: '#00FF00',
   INACTIVE: '#FF0000',
+  SLEEP: '#D3D3D3',
   LOG: '#0099ff',           // 기본 로그 색상 (파란색)
   LOG_JOIN: '#4A86E8',      // 입장 로그 색상 (파스텔 파란색)
   LOG_RENAME: '#4A86E8',    // 이름 변경 로그 색상 (파스텔 파란색)

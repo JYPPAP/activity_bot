@@ -1,4 +1,4 @@
-// src/commands/gapListCommand.js - gap_list 명령어 (잠수 기능 추가)
+// src/commands/gapListCommand.js - gap_list 명령어 (잠수 기능 개선)
 import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { cleanRoleName, formatTime } from '../utils/formatters.js';
@@ -76,7 +76,6 @@ export class GapListCommand {
     for (const [userId, member] of roleMembers.entries()) {
       // 사용자 활동 데이터 조회
       const userActivity = await this.db.getUserActivity(userId);
-      const afkStatus = await this.db.getUserAfkStatus(userId);
 
       const userData = {
         userId,
@@ -84,27 +83,22 @@ export class GapListCommand {
         totalTime: userActivity ? userActivity.totalTime : 0
       };
 
-      // 1. 잠수 상태 확인
-      if (afkStatus) {
-        // 잠수 기한이 만료되었는지 확인
-        const now = Date.now();
-        if (afkStatus.afkUntil > now) {
-          userData.afkUntil = afkStatus.afkUntil;
-          afkUsers.push(userData);
-          continue; // 다음 사용자로 넘어감
-        } else {
-          // 만료된 경우 상태 해제
-          await this.db.clearUserAfkStatus(userId);
+      // 잠수 역할 확인
+      const hasAfkRole = member.roles.cache.some(r => r.name === "잠수");
 
-          // 잠수 역할도 제거
-          const afkRole = member.guild.roles.cache.find(role => role.name === "잠수");
-          if (afkRole && member.roles.cache.has(afkRole.id)) {
-            await member.roles.remove(afkRole);
-          }
-        }
+      if (hasAfkRole) {
+        // 잠수 상태 정보 조회
+        const afkStatus = await this.db.getUserAfkStatus(userId);
+
+        // 잠수 해제 예정일 추가 (있으면 사용, 없으면 기본값으로 1주일 후)
+        userData.afkUntil = afkStatus?.afkUntil || (Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+        // 잠수 멤버 배열에 추가
+        afkUsers.push(userData);
+        continue;
       }
 
-      // 2. 활동 시간 기준으로 분류
+      // 최소 활동 시간 기준으로 사용자 분류
       if (userData.totalTime >= minActivityTime) {
         activeUsers.push(userData);
       } else {
@@ -196,9 +190,9 @@ export class GapListCommand {
 
     // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
     if (afkUsers.length > 0) {
-      // 잠수 사용자 임베드
+      // 잠수 사용자 임베드 (파스텔 톤 회색으로 변경)
       const afkEmbed = new EmbedBuilder()
-          .setColor('#808080') // 회색으로 설정
+          .setColor('#D3D3D3') // 파스텔 톤의 라이트 그레이
           .setTitle(`📊 ${cleanRoleName(role)} 역할 활동 목록 (${startDateStr} ~ ${endDateStr})`)
           .setDescription(`최소 활동 시간: ${minHours}시간`);
 
