@@ -9,6 +9,7 @@ export const config = {
   // 필수 환경변수
   TOKEN: process.env.TOKEN,
   GUILDID: process.env.GUILDID,
+  CLIENT_ID: process.env.CLIENT_ID,
   LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID,
 
   // 제외할 채널 ID 배열

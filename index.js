@@ -1,7 +1,7 @@
 // src/index.js - 애플리케이션 진입점
-import { Bot } from './bot.js';
-import { config } from './config/env.js';
-import { keepAlive } from '../server.js';
+import { Bot } from './src/bot.js';
+import { config } from './src/config/env.js';
+import { keepAlive } from './server.js';
 
 // 비동기 즉시 실행 함수 (IIFE)로 애플리케이션 시작
 (async () => {
