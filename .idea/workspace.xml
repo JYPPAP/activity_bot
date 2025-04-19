@@ -4,13 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="디스코드 봇 활동 보고서 출력 형식 개선&#10;활동 보고서 출력 형식 개선 및 사용자 ID 대신 별명 표시 기능 추가&#10;주요 변경사항&#10;&#10;UserClassificationService 클래스 도입으로 사용자 분류 로직 통합&#10;활성/비활성/잠수 멤버를 구분하여 출력하는 기능 개선&#10;사용자 ID 대신 별명(displayName)을 표시하도록 수정&#10;EmbedFactory를 활용한 통일된 임베드 형식 구현&#10;주간 자동 보고서 출력 로직 개선&#10;&#10;세부 변경사항&#10;&#10;Bot.js: generateRoleReport 및 scheduleRoleListings 메서드 수정&#10;CalendarLogService: 로그 생성 및 가장 활동적인 사용자 표시 방식 개선&#10;ActivityReportService: 주간 요약 보고서 사용자 표시 형식 개선&#10;CommandHandler: UserClassificationService 의존성 주입 추가&#10;EmbedBuilder: 임베드 생성 로직 표준화">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="보고서 출력 시 날짜를 입력받게 수정">
       <change beforePath="$PROJECT_DIR$/scripts/registerCommands.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/registerCommands.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapReportCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapReportCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -67,6 +63,8 @@
     "WebServerToolWindowPanel.toolwindow.show.size": "false",
     "git-widget-placeholder": "master",
     "ignore.virus.scanning.warn.message": "true",
+    "javascript.nodejs.core.library.configured.version": "22.14.0",
+    "javascript.nodejs.core.library.typings.version": "22.14.1",
     "junie.onboarding.icon.badge.shown": "true",
     "last_opened_file_path": "D:/Personal Project/activity_bot",
     "node.js.detected.package.eslint": "true",
@@ -135,7 +133,7 @@
       <workItem from="1744890887683" duration="921000" />
       <workItem from="1744895128220" duration="1871000" />
       <workItem from="1745038243786" duration="643000" />
-      <workItem from="1745075019846" duration="2803000" />
+      <workItem from="1745075019846" duration="3663000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -513,7 +511,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745076437858</updated>
     </task>
-    <option name="localTasksCounter" value="48" />
+    <task id="LOCAL-00048" summary="보고서 출력 시 날짜를 입력받게 수정">
+      <option name="closed" value="true" />
+      <created>1745077981498</created>
+      <option name="number" value="00048" />
+      <option name="presentableId" value="LOCAL-00048" />
+      <option name="project" value="LOCAL" />
+      <updated>1745077981498</updated>
+    </task>
+    <option name="localTasksCounter" value="49" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -531,7 +537,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="SQLite 로 마이그레이션" />
     <MESSAGE value="파일 이동" />
     <MESSAGE value="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생" />
     <MESSAGE value="활동내역 출력시 달력 서버로 변경" />
@@ -556,6 +561,7 @@
     <MESSAGE value="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화" />
     <MESSAGE value="refactor: 명령어 클래스 구조 개선을 위한 CommandBase 도입&#10;&#10;- 모든 명령어 클래스가 상속받는 CommandBase 클래스 구현&#10;- 공통 기능과 메서드를 CommandBase로 이동하여 코드 중복 제거&#10;- 기존 명령어 클래스들을 CommandBase를 상속받도록 리팩토링&#10;- 일관된 명령어 처리 구조 확립으로 유지보수성 향상" />
     <MESSAGE value="디스코드 봇 활동 보고서 출력 형식 개선&#10;활동 보고서 출력 형식 개선 및 사용자 ID 대신 별명 표시 기능 추가&#10;주요 변경사항&#10;&#10;UserClassificationService 클래스 도입으로 사용자 분류 로직 통합&#10;활성/비활성/잠수 멤버를 구분하여 출력하는 기능 개선&#10;사용자 ID 대신 별명(displayName)을 표시하도록 수정&#10;EmbedFactory를 활용한 통일된 임베드 형식 구현&#10;주간 자동 보고서 출력 로직 개선&#10;&#10;세부 변경사항&#10;&#10;Bot.js: generateRoleReport 및 scheduleRoleListings 메서드 수정&#10;CalendarLogService: 로그 생성 및 가장 활동적인 사용자 표시 방식 개선&#10;ActivityReportService: 주간 요약 보고서 사용자 표시 형식 개선&#10;CommandHandler: UserClassificationService 의존성 주입 추가&#10;EmbedBuilder: 임베드 생성 로직 표준화" />
-    <option name="LAST_COMMIT_MESSAGE" value="디스코드 봇 활동 보고서 출력 형식 개선&#10;활동 보고서 출력 형식 개선 및 사용자 ID 대신 별명 표시 기능 추가&#10;주요 변경사항&#10;&#10;UserClassificationService 클래스 도입으로 사용자 분류 로직 통합&#10;활성/비활성/잠수 멤버를 구분하여 출력하는 기능 개선&#10;사용자 ID 대신 별명(displayName)을 표시하도록 수정&#10;EmbedFactory를 활용한 통일된 임베드 형식 구현&#10;주간 자동 보고서 출력 로직 개선&#10;&#10;세부 변경사항&#10;&#10;Bot.js: generateRoleReport 및 scheduleRoleListings 메서드 수정&#10;CalendarLogService: 로그 생성 및 가장 활동적인 사용자 표시 방식 개선&#10;ActivityReportService: 주간 요약 보고서 사용자 표시 형식 개선&#10;CommandHandler: UserClassificationService 의존성 주입 추가&#10;EmbedBuilder: 임베드 생성 로직 표준화" />
+    <MESSAGE value="보고서 출력 시 날짜를 입력받게 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="보고서 출력 시 날짜를 입력받게 수정" />
   </component>
 </project>

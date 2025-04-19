@@ -6,6 +6,10 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
+    "register": "node scripts/registerCommands.js",
+    "restart": "pm2 restart discord-bot",
+    "logs": "pm2 logs discord-bot",
+    "restart-logs": "pm2 restart discord-bot && pm2 logs discord-bot",
     "dev": "nodemon src/index.js"
   },
   "keywords": [

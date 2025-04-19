@@ -114,13 +114,13 @@ const commands = [
                 name: 'start_date',
                 description: '시작 날짜 (YYMMDD 형식, 예: 250413)',
                 type: ApplicationCommandOptionType.String,
-                required: false
+                required: true
             },
             {
                 name: 'end_date',
                 description: '종료 날짜 (YYMMDD 형식, 예: 250420)',
                 type: ApplicationCommandOptionType.String,
-                required: false
+                required: true
             },
             {
                 name: 'test_mode',
