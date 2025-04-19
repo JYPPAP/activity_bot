@@ -62,7 +62,7 @@ export class EmbedFactory {
      * @param {number|Date} startDate - 시작 날짜/시간
      * @param {number|Date} endDate - 종료 날짜/시간
      * @param {number} minHours - 최소 활동 시간(시)
-     * @param {number|null} reportCycle - 보고서 출력 주기
+     * @param {number|null} reportCycle - 보고서 출력 주기 (선택적)
      * @param {string} title - 임베드 제목 (선택적)
      * @returns {Array<EmbedBuilder>} - 생성된 임베드 배열
      */
@@ -107,8 +107,57 @@ export class EmbedFactory {
             );
         }
 
-        // 비활성 사용자 임베드와 잠수 사용자 임베드도 같은 방식으로 수정
-        // ... (생략: 비활성 및 잠수 사용자 임베드 부분도 동일하게 수정)
+        // 비활성 사용자 임베드
+        const inactiveEmbed = new EmbedBuilder()
+            .setColor(COLORS.INACTIVE)
+            .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`);
+
+        inactiveEmbed.addFields(
+            { name: `❌ 활동 기준 미달성 멤버 (${inactiveUsers.length}명)`, value: '\u200B' }
+        );
+
+        if (inactiveUsers.length > 0) {
+            inactiveEmbed.addFields(
+                { name: '이름', value: inactiveUsers.map(user => user.nickname || user.userId).join('\n'), inline: true },
+                { name: '총 활동 시간', value: inactiveUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            inactiveEmbed.addFields(
+                { name: '\u200B', value: '기준 미달성 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        // 여기서 embeds 배열을 초기화해야 합니다!
+        const embeds = [activeEmbed, inactiveEmbed];
+
+        // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
+        if (afkUsers && afkUsers.length > 0) {
+            // 잠수 사용자 임베드
+            const afkEmbed = new EmbedBuilder()
+                .setColor(COLORS.SLEEP)
+                .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+                .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`);
+
+            afkEmbed.addFields(
+                { name: `💤 잠수 중인 멤버 (${afkUsers.length}명)`, value: '\u200B' }
+            );
+
+            if (afkUsers.length > 0) {
+                afkEmbed.addFields(
+                    { name: '이름', value: afkUsers.map(user => user.nickname || user.userId).join('\n'), inline: true },
+                    { name: '총 활동 시간', value: afkUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true },
+                    {
+                        name: '잠수 해제 예정일',
+                        value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil || Date.now()))).join('\n'),
+                        inline: true
+                    }
+                );
+            }
+
+            // 잠수 임베드 추가
+            embeds.push(afkEmbed);
+        }
 
         return embeds;
     }
