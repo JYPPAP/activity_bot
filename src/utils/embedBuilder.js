@@ -1,7 +1,8 @@
 // src/utils/embedBuilder.js - 임베드 생성 유틸리티
 import { EmbedBuilder } from 'discord.js';
 import { COLORS } from '../config/constants.js';
-import { formatTime, formatKoreanDate, formatMembersList } from './formatters.js';
+import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters.js';
+import { formatSimpleDate } from './dateUtils.js';
 
 /**
  * 팩토리 패턴을 사용한 임베드 생성 유틸리티
@@ -20,17 +21,12 @@ export class EmbedFactory {
         const now = new Date();
         const startDate = resetTime ? new Date(resetTime) : now;
 
-        // 날짜 형식을 YYYY.MM.DD 형태로 포맷팅
-        const formatSimpleDate = (date) => {
-            return `${date.getFullYear()}.${(date.getMonth() + 1).toString().padStart(2, '0')}.${date.getDate().toString().padStart(2, '0')}`;
-        };
-
         const startDateStr = formatSimpleDate(startDate);
         const endDateStr = formatSimpleDate(now);
 
         // 임베드 생성
         const embed = new EmbedBuilder()
-            .setTitle(`📊 ${role} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
+            .setTitle(`📊 ${cleanRoleName(role)} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
             .setDescription(`최소 활동 시간: ${minActivityTime}시간`)
             .addFields(
                 {
@@ -55,6 +51,102 @@ export class EmbedFactory {
         embed.setColor(type === 'active' ? COLORS.ACTIVE : COLORS.INACTIVE);
 
         return embed;
+    }
+
+    /**
+     * 활동 데이터 임베드 세트를 생성합니다.
+     * @param {string} role - 역할 이름
+     * @param {Array<Object>} activeUsers - 활성 사용자 목록
+     * @param {Array<Object>} inactiveUsers - 비활성 사용자 목록
+     * @param {Array<Object>} afkUsers - 잠수 사용자 목록
+     * @param {number} resetTime - 마지막 리셋 시간
+     * @param {number} minHours - 최소 활동 시간(시)
+     * @param {string} title - 임베드 제목 (선택적)
+     * @returns {Array<EmbedBuilder>} - 생성된 임베드 배열
+     */
+    static createActivityEmbeds(role, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, title = '활동 목록') {
+        // 날짜 범위 설정 (시작일: 리셋 시간, 종료일: 현재)
+        const now = new Date();
+        const startDate = resetTime ? new Date(resetTime) : now;
+
+        const startDateStr = formatSimpleDate(startDate);
+        const endDateStr = formatSimpleDate(now);
+        const cleanedRoleName = cleanRoleName(role);
+
+        // 활성 사용자 임베드
+        const activeEmbed = new EmbedBuilder()
+            .setColor(COLORS.ACTIVE)
+            .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+        activeEmbed.addFields(
+            { name: `✅ 활동 기준 달성 멤버 (${activeUsers.length}명)`, value: '\u200B' }
+        );
+
+        if (activeUsers.length > 0) {
+            activeEmbed.addFields(
+                { name: '이름', value: activeUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: activeUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            activeEmbed.addFields(
+                { name: '\u200B', value: '기준 달성 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        // 비활성 사용자 임베드
+        const inactiveEmbed = new EmbedBuilder()
+            .setColor(COLORS.INACTIVE)
+            .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+            .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+        inactiveEmbed.addFields(
+            { name: `❌ 활동 기준 미달성 멤버 (${inactiveUsers.length}명)`, value: '\u200B' }
+        );
+
+        if (inactiveUsers.length > 0) {
+            inactiveEmbed.addFields(
+                { name: '이름', value: inactiveUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '총 활동 시간', value: inactiveUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
+            );
+        } else {
+            inactiveEmbed.addFields(
+                { name: '\u200B', value: '기준 미달성 멤버가 없습니다.', inline: false }
+            );
+        }
+
+        // 임베드 배열 초기화
+        const embeds = [activeEmbed, inactiveEmbed];
+
+        // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
+        if (afkUsers.length > 0) {
+            // 잠수 사용자 임베드
+            const afkEmbed = new EmbedBuilder()
+                .setColor(COLORS.SLEEP)
+                .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+                .setDescription(`최소 활동 시간: ${minHours}시간`);
+
+            afkEmbed.addFields(
+                { name: `💤 잠수 중인 멤버 (${afkUsers.length}명)`, value: '\u200B' }
+            );
+
+            if (afkUsers.length > 0) {
+                afkEmbed.addFields(
+                    { name: '이름', value: afkUsers.map(user => user.nickname).join('\n'), inline: true },
+                    { name: '총 활동 시간', value: afkUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true },
+                    {
+                        name: '잠수 해제 예정일',
+                        value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil))).join('\n'),
+                        inline: true
+                    }
+                );
+            }
+
+            // 잠수 임베드 추가
+            embeds.push(afkEmbed);
+        }
+
+        return embeds;
     }
 
     /**

@@ -53,6 +53,9 @@ export class CommandHandler {
         interaction.user.id === config.DEV_ID
     );
   }
+  /*
+  *
+  * */
 
   /**
    * 명령어 상호작용을 처리합니다.

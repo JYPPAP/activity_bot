@@ -4,9 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="잠수 역할 출력오류 수정">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/gapListCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapListCommand.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/gapReportCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapReportCommand.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -35,7 +39,7 @@
   <component name="GithubPullRequestsUISettings">{
   &quot;selectedUrlAndAccountId&quot;: {
     &quot;url&quot;: &quot;git@github.com:JYPPAP/activity_bot.git&quot;,
-    &quot;accountId&quot;: &quot;12a1002a-7a34-4ed3-b35d-8b7369d2b43e&quot;
+    &quot;accountId&quot;: &quot;96415249-51ec-45b2-b8a2-f2e06972319d&quot;
   }
 }</component>
   <component name="ProjectColorInfo">{
@@ -50,29 +54,30 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.mappings": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.symlinks": "true",
-    "WebServerToolWindowPanel.toolwindow.show.date": "false",
-    "WebServerToolWindowPanel.toolwindow.show.permissions": "false",
-    "WebServerToolWindowPanel.toolwindow.show.size": "false",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "last_opened_file_path": "D:/Personal Project/activity_bot",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "ssh.settings",
-    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.3.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.mappings&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.symlinks&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.date&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.permissions&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.size&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Personal Project/activity_bot&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ssh.settings&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2024.3.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Personal Project\activity_bot" />
@@ -81,7 +86,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-WS-243.26053.12" />
+        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-WS-251.23774.424" />
       </set>
     </attachedChunks>
   </component>
@@ -122,7 +127,13 @@
       <workItem from="1744214376141" duration="1359000" />
       <workItem from="1744262438426" duration="9000" />
       <workItem from="1744293041585" duration="3425000" />
-      <workItem from="1744738049088" duration="4059000" />
+      <workItem from="1744738049088" duration="4904000" />
+      <workItem from="1744744156727" duration="28000" />
+      <workItem from="1744744189251" duration="178000" />
+      <workItem from="1744779381175" duration="11000" />
+      <workItem from="1744890887683" duration="921000" />
+      <workItem from="1744895128220" duration="1871000" />
+      <workItem from="1745038243786" duration="643000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -476,7 +487,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744741809828</updated>
     </task>
-    <option name="localTasksCounter" value="45" />
+    <task id="LOCAL-00045" summary="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화">
+      <option name="closed" value="true" />
+      <created>1744742607941</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1744742607941</updated>
+    </task>
+    <option name="localTasksCounter" value="46" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -494,7 +513,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="관전 및 대기 시 시간체크 안함 - 완성" />
     <MESSAGE value="관전 및 대기 시 시간체크 안함" />
     <MESSAGE value="ES6+ 로 변경" />
     <MESSAGE value="SQLite 로 마이그레이션" />
@@ -519,6 +537,7 @@
     <MESSAGE value="1. 명령어 추가&#10;- 잠수 명령어 추가&#10;2. 역할 활동 보고서 출력 시 정리된 형태로 출력&#10;- addFields를 사용하여 기존 문자열에서 정렬된 형태로 변환하여 출력&#10;3. 테스트인 경우 나만 볼 수 있게 수정&#10;4. 자동 출력의 경우 날짜 채널에만 출력되도록 수정" />
     <MESSAGE value="1. index.js에서 import 수정 &#10;2. env.js 에서 CLIENT_ID를 가져올 수 있도록 수정" />
     <MESSAGE value="잠수 역할 출력오류 수정" />
-    <option name="LAST_COMMIT_MESSAGE" value="잠수 역할 출력오류 수정" />
+    <MESSAGE value="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화" />
+    <option name="LAST_COMMIT_MESSAGE" value="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화" />
   </component>
 </project>
