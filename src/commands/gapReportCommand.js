@@ -28,8 +28,11 @@ export class GapReportCommand extends CommandBase {
         const role = cleanRoleName(roleOption);
 
         // 날짜 옵션 가져오기
-        const startDateStr = interaction.options.getString("start_date");
-        const endDateStr = interaction.options.getString("end_date");
+        const startDateStr = interaction.options.getString("start_date")?.trim();
+        const endDateStr = interaction.options.getString("end_date")?.trim();
+
+        // 디버깅을 위한 로그
+        console.log('입력된 날짜:', startDateStr, endDateStr);
 
         // 실행 모드 가져오기 (테스트 모드 또는 리셋 포함 모드)
         const isTestMode = interaction.options.getBoolean("test_mode") ?? true;
@@ -59,16 +62,48 @@ export class GapReportCommand extends CommandBase {
         let startDate, endDate;
 
         if (startDateStr && endDateStr) {
+            // 간단한 정규식 검증 먼저 수행
+            if (!/^\d{6}$/.test(startDateStr)) {
+                return await interaction.followUp({
+                    content: `시작 날짜 형식이 올바르지 않습니다. '${startDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250413)`,
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+
+            if (!/^\d{6}$/.test(endDateStr)) {
+                return await interaction.followUp({
+                    content: `종료 날짜 형식이 올바르지 않습니다. '${endDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250420)`,
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+
             // YYMMDD 형식의 날짜 처리
             try {
-                startDate = parseYYMMDD(startDateStr);
-                endDate = parseYYMMDD(endDateStr);
+                // 수동으로 날짜 파싱
+                const startYear = 2000 + parseInt(startDateStr.substring(0, 2), 10);
+                const startMonth = parseInt(startDateStr.substring(2, 4), 10) - 1;
+                const startDay = parseInt(startDateStr.substring(4, 6), 10);
 
-                // 종료 날짜는 하루의 끝으로 설정 (23:59:59.999)
-                endDate.setHours(23, 59, 59, 999);
+                const endYear = 2000 + parseInt(endDateStr.substring(0, 2), 10);
+                const endMonth = parseInt(endDateStr.substring(2, 4), 10) - 1;
+                const endDay = parseInt(endDateStr.substring(4, 6), 10);
+
+                startDate = new Date(startYear, startMonth, startDay, 0, 0, 0, 0);
+                endDate = new Date(endYear, endMonth, endDay, 23, 59, 59, 999);
+
+                // 날짜 유효성 검사
+                if (isNaN(startDate.getTime())) {
+                    throw new Error(`유효하지 않은 시작 날짜: ${startDateStr}`);
+                }
+
+                if (isNaN(endDate.getTime())) {
+                    throw new Error(`유효하지 않은 종료 날짜: ${endDateStr}`);
+                }
+
             } catch (error) {
+                console.error('날짜 파싱 오류:', error);
                 return await interaction.followUp({
-                    content: `날짜 형식이 올바르지 않습니다. 'YYMMDD' 형식으로 입력해주세요. (예: 250413)`,
+                    content: `날짜 처리 중 오류가 발생했습니다: ${error.message}`,
                     flags: MessageFlags.Ephemeral,
                 });
             }
@@ -77,6 +112,9 @@ export class GapReportCommand extends CommandBase {
             startDate = roleConfig.resetTime ? new Date(roleConfig.resetTime) : new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
             endDate = new Date();
         }
+
+        // 디버깅 로그
+        console.log('파싱된 날짜:', startDate, endDate);
 
         // 사용자 분류 서비스로 사용자 분류 (날짜 범위 기준)
         const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } =
