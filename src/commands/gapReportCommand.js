@@ -35,7 +35,7 @@ export class GapReportCommand extends CommandBase {
         console.log('입력된 날짜:', startDateStr, endDateStr);
 
         // 실행 모드 가져오기 (테스트 모드 또는 리셋 포함 모드)
-        const isTestMode = interaction.options.getBoolean("test_mode") ?? true;
+        const isTestMode = interaction.options.getBoolean("test_mode") ?? false;
 
         // 최신 데이터로 갱신
         await this.activityTracker.saveActivityData();
