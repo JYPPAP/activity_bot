@@ -111,8 +111,20 @@ const commands = [
                 required: true
             },
             {
+                name: 'start_date',
+                description: '시작 날짜 (YYMMDD 형식, 예: 250413)',
+                type: ApplicationCommandOptionType.String,
+                required: false
+            },
+            {
+                name: 'end_date',
+                description: '종료 날짜 (YYMMDD 형식, 예: 250420)',
+                type: ApplicationCommandOptionType.String,
+                required: false
+            },
+            {
                 name: 'test_mode',
-                description: '테스트 모드 (리셋 시간을 기록하지 않음, 기본이 테스트 모드)',
+                description: '테스트 모드 여부 (기본: 테스트)',
                 type: ApplicationCommandOptionType.Boolean,
                 required: false
             },

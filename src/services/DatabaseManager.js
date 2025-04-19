@@ -300,6 +300,47 @@ export class DatabaseManager {
     }
 
     /**
+     * 특정 기간 동안의 사용자 활동 시간 조회
+     * @param {string} userId - 사용자 ID
+     * @param {number} startTime - 시작 시간 (타임스탬프)
+     * @param {number} endTime - 종료 시간 (타임스탬프)
+     * @returns {number} - 해당 기간 동안의 총 활동 시간 (밀리초)
+     */
+    async getUserActivityByDateRange(userId, startTime, endTime) {
+        try {
+            // 해당 기간의 활동 로그 조회
+            const logs = this.db.get('activity_logs')
+                .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
+                .value();
+
+            // 활동 시간 계산
+            let totalTime = 0;
+            let joinTime = null;
+
+            for (const log of logs) {
+                if (log.eventType === 'JOIN') {
+                    joinTime = log.timestamp;
+                } else if (log.eventType === 'LEAVE' && joinTime) {
+                    // 입장 후 퇴장한 경우 활동 시간 누적
+                    totalTime += log.timestamp - joinTime;
+                    joinTime = null;
+                }
+            }
+
+            // 로그에는 있지만 퇴장 로그가 없는 경우 (비정상 종료 등)
+            if (joinTime) {
+                // 마지막 기록 시점까지 계산
+                totalTime += Math.min(endTime, Date.now()) - joinTime;
+            }
+
+            return totalTime;
+        } catch (error) {
+            console.error('특정 기간 활동 시간 조회 오류:', error);
+            return 0;
+        }
+    }
+
+    /**
      * 특정 기간의 활동 멤버 목록 가져오기
      * @param {number} startTime - 시작 시간 (타임스탬프)
      * @param {number} endTime - 종료 시간 (타임스탬프)

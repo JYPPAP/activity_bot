@@ -1,5 +1,5 @@
 // src/commands/commandHandler.js - 명령어 핸들러 수정
-import { PermissionsBitField, MessageFlags } from 'discord.js';
+import { PermissionsBitField, MessageFlags, ApplicationCommandOptionType } from 'discord.js';
 import { GapListCommand } from './gapListCommand.js';
 import { GapConfigCommand } from './gapConfigCommand.js';
 import { GapResetCommand } from './gapResetCommand.js';

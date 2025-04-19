@@ -27,6 +27,10 @@ export class GapReportCommand extends CommandBase {
         const roleOption = interaction.options.getString("role");
         const role = cleanRoleName(roleOption);
 
+        // 날짜 옵션 가져오기
+        const startDateStr = interaction.options.getString("start_date");
+        const endDateStr = interaction.options.getString("end_date");
+
         // 실행 모드 가져오기 (테스트 모드 또는 리셋 포함 모드)
         const isTestMode = interaction.options.getBoolean("test_mode") ?? true;
 
@@ -42,9 +46,6 @@ export class GapReportCommand extends CommandBase {
             });
         }
 
-        // 마지막 리셋 시간 가져오기
-        const lastResetTime = roleConfig.resetTime || Date.now() - (7 * 24 * 60 * 60 * 1000); // 기본값: 1주일 전
-
         // 현재 역할을 가진 멤버 가져오기
         const guild = interaction.guild;
         const members = await guild.members.fetch();
@@ -54,13 +55,36 @@ export class GapReportCommand extends CommandBase {
             member.roles.cache.some(r => r.name === role)
         );
 
-        // 사용자 분류 서비스로 사용자 분류
-        const { activeUsers, inactiveUsers, afkUsers, minHours } =
-            await this.userClassificationService.classifyUsers(role, roleMembers);
+        // 날짜 범위 설정
+        let startDate, endDate;
+
+        if (startDateStr && endDateStr) {
+            // YYMMDD 형식의 날짜 처리
+            try {
+                startDate = parseYYMMDD(startDateStr);
+                endDate = parseYYMMDD(endDateStr);
+
+                // 종료 날짜는 하루의 끝으로 설정 (23:59:59.999)
+                endDate.setHours(23, 59, 59, 999);
+            } catch (error) {
+                return await interaction.followUp({
+                    content: `날짜 형식이 올바르지 않습니다. 'YYMMDD' 형식으로 입력해주세요. (예: 250413)`,
+                    flags: MessageFlags.Ephemeral,
+                });
+            }
+        } else {
+            // 날짜가 지정되지 않은 경우 기본값 사용 (마지막 리셋 시간부터 현재까지)
+            startDate = roleConfig.resetTime ? new Date(roleConfig.resetTime) : new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
+            endDate = new Date();
+        }
+
+        // 사용자 분류 서비스로 사용자 분류 (날짜 범위 기준)
+        const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } =
+            await this.userClassificationService.classifyUsersByDateRange(role, roleMembers, startDate, endDate);
 
         // 보고서 임베드 생성
         const reportEmbeds = EmbedFactory.createActivityEmbeds(
-            role, activeUsers, inactiveUsers, afkUsers, lastResetTime, minHours, '활동 보고서'
+            role, activeUsers, inactiveUsers, afkUsers, startDate, endDate, minHours, reportCycle, '활동 보고서'
         );
 
         if (isTestMode) { // 테스트인 경우 보고서 전송 (서버 내 Embed로 전송)
