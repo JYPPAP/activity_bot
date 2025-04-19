@@ -431,4 +431,57 @@ export class ActivityTracker {
       return { activeUsers: [], inactiveUsers: [], afkUsers: [], resetTime: null, minHours: 0 };
     }
   }
+
+  async getActiveMembersData() {
+    try {
+      // 모든 사용자 활동 정보 가져오기
+      const activities = await this.db.getAllUserActivity();
+
+      // 활성 멤버 정보 변환 (ID → 표시 이름)
+      const activeMembers = [];
+
+      for (const activity of activities) {
+        // 총 활동 시간이 0보다 큰 사용자만 필터링
+        if (activity.totalTime > 0) {
+          // 멤버 표시 이름 가져오기 (없으면 ID 사용)
+          let displayName = activity.displayName || activity.userId;
+
+          // 디스코드에서 멤버 정보 가져오기 시도
+          try {
+            const guild = this.client.guilds.cache.get(config.GUILDID);
+            if (guild) {
+              const member = await guild.members.fetch(activity.userId).catch(() => null);
+              if (member) {
+                displayName = member.displayName;
+
+                // DB에 표시 이름 업데이트
+                await this.db.updateUserActivity(
+                    activity.userId,
+                    activity.totalTime,
+                    activity.startTime,
+                    displayName
+                );
+              }
+            }
+          } catch (error) {
+            console.error(`사용자 정보 조회 실패: ${activity.userId}`, error);
+          }
+
+          activeMembers.push({
+            userId: activity.userId,
+            nickname: displayName,
+            totalTime: activity.totalTime
+          });
+        }
+      }
+
+      // 활동 시간 기준으로 정렬
+      activeMembers.sort((a, b) => b.totalTime - a.totalTime);
+
+      return activeMembers;
+    } catch (error) {
+      console.error('활동 멤버 데이터 조회 오류:', error);
+      return [];
+    }
+  }
 }

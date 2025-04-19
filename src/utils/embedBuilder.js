@@ -85,7 +85,7 @@ export class EmbedFactory {
 
         if (activeUsers.length > 0) {
             activeEmbed.addFields(
-                { name: '이름', value: activeUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '이름', value: activeUsers.map(user => user.nickname || user.userId).join('\n'), inline: true },
                 { name: '총 활동 시간', value: activeUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
             );
         } else {
@@ -106,7 +106,7 @@ export class EmbedFactory {
 
         if (inactiveUsers.length > 0) {
             inactiveEmbed.addFields(
-                { name: '이름', value: inactiveUsers.map(user => user.nickname).join('\n'), inline: true },
+                { name: '이름', value: inactiveUsers.map(user => user.nickname || user.userId).join('\n'), inline: true },
                 { name: '총 활동 시간', value: inactiveUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true }
             );
         } else {
@@ -119,7 +119,7 @@ export class EmbedFactory {
         const embeds = [activeEmbed, inactiveEmbed];
 
         // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
-        if (afkUsers.length > 0) {
+        if (afkUsers && afkUsers.length > 0) {
             // 잠수 사용자 임베드
             const afkEmbed = new EmbedBuilder()
                 .setColor(COLORS.SLEEP)
@@ -132,11 +132,11 @@ export class EmbedFactory {
 
             if (afkUsers.length > 0) {
                 afkEmbed.addFields(
-                    { name: '이름', value: afkUsers.map(user => user.nickname).join('\n'), inline: true },
+                    { name: '이름', value: afkUsers.map(user => user.nickname || user.userId).join('\n'), inline: true },
                     { name: '총 활동 시간', value: afkUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true },
                     {
                         name: '잠수 해제 예정일',
-                        value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil))).join('\n'),
+                        value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil || Date.now()))).join('\n'),
                         inline: true
                     }
                 );

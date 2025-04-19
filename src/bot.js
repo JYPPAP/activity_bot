@@ -5,6 +5,7 @@ import { ActivityTracker } from './services/activityTracker.js';
 import { LogService } from './services/logService.js';
 import { CalendarLogService } from './services/calendarLogService.js';
 import { CommandHandler } from './commands/commandHandler.js';
+import { UserClassificationService } from './services/UserClassificationService.js';
 import { FileManager } from './services/fileManager.js'; // 마이그레이션용으로 유지
 import { DatabaseManager } from './services/DatabaseManager.js'; // 새로운 DB 관리자
 import { config } from './config/env.js';
@@ -75,7 +76,10 @@ export class Bot {
     });
   }
 
-  // 새로운 메서드 추가
+  /**
+   * 역할별 출력 일정 설정
+   * @param {Guild} guild - 디스코드 길드 객체
+   */
   async scheduleRoleListings(guild) {
     try {
       // 모든 역할 설정 가져오기
@@ -84,6 +88,9 @@ export class Bot {
         console.log('설정된 역할이 없습니다.');
         return;
       }
+
+      // UserClassificationService 인스턴스 생성
+      const userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
 
       console.log(`${roleConfigs.length}개 역할에 대한 출력 일정을 설정합니다.`);
 
@@ -99,11 +106,11 @@ export class Bot {
 
         setTimeout(() => {
           // 첫 출력 실행
-          this.generateRoleReport(guild, roleName);
+          this.generateRoleReport(guild, roleName, userClassificationService);
 
           // 이후 정기적으로 실행
           setInterval(() => {
-            this.generateRoleReport(guild, roleName);
+            this.generateRoleReport(guild, roleName, userClassificationService);
           }, interval);
 
           console.log(`${roleName} 역할의 출력 일정이 설정되었습니다 (주기: ${interval/(24*60*60*1000)}일)`);
@@ -114,8 +121,14 @@ export class Bot {
     }
   }
 
-  // 역할별 보고서 생성 메서드
-  async generateRoleReport(guild, roleName) {
+
+  /**
+   * 역할별 보고서 생성 메서드 (UserClassificationService 활용)
+   * @param {Guild} guild - 디스코드 길드 객체
+   * @param {string} roleName - 역할 이름
+   * @param {UserClassificationService} userClassificationService - 사용자 분류 서비스 (선택적)
+   */
+  async generateRoleReport(guild, roleName, userClassificationService = null) {
     try {
       console.log(`${roleName} 역할에 대한 보고서 생성 시작...`);
 
@@ -133,35 +146,23 @@ export class Bot {
           member.roles.cache.some(r => r.name === roleName)
       );
 
-      // 활동 데이터 분석
+      // UserClassificationService가 제공되지 않은 경우 생성
+      if (!userClassificationService) {
+        userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
+      }
+
+      // 사용자 분류 서비스를 사용하여 멤버 분류
       const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
-          await this.activityTracker.classifyUsersByRole(roleName, roleMembers);
+          await userClassificationService.classifyUsers(roleName, roleMembers);
 
-      // 보고서 임베드 생성
-      const activeEmbed = this.createRoleReportEmbed('active', {
-        role: roleName,
-        users: activeUsers,
-        resetTime,
-        minActivityTime: minHours
-      });
-
-      const inactiveEmbed = this.createRoleReportEmbed('inactive', {
-        role: roleName,
-        users: inactiveUsers,
-        resetTime,
-        minActivityTime: minHours
-      });
+      // EmbedFactory를 사용하여 임베드 생성
+      const reportEmbeds = EmbedFactory.createActivityEmbeds(
+          roleName, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, '활동 보고서'
+      );
 
       // 임베드 전송
-      await logChannel.send({ embeds: [activeEmbed] });
-      await logChannel.send({ embeds: [inactiveEmbed] });
-
-      if (afkUsers && afkUsers.length > 0) {
-        const afkEmbed = this.createRoleReportEmbed('afk', {
-          role: roleName,
-          users: afkUsers
-        });
-        await logChannel.send({ embeds: [afkEmbed] });
+      for (const embed of reportEmbeds) {
+        await logChannel.send({ embeds: [embed] });
       }
 
       console.log(`${roleName} 역할에 대한 보고서가 생성되었습니다.`);

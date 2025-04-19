@@ -59,51 +59,21 @@ export class ActivityReportService {
                     continue;
                 }
 
-                // 역할의 최소 활동 시간 가져오기
-                const roleConfig = await this.db.getRoleConfig(roleName);
-                const minHours = roleConfig ? roleConfig.minHours : 0;
-                const minTime = minHours * 60 * 60 * 1000; // 밀리초 단위로 변환
+                // UserClassificationService 사용
+                const userClassificationService = new UserClassificationService(this.db, null);
+                const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
+                    await userClassificationService.classifyUsers(roleName, members);
 
-                // 각 멤버의 활동 시간 가져오기
-                const memberActivities = [];
-                for (const [memberId, member] of members.entries()) {
-                    const activity = await this.db.getUserActivity(memberId);
-                    if (activity) {
-                        memberActivities.push({
-                            name: member.displayName,
-                            id: memberId,
-                            totalTime: activity.totalTime || 0,
-                            active: activity.totalTime >= minTime
-                        });
-                    } else {
-                        memberActivities.push({
-                            name: member.displayName,
-                            id: memberId,
-                            totalTime: 0,
-                            active: false
-                        });
-                    }
-                }
-
-                // 활동 시간 기준으로 정렬
-                memberActivities.sort((a, b) => b.totalTime - a.totalTime);
-
-                // 활성/비활성 멤버 분리
-                const activeMembers = memberActivities.filter(m => m.active);
-                const inactiveMembers = memberActivities.filter(m => !m.active);
-
-                // 역할 보고서 임베드 생성
-                const embed = this.createRoleReportEmbed(
-                    roleName,
-                    activeMembers,
-                    inactiveMembers,
-                    minHours,
-                    startDate,
-                    new Date(endTime)
+                // EmbedFactory를 사용하여 표준화된 임베드 생성
+                const embedFactory = new EmbedFactory();
+                const reportEmbeds = embedFactory.createActivityEmbeds(
+                    roleName, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, '활동 보고서'
                 );
 
                 // 임베드 전송
-                await channel.send({ embeds: [embed] });
+                for (const embed of reportEmbeds) {
+                    await channel.send({ embeds: [embed] });
+                }
 
                 console.log(`역할 [${roleName}]의 활동 보고서가 전송되었습니다.`);
             }
@@ -161,13 +131,30 @@ export class ActivityReportService {
                 if (day.totalEvents > 0) activeDays++;
             });
 
-            // 가장 활동적인 사용자 조회
+            // 가장 활동적인 사용자 조회 및 표시 이름으로 변환
             const activeUsers = await this.db.getAllUserActivity();
+            const guild = this.client.guilds.cache.get(config.GUILDID);
+
+            // 사용자 ID를 표시 이름으로 변환
+            if (guild) {
+                for (const user of activeUsers) {
+                    if (!user.displayName || user.displayName === user.userId) {
+                        try {
+                            const member = await guild.members.fetch(user.userId).catch(() => null);
+                            if (member) {
+                                user.displayName = member.displayName;
+                            }
+                        } catch (error) {
+                            console.error(`사용자 정보 조회 실패: ${user.userId}`, error);
+                        }
+                    }
+                }
+            }
 
             // 활동적인 사용자를 활동 시간 기준으로 정렬
             activeUsers.sort((a, b) => b.totalTime - a.totalTime);
 
-            // 상위 5명 추출
+            // 상위 5명 추출 (표시 이름으로 변환)
             const topUsers = activeUsers.slice(0, 5).map(user => ({
                 name: user.displayName || user.userId,
                 totalTime: user.totalTime
@@ -265,7 +252,7 @@ export class ActivityReportService {
     }
 
     /**
-     * 주간 요약 임베드 생성
+     * 주간 요약 임베드 생성 (수정된 버전)
      * @param {Object} summary - 요약 데이터
      * @param {Date} startDate - 시작 날짜
      * @param {Date} endDate - 종료 날짜
@@ -278,24 +265,40 @@ export class ActivityReportService {
         const embed = new EmbedBuilder()
             .setColor(COLORS.LOG)
             .setTitle(`📅 주간 활동 요약 (${startDateStr} ~ ${endDateStr})`)
-            .setDescription(`지난 주의 음성 채널 활동 요약입니다.`)
-            .addFields(
-                { name: '📊 총 활동 통계', value: `입장: ${summary.totalJoins}회\n퇴장: ${summary.totalLeaves}회\n활동 일수: ${summary.activeDays}일` },
-                {
-                    name: '👥 가장 활동적인 사용자',
-                    value: summary.mostActiveUsers.length > 0
-                        ? summary.mostActiveUsers.map(user => `${user.name}: ${formatTime(user.totalTime)}`).join('\n')
-                        : '데이터 없음'
-                },
-                {
-                    name: '🔊 가장 활동적인 채널',
-                    value: summary.mostActiveChannels.length > 0
-                        ? summary.mostActiveChannels.map(channel => `${channel.name}: ${channel.count}회`).join('\n')
-                        : '데이터 없음'
-                }
-            )
-            .setTimestamp();
+            .setDescription(`지난 주의 음성 채널 활동 요약입니다.`);
 
+        // 1. 총 활동 통계 필드 추가
+        embed.addFields(
+            { name: '📊 총 활동 통계', value: `입장: ${summary.totalJoins}회\n퇴장: ${summary.totalLeaves}회\n활동 일수: ${summary.activeDays}일` }
+        );
+
+        // 2. 가장 활동적인 사용자 필드 (사용자 ID 대신 별명 표시)
+        if (summary.mostActiveUsers && summary.mostActiveUsers.length > 0) {
+            embed.addFields({
+                name: '👥 가장 활동적인 사용자',
+                value: summary.mostActiveUsers.map(user => `${user.name}: ${formatTime(user.totalTime)}`).join('\n')
+            });
+        } else {
+            embed.addFields({
+                name: '👥 가장 활동적인 사용자',
+                value: '데이터 없음'
+            });
+        }
+
+        // 3. 가장 활동적인 채널 필드
+        if (summary.mostActiveChannels && summary.mostActiveChannels.length > 0) {
+            embed.addFields({
+                name: '🔊 가장 활동적인 채널',
+                value: summary.mostActiveChannels.map(channel => `${channel.name}: ${channel.count}회`).join('\n')
+            });
+        } else {
+            embed.addFields({
+                name: '🔊 가장 활동적인 채널',
+                value: '데이터 없음'
+            });
+        }
+
+        embed.setTimestamp();
         return embed;
     }
 

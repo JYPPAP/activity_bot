@@ -1,4 +1,4 @@
-// src/services/UserClassificationService.js - 사용자 분류 기능
+// src/services/UserClassificationService.js
 import { calculateNextSunday } from '../utils/dateUtils.js';
 
 export class UserClassificationService {
@@ -55,19 +55,20 @@ export class UserClassificationService {
           userData.afkUntil = nextSunday.getTime();
 
           // DB에 저장
-          await this.db.setUserAfkStatus(userId, member.displayName, userData.afkUntil);
+          if (this.db.setUserAfkStatus) {
+            await this.db.setUserAfkStatus(userId, member.displayName, userData.afkUntil);
+          }
         }
 
         // 잠수 멤버 배열에 추가
         afkUsers.push(userData);
-        continue;
-      }
-
-      // 최소 활동 시간 기준으로 사용자 분류
-      if (userData.totalTime >= minActivityTime) {
-        activeUsers.push(userData);
       } else {
-        inactiveUsers.push(userData);
+        // 최소 활동 시간 기준으로 사용자 분류
+        if (userData.totalTime >= minActivityTime) {
+          activeUsers.push(userData);
+        } else {
+          inactiveUsers.push(userData);
+        }
       }
     }
 

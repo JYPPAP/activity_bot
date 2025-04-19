@@ -1,6 +1,4 @@
-// src/commands/commandHandler.js - 명령어 핸들러
-console.log('>>> commandHandler.js 파일이 로드되었습니다.');
-
+// src/commands/commandHandler.js - 명령어 핸들러 수정
 import { PermissionsBitField, MessageFlags } from 'discord.js';
 import { GapListCommand } from './gapListCommand.js';
 import { GapConfigCommand } from './gapConfigCommand.js';
@@ -8,10 +6,11 @@ import { GapResetCommand } from './gapResetCommand.js';
 import { GapCheckCommand } from './gapCheckCommand.js';
 import { GapSaveCommand } from './gapSaveCommand.js';
 import { GapCalendarCommand } from './gapCalendarCommand.js';
-import { GapStatsCommand } from './gapStatsCommand.js'; // 새로운 통계 명령어 추가
-import { GapReportCommand } from './gapReportCommand.js'; // 새 명령어 추가
-import { GapCycleCommand } from './gapCycleCommand.js'; // 주기 설정 명령어 추가
-import { GapAfkCommand } from './gapAfkCommand.js'; // 잠수 명령어 추가
+import { GapStatsCommand } from './gapStatsCommand.js';
+import { GapReportCommand } from './gapReportCommand.js';
+import { GapCycleCommand } from './gapCycleCommand.js';
+import { GapAfkCommand } from './gapAfkCommand.js';
+import { UserClassificationService } from '../services/UserClassificationService.js';
 import { config } from '../config/env.js';
 
 export class CommandHandler {
@@ -21,20 +20,45 @@ export class CommandHandler {
     this.dbManager = dbManager;
     this.calendarLogService = calendarLogService;
 
+    // UserClassificationService 인스턴스 생성
+    this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
+
     this.commands = new Map();
 
     // 각 명령어 개별적으로 추가
     try {
-      this.commands.set('gap_list', new GapListCommand(activityTracker, dbManager));
-      this.commands.set('gap_config', new GapConfigCommand(dbManager));
-      this.commands.set('gap_reset', new GapResetCommand(activityTracker));
-      this.commands.set('gap_check', new GapCheckCommand(activityTracker, dbManager));
-      this.commands.set('gap_save', new GapSaveCommand(activityTracker));
-      this.commands.set('gap_calendar', new GapCalendarCommand(calendarLogService));
-      this.commands.set('gap_stats', new GapStatsCommand(dbManager));
-      this.commands.set('gap_report', new GapReportCommand(dbManager, activityTracker));
-      this.commands.set('gap_cycle', new GapCycleCommand(dbManager));
-      this.commands.set('gap_afk', new GapAfkCommand(client, dbManager));
+      // 명령어 인스턴스 생성
+      const gapListCommand = new GapListCommand(this.activityTracker, this.dbManager);
+      const gapConfigCommand = new GapConfigCommand(this.dbManager);
+      const gapResetCommand = new GapResetCommand(this.activityTracker);
+      const gapCheckCommand = new GapCheckCommand(this.activityTracker, this.dbManager);
+      const gapSaveCommand = new GapSaveCommand(this.activityTracker);
+      const gapCalendarCommand = new GapCalendarCommand(this.calendarLogService);
+      const gapStatsCommand = new GapStatsCommand(this.dbManager);
+      const gapReportCommand = new GapReportCommand(this.dbManager, this.activityTracker);
+      const gapCycleCommand = new GapCycleCommand(this.dbManager);
+      const gapAfkCommand = new GapAfkCommand(this.client, this.dbManager);
+
+      // UserClassificationService 의존성 주입
+      if (gapListCommand.setUserClassificationService) {
+        gapListCommand.setUserClassificationService(this.userClassificationService);
+      }
+
+      if (gapReportCommand.setUserClassificationService) {
+        gapReportCommand.setUserClassificationService(this.userClassificationService);
+      }
+
+      // 명령어 맵에 등록
+      this.commands.set('gap_list', gapListCommand);
+      this.commands.set('gap_config', gapConfigCommand);
+      this.commands.set('gap_reset', gapResetCommand);
+      this.commands.set('gap_check', gapCheckCommand);
+      this.commands.set('gap_save', gapSaveCommand);
+      this.commands.set('gap_calendar', gapCalendarCommand);
+      this.commands.set('gap_stats', gapStatsCommand);
+      this.commands.set('gap_report', gapReportCommand);
+      this.commands.set('gap_cycle', gapCycleCommand);
+      this.commands.set('gap_afk', gapAfkCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {
@@ -53,9 +77,6 @@ export class CommandHandler {
         interaction.user.id === config.DEV_ID
     );
   }
-  /*
-  *
-  * */
 
   /**
    * 명령어 상호작용을 처리합니다.
@@ -88,12 +109,12 @@ export class CommandHandler {
       // 이미 응답한 상호작용이 아닐 경우에만 응답
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({
-          content: "요청 수행 중 오류가 발생했습니다!_001",
+          content: "요청 수행 중 오류가 발생했습니다!",
           flags: MessageFlags.Ephemeral,
         });
       } else if (interaction.deferred) {
         await interaction.followUp({
-          content: "요청 수행 중 오류가 발생했습니다!_002",
+          content: "요청 수행 중 오류가 발생했습니다!",
           flags: MessageFlags.Ephemeral,
         });
       }

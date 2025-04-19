@@ -4,12 +4,13 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="refactor: 명령어 클래스 구조 개선을 위한 CommandBase 도입&#10;&#10;- 모든 명령어 클래스가 상속받는 CommandBase 클래스 구현&#10;- 공통 기능과 메서드를 CommandBase로 이동하여 코드 중복 제거&#10;- 기존 명령어 클래스들을 CommandBase를 상속받도록 리팩토링&#10;- 일관된 명령어 처리 구조 확립으로 유지보수성 향상">
+      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapListCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapListCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapReportCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapReportCommand.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/activityReportService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityReportService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/activityTracker.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityTracker.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/calendarLogService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/calendarLogService.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -134,6 +135,7 @@
       <workItem from="1744890887683" duration="921000" />
       <workItem from="1744895128220" duration="1871000" />
       <workItem from="1745038243786" duration="643000" />
+      <workItem from="1745075019846" duration="1368000" />
     </task>
     <task id="LOCAL-00001" summary="필요없는 파일 제거">
       <option name="closed" value="true" />
@@ -495,7 +497,15 @@
       <option name="project" value="LOCAL" />
       <updated>1744742607941</updated>
     </task>
-    <option name="localTasksCounter" value="46" />
+    <task id="LOCAL-00046" summary="refactor: 명령어 클래스 구조 개선을 위한 CommandBase 도입&#10;&#10;- 모든 명령어 클래스가 상속받는 CommandBase 클래스 구현&#10;- 공통 기능과 메서드를 CommandBase로 이동하여 코드 중복 제거&#10;- 기존 명령어 클래스들을 CommandBase를 상속받도록 리팩토링&#10;- 일관된 명령어 처리 구조 확립으로 유지보수성 향상">
+      <option name="closed" value="true" />
+      <created>1745075432935</created>
+      <option name="number" value="00046" />
+      <option name="presentableId" value="LOCAL-00046" />
+      <option name="project" value="LOCAL" />
+      <updated>1745075432935</updated>
+    </task>
+    <option name="localTasksCounter" value="47" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -513,7 +523,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="관전 및 대기 시 시간체크 안함" />
     <MESSAGE value="ES6+ 로 변경" />
     <MESSAGE value="SQLite 로 마이그레이션" />
     <MESSAGE value="파일 이동" />
@@ -538,6 +547,7 @@
     <MESSAGE value="1. index.js에서 import 수정 &#10;2. env.js 에서 CLIENT_ID를 가져올 수 있도록 수정" />
     <MESSAGE value="잠수 역할 출력오류 수정" />
     <MESSAGE value="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화" />
-    <option name="LAST_COMMIT_MESSAGE" value="1. 잠수의 예정일을 다음 일요일로 지정&#10;2. 날짜 관련 함수 분리 및 모듈화" />
+    <MESSAGE value="refactor: 명령어 클래스 구조 개선을 위한 CommandBase 도입&#10;&#10;- 모든 명령어 클래스가 상속받는 CommandBase 클래스 구현&#10;- 공통 기능과 메서드를 CommandBase로 이동하여 코드 중복 제거&#10;- 기존 명령어 클래스들을 CommandBase를 상속받도록 리팩토링&#10;- 일관된 명령어 처리 구조 확립으로 유지보수성 향상" />
+    <option name="LAST_COMMIT_MESSAGE" value="refactor: 명령어 클래스 구조 개선을 위한 CommandBase 도입&#10;&#10;- 모든 명령어 클래스가 상속받는 CommandBase 클래스 구현&#10;- 공통 기능과 메서드를 CommandBase로 이동하여 코드 중복 제거&#10;- 기존 명령어 클래스들을 CommandBase를 상속받도록 리팩토링&#10;- 일관된 명령어 처리 구조 확립으로 유지보수성 향상" />
   </component>
 </project>

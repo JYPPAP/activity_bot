@@ -145,15 +145,44 @@ export class CalendarLogService {
 
                 // 이번 주가 이 역할의 보고서 주인지 확인
                 if (interval === 1 || weekNumber % interval === 0) {
-                    // 지난 보고서 이후 기간 계산
-                    const startDate = new Date(now);
-                    startDate.setDate(now.getDate() - 7 * interval);
-                    startDate.setHours(0, 0, 0, 0);
+                    // 자동 보고서 출력 시작
+                    console.log(`${roleName} 역할의 ${interval}주 자동 보고서 생성 시작...`);
 
-                    // 역할 활동 보고서 생성 및 전송
-                    await this.sendRoleActivityReport(startDate, now.getTime(), [roleName]);
+                    const guild = this.client.guilds.cache.get(config.GUILDID);
+                    if (!guild) {
+                        console.error('서버를 찾을 수 없습니다.');
+                        continue;
+                    }
 
-                    console.log(`역할 [${roleName}]의 ${interval}주 보고서가 생성되었습니다.`);
+                    // 역할 멤버 가져오기
+                    const members = await guild.members.fetch();
+                    const roleMembers = members.filter(member =>
+                        member.roles.cache.some(r => r.name === roleName)
+                    );
+
+                    // UserClassificationService를 사용하여 사용자 분류
+                    const userClassificationService = new UserClassificationService(this.db, null);
+                    const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
+                        await userClassificationService.classifyUsers(roleName, roleMembers);
+
+                    // EmbedFactory를 사용하여 임베드 생성
+                    const reportEmbeds = EmbedFactory.createActivityEmbeds(
+                        roleName, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, '활동 보고서'
+                    );
+
+                    // 임베드 전송
+                    for (const embed of reportEmbeds) {
+                        await this.calendarChannel.send({ embeds: [embed] });
+                    }
+
+                    // 리셋 시간 업데이트 (자동 출력 시 리셋)
+                    await this.db.updateRoleResetTime(
+                        roleName,
+                        now.getTime(),
+                        '자동 보고서 출력 시 리셋'
+                    );
+
+                    console.log(`${roleName} 역할의 자동 보고서가 생성되었습니다.`);
                 }
             }
         } catch (error) {
@@ -263,14 +292,44 @@ export class CalendarLogService {
             // 고유한 사용자 ID 추출
             const userIds = [...new Set(logs.map(log => log.userId))];
 
-            // 사용자 정보 조회
+            // 길드 객체 가져오기
+            const guild = this.client.guilds.cache.get(config.GUILDID);
+
+            // 사용자 정보 조회 및 표시 이름으로 변환
             const activeMembers = [];
             for (const userId of userIds) {
+                // 먼저 데이터베이스에서 표시 이름 확인
                 const activity = await this.db.getUserActivity(userId);
+
                 if (activity && activity.displayName) {
+                    // DB에 표시 이름이 있는 경우
                     activeMembers.push(activity.displayName);
+                } else if (guild) {
+                    // 길드에서 멤버 정보 가져오기 시도
+                    try {
+                        const member = await guild.members.fetch(userId).catch(() => null);
+                        if (member) {
+                            activeMembers.push(member.displayName);
+
+                            // DB에 표시 이름 업데이트
+                            if (activity) {
+                                await this.db.updateUserActivity(
+                                    userId,
+                                    activity.totalTime || 0,
+                                    activity.startTime,
+                                    member.displayName
+                                );
+                            }
+                        } else {
+                            // 멤버를 찾을 수 없는 경우 사용자 ID 사용
+                            activeMembers.push(userId);
+                        }
+                    } catch (error) {
+                        console.error(`멤버 정보 조회 실패: ${userId}`, error);
+                        activeMembers.push(userId);
+                    }
                 } else if (userId) {
-                    // 표시 이름이 없는 경우 사용자 ID 사용
+                    // 길드 객체가 없는 경우 사용자 ID 사용
                     activeMembers.push(userId);
                 }
             }
