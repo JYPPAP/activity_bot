@@ -1,7 +1,7 @@
 // src/services/logService.js - 로깅 서비스
-import { EmbedBuilder, ChannelType } from 'discord.js';
-import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants.js';
-import { EmbedFactory } from '../utils/embedBuilder.js';
+import {ChannelType} from 'discord.js';
+import {TIME, COLORS, MESSAGE_TYPES} from '../config/constants.js';
+import {EmbedFactory} from '../utils/embedBuilder.js';
 
 export class LogService {
   constructor(client, logChannelId) {
@@ -62,7 +62,7 @@ export class LogService {
       }
 
       const embed = EmbedFactory.createLogEmbed(log.message, log.members, colorCode);
-      await logChannel.send({ embeds: [embed] });
+      await logChannel.send({embeds: [embed]});
     }
 
     this.logMessages = []; // 로그 초기화
@@ -70,7 +70,7 @@ export class LogService {
 
   /**
    * 채널에 있는 멤버 목록을 가져옵니다.
-   * @param {VoiceChannel} channel - 음성 채널 객체
+   * @param channel - 음성 채널 객체
    * @returns {Array<string>} - 멤버 표시 이름 배열
    */
   async getVoiceChannelMembers(channel) {
@@ -95,9 +95,9 @@ export class LogService {
       if (oldChannel.name !== newChannel.name) {
         const membersInChannel = await this.getVoiceChannelMembers(newChannel);
         this.logActivity(
-            `${MESSAGE_TYPES.CHANNEL_RENAME}: \` ${oldChannel.name} \` → \` ${newChannel.name} \``,
-            membersInChannel,
-            'CHANNEL_RENAME'
+          `${MESSAGE_TYPES.CHANNEL_RENAME}: \` ${oldChannel.name} \` → \` ${newChannel.name} \``,
+          membersInChannel,
+          'CHANNEL_RENAME'
         );
       }
     }

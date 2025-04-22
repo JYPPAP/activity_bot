@@ -1,6 +1,6 @@
 // src/commands/gapConfigCommand.js - gap_config 명령어 (수정)
-import { MessageFlags } from 'discord.js';
-import { cleanRoleName } from '../utils/formatters.js';
+import {MessageFlags} from 'discord.js';
+import {cleanRoleName} from '../utils/formatters.js';
 
 export class GapConfigCommand {
   constructor(dbManager) {
@@ -9,10 +9,10 @@ export class GapConfigCommand {
 
   /**
    * gap_config 명령어를 실행합니다.
-   * @param {Interaction} interaction - 상호작용 객체
+   * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
       // 명령어 옵션 가져오기

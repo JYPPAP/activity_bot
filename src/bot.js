@@ -1,15 +1,14 @@
 // src/bot.js - 봇 클래스 정의 (SQLite 버전)
-import { Client, GatewayIntentBits, Events } from 'discord.js';
-import { EventManager } from './services/eventManager.js';
-import { ActivityTracker } from './services/activityTracker.js';
-import { LogService } from './services/logService.js';
-import { CalendarLogService } from './services/calendarLogService.js';
-import { CommandHandler } from './commands/commandHandler.js';
-import { UserClassificationService } from './services/UserClassificationService.js';
-import { FileManager } from './services/fileManager.js'; // 마이그레이션용으로 유지
-import { DatabaseManager } from './services/DatabaseManager.js'; // 새로운 DB 관리자
-import { config } from './config/env.js';
-import { PATHS } from './config/constants.js';
+import {Client, GatewayIntentBits, Events} from 'discord.js';
+import {EventManager} from './services/eventManager.js';
+import {ActivityTracker} from './services/activityTracker.js';
+import {LogService} from './services/logService.js';
+import {CalendarLogService} from './services/calendarLogService.js';
+import {CommandHandler} from './commands/commandHandler.js';
+import {UserClassificationService} from './services/UserClassificationService.js';
+import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
+import {config} from './config/env.js';
+import {PATHS} from './config/constants.js';
 import fs from 'fs';
 
 export class Bot {
@@ -33,15 +32,14 @@ export class Bot {
 
     // 각 서비스 인스턴스 생성 (FileManager 제거)
     this.dbManager = new DatabaseManager();
-    // this.fileManager = new FileManager(); // 이 줄 제거
     this.logService = new LogService(this.client, config.LOG_CHANNEL_ID);
     this.calendarLogService = new CalendarLogService(this.client, this.dbManager);
     this.activityTracker = new ActivityTracker(this.client, this.dbManager, this.logService);
     this.commandHandler = new CommandHandler(
-        this.client,
-        this.activityTracker,
-        this.dbManager,
-        this.calendarLogService
+      this.client,
+      this.activityTracker,
+      this.dbManager,
+      this.calendarLogService
     );
     this.eventManager = new EventManager(this.client);
 
@@ -98,8 +96,8 @@ export class Bot {
         const roleName = roleConfig.roleName;
         // 역할별 출력 주기 설정 (인턴은 1주일, 나머지는 2주일)
         const interval = roleName.toLowerCase().includes('인턴')
-            ? 7 * 24 * 60 * 60 * 1000  // 1주일
-            : 14 * 24 * 60 * 60 * 1000; // 2주일
+          ? 7 * 24 * 60 * 60 * 1000  // 1주일
+          : 14 * 24 * 60 * 60 * 1000; // 2주일
 
         // 일정 시간 후 첫 출력 실행 (역할별로 시간차를 두어 동시 출력 방지)
         const initialDelay = 1000 * 60 * 60 * (1 + roleConfigs.indexOf(roleConfig)); // 역할별로 1시간씩 차이
@@ -113,7 +111,7 @@ export class Bot {
             this.generateRoleReport(guild, roleName, userClassificationService);
           }, interval);
 
-          console.log(`${roleName} 역할의 출력 일정이 설정되었습니다 (주기: ${interval/(24*60*60*1000)}일)`);
+          console.log(`${roleName} 역할의 출력 일정이 설정되었습니다 (주기: ${interval / (24 * 60 * 60 * 1000)}일)`);
         }, initialDelay);
       }
     } catch (error) {
@@ -143,7 +141,7 @@ export class Bot {
       // 역할 멤버 가져오기
       const members = await guild.members.fetch();
       const roleMembers = members.filter(member =>
-          member.roles.cache.some(r => r.name === roleName)
+        member.roles.cache.some(r => r.name === roleName)
       );
 
       // UserClassificationService가 제공되지 않은 경우 생성
@@ -152,17 +150,17 @@ export class Bot {
       }
 
       // 사용자 분류 서비스를 사용하여 멤버 분류
-      const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
-          await userClassificationService.classifyUsers(roleName, roleMembers);
+      const {activeUsers, inactiveUsers, afkUsers, resetTime, minHours} =
+        await userClassificationService.classifyUsers(roleName, roleMembers);
 
       // EmbedFactory를 사용하여 임베드 생성
       const reportEmbeds = EmbedFactory.createActivityEmbeds(
-          roleName, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, '활동 보고서'
+        roleName, activeUsers, inactiveUsers, afkUsers, resetTime, minHours, '활동 보고서'
       );
 
       // 임베드 전송
       for (const embed of reportEmbeds) {
-        await logChannel.send({ embeds: [embed] });
+        await logChannel.send({embeds: [embed]});
       }
 
       console.log(`${roleName} 역할에 대한 보고서가 생성되었습니다.`);
@@ -181,8 +179,8 @@ export class Bot {
 
       // 데이터가 없고 JSON 파일이 존재하는 경우에만 마이그레이션
       if (!hasData &&
-          fs.existsSync(PATHS.ACTIVITY_INFO) &&
-          fs.existsSync(PATHS.ROLE_CONFIG)) {
+        fs.existsSync(PATHS.ACTIVITY_INFO) &&
+        fs.existsSync(PATHS.ROLE_CONFIG)) {
 
         console.log('JSON 데이터를 SQLite 데이터베이스로 마이그레이션합니다...');
 
@@ -216,32 +214,32 @@ export class Bot {
   registerEventHandlers() {
     // 음성 채널 상태 변경 이벤트
     this.eventManager.registerHandler(
-        Events.VoiceStateUpdate,
-        this.activityTracker.handleVoiceStateUpdate.bind(this.activityTracker)
+      Events.VoiceStateUpdate,
+      this.activityTracker.handleVoiceStateUpdate.bind(this.activityTracker)
     );
 
     // 멤버 업데이트 이벤트
     this.eventManager.registerHandler(
-        Events.GuildMemberUpdate,
-        this.activityTracker.handleGuildMemberUpdate.bind(this.activityTracker)
+      Events.GuildMemberUpdate,
+      this.activityTracker.handleGuildMemberUpdate.bind(this.activityTracker)
     );
 
     // 채널 업데이트 이벤트
     this.eventManager.registerHandler(
-        Events.ChannelUpdate,
-        this.logService.handleChannelUpdate.bind(this.logService)
+      Events.ChannelUpdate,
+      this.logService.handleChannelUpdate.bind(this.logService)
     );
 
     // 채널 생성 이벤트
     this.eventManager.registerHandler(
-        Events.ChannelCreate,
-        this.logService.handleChannelCreate.bind(this.logService)
+      Events.ChannelCreate,
+      this.logService.handleChannelCreate.bind(this.logService)
     );
 
     // 명령어 처리 이벤트
     this.eventManager.registerHandler(
-        Events.InteractionCreate,
-        this.commandHandler.handleInteraction.bind(this.commandHandler)
+      Events.InteractionCreate,
+      this.commandHandler.handleInteraction.bind(this.commandHandler)
     );
 
     // 이벤트 핸들러 초기화

@@ -18,7 +18,7 @@ export const formatTime = (totalTime) => {
  */
 export const formatKoreanDate = (date) => {
   const dateObj = date instanceof Date ? date : new Date(date);
-  return dateObj.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  return dateObj.toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'});
 };
 
 /**

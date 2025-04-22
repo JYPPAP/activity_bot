@@ -14,7 +14,7 @@ export class EventManager {
     if (!this.handlers.has(event)) {
       this.handlers.set(event, []);
     }
-    
+
     this.handlers.get(event).push(handler);
   }
 

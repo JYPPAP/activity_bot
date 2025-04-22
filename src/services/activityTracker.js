@@ -1,6 +1,6 @@
 // src/services/activityTracker.js - 활동 추적 서비스 (SQLite 버전)
-import { PATHS, TIME, FILTERS, MESSAGE_TYPES } from '../config/constants.js';
-import { config } from '../config/env.js';
+import {TIME, FILTERS, MESSAGE_TYPES} from '../config/constants.js';
+import {config} from '../config/env.js';
 
 export class ActivityTracker {
   constructor(client, dbManager, logService) {
@@ -74,10 +74,10 @@ export class ActivityTracker {
 
           // DB에 업데이트
           await this.db.updateUserActivity(
-              userId,
-              newTotalTime,
-              now, // 현재 시간으로 startTime 업데이트
-              userActivity.displayName || null
+            userId,
+            newTotalTime,
+            now, // 현재 시간으로 startTime 업데이트
+            userActivity.displayName || null
           );
 
           // 메모리 내 값도 업데이트
@@ -86,10 +86,10 @@ export class ActivityTracker {
         } else if (userActivity.totalTime) {
           // 활동 중이 아닌 사용자의 기존 totalTime만 저장
           await this.db.updateUserActivity(
-              userId,
-              userActivity.totalTime,
-              null,
-              userActivity.displayName || null
+            userId,
+            userActivity.totalTime,
+            null,
+            userActivity.displayName || null
           );
         }
       }
@@ -145,8 +145,7 @@ export class ActivityTracker {
             const userActivity = this.channelActivityTime.get(userId);
 
             // 현재 음성 채널에 있는 경우 startTime만 초기화
-            if (member.voice && member.voice.channelId &&
-                !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
+            if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
               userActivity.startTime = now;
               userActivity.totalTime = 0;
             } else {
@@ -215,111 +214,139 @@ export class ActivityTracker {
 
   /**
    * 음성 상태 업데이트 이벤트 핸들러
-   * @param {VoiceState} oldState - 이전 음성 상태
-   * @param {VoiceState} newState - 새 음성 상태
+   * @param oldState - 이전 음성 상태
+   * @param newState - 새 음성 상태
    */
   async handleVoiceStateUpdate(oldState, newState) {
     // 동일한 채널로의 이동 또는 자기 자신의 상태 변경(음소거 등)인 경우 처리하지 않음
-    if (oldState.channelId === newState.channelId && newState.channelId) {
+    if (this.isSameChannelUpdate(oldState, newState)) {
       return;
     }
 
-    const { id: userId } = newState;
+    const userId = newState.id;
+    const member = newState.member;
     const now = Date.now();
-    const { member } = newState;
 
-    // 음성 채널 입장 로깅
-    if (newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId)) {
-      const membersInChannel = await this.logService.getVoiceChannelMembers(newState.channel);
-
-      // 채널 객체가 존재하는지 확인
-      if (newState.channel) {
-        // 로그 서비스를 통한 로깅
-        this.logService.logActivity(
-            `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${newState.channel.name} \`에 입장했습니다.`,
-            membersInChannel,
-            'JOIN'
-        );
-      } else {
-        // 채널 객체가 없는 경우
-        this.logService.logActivity(
-            `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 알 수 없는 채널에 입장했습니다.`,
-            membersInChannel,
-            'JOIN'
-        );
-      }
-
-      // 데이터베이스에도 로깅
-      await this.db.logActivity(
-          userId,
-          'JOIN',
-          newState.channelId,
-          newState.channel ? newState.channel.name : '알 수 없는 채널',
-          membersInChannel
-      );
+    // 채널 입장 처리
+    if (this.isChannelJoin(oldState, newState)) {
+      await this.handleChannelJoin(newState, member);
     }
-    // 음성 채널 퇴장 로깅
-    else if (oldState.channelId && !config.EXCLUDED_CHANNELS.includes(oldState.channelId)) {
-      const membersInChannel = await this.logService.getVoiceChannelMembers(oldState.channel);
-
-      // 채널 객체가 존재하는지 확인
-      if (oldState.channel) {
-        // 로그 서비스를 통한 로깅
-        this.logService.logActivity(
-            `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${oldState.channel.name} \`에서 퇴장했습니다.`,
-            membersInChannel,
-            'LEAVE'
-        );
-      } else {
-        // 채널 객체가 없는 경우
-        this.logService.logActivity(
-            `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 알 수 없는 채널에서 퇴장했습니다.`,
-            membersInChannel,
-            'LEAVE'
-        );
-      }
-
-      // 데이터베이스에도 로깅
-      await this.db.logActivity(
-          userId,
-          'LEAVE',
-          oldState.channelId,
-          oldState.channel ? oldState.channel.name : '알 수 없는 채널',
-          membersInChannel
-      );
+    // 채널 퇴장 처리
+    else if (this.isChannelLeave(oldState, newState)) {
+      await this.handleChannelLeave(oldState, member);
     }
 
-    // [관전] 또는 [대기] 상태인 멤버는 시간 추적에서 제외
-    if (member && (member.displayName.includes(FILTERS.OBSERVATION) ||
-        member.displayName.includes(FILTERS.WAITING))) {
+    // 관전 또는 대기 상태인 멤버는 시간 추적에서 제외
+    if (this.isObservationOrWaiting(member)) {
       return;
     }
 
-    // 활동 시간 추적 로직
-    if (newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId)) {
-      // 채널 입장 시 시간 기록 시작
-      if (!this.channelActivityTime.has(userId)) {
-        this.channelActivityTime.set(userId, {
-          startTime: now,
-          totalTime: 0,
-          displayName: member.displayName
-        });
-      } else if (!this.channelActivityTime.get(userId).startTime) {
-        const userActivity = this.channelActivityTime.get(userId);
-        userActivity.startTime = now;
-        userActivity.displayName = member.displayName;
-      }
-    } else if (oldState.channelId && !config.EXCLUDED_CHANNELS.includes(oldState.channelId)) {
-      // 채널 퇴장 시 시간 기록 종료
-      if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
-        const userActivity = this.channelActivityTime.get(userId);
-        userActivity.totalTime += now - userActivity.startTime;
-        userActivity.startTime = null;
-      }
-    }
+    // 활동 시간 추적
+    this.trackActivityTime(oldState, newState, userId, member, now);
 
     // 일정 시간 후 데이터 저장 예약
     this.debounceSaveActivityData();
+  }
+
+  // 같은 채널 내 상태 변경인지 확인
+  isSameChannelUpdate(oldState, newState) {
+    return oldState.channelId === newState.channelId && newState.channelId;
+  }
+
+  // 채널 입장인지 확인
+  isChannelJoin(oldState, newState) {
+    return newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId);
+  }
+
+  // 채널 퇴장인지 확인
+  isChannelLeave(oldState, newState) {
+    return oldState.channelId && !config.EXCLUDED_CHANNELS.includes(oldState.channelId);
+  }
+
+  // 관전 또는 대기 상태인지 확인
+  isObservationOrWaiting(member) {
+    return member && (
+      member.displayName.includes(FILTERS.OBSERVATION) ||
+      member.displayName.includes(FILTERS.WAITING)
+    );
+  }
+
+  // 채널 입장 처리
+  async handleChannelJoin(newState, member) {
+    const membersInChannel = await this.logService.getVoiceChannelMembers(newState.channel);
+    const channelName = newState.channel ? newState.channel.name : '알 수 없는 채널';
+
+    // 로그 메시지 생성
+    const logMessage = `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${channelName} \`에 입장했습니다.`;
+
+    // 로그 서비스를 통한 로깅
+    this.logService.logActivity(logMessage, membersInChannel, 'JOIN');
+
+    // 데이터베이스에도 로깅
+    await this.db.logActivity(
+      newState.id,
+      'JOIN',
+      newState.channelId,
+      channelName,
+      membersInChannel
+    );
+  }
+
+  // 채널 퇴장 처리
+  async handleChannelLeave(oldState, member) {
+    const membersInChannel = await this.logService.getVoiceChannelMembers(oldState.channel);
+    const channelName = oldState.channel ? oldState.channel.name : '알 수 없는 채널';
+
+    // 로그 메시지 생성
+    const logMessage = `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${channelName} \`에서 퇴장했습니다.`;
+
+    // 로그 서비스를 통한 로깅
+    this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
+
+    // 데이터베이스에도 로깅
+    await this.db.logActivity(
+      oldState.id,
+      'LEAVE',
+      oldState.channelId,
+      channelName,
+      membersInChannel
+    );
+  }
+
+  // 활동 시간 추적
+  trackActivityTime(oldState, newState, userId, member, now) {
+    // 채널 입장 시 시간 기록 시작
+    if (this.isChannelJoin(oldState, newState)) {
+      this.startActivityTracking(userId, member, now);
+    }
+    // 채널 퇴장 시 시간 기록 종료
+    else if (this.isChannelLeave(oldState, newState)) {
+      this.endActivityTracking(userId, now);
+    }
+  }
+
+  // 활동 추적 시작
+  startActivityTracking(userId, member, now) {
+    if (!this.channelActivityTime.has(userId)) {
+      this.channelActivityTime.set(userId, {
+        startTime: now,
+        totalTime: 0,
+        displayName: member.displayName
+      });
+    } else if (!this.channelActivityTime.get(userId).startTime) {
+      const userActivity = this.channelActivityTime.get(userId);
+      userActivity.startTime = now;
+      userActivity.displayName = member.displayName;
+    }
+  }
+
+  // 활동 추적 종료
+  endActivityTracking(userId, now) {
+    if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
+      const userActivity = this.channelActivityTime.get(userId);
+      userActivity.totalTime += now - userActivity.startTime;
+      userActivity.startTime = null;
+    }
   }
 
   /**
@@ -328,12 +355,12 @@ export class ActivityTracker {
    * @param {GuildMember} newMember - 새 멤버 상태
    */
   async handleGuildMemberUpdate(oldMember, newMember) {
-    const { id: userId } = newMember;
+    const {id: userId} = newMember;
     const now = Date.now();
 
     // 멤버가 [관전] 또는 [대기] 상태로 변경된 경우
     if (newMember.displayName.includes(FILTERS.OBSERVATION) ||
-        newMember.displayName.includes(FILTERS.WAITING)) {
+      newMember.displayName.includes(FILTERS.WAITING)) {
       // 활동 시간 기록 중단
       if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
         const userActivity = this.channelActivityTime.get(userId);
@@ -342,10 +369,10 @@ export class ActivityTracker {
 
         // DB에 업데이트
         await this.db.updateUserActivity(
-            userId,
-            userActivity.totalTime,
-            null,
-            newMember.displayName
+          userId,
+          userActivity.totalTime,
+          null,
+          newMember.displayName
         );
       }
     } else {
@@ -366,10 +393,10 @@ export class ActivityTracker {
 
         // DB에 업데이트
         await this.db.updateUserActivity(
-            userId,
-            this.channelActivityTime.get(userId).totalTime,
-            now,
-            newMember.displayName
+          userId,
+          this.channelActivityTime.get(userId).totalTime,
+          now,
+          newMember.displayName
         );
 
         this.debounceSaveActivityData();
@@ -428,7 +455,7 @@ export class ActivityTracker {
       };
     } catch (error) {
       console.error('사용자 분류 오류:', error);
-      return { activeUsers: [], inactiveUsers: [], afkUsers: [], resetTime: null, minHours: 0 };
+      return {activeUsers: [], inactiveUsers: [], afkUsers: [], resetTime: null, minHours: 0};
     }
   }
 
@@ -456,10 +483,10 @@ export class ActivityTracker {
 
                 // DB에 표시 이름 업데이트
                 await this.db.updateUserActivity(
-                    activity.userId,
-                    activity.totalTime,
-                    activity.startTime,
-                    displayName
+                  activity.userId,
+                  activity.totalTime,
+                  activity.startTime,
+                  displayName
                 );
               }
             }

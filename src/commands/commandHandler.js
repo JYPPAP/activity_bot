@@ -1,17 +1,17 @@
 // src/commands/commandHandler.js - 명령어 핸들러 수정
-import { PermissionsBitField, MessageFlags, ApplicationCommandOptionType } from 'discord.js';
-import { GapListCommand } from './gapListCommand.js';
-import { GapConfigCommand } from './gapConfigCommand.js';
-import { GapResetCommand } from './gapResetCommand.js';
-import { GapCheckCommand } from './gapCheckCommand.js';
-import { GapSaveCommand } from './gapSaveCommand.js';
-import { GapCalendarCommand } from './gapCalendarCommand.js';
-import { GapStatsCommand } from './gapStatsCommand.js';
-import { GapReportCommand } from './gapReportCommand.js';
-import { GapCycleCommand } from './gapCycleCommand.js';
-import { GapAfkCommand } from './gapAfkCommand.js';
-import { UserClassificationService } from '../services/UserClassificationService.js';
-import { config } from '../config/env.js';
+import {PermissionsBitField, MessageFlags, ApplicationCommandOptionType} from 'discord.js';
+import {GapListCommand} from './gapListCommand.js';
+import {GapConfigCommand} from './gapConfigCommand.js';
+import {GapResetCommand} from './gapResetCommand.js';
+import {GapCheckCommand} from './gapCheckCommand.js';
+import {GapSaveCommand} from './gapSaveCommand.js';
+import {GapCalendarCommand} from './gapCalendarCommand.js';
+import {GapStatsCommand} from './gapStatsCommand.js';
+import {GapReportCommand} from './gapReportCommand.js';
+import {GapCycleCommand} from './gapCycleCommand.js';
+import {GapAfkCommand} from './gapAfkCommand.js';
+import {UserClassificationService} from '../services/UserClassificationService.js';
+import {config} from '../config/env.js';
 
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, calendarLogService) {
@@ -68,25 +68,25 @@ export class CommandHandler {
 
   /**
    * 사용자가 관리자 권한을 가지고 있는지 확인합니다.
-   * @param {Interaction} interaction - 상호작용 객체
+   * @param interaction - 상호작용 객체
    * @returns {boolean} - 관리자 권한 또는 특정 사용자 여부
    */
   hasAdminPermission(interaction) {
     return (
-        interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
-        interaction.user.id === config.DEV_ID
+      interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) ||
+      interaction.user.id === config.DEV_ID
     );
   }
 
   /**
    * 명령어 상호작용을 처리합니다.
-   * @param {Interaction} interaction - 상호작용 객체
+   * @param interaction - 상호작용 객체
    */
   async handleInteraction(interaction) {
     // 명령어 상호작용이 아닌 경우 무시
     if (!interaction.isCommand()) return;
 
-    const { commandName } = interaction;
+    const {commandName} = interaction;
 
     // 명령어 실행 권한 확인
     if (!this.hasAdminPermission(interaction)) {

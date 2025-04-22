@@ -1,12 +1,12 @@
 // src/commands/gapListCommand.js - gap_list 명령어 (잠수 기능 개선)
-import { MessageFlags } from 'discord.js';
-import { EmbedFactory } from '../utils/embedBuilder.js';
-import { cleanRoleName } from '../utils/formatters.js';
-import { CommandBase } from './CommandBase.js';
+import {MessageFlags} from 'discord.js';
+import {EmbedFactory} from '../utils/embedBuilder.js';
+import {cleanRoleName} from '../utils/formatters.js';
+import {CommandBase} from './CommandBase.js';
 
 export class GapListCommand extends CommandBase {
   constructor(activityTracker, dbManager) {
-    super({ activityTracker, dbManager });
+    super({activityTracker, dbManager});
     this.userClassificationService = null;
   }
 
@@ -20,7 +20,7 @@ export class GapListCommand extends CommandBase {
 
   /**
    * gap_list 명령어의 실제 실행 로직
-   * @param {Interaction} interaction - 상호작용 객체
+   * @param  interaction - 상호작용 객체
    */
   async executeCommand(interaction) {
     // 역할 옵션 가져오기
@@ -34,15 +34,15 @@ export class GapListCommand extends CommandBase {
     // 역할 멤버 가져오기
     const members = await guild.members.fetch();
     const roleMembers = members.filter(member =>
-        member.roles.cache.some(r => roles.includes(r.name))
+      member.roles.cache.some(r => roles.includes(r.name))
     );
 
     // 현재 활동 데이터 저장
     await this.activityTracker.saveActivityData();
 
     // 최신 데이터로 활성/비활성/잠수 사용자 분류
-    const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours } =
-        await this.userClassificationService.classifyUsers(roles[0], roleMembers);
+    const {activeUsers, inactiveUsers, afkUsers, resetTime, minHours} =
+      await this.userClassificationService.classifyUsers(roles[0], roleMembers);
 
     // 임베드 생성
     const embeds = EmbedFactory.createActivityEmbeds(
@@ -52,7 +52,7 @@ export class GapListCommand extends CommandBase {
     try {
       // DM으로 임베드 전송
       for (const embed of embeds) {
-        await interaction.user.send({ embeds: [embed] });
+        await interaction.user.send({embeds: [embed]});
       }
 
       // 명령어 실행한 채널에 알림

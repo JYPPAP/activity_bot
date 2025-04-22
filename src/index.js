@@ -1,7 +1,7 @@
 // src/index.js - 애플리케이션 진입점
-import { Bot } from './bot.js';
-import { config } from './config/env.js';
-import { keepAlive } from '../server.js';
+import {Bot} from './bot.js';
+import {config} from './config/env.js';
+import {keepAlive} from '../server.js';
 
 // 비동기 즉시 실행 함수 (IIFE)로 애플리케이션 시작
 (async () => {
@@ -16,7 +16,7 @@ import { keepAlive } from '../server.js';
     // 봇 로그인
     await bot.login();
 
-    console.log(`봇이 켜졌습니다: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    console.log(`봇이 켜졌습니다: ${new Date().toLocaleString('ko-KR', {timeZone: 'Asia/Seoul'})}`);
   } catch (error) {
     console.error('봇 실행 중 오류 발생:', error);
   }

@@ -1,7 +1,7 @@
 // src/config/env.js - 환경변수 처리
 import dotenv from 'dotenv';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 
 // ES 모듈에서 __dirname 구현
 const __filename = fileURLToPath(import.meta.url);
@@ -9,7 +9,7 @@ const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../..');
 
 // .env 파일 경로 명시적 지정
-dotenv.config({ path: path.join(rootDir, '.env') });
+dotenv.config({path: path.join(rootDir, '.env')});
 
 // 환경변수 설정 확인 및 기본값 제공
 export const config = {

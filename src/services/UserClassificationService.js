@@ -1,5 +1,5 @@
 // src/services/UserClassificationService.js
-import { calculateNextSunday } from '../utils/dateUtils.js';
+import {calculateNextSunday} from '../utils/dateUtils.js';
 
 export class UserClassificationService {
   constructor(dbManager, activityTracker) {
@@ -10,12 +10,12 @@ export class UserClassificationService {
   /**
    * 사용자를 활성/비활성/잠수로 분류합니다.
    * @param {string} role - 역할 이름
-   * @param {Collection<string, GuildMember>} roleMembers - 역할 멤버 컬렉션
+   * @param roleMembers - 역할 멤버 컬렉션
    * @returns {Object} - 분류된 사용자 목록과 설정 정보
    */
   async classifyUsers(role, roleMembers) {
     // 역할 설정 가져오기
-    const { minActivityTime, resetTime } = await this.getRoleSettings(role);
+    const {minActivityTime, resetTime} = await this.getRoleSettings(role);
 
     const activeUsers = [];
     const inactiveUsers = [];
@@ -50,17 +50,17 @@ export class UserClassificationService {
   /**
    * 특정 날짜 범위 내의 사용자를 활성/비활성/잠수로 분류합니다.
    * @param {string} role - 역할 이름
-   * @param {Collection<string, GuildMember>} roleMembers - 역할 멤버 컬렉션
+   * @param roleMembers - 역할 멤버 컬렉션
    * @param {Date|number} startDate - 시작 날짜
    * @param {Date|number} endDate - 종료 날짜
    * @returns {Object} - 분류된 사용자 목록과 설정 정보
    */
   async classifyUsersByDateRange(role, roleMembers, startDate, endDate) {
     // 역할 설정 가져오기
-    const { minActivityTime, reportCycle } = await this.getRoleSettings(role);
+    const {minActivityTime, reportCycle} = await this.getRoleSettings(role);
 
     // 날짜 변환
-    const { startOfDay, endOfDay } = this.convertDatesToTimeRange(startDate, endDate);
+    const {startOfDay, endOfDay} = this.convertDatesToTimeRange(startDate, endDate);
 
     const activeUsers = [];
     const inactiveUsers = [];
@@ -104,7 +104,7 @@ export class UserClassificationService {
     const resetTime = roleConfig?.resetTime || null;
     const reportCycle = roleConfig?.reportCycle || null;
 
-    return { minActivityTime, resetTime, reportCycle };
+    return {minActivityTime, resetTime, reportCycle};
   }
 
   /**
@@ -123,7 +123,7 @@ export class UserClassificationService {
     const endOfDay = new Date(endTimestamp);
     endOfDay.setHours(23, 59, 59, 999);
 
-    return { startOfDay, endOfDay };
+    return {startOfDay, endOfDay};
   }
 
   /**
@@ -152,9 +152,9 @@ export class UserClassificationService {
    */
   async createUserDataByDateRange(userId, member, startOfDay, endOfDay) {
     const activityTime = await this.db.getUserActivityByDateRange(
-        userId,
-        startOfDay.getTime(),
-        endOfDay.getTime()
+      userId,
+      startOfDay.getTime(),
+      endOfDay.getTime()
     );
 
     return {
@@ -181,26 +181,30 @@ export class UserClassificationService {
    * @returns {Object} - 업데이트된 사용자 데이터
    */
   async processAfkUser(userId, member, userData) {
-    // DB 데이터 새로고침
-    if (this?.db?.reloadData) {
-      this.db.reloadData();
-    }
+    console.log(`[디버깅] processAfkUser 시작: userId=${userId}, nickname=${member.displayName}`);
 
     const afkStatus = await this.db.getUserAfkStatus(userId);
+    console.log(`[디버깅] afkStatus 조회 결과:`, afkStatus);
 
     if (afkStatus?.afkUntil) {
+      console.log(`[디버깅] 기존 afkUntil 값 사용:`, afkStatus.afkUntil);
+      console.log(`[디버깅] 날짜로 변환:`, new Date(afkStatus.afkUntil).toISOString());
       userData.afkUntil = afkStatus.afkUntil;
     } else {
-      // 해제 일정이 없으면 현재 날짜의 다음 일요일로 계산
+      console.log(`[디버깅] 새 afkUntil 값 계산 (다음 일요일)`);
       const nextSunday = calculateNextSunday(new Date());
       userData.afkUntil = nextSunday.getTime();
+      console.log(`[디버깅] 계산된 afkUntil:`, userData.afkUntil);
+      console.log(`[디버깅] 날짜로 변환:`, new Date(userData.afkUntil).toISOString());
 
       // DB에 저장
       if (this.db.setUserAfkStatus) {
+        console.log(`[디버깅] DB에 afkUntil 저장 시도`);
         await this.db.setUserAfkStatus(userId, member.displayName, userData.afkUntil);
       }
     }
 
+    console.log(`[디버깅] 최종 userData:`, userData);
     return userData;
   }
 

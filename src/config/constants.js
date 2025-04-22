@@ -1,6 +1,6 @@
 // src/config/constants.js - 상수 정의
 import path from 'path';
-import { fileURLToPath } from 'url';
+import {fileURLToPath} from 'url';
 
 // ES 모듈에서 __dirname 구현
 const __filename = fileURLToPath(import.meta.url);

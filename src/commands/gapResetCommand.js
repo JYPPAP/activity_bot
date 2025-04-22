@@ -1,6 +1,6 @@
 // src/commands/gapResetCommand.js - gap_reset 명령어
-import { MessageFlags } from 'discord.js';
-import { cleanRoleName } from '../utils/formatters.js';
+import {MessageFlags} from 'discord.js';
+import {cleanRoleName} from '../utils/formatters.js';
 
 export class GapResetCommand {
   constructor(activityTracker) {
@@ -9,15 +9,15 @@ export class GapResetCommand {
 
   /**
    * gap_reset 명령어를 실행합니다.
-   * @param {Interaction} interaction - 상호작용 객체
+   * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
       // 역할 옵션 가져오기
       const role = cleanRoleName(interaction.options.getString("role"));
-      
+
       // 해당 역할의 멤버들 가져오기
       const members = interaction.guild.members.cache.filter(
         member => member.roles.cache.some(r => r.name === role)
