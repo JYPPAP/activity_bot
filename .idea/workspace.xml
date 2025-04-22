@@ -4,11 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="보고서 날짜출력 오류수정용&#10;로그 추가">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
-    </list>
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="보고서 날짜출력 오류수정용&#10;로그 추가&#10;UserClassificationService 리팩토링" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -138,15 +134,7 @@
       <workItem from="1745075019846" duration="5426000" />
       <workItem from="1745211043318" duration="87000" />
       <workItem from="1745211136534" duration="660000" />
-      <workItem from="1745288977601" duration="2395000" />
-    </task>
-    <task id="LOCAL-00004" summary="저장 1">
-      <option name="closed" value="true" />
-      <created>1735964438376</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1735964438376</updated>
+      <workItem from="1745288977601" duration="2733000" />
     </task>
     <task id="LOCAL-00005" summary="저장 1">
       <option name="closed" value="true" />
@@ -532,7 +520,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745080783647</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="보고서 날짜출력 오류수정용&#10;로그 추가&#10;UserClassificationService 리팩토링">
+      <option name="closed" value="true" />
+      <created>1745291648975</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1745291648975</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -550,7 +546,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="파일 매니저 &gt; DB 매니저로 변경" />
     <MESSAGE value="로그 메세지 색상 변경" />
     <MESSAGE value="로그 출력시간 변경" />
     <MESSAGE value="로그 색상 변경" />
@@ -575,6 +570,7 @@
     <MESSAGE value="보고서 출력 중 embed 오류 수정" />
     <MESSAGE value="보고서 출력 시 테스트모드의 기본값을 false 로 변경" />
     <MESSAGE value="보고서 날짜출력 오류수정용&#10;로그 추가" />
-    <option name="LAST_COMMIT_MESSAGE" value="보고서 날짜출력 오류수정용&#10;로그 추가" />
+    <MESSAGE value="보고서 날짜출력 오류수정용&#10;로그 추가&#10;UserClassificationService 리팩토링" />
+    <option name="LAST_COMMIT_MESSAGE" value="보고서 날짜출력 오류수정용&#10;로그 추가&#10;UserClassificationService 리팩토링" />
   </component>
 </project>
