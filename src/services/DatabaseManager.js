@@ -507,7 +507,6 @@ export class DatabaseManager {
      */
     async setUserAfkStatus(userId, displayName, untilTimestamp) {
         try {
-            console.log(`setUserAfkStatus 호출: userId=${userId}, untilTimestamp=${untilTimestamp}`);
             // 기존 user_activity 데이터 가져오기
             const userActivity = this.db.get('user_activity').get(userId).value() || {
                 userId,
@@ -516,24 +515,14 @@ export class DatabaseManager {
                 displayName: displayName
             };
 
-            console.log(`setUserAfkStatus - 기존 데이터:`, userActivity);
-
             // afk 필드 추가
             userActivity.afkUntil = untilTimestamp;
             userActivity.displayName = displayName;
-
-            console.log(`setUserAfkStatus - 업데이트할 데이터:`, userActivity);
 
             // 업데이트
             this.db.get('user_activity')
                 .set(userId, userActivity)
                 .write();
-
-            console.log(`setUserAfkStatus - 저장 완료`);
-
-            // 저장 후 데이터 확인
-            const savedData = this.db.get('user_activity').get(userId).value();
-            console.log(`setUserAfkStatus - 저장된 데이터:`, savedData);
 
             return true;
         } catch (error) {
@@ -549,21 +538,11 @@ export class DatabaseManager {
      */
     async getUserAfkStatus(userId) {
         try {
-            console.log(`getUserAfkStatus 호출: userId=${userId}`);
             const userActivity = this.db.get('user_activity').get(userId).value();
-            console.log(`userActivity 조회 결과:`, userActivity);
 
-            if (!userActivity) {
-                console.log(`사용자 ID(${userId})에 대한 활동 데이터가 없습니다.`);
-                return null;
-            }
+            if (!userActivity) return null;
 
-            if (!userActivity.afkUntil) {
-                console.log(`사용자 ID(${userId})에 대한 afkUntil 값이 없습니다.`);
-                return null;
-            }
-
-            console.log(`사용자 ID(${userId})의 afkUntil 값:`, userActivity.afkUntil);
+            if (!userActivity.afkUntil) return null;
 
             return {
                 userId,

@@ -181,6 +181,9 @@ export class UserClassificationService {
    * @returns {Object} - 업데이트된 사용자 데이터
    */
   async processAfkUser(userId, member, userData) {
+    // DB 최신화
+    this.db.read();
+
     const afkStatus = await this.db.getUserAfkStatus(userId);
 
     if (afkStatus?.afkUntil) {
