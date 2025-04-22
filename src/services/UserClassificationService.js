@@ -181,8 +181,10 @@ export class UserClassificationService {
    * @returns {Object} - 업데이트된 사용자 데이터
    */
   async processAfkUser(userId, member, userData) {
-    // DB 최신화
-    this.db.read();
+    // DB 데이터 새로고침
+    if (this?.db?.reloadData) {
+      this.db.reloadData();
+    }
 
     const afkStatus = await this.db.getUserAfkStatus(userId);
 

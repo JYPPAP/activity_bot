@@ -637,4 +637,10 @@ export class DatabaseManager {
             return [];
         }
     }
+
+    reloadData() {
+        if (this?.db?.read) {
+            this.db.read();
+        }
+    }
 }
