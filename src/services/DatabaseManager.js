@@ -540,6 +540,9 @@ export class DatabaseManager {
     try {
       console.log(`[디버깅] getUserAfkStatus 호출: userId=${userId}`);
 
+      // DB 데이터 새로고침
+      if (this?.db?.reloadData) this.db.reloadData();
+
       // LowDB 인스턴스에서 데이터 직접 확인 (필요시 새로고침)
       const rawData = this.db.get('user_activity').get(userId).value();
       console.log(`[디버깅] 원본 데이터:`, rawData);

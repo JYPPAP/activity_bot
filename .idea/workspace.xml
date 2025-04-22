@@ -4,36 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/CommandBase.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/CommandBase.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapAfkCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapCalendarCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapCalendarCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapConfigCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapConfigCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapCycleCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapCycleCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapListCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapListCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapReportCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapReportCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapResetCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapResetCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapSaveCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapSaveCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapStatsCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapStatsCommand.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config/constants.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/constants.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/config/env.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/config/env.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/activityReportService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityReportService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/activityTracker.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/activityTracker.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/calendarLogService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/calendarLogService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/eventManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/eventManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/logService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/logService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/scheduleService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/scheduleService.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/dateUtils.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/dateUtils.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/formatters.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/formatters.js" afterDir="false" />
-    </list>
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -166,15 +137,7 @@
       <workItem from="1745075019846" duration="5426000" />
       <workItem from="1745211043318" duration="87000" />
       <workItem from="1745211136534" duration="660000" />
-      <workItem from="1745288977601" duration="5742000" />
-    </task>
-    <task id="LOCAL-00008" summary="코드 최적화">
-      <option name="closed" value="true" />
-      <created>1736246680036</created>
-      <option name="number" value="00008" />
-      <option name="presentableId" value="LOCAL-00008" />
-      <option name="project" value="LOCAL" />
-      <updated>1736246680036</updated>
+      <workItem from="1745288977601" duration="6117000" />
     </task>
     <task id="LOCAL-00009" summary="관전 및 대기 시 시간체크 안함 - 완성">
       <option name="closed" value="true" />
@@ -560,7 +523,15 @@
       <option name="project" value="LOCAL" />
       <updated>1745293162159</updated>
     </task>
-    <option name="localTasksCounter" value="57" />
+    <task id="LOCAL-00057" summary="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리">
+      <option name="closed" value="true" />
+      <created>1745295145016</created>
+      <option name="number" value="00057" />
+      <option name="presentableId" value="LOCAL-00057" />
+      <option name="project" value="LOCAL" />
+      <updated>1745295145016</updated>
+    </task>
+    <option name="localTasksCounter" value="58" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
