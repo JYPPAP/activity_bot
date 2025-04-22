@@ -129,14 +129,15 @@ export class DatabaseManager {
     }
 
     /**
-     * 역할 설정 업데이트/삽입
+     * 역할 설정 업데이트/삽입 (주기 필드 추가)
      */
-    async updateRoleConfig(roleName, minHours, resetTime = null) {
+    async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
         this.db.get('role_config')
             .set(roleName, {
                 roleName,
                 minHours,
-                resetTime
+                resetTime,
+                reportCycle // 1: 매주, 2: 격주, 4: 월간 (주 단위)
             })
             .write();
         return true;
@@ -413,21 +414,6 @@ export class DatabaseManager {
     }
 
     /**
-     * 역할 설정 업데이트/삽입 (주기 필드 추가)
-     */
-    async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
-        this.db.get('role_config')
-            .set(roleName, {
-                roleName,
-                minHours,
-                resetTime,
-                reportCycle // 1: 매주, 2: 격주, 4: 월간 (주 단위)
-            })
-            .write();
-        return true;
-    }
-
-    /**
      * 역할 보고서 주기 업데이트
      */
     async updateRoleReportCycle(roleName, reportCycle) {
@@ -481,9 +467,7 @@ export class DatabaseManager {
 
             // 역할 구성 마이그레이션
             for (const [roleName, minHours] of Object.entries(roleConfigData)) {
-                const resetTime = activityData.resetTimes && activityData.resetTimes[roleName]
-                    ? activityData.resetTimes[roleName]
-                    : null;
+                const resetTime = activityData?.resetTimes?.[roleName] || null;
 
                 this.db.get('role_config')
                     .set(roleName, {
@@ -554,10 +538,21 @@ export class DatabaseManager {
      */
     async getUserAfkStatus(userId) {
         try {
+            console.log(`getUserAfkStatus 호출: userId=${userId}`);
             const userActivity = this.db.get('user_activity').get(userId).value();
-            if (!userActivity || !userActivity.afkUntil) {
+            console.log(`userActivity 조회 결과:`, userActivity);
+
+            if (!userActivity) {
+                console.log(`사용자 ID(${userId})에 대한 활동 데이터가 없습니다.`);
                 return null;
             }
+
+            if (!userActivity.afkUntil) {
+                console.log(`사용자 ID(${userId})에 대한 afkUntil 값이 없습니다.`);
+                return null;
+            }
+
+            console.log(`사용자 ID(${userId})의 afkUntil 값:`, userActivity.afkUntil);
 
             return {
                 userId,
