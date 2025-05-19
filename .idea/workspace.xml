@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="채널 이동 시 입장 시간이 초기화 되는 문제 수정">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -50,34 +53,34 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent"><![CDATA[{
-  "keyToString": {
-    "ASKED_SHARE_PROJECT_CONFIGURATION_FILES": "true",
-    "RunOnceActivity.ShowReadmeOnStart": "true",
-    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager": "true",
-    "RunOnceActivity.git.unshallow": "true",
-    "SONARLINT_PRECOMMIT_ANALYSIS": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.mappings": "true",
-    "WebServerToolWindowPanel.toolwindow.highlight.symlinks": "true",
-    "WebServerToolWindowPanel.toolwindow.show.date": "false",
-    "WebServerToolWindowPanel.toolwindow.show.permissions": "false",
-    "WebServerToolWindowPanel.toolwindow.show.size": "false",
-    "git-widget-placeholder": "master",
-    "ignore.virus.scanning.warn.message": "true",
-    "javascript.nodejs.core.library.configured.version": "22.14.0",
-    "javascript.nodejs.core.library.typings.version": "22.14.1",
-    "junie.onboarding.icon.badge.shown": "true",
-    "last_opened_file_path": "D:/Personal Project/activity_bot",
-    "node.js.detected.package.eslint": "true",
-    "node.js.detected.package.tslint": "true",
-    "node.js.selected.package.eslint": "(autodetect)",
-    "node.js.selected.package.tslint": "(autodetect)",
-    "nodejs_package_manager_path": "npm",
-    "settings.editor.selected.configurable": "ssh.settings",
-    "ts.external.directory.path": "C:\\Program Files\\JetBrains\\WebStorm 2024.3.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external",
-    "vue.rearranger.settings.migration": "true"
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.git.unshallow&quot;: &quot;true&quot;,
+    &quot;SONARLINT_PRECOMMIT_ANALYSIS&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.mappings&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.highlight.symlinks&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.date&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.permissions&quot;: &quot;false&quot;,
+    &quot;WebServerToolWindowPanel.toolwindow.show.size&quot;: &quot;false&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;ignore.virus.scanning.warn.message&quot;: &quot;true&quot;,
+    &quot;javascript.nodejs.core.library.configured.version&quot;: &quot;22.14.0&quot;,
+    &quot;javascript.nodejs.core.library.typings.version&quot;: &quot;22.14.1&quot;,
+    &quot;junie.onboarding.icon.badge.shown&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;D:/Personal Project/activity_bot&quot;,
+    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
+    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
+    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
+    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;ssh.settings&quot;,
+    &quot;ts.external.directory.path&quot;: &quot;C:\\Program Files\\JetBrains\\WebStorm 2024.3.5\\plugins\\javascript-plugin\\jsLanguageServicesImpl\\external&quot;,
+    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
-}]]></component>
+}</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
       <recent name="D:\Personal Project\activity_bot" />
@@ -137,39 +140,11 @@
       <workItem from="1745075019846" duration="5426000" />
       <workItem from="1745211043318" duration="87000" />
       <workItem from="1745211136534" duration="660000" />
-      <workItem from="1745288977601" duration="6117000" />
-    </task>
-    <task id="LOCAL-00009" summary="관전 및 대기 시 시간체크 안함 - 완성">
-      <option name="closed" value="true" />
-      <created>1736527258326</created>
-      <option name="number" value="00009" />
-      <option name="presentableId" value="LOCAL-00009" />
-      <option name="project" value="LOCAL" />
-      <updated>1736527258326</updated>
-    </task>
-    <task id="LOCAL-00010" summary="관전 및 대기 시 시간체크 안함">
-      <option name="closed" value="true" />
-      <created>1737465828347</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1737465828347</updated>
-    </task>
-    <task id="LOCAL-00011" summary="관전 및 대기 시 시간체크 안함">
-      <option name="closed" value="true" />
-      <created>1737465953448</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1737465953448</updated>
-    </task>
-    <task id="LOCAL-00012" summary="ES6+ 로 변경">
-      <option name="closed" value="true" />
-      <created>1743353766783</created>
-      <option name="number" value="00012" />
-      <option name="presentableId" value="LOCAL-00012" />
-      <option name="project" value="LOCAL" />
-      <updated>1743353766783</updated>
+      <workItem from="1745288977601" duration="7376000" />
+      <workItem from="1745845315451" duration="863000" />
+      <workItem from="1747394718609" duration="612000" />
+      <workItem from="1747645299474" duration="614000" />
+      <workItem from="1747661237515" duration="4320000" />
     </task>
     <task id="LOCAL-00013" summary="SQLite 로 마이그레이션">
       <option name="closed" value="true" />
@@ -531,7 +506,39 @@
       <option name="project" value="LOCAL" />
       <updated>1745295145016</updated>
     </task>
-    <option name="localTasksCounter" value="58" />
+    <task id="LOCAL-00058" summary="DB 데이터 새로고침 코드 추가">
+      <option name="closed" value="true" />
+      <created>1745295472323</created>
+      <option name="number" value="00058" />
+      <option name="presentableId" value="LOCAL-00058" />
+      <option name="project" value="LOCAL" />
+      <updated>1745295472323</updated>
+    </task>
+    <task id="LOCAL-00059" summary="채널 이동 시 입장 시간이 초기화 되는 문제 수정">
+      <option name="closed" value="true" />
+      <created>1747661491161</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1747661491161</updated>
+    </task>
+    <task id="LOCAL-00060" summary="채널 이동 시 입장 시간이 초기화 되는 문제 수정">
+      <option name="closed" value="true" />
+      <created>1747663609341</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1747663609341</updated>
+    </task>
+    <task id="LOCAL-00061" summary="채널 이동 시 입장 시간이 초기화 되는 문제 수정">
+      <option name="closed" value="true" />
+      <created>1747664591364</created>
+      <option name="number" value="00061" />
+      <option name="presentableId" value="LOCAL-00061" />
+      <option name="project" value="LOCAL" />
+      <updated>1747664591364</updated>
+    </task>
+    <option name="localTasksCounter" value="62" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -549,8 +556,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 출력하는 부분 변경 변경" />
-    <MESSAGE value="로그 출력부분 수정 후&#10;에러 수정" />
     <MESSAGE value="로그 출력부분 수정 후 에러 수정" />
     <MESSAGE value="로그 출력부분 수정" />
     <MESSAGE value="로그 출력부분 색상 수정" />
@@ -574,6 +579,8 @@
     <MESSAGE value="잠수 사용자 날짜추가 코드 디버깅" />
     <MESSAGE value="잠수사용자 처리 할 때 DB를 다시 읽도록 수정" />
     <MESSAGE value="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리" />
-    <option name="LAST_COMMIT_MESSAGE" value="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리" />
+    <MESSAGE value="DB 데이터 새로고침 코드 추가" />
+    <MESSAGE value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
   </component>
 </project>
