@@ -328,67 +328,37 @@ export class ActivityTracker {
     }
   }
 
-  // 첫 입장과 최종 퇴장만 활동 시간 추적
-  // trackActivityTimeImproved(oldState, newState, userId, member, now) {
-  //   // 실제 첫 채널 입장 (이전에 어떤 채널에도 없었던 경우만)
-  //   if (this.isRealChannelJoin(oldState, newState)) {
-  //     this.startActivityTracking(userId, member, now);
-  //   }
-  //   // 실제 최종 채널 퇴장 (모든 음성 채널에서 나가는 경우만)
-  //   else if (this.isRealChannelLeave(oldState, newState)) {
-  //     this.endActivityTracking(userId, now);
-  //   }
-  //   // 채널 간 이동은 활동 시간에 영향 없음 (시작 시간 유지)
-  // }
-
+  // 개선된 활동 시간 추적
   trackActivityTimeImproved(oldState, newState, userId, member, now) {
-    console.log(`[디버깅] trackActivityTimeImproved 호출 - 사용자: ${member.displayName}`);
-    console.log(`[디버깅] oldState.channelId: ${oldState.channelId}, newState.channelId: ${newState.channelId}`);
-
     // 사용자가 이전에 어떤 채널에도 없었고, 이제 채널에 입장한 경우만 시작 시간 설정
-    if (!oldState.channelId && newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId)) {
-      console.log(`[디버깅] 첫 입장 감지 - ${member.displayName}님이 ${newState.channel?.name || 'unknown'}에 입장`);
-
+    if (this.isRealChannelJoin(oldState, newState)) {
       if (!this.channelActivityTime.has(userId)) {
         this.channelActivityTime.set(userId, {
           startTime: now,
           totalTime: 0,
           displayName: member.displayName
         });
-        console.log(`[디버깅] 새 활동 세션 시작 - ${member.displayName}`);
       } else if (!this.channelActivityTime.get(userId).startTime) {
         const userActivity = this.channelActivityTime.get(userId);
         userActivity.startTime = now;
         userActivity.displayName = member.displayName;
-        console.log(`[디버깅] 기존 사용자의 새 활동 세션 시작 - ${member.displayName}`);
-      } else {
-        console.log(`[디버깅] 이미 활동 중인 사용자 - ${member.displayName}`);
       }
     }
     // 사용자가 모든 채널에서 완전히 퇴장한 경우만 종료 시간 설정
-    else if (oldState.channelId && !newState.channelId) {
-      console.log(`[디버깅] 최종 퇴장 감지 - ${member.displayName}님이 완전히 퇴장`);
-
+    else if (this.isRealChannelLeave(oldState, newState)) {
       if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
         const userActivity = this.channelActivityTime.get(userId);
         userActivity.totalTime += now - userActivity.startTime;
         userActivity.startTime = null;
-        console.log(`[디버깅] 활동 세션 종료 - ${member.displayName}, 총 활동 시간: ${userActivity.totalTime}ms`);
       }
     }
-    // 채널 간 이동인 경우 - 아무것도 하지 않음 (활동 시간 유지)
-    else if (oldState.channelId && newState.channelId) {
-      console.log(`[디버깅] 채널 이동 감지 - ${member.displayName}님이 ${oldState.channel?.name || 'unknown'}에서 ${newState.channel?.name || 'unknown'}으로 이동`);
-
-      // 이미 활동 중인 상태인지 확인
+    // 채널 간 이동인 경우 - 활동 시간 유지하며 필요시 복구
+    else if (this.isChannelTransfer(oldState, newState)) {
       if (this.channelActivityTime.has(userId)) {
         const userActivity = this.channelActivityTime.get(userId);
         if (!userActivity.startTime) {
           // 예기치 않게 startTime이 없는 경우에 대한 복구 로직
-          console.log(`[디버깅] 비정상적인 상태 감지 - ${member.displayName}님이 채널을 이동했지만 startTime이 없음. 복구 중...`);
           userActivity.startTime = now;
-        } else {
-          console.log(`[디버깅] 채널 이동 중 활동 시간 유지 - ${member.displayName}, 현재 세션 시간: ${now - userActivity.startTime}ms`);
         }
       }
     }
@@ -406,6 +376,11 @@ export class ActivityTracker {
     return oldState.channelId &&
       !config.EXCLUDED_CHANNELS.includes(oldState.channelId) &&
       !newState.channelId;
+  }
+
+  // 채널 간 이동 감지
+  isChannelTransfer(oldState, newState) {
+    return oldState.channelId && newState.channelId;
   }
 
   // 활동 추적 시작
