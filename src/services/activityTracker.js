@@ -227,11 +227,11 @@ export class ActivityTracker {
     const member = newState.member;
     const now = Date.now();
 
-    // 채널 입장 처리
+    // 채널 입장 처리 (로그 기록용)
     if (this.isChannelJoin(oldState, newState)) {
       await this.handleChannelJoin(newState, member);
     }
-    // 채널 퇴장 처리
+    // 채널 퇴장 처리 (로그 기록용)
     else if (this.isChannelLeave(oldState, newState)) {
       await this.handleChannelLeave(oldState, member);
     }
@@ -241,8 +241,11 @@ export class ActivityTracker {
       return;
     }
 
+    // // 활동 시간 추적
+    // this.trackActivityTime(oldState, newState, userId, member, now);
+
     // 활동 시간 추적
-    this.trackActivityTime(oldState, newState, userId, member, now);
+    this.trackActivityTimeImproved(oldState, newState, userId, member, now);
 
     // 일정 시간 후 데이터 저장 예약
     this.debounceSaveActivityData();
@@ -323,6 +326,33 @@ export class ActivityTracker {
     else if (this.isChannelLeave(oldState, newState)) {
       this.endActivityTracking(userId, now);
     }
+  }
+
+  // 첫 입장과 최종 퇴장만 활동 시간 추적
+  trackActivityTimeImproved(oldState, newState, userId, member, now) {
+    // 실제 첫 채널 입장 (이전에 어떤 채널에도 없었던 경우만)
+    if (this.isRealChannelJoin(oldState, newState)) {
+      this.startActivityTracking(userId, member, now);
+    }
+    // 실제 최종 채널 퇴장 (모든 음성 채널에서 나가는 경우만)
+    else if (this.isRealChannelLeave(oldState, newState)) {
+      this.endActivityTracking(userId, now);
+    }
+    // 채널 간 이동은 활동 시간에 영향 없음 (시작 시간 유지)
+  }
+
+  // 실제 채널 입장 (첫 입장만 감지)
+  isRealChannelJoin(oldState, newState) {
+    return !oldState.channelId &&
+      newState.channelId &&
+      !config.EXCLUDED_CHANNELS.includes(newState.channelId);
+  }
+
+  // 실제 채널 퇴장 (모든 채널에서 퇴장하는 경우만 감지)
+  isRealChannelLeave(oldState, newState) {
+    return oldState.channelId &&
+      !config.EXCLUDED_CHANNELS.includes(oldState.channelId) &&
+      !newState.channelId;
   }
 
   // 활동 추적 시작
