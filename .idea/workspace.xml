@@ -4,8 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="gap_check 시 날짜입력 추가">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정">
+      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -88,7 +89,7 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-WS-251.23774.424" />
+        <option value="bundled-js-predefined-d6986cc7102b-6a121458b545-JavaScript-WS-251.25410.117" />
       </set>
     </attachedChunks>
   </component>
@@ -144,22 +145,7 @@
       <workItem from="1747394718609" duration="612000" />
       <workItem from="1747645299474" duration="614000" />
       <workItem from="1747661237515" duration="5296000" />
-    </task>
-    <task id="LOCAL-00014" summary="파일 이동">
-      <option name="closed" value="true" />
-      <created>1743357919462</created>
-      <option name="number" value="00014" />
-      <option name="presentableId" value="LOCAL-00014" />
-      <option name="project" value="LOCAL" />
-      <updated>1743357919462</updated>
-    </task>
-    <task id="LOCAL-00015" summary="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생">
-      <option name="closed" value="true" />
-      <created>1743358467947</created>
-      <option name="number" value="00015" />
-      <option name="presentableId" value="LOCAL-00015" />
-      <option name="project" value="LOCAL" />
-      <updated>1743358467947</updated>
+      <workItem from="1748261442249" duration="2178000" />
     </task>
     <task id="LOCAL-00016" summary="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생">
       <option name="closed" value="true" />
@@ -537,7 +523,23 @@
       <option name="project" value="LOCAL" />
       <updated>1747665963031</updated>
     </task>
-    <option name="localTasksCounter" value="63" />
+    <task id="LOCAL-00063" summary="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정">
+      <option name="closed" value="true" />
+      <created>1748261898095</created>
+      <option name="number" value="00063" />
+      <option name="presentableId" value="LOCAL-00063" />
+      <option name="project" value="LOCAL" />
+      <updated>1748261898095</updated>
+    </task>
+    <task id="LOCAL-00064" summary="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정">
+      <option name="closed" value="true" />
+      <created>1748262658540</created>
+      <option name="number" value="00064" />
+      <option name="presentableId" value="LOCAL-00064" />
+      <option name="project" value="LOCAL" />
+      <updated>1748262658540</updated>
+    </task>
+    <option name="localTasksCounter" value="65" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -555,7 +557,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 출력부분 수정" />
     <MESSAGE value="로그 출력부분 색상 수정" />
     <MESSAGE value="readMe 수정" />
     <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
@@ -580,6 +581,7 @@
     <MESSAGE value="DB 데이터 새로고침 코드 추가" />
     <MESSAGE value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
     <MESSAGE value="gap_check 시 날짜입력 추가" />
-    <option name="LAST_COMMIT_MESSAGE" value="gap_check 시 날짜입력 추가" />
+    <MESSAGE value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
+    <option name="LAST_COMMIT_MESSAGE" value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
   </component>
 </project>

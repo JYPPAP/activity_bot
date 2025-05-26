@@ -1,4 +1,4 @@
-// src/services/databaseManager.js - LowDB 버전
+// src/services/DatabaseManager.js - LowDB 버전 (잠수 상태 관리 개선)
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync.js';
 import path from 'path';
@@ -15,7 +15,8 @@ export class DatabaseManager {
       role_config: {},
       activity_logs: [],
       reset_history: [],
-      log_members: {}
+      log_members: {},
+      afk_status: {} // 잠수 상태를 별도 테이블로 분리
     }).write();
   }
 
@@ -33,9 +34,22 @@ export class DatabaseManager {
   }
 
   /**
+   * 강제 데이터 새로고침
+   */
+  forceReload() {
+    try {
+      this.db.read();
+      console.log('[DB] 데이터 강제 새로고침 완료');
+    } catch (error) {
+      console.error('[DB] 데이터 새로고침 실패:', error);
+    }
+  }
+
+  /**
    * 데이터베이스 내 데이터 존재 확인
    */
   async hasAnyData() {
+    this.forceReload();
     return Object.keys(this.db.get('user_activity').value()).length > 0;
   }
 
@@ -51,7 +65,6 @@ export class DatabaseManager {
    * 트랜잭션 시작 (LowDB에서는 필요 없지만 호환성을 위해 유지)
    */
   async beginTransaction() {
-    // LowDB는 트랜잭션을 지원하지 않음
     return true;
   }
 
@@ -59,7 +72,6 @@ export class DatabaseManager {
    * 트랜잭션 커밋 (LowDB에서는 필요 없지만 호환성을 위해 유지)
    */
   async commitTransaction() {
-    // LowDB는 트랜잭션을 지원하지 않음
     return true;
   }
 
@@ -67,7 +79,6 @@ export class DatabaseManager {
    * 트랜잭션 롤백 (LowDB에서는 필요 없지만 호환성을 위해 유지)
    */
   async rollbackTransaction() {
-    // LowDB는 트랜잭션을 지원하지 않음
     return true;
   }
 
@@ -77,6 +88,7 @@ export class DatabaseManager {
    * 사용자 활동 데이터 가져오기
    */
   async getUserActivity(userId) {
+    this.forceReload();
     return this.db.get('user_activity').get(userId).value();
   }
 
@@ -84,6 +96,7 @@ export class DatabaseManager {
    * 사용자 활동 데이터 업데이트/삽입
    */
   async updateUserActivity(userId, totalTime, startTime, displayName) {
+    this.forceReload();
     this.db.get('user_activity')
         .set(userId, {
           userId,
@@ -92,6 +105,7 @@ export class DatabaseManager {
           displayName
         })
         .write();
+    console.log(`[DB] 사용자 활동 업데이트: ${userId}, displayName: ${displayName}`);
     return true;
   }
 
@@ -99,6 +113,7 @@ export class DatabaseManager {
    * 모든 사용자 활동 데이터 가져오기
    */
   async getAllUserActivity() {
+    this.forceReload();
     const activities = this.db.get('user_activity').value();
     return Object.values(activities);
   }
@@ -107,7 +122,6 @@ export class DatabaseManager {
    * 특정 역할을 가진 사용자들의 활동 데이터 가져오기
    */
   async getUserActivityByRole(roleId, startTime, endTime) {
-    // 외부에서 Guild 객체를 통해 멤버를 가져와야 함
     return await this.getAllUserActivity();
   }
 
@@ -115,6 +129,7 @@ export class DatabaseManager {
    * 사용자 활동 데이터 삭제
    */
   async deleteUserActivity(userId) {
+    this.forceReload();
     this.db.get('user_activity').unset(userId).write();
     return true;
   }
@@ -125,6 +140,7 @@ export class DatabaseManager {
    * 역할 설정 가져오기
    */
   async getRoleConfig(roleName) {
+    this.forceReload();
     return this.db.get('role_config').get(roleName).value();
   }
 
@@ -132,12 +148,13 @@ export class DatabaseManager {
    * 역할 설정 업데이트/삽입 (주기 필드 추가)
    */
   async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
+    this.forceReload();
     this.db.get('role_config')
         .set(roleName, {
           roleName,
           minHours,
           resetTime,
-          reportCycle // 1: 매주, 2: 격주, 4: 월간 (주 단위)
+          reportCycle
         })
         .write();
     return true;
@@ -147,6 +164,7 @@ export class DatabaseManager {
    * 모든 역할 설정 가져오기
    */
   async getAllRoleConfigs() {
+    this.forceReload();
     const configs = this.db.get('role_config').value();
     return Object.values(configs);
   }
@@ -155,7 +173,7 @@ export class DatabaseManager {
    * 역할 리셋 시간 업데이트
    */
   async updateRoleResetTime(roleName, resetTime, reason = '관리자에 의한 리셋') {
-    // 역할 설정 업데이트
+    this.forceReload();
     const roleConfig = await this.getRoleConfig(roleName);
     if (roleConfig) {
       await this.updateRoleConfig(roleName, roleConfig.minHours, resetTime);
@@ -163,10 +181,9 @@ export class DatabaseManager {
       await this.updateRoleConfig(roleName, 0, resetTime);
     }
 
-    // 리셋 기록 추가
     this.db.get('reset_history')
         .push({
-          id: Date.now(), // 고유한 ID 생성
+          id: Date.now(),
           roleName,
           resetTime,
           reason
@@ -180,6 +197,7 @@ export class DatabaseManager {
    * 역할 리셋 이력 가져오기
    */
   async getRoleResetHistory(roleName, limit = 5) {
+    this.forceReload();
     return this.db.get('reset_history')
                .filter({roleName})
                .sortBy('resetTime')
@@ -194,11 +212,11 @@ export class DatabaseManager {
    * 활동 로그 기록하기
    */
   async logActivity(userId, eventType, channelId, channelName, members = []) {
+    this.forceReload();
     const timestamp = Date.now();
 
-    // 로그 항목 생성
     const logEntry = {
-      id: timestamp + '-' + userId.slice(0, 6), // 타임스탬프와 사용자 ID 일부로 고유한 ID 생성
+      id: timestamp + '-' + userId.slice(0, 6),
       userId,
       eventType,
       channelId,
@@ -207,12 +225,10 @@ export class DatabaseManager {
       membersCount: members.length
     };
 
-    // 로그 항목 저장
     this.db.get('activity_logs')
         .push(logEntry)
         .write();
 
-    // 멤버 목록 저장
     if (members.length > 0) {
       this.db.set(`log_members.${logEntry.id}`, members).write();
     }
@@ -224,6 +240,7 @@ export class DatabaseManager {
    * 특정 기간의 활동 로그 가져오기
    */
   async getActivityLogs(startTime, endTime, eventType = null) {
+    this.forceReload();
     let query = this.db.get('activity_logs')
                     .filter(log => log.timestamp >= startTime && log.timestamp <= endTime);
 
@@ -233,7 +250,6 @@ export class DatabaseManager {
 
     const logs = query.sortBy('timestamp').reverse().value();
 
-    // 멤버 정보 추가
     return logs.map(log => {
       const members = this.db.get(`log_members.${log.id}`).value() || [];
       return {...log, members};
@@ -244,6 +260,7 @@ export class DatabaseManager {
    * 특정 사용자의 활동 로그 가져오기
    */
   async getUserActivityLogs(userId, limit = 100) {
+    this.forceReload();
     const logs = this.db.get('activity_logs')
                      .filter({userId})
                      .sortBy('timestamp')
@@ -251,7 +268,6 @@ export class DatabaseManager {
                      .take(limit)
                      .value();
 
-    // 멤버 정보 추가
     return logs.map(log => {
       const members = this.db.get(`log_members.${log.id}`).value() || [];
       return {...log, members};
@@ -262,15 +278,15 @@ export class DatabaseManager {
    * 날짜별 활동 통계 가져오기
    */
   async getDailyActivityStats(startTime, endTime) {
+    this.forceReload();
     const logs = this.db.get('activity_logs')
                      .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
                      .value();
 
-    // 일별로 데이터 그룹화
     const dailyStats = {};
     logs.forEach(log => {
       const date = new Date(log.timestamp);
-      const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD 형식
+      const dateStr = date.toISOString().split('T')[0];
 
       if (!dailyStats[dateStr]) {
         dailyStats[dateStr] = {
@@ -293,7 +309,6 @@ export class DatabaseManager {
       dailyStats[dateStr].uniqueUsers.add(log.userId);
     });
 
-    // Set을 개수로 변환하여 반환
     return Object.values(dailyStats).map(stat => ({
       ...stat,
       uniqueUsers: stat.uniqueUsers.size
@@ -302,19 +317,14 @@ export class DatabaseManager {
 
   /**
    * 특정 기간 동안의 사용자 활동 시간 조회
-   * @param {string} userId - 사용자 ID
-   * @param {number} startTime - 시작 시간 (타임스탬프)
-   * @param {number} endTime - 종료 시간 (타임스탬프)
-   * @returns {number} - 해당 기간 동안의 총 활동 시간 (밀리초)
    */
   async getUserActivityByDateRange(userId, startTime, endTime) {
     try {
-      // 해당 기간의 활동 로그 조회
+      this.forceReload();
       const logs = this.db.get('activity_logs')
                        .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
 
-      // 활동 시간 계산
       let totalTime = 0;
       let joinTime = null;
 
@@ -322,15 +332,12 @@ export class DatabaseManager {
         if (log.eventType === 'JOIN') {
           joinTime = log.timestamp;
         } else if (log.eventType === 'LEAVE' && joinTime) {
-          // 입장 후 퇴장한 경우 활동 시간 누적
           totalTime += log.timestamp - joinTime;
           joinTime = null;
         }
       }
 
-      // 로그에는 있지만 퇴장 로그가 없는 경우 (비정상 종료 등)
       if (joinTime) {
-        // 마지막 기록 시점까지 계산
         totalTime += Math.min(endTime, Date.now()) - joinTime;
       }
 
@@ -343,21 +350,16 @@ export class DatabaseManager {
 
   /**
    * 특정 기간의 활동 멤버 목록 가져오기
-   * @param {number} startTime - 시작 시간 (타임스탬프)
-   * @param {number} endTime - 종료 시간 (타임스탬프)
-   * @returns {Array<Object>} - 활동 멤버 정보 목록
    */
   async getActiveMembersForTimeRange(startTime, endTime) {
     try {
-      // 해당 기간의 로그 가져오기
+      this.forceReload();
       const logs = this.db.get('activity_logs')
                        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
 
-      // 고유한 사용자 ID 추출
       const userIds = [...new Set(logs.map(log => log.userId))];
 
-      // 사용자 활동 정보 조회
       const activeMembers = [];
       for (const userId of userIds) {
         const userActivity = this.db.get('user_activity').get(userId).value();
@@ -379,19 +381,14 @@ export class DatabaseManager {
 
   /**
    * 가장 활동적인 채널 조회
-   * @param {number} startTime - 시작 시간 (타임스탬프)
-   * @param {number} endTime - 종료 시간 (타임스탬프)
-   * @param {number} limit - 최대 결과 수
-   * @returns {Array<Object>} - 활동적인 채널 목록
    */
   async getMostActiveChannels(startTime, endTime, limit = 5) {
     try {
-      // 로그 데이터 조회
+      this.forceReload();
       const logs = this.db.get('activity_logs')
                        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
 
-      // 채널별 활동 횟수 집계
       const channelCounts = {};
       logs.forEach(log => {
         if (!channelCounts[log.channelName]) {
@@ -400,7 +397,6 @@ export class DatabaseManager {
         channelCounts[log.channelName]++;
       });
 
-      // 활동 횟수 기준으로 정렬
       const sortedChannels = Object.entries(channelCounts)
                                    .map(([name, count]) => ({name, count}))
                                    .sort((a, b) => b.count - a.count)
@@ -432,17 +428,14 @@ export class DatabaseManager {
 
   /**
    * 역할별 다음 보고서 예정 시간 확인
-   * @param {string} roleName - 역할 이름
-   * @returns {number} - 다음 보고서 예정 시간 (타임스탬프)
    */
   async getNextReportTime(roleName) {
     const roleConfig = await this.getRoleConfig(roleName);
     if (!roleConfig) return null;
 
-    const reportCycle = roleConfig.reportCycle || 1; // 기본값: 1주
+    const reportCycle = roleConfig.reportCycle || 1;
     const lastResetTime = roleConfig.resetTime || Date.now();
 
-    // 마지막 리셋 시간에서 보고서 주기(주 단위)만큼 더한 시간
     return lastResetTime + (reportCycle * 7 * 24 * 60 * 60 * 1000);
   }
 
@@ -451,6 +444,8 @@ export class DatabaseManager {
    */
   async migrateFromJSON(activityData, roleConfigData) {
     try {
+      this.forceReload();
+
       // 사용자 활동 데이터 마이그레이션
       for (const [userId, data] of Object.entries(activityData)) {
         if (userId !== 'resetTimes') {
@@ -459,7 +454,7 @@ export class DatabaseManager {
                 userId,
                 totalTime: data.totalTime || 0,
                 startTime: data.startTime || null,
-                displayName: null // 기존 데이터에 displayName이 없을 수 있음
+                displayName: null
               })
               .write();
         }
@@ -477,11 +472,10 @@ export class DatabaseManager {
             })
             .write();
 
-        // 리셋 이력에도 추가
         if (resetTime) {
           this.db.get('reset_history')
               .push({
-                id: Date.now() + '-' + roleName, // 고유한 ID 생성
+                id: Date.now() + '-' + roleName,
                 roleName,
                 resetTime,
                 reason: 'JSON 데이터 마이그레이션'
@@ -498,170 +492,138 @@ export class DatabaseManager {
     }
   }
 
+  // ======== 잠수 상태 관리 메서드 (개선) ========
+
   /**
-   * 사용자의 잠수 상태 설정
-   * @param {string} userId - 사용자 ID
-   * @param {string} displayName - 사용자 표시 이름
-   * @param {number} untilTimestamp - 잠수 상태 유지 기한 (타임스탬프)
-   * @returns {boolean} - 성공 여부
+   * 사용자의 잠수 상태 설정 (별도 테이블 사용)
    */
   async setUserAfkStatus(userId, displayName, untilTimestamp) {
     try {
-      // 기존 user_activity 데이터 가져오기
-      const userActivity = this.db.get('user_activity').get(userId).value() || {
-        userId,
-        totalTime: 0,
-        startTime: null,
-        displayName: displayName
-      };
+      this.forceReload();
 
-      // afk 필드 추가
-      userActivity.afkUntil = untilTimestamp;
-      userActivity.displayName = displayName;
-
-      // 업데이트
-      this.db.get('user_activity')
-          .set(userId, userActivity)
+      // afk_status 테이블에 별도 저장
+      this.db.get('afk_status')
+          .set(userId, {
+            userId,
+            displayName,
+            afkUntil: untilTimestamp,
+            createdAt: Date.now()
+          })
           .write();
 
+      console.log(`[DB] 잠수 상태 설정: ${userId}, until: ${new Date(untilTimestamp).toISOString()}`);
       return true;
     } catch (error) {
-      console.error('잠수 상태 설정 오류:', error);
+      console.error('[DB] 잠수 상태 설정 오류:', error);
       return false;
     }
   }
 
   /**
-   * 사용자의 잠수 상태 확인
-   * @param {string} userId - 사용자 ID
-   * @returns {Object|null} - 잠수 상태 정보 또는 null
+   * 사용자의 잠수 상태 확인 (별도 테이블에서 조회)
    */
   async getUserAfkStatus(userId) {
     try {
-      console.log(`[디버깅] getUserAfkStatus 호출: userId=${userId}`);
+      this.forceReload();
 
-      // LowDB 데이터 강제 새로고침 - 캐시 문제 해결
-      if (this.db && this.db.read) {
-        this.db.read();
-      }
+      const afkData = this.db.get('afk_status').get(userId).value();
 
-      // LowDB 인스턴스에서 데이터 직접 확인
-      const rawData = this.db.get('user_activity').get(userId).value();
+      console.log(`[DB] 잠수 상태 조회: ${userId}, 결과:`, afkData);
 
-      console.log(`[디버깅] 원본 데이터:`, rawData);
-      console.log(`[디버깅] afkUntil 타입:`, typeof rawData?.afkUntil);
-      console.log(`[디버깅] afkUntil 값:`, rawData?.afkUntil);
-
-      if (!rawData) {
-        console.log(`[디버깅] 사용자 ID(${userId})에 대한 활동 데이터가 없습니다.`);
+      if (!afkData || !afkData.afkUntil) {
         return null;
       }
-
-      if (!rawData.afkUntil) {
-        console.log(`[디버깅] 사용자 ID(${userId})에 대한 afkUntil 값이 없습니다.`);
-        return null;
-      }
-
-      console.log(`[디버깅] 반환할 afkUntil 값:`, rawData.afkUntil);
-      console.log(`[디버깅] 날짜로 변환:`, new Date(rawData.afkUntil).toISOString());
 
       return {
         userId,
-        displayName: rawData.displayName,
-        afkUntil: rawData.afkUntil,  // 이 값이 제대로 전달되는지 확인
-        totalTime: rawData.totalTime || 0
+        displayName: afkData.displayName,
+        afkUntil: afkData.afkUntil,
+        totalTime: 0 // 필요한 경우 user_activity에서 조회
       };
     } catch (error) {
-      console.error('[디버깅] 잠수 상태 조회 오류:', error);
+      console.error('[DB] 잠수 상태 조회 오류:', error);
       return null;
     }
   }
 
   /**
-   * 사용자의 잠수 상태 해제
-   * @param {string} userId - 사용자 ID
-   * @returns {boolean} - 성공 여부
+   * 사용자의 잠수 상태 해제 (별도 테이블에서 삭제)
    */
   async clearUserAfkStatus(userId) {
     try {
-      const userActivity = this.db.get('user_activity').get(userId).value();
-      if (userActivity) {
-        // afkUntil 필드 제거
-        delete userActivity.afkUntil;
+      this.forceReload();
 
-        // 업데이트
-        this.db.get('user_activity')
-            .set(userId, userActivity)
-            .write();
-      }
+      this.db.get('afk_status').unset(userId).write();
+
+      console.log(`[DB] 잠수 상태 해제: ${userId}`);
       return true;
     } catch (error) {
-      console.error('잠수 상태 해제 오류:', error);
+      console.error('[DB] 잠수 상태 해제 오류:', error);
       return false;
     }
   }
 
   /**
-   * 모든 잠수 사용자 조회
-   * @returns {Array<Object>} - 잠수 상태인 사용자 목록
+   * 모든 잠수 사용자 조회 (별도 테이블에서 조회)
    */
   async getAllAfkUsers() {
     try {
-      const allUsers = this.db.get('user_activity').value();
+      this.forceReload();
+
+      const afkData = this.db.get('afk_status').value();
       const afkUsers = [];
 
-      for (const [userId, userActivity] of Object.entries(allUsers)) {
-        if (userActivity.afkUntil) {
+      for (const [userId, data] of Object.entries(afkData)) {
+        if (data.afkUntil) {
+          // user_activity에서 totalTime 조회
+          const userActivity = this.db.get('user_activity').get(userId).value();
+
           afkUsers.push({
             userId,
-            displayName: userActivity.displayName || userId,
-            afkUntil: userActivity.afkUntil,
-            totalTime: userActivity.totalTime || 0
+            displayName: data.displayName || userId,
+            afkUntil: data.afkUntil,
+            totalTime: userActivity?.totalTime || 0
           });
         }
       }
 
       return afkUsers;
     } catch (error) {
-      console.error('잠수 사용자 조회 오류:', error);
+      console.error('[DB] 잠수 사용자 조회 오류:', error);
       return [];
     }
   }
 
   /**
    * 만료된 잠수 상태 확인 및 해제
-   * @returns {Array<string>} - 잠수 상태가 해제된 사용자 ID 목록
    */
   async clearExpiredAfkStatus() {
     try {
+      this.forceReload();
+
       const now = Date.now();
-      const allUsers = this.db.get('user_activity').value();
+      const afkData = this.db.get('afk_status').value();
       const clearedUsers = [];
 
-      for (const [userId, userActivity] of Object.entries(allUsers)) {
-        if (userActivity.afkUntil && userActivity.afkUntil < now) {
-          // afkUntil 필드 제거
-          delete userActivity.afkUntil;
-
-          // 업데이트
-          this.db.get('user_activity')
-              .set(userId, userActivity)
-              .write();
-
+      for (const [userId, data] of Object.entries(afkData)) {
+        if (data.afkUntil && data.afkUntil < now) {
+          this.db.get('afk_status').unset(userId).write();
           clearedUsers.push(userId);
+          console.log(`[DB] 잠수 상태 만료 해제: ${userId}`);
         }
       }
 
       return clearedUsers;
     } catch (error) {
-      console.error('잠수 상태 만료 처리 오류:', error);
+      console.error('[DB] 잠수 상태 만료 처리 오류:', error);
       return [];
     }
   }
 
+  /**
+   * 데이터 새로고침 (호환성)
+   */
   reloadData() {
-    if (this?.db?.read) {
-      this.db.read();
-    }
+    this.forceReload();
   }
 }

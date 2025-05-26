@@ -1,4 +1,4 @@
-// src/services/UserClassificationService.js
+// src/services/UserClassificationService.js - 잠수 상태 처리 개선
 import {calculateNextSunday} from '../utils/dateUtils.js';
 
 export class UserClassificationService {
@@ -174,43 +174,62 @@ export class UserClassificationService {
   }
 
   /**
-   * 잠수 사용자 처리
+   * 잠수 사용자 처리 (개선된 버전)
    * @param {string} userId - 사용자 ID
    * @param {GuildMember} member - 멤버 객체
    * @param {Object} userData - 사용자 데이터 객체
    * @returns {Object} - 업데이트된 사용자 데이터
    */
   async processAfkUser(userId, member, userData) {
-    console.log(`[디버깅] processAfkUser 시작: userId=${userId}, nickname=${member.displayName}`);
+    console.log(`[잠수처리] 시작: userId=${userId}, nickname=${member.displayName}`);
 
-    // DB 새로고침 시도
-    if (this.db && this.db.db && this.db.db.read) {
-      this.db.db.read();
-    }
+    try {
+      // DB 강제 새로고침
+      this.db.forceReload();
 
-    const afkStatus = await this.db.getUserAfkStatus(userId);
-    console.log(`[디버깅] afkStatus 조회 결과:`, afkStatus);
+      // 별도 테이블에서 잠수 상태 조회
+      const afkStatus = await this.db.getUserAfkStatus(userId);
+      console.log(`[잠수처리] DB 조회 결과:`, afkStatus);
 
-    if (afkStatus?.afkUntil) {
-      console.log(`[디버깅] 기존 afkUntil 값 사용:`, afkStatus.afkUntil);
-      console.log(`[디버깅] 날짜로 변환:`, new Date(afkStatus.afkUntil).toISOString());
-      userData.afkUntil = afkStatus.afkUntil;
-    } else {
-      console.log(`[디버깅] 새 afkUntil 값 계산 (다음 일요일)`);
-      const nextSunday = calculateNextSunday(new Date());
-      userData.afkUntil = nextSunday.getTime();
-      console.log(`[디버깅] 계산된 afkUntil:`, userData.afkUntil);
-      console.log(`[디버깅] 날짜로 변환:`, new Date(userData.afkUntil).toISOString());
+      if (afkStatus?.afkUntil) {
+        console.log(`[잠수처리] 기존 잠수 데이터 사용: ${new Date(afkStatus.afkUntil).toISOString()}`);
+        userData.afkUntil = afkStatus.afkUntil;
+      } else {
+        console.log(`[잠수처리] 새로운 잠수 기한 설정`);
+        // 다음 일요일 계산
+        const nextSunday = calculateNextSunday(new Date());
+        const afkUntilTimestamp = nextSunday.getTime();
 
-      // DB에 저장
-      if (this.db.setUserAfkStatus) {
-        console.log(`[디버깅] DB에 afkUntil 저장 시도`);
-        await this.db.setUserAfkStatus(userId, member.displayName, userData.afkUntil);
+        console.log(`[잠수처리] 계산된 기한: ${new Date(afkUntilTimestamp).toISOString()}`);
+
+        // DB에 저장
+        const saveResult = await this.db.setUserAfkStatus(userId, member.displayName, afkUntilTimestamp);
+        console.log(`[잠수처리] 저장 결과: ${saveResult}`);
+
+        if (saveResult) {
+          userData.afkUntil = afkUntilTimestamp;
+
+          // 저장 후 검증
+          const verifyAfkStatus = await this.db.getUserAfkStatus(userId);
+          console.log(`[잠수처리] 저장 후 검증:`, verifyAfkStatus);
+        } else {
+          console.error(`[잠수처리] 저장 실패 - 기본값 사용`);
+          userData.afkUntil = afkUntilTimestamp;
+        }
       }
-    }
 
-    console.log(`[디버깅] 최종 userData:`, userData);
-    return userData;
+      console.log(`[잠수처리] 최종 userData:`, userData);
+      return userData;
+    } catch (error) {
+      console.error(`[잠수처리] 오류 발생:`, error);
+
+      // 오류 발생 시 기본값 설정
+      const fallbackDate = calculateNextSunday(new Date());
+      userData.afkUntil = fallbackDate.getTime();
+
+      console.log(`[잠수처리] 오류 복구 - 기본값 설정: ${new Date(userData.afkUntil).toISOString()}`);
+      return userData;
+    }
   }
 
   /**
