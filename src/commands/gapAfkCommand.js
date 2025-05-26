@@ -80,7 +80,13 @@ export class GapAfkCommand extends CommandBase {
     await member.roles.add(afkRole);
 
     // DB에 잠수 정보 저장
-    await this.dbManager.setUserAfkStatus(targetUser.id, member.displayName, untilDate.getTime());
+    const saveResult = await this.dbManager.setUserAfkStatus(targetUser.id, member.displayName, untilDate.getTime());
+
+    // 저장 확인 (디버깅용)
+    if (saveResult) {
+      const savedStatus = await this.dbManager.getUserAfkStatus(targetUser.id);
+      console.log(`[디버깅] 잠수 상태 저장 확인:`, savedStatus);
+    }
 
     // 한국어 날짜 포맷
     const formattedDate = formatKoreanDateString(untilDate);

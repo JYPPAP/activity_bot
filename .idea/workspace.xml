@@ -4,9 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="채널 이동 시 입장 시간이 초기화 되는 문제 수정">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="gap_check 시 날짜입력 추가">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/gapCheckCommand.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -144,15 +143,7 @@
       <workItem from="1745845315451" duration="863000" />
       <workItem from="1747394718609" duration="612000" />
       <workItem from="1747645299474" duration="614000" />
-      <workItem from="1747661237515" duration="4320000" />
-    </task>
-    <task id="LOCAL-00013" summary="SQLite 로 마이그레이션">
-      <option name="closed" value="true" />
-      <created>1743357141422</created>
-      <option name="number" value="00013" />
-      <option name="presentableId" value="LOCAL-00013" />
-      <option name="project" value="LOCAL" />
-      <updated>1743357141422</updated>
+      <workItem from="1747661237515" duration="5296000" />
     </task>
     <task id="LOCAL-00014" summary="파일 이동">
       <option name="closed" value="true" />
@@ -538,7 +529,15 @@
       <option name="project" value="LOCAL" />
       <updated>1747664591364</updated>
     </task>
-    <option name="localTasksCounter" value="62" />
+    <task id="LOCAL-00062" summary="gap_check 시 날짜입력 추가">
+      <option name="closed" value="true" />
+      <created>1747665963031</created>
+      <option name="number" value="00062" />
+      <option name="presentableId" value="LOCAL-00062" />
+      <option name="project" value="LOCAL" />
+      <updated>1747665963031</updated>
+    </task>
+    <option name="localTasksCounter" value="63" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -556,7 +555,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 출력부분 수정 후 에러 수정" />
     <MESSAGE value="로그 출력부분 수정" />
     <MESSAGE value="로그 출력부분 색상 수정" />
     <MESSAGE value="readMe 수정" />
@@ -581,6 +579,7 @@
     <MESSAGE value="잠수 사용자 디버깅 코드 추가&#10;줄바꿈 정리" />
     <MESSAGE value="DB 데이터 새로고침 코드 추가" />
     <MESSAGE value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
-    <option name="LAST_COMMIT_MESSAGE" value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
+    <MESSAGE value="gap_check 시 날짜입력 추가" />
+    <option name="LAST_COMMIT_MESSAGE" value="gap_check 시 날짜입력 추가" />
   </component>
 </project>

@@ -540,11 +540,12 @@ export class DatabaseManager {
     try {
       console.log(`[디버깅] getUserAfkStatus 호출: userId=${userId}`);
 
-      // DB 데이터 새로고침
-      if (this?.db?.reloadData) this.db.reloadData();
+      // LowDB 데이터 강제 새로고침 - 캐시 문제 해결
+      this.refreshData();
 
-      // LowDB 인스턴스에서 데이터 직접 확인 (필요시 새로고침)
+      // LowDB 인스턴스에서 데이터 직접 확인
       const rawData = this.db.get('user_activity').get(userId).value();
+
       console.log(`[디버깅] 원본 데이터:`, rawData);
       console.log(`[디버깅] afkUntil 타입:`, typeof rawData?.afkUntil);
       console.log(`[디버깅] afkUntil 값:`, rawData?.afkUntil);
