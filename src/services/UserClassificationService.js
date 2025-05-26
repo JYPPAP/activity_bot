@@ -183,9 +183,9 @@ export class UserClassificationService {
   async processAfkUser(userId, member, userData) {
     console.log(`[디버깅] processAfkUser 시작: userId=${userId}, nickname=${member.displayName}`);
 
-    // DB 강제 새로고침
-    if (this.db.refreshData) {
-      this.db.refreshData();
+    // DB 새로고침 시도
+    if (this.db && this.db.db && this.db.db.read) {
+      this.db.db.read();
     }
 
     const afkStatus = await this.db.getUserAfkStatus(userId);

@@ -541,7 +541,9 @@ export class DatabaseManager {
       console.log(`[디버깅] getUserAfkStatus 호출: userId=${userId}`);
 
       // LowDB 데이터 강제 새로고침 - 캐시 문제 해결
-      this.refreshData();
+      if (this.db && this.db.read) {
+        this.db.read();
+      }
 
       // LowDB 인스턴스에서 데이터 직접 확인
       const rawData = this.db.get('user_activity').get(userId).value();
