@@ -1,4 +1,7 @@
 # Discord 활동 추적 봇 설치 및 관리 가이드
+## 0. 아키텍처
+![discord_bot_architecture.svg](readme_src/discord_bot_architecture.svg)
+
 
 ## 초기 설치 방법
 
