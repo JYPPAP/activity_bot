@@ -2,6 +2,9 @@
 import {EmbedBuilder} from 'discord.js';
 import {COLORS} from '../config/constants.js';
 import {formatKoreanDate, formatTime} from '../utils/formatters.js';
+import {config} from '../config/env.js';
+import {UserClassificationService} from './UserClassificationService.js';
+import {EmbedFactory} from '../utils/embedBuilder.js';
 
 /**
  * 활동 보고서 생성을 담당하는 서비스

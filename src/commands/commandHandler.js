@@ -56,9 +56,6 @@ export class CommandHandler {
         dbManager: this.dbManager,
         jobPostInteractionService: this.jobPostInteractionService
       });
-      
-      // 필터 서비스 초기화
-      await jobPostCommand.filterService.initialize();
 
       // UserClassificationService 의존성 주입
       if (gapListCommand.setUserClassificationService) {
@@ -173,6 +170,13 @@ export class CommandHandler {
       await this.jobPostInteractionService.initialize();
       await this.channelJobPostLinkService.initialize();
       await this.jobPostButtonService.initialize();
+      
+      // JobPost 명령어의 필터 서비스 초기화
+      const jobPostCommand = this.commands.get('job_post');
+      if (jobPostCommand && jobPostCommand.filterService) {
+        await jobPostCommand.filterService.initialize();
+      }
+      
       console.log('[CommandHandler] 구인구직 서비스 초기화 완료');
     } catch (error) {
       console.error('[CommandHandler] 구인구직 서비스 초기화 오류:', error);

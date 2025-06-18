@@ -3,6 +3,8 @@ import {EmbedBuilder} from 'discord.js';
 import {COLORS} from '../config/constants.js';
 import {ScheduleService} from './scheduleService.js';
 import {ActivityReportService} from './activityReportService.js';
+import {UserClassificationService} from './UserClassificationService.js';
+import {EmbedFactory} from '../utils/embedBuilder.js';
 import {config} from '../config/env.js';
 import {formatKoreanDate} from '../utils/formatters.js';
 

@@ -8,6 +8,7 @@ import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
 import {JobPostCleanupService} from './services/jobPostCleanupService.js';
+import {EmbedFactory} from './utils/embedBuilder.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import fs from 'fs';
