@@ -1,3 +1,8 @@
+# 사용 예시
+![discord_bot_gif](https://github.com/user-attachments/assets/e207de6d-288d-46df-b551-576148cf9d8d)
+
+---
+
 # Discord 활동 추적 봇 설치 및 관리 가이드
 ## 0. 아키텍처
 ![discord_bot_architecture.svg](readme_src/discord_bot_architecture.svg)
