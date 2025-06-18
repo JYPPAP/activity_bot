@@ -156,7 +156,8 @@ export class JobPostCleanupService {
    */
   async cleanupOrphanedJobPosts() {
     try {
-      const allJobs = await this.jobPostService.getAllJobPosts(true); // 만료된 것도 포함
+      const allJobsResult = await this.jobPostService.getAllJobPosts(true); // 만료된 것도 포함
+      const allJobs = allJobsResult.data;
       let cleanedCount = 0;
 
       for (const job of allJobs) {
@@ -188,7 +189,8 @@ export class JobPostCleanupService {
    */
   async cleanupOldJobPosts() {
     try {
-      const allJobs = await this.jobPostService.getAllJobPosts(true); // 만료된 것도 포함
+      const allJobsResult = await this.jobPostService.getAllJobPosts(true); // 만료된 것도 포함
+      const allJobs = allJobsResult.data;
       const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
       const deletedJobs = [];
 
@@ -222,7 +224,8 @@ export class JobPostCleanupService {
   async validateDataIntegrity() {
     try {
       let issueCount = 0;
-      const allJobs = await this.jobPostService.getAllJobPosts(true);
+      const allJobsResult = await this.jobPostService.getAllJobPosts(true);
+      const allJobs = allJobsResult.data;
 
       // 1. 중복 channelId 검사 및 수정
       const channelMap = new Map();
