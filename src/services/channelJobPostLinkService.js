@@ -40,8 +40,8 @@ export class ChannelJobPostLinkService {
       }
 
       // 연동 가능한 구인구직 카드 조회 (channelId가 null인 카드들)
-      const allJobPosts = await this.jobPostService.getAllJobPosts(false);
-      const availableJobPosts = allJobPosts.filter(job => !job.channelId);
+      const allJobPostsResult = await this.jobPostService.getAllJobPosts(false);
+      const availableJobPosts = allJobPostsResult.data.filter(job => !job.channelId);
 
       // SelectMenu 생성
       const { embed, actionRow } = ChannelSelectMenuFactory.createJobPostSelectionMenu(
