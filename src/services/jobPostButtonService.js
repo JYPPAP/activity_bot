@@ -25,6 +25,17 @@ export class JobPostButtonService {
    */
   async handleButtonInteraction(interaction) {
     try {
+      // 새로 추가된 버튼들 처리
+      if (interaction.customId === 'create_job_post_manual') {
+        await this.handleManualJobPostCreation(interaction);
+        return;
+      }
+      
+      if (interaction.customId === 'list_job_posts') {
+        await this.handleJobPostList(interaction);
+        return;
+      }
+      
       const parsed = JobPostButtonFactory.parseButtonCustomId(interaction.customId);
       if (!parsed) {
         return; // 관련 없는 버튼
@@ -399,6 +410,104 @@ export class JobPostButtonService {
     } catch (error) {
       console.warn('[JobPostButtonService] 관전 태그 추가 실패:', error);
       // 닉네임 변경 실패는 치명적이지 않으므로 경고만 로그
+    }
+  }
+
+  /**
+   * 수동 구인구직 카드 생성 처리
+   * @param {ButtonInteraction} interaction - 버튼 상호작용
+   */
+  async handleManualJobPostCreation(interaction) {
+    try {
+      console.log('[JobPostButtonService] 수동 구인구직 카드 생성 요청');
+      
+      // jobPostInteractionService를 통해 모달 표시
+      const jobPostInteractionService = this.client.jobPostInteractionService || 
+        this.client.commandHandler?.jobPostInteractionService;
+      
+      if (jobPostInteractionService) {
+        await jobPostInteractionService.showJobPostCreateModal(interaction);
+      } else {
+        await interaction.reply({
+          content: '❌ 구인구직 서비스를 사용할 수 없습니다. 잠시 후 다시 시도해주세요.',
+          ephemeral: true
+        });
+      }
+    } catch (error) {
+      console.error('[JobPostButtonService] 수동 카드 생성 오류:', error);
+      
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: '❌ 구인구직 카드 생성 중 오류가 발생했습니다.',
+          ephemeral: true
+        });
+      }
+    }
+  }
+
+  /**
+   * 구인구직 카드 목록 표시 처리
+   * @param {ButtonInteraction} interaction - 버튼 상호작용
+   */
+  async handleJobPostList(interaction) {
+    try {
+      console.log('[JobPostButtonService] 구인구직 카드 목록 요청');
+      
+      await interaction.deferReply({ ephemeral: true });
+      
+      // 현재 활성 카드 목록 조회
+      const result = await this.jobPostService.getAllJobPosts(false, { limit: 10 });
+      
+      if (result.data.length === 0) {
+        await interaction.editReply({
+          content: '📋 현재 활성화된 구인구직 카드가 없습니다.\n\n"🎮 새 구인구직 카드 만들기" 버튼을 클릭하여 새 카드를 만들어보세요!'
+        });
+        return;
+      }
+
+      // 목록 임베드 생성
+      const { EmbedBuilder } = require('discord.js');
+      const embed = new EmbedBuilder()
+        .setColor('#00D166')
+        .setTitle('📋 현재 활성 구인구직 카드 목록')
+        .setDescription(`총 ${result.data.length}개의 활성 카드가 있습니다.`)
+        .setTimestamp();
+
+      // 카드들을 필드로 추가
+      result.data.forEach((job, index) => {
+        const expiresIn = Math.floor((job.expiresAt - Date.now()) / (1000 * 60 * 60));
+        const channelInfo = job.channelId ? '🔗 연동됨' : '⭕ 미연동';
+        
+        embed.addFields({
+          name: `${index + 1}. ${job.title}`,
+          value: [
+            `👥 인원: ${job.memberCount}명`,
+            `⏰ 시작: ${job.startTime}`,
+            `🏷️ 태그: ${job.roleTags || '없음'}`,
+            `📍 상태: ${channelInfo}`,
+            `⏳ 만료: ${expiresIn}시간 후`
+          ].join('\n'),
+          inline: true
+        });
+      });
+
+      await interaction.editReply({
+        embeds: [embed]
+      });
+
+    } catch (error) {
+      console.error('[JobPostButtonService] 카드 목록 표시 오류:', error);
+      
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: '❌ 구인구직 카드 목록 조회 중 오류가 발생했습니다.',
+          ephemeral: true
+        });
+      } else {
+        await interaction.editReply({
+          content: '❌ 구인구직 카드 목록 조회 중 오류가 발생했습니다.'
+        });
+      }
     }
   }
 }

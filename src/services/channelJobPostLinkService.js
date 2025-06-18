@@ -21,6 +21,98 @@ export class ChannelJobPostLinkService {
   async initialize() {
     await this.jobPostService.initialize();
     console.log('[ChannelJobPostLinkService] 채널-구인구직 연동 서비스 초기화 완료');
+    
+    // 구인구직-테스트 채널에 카드 생성 UI 설정
+    setTimeout(() => {
+      this.setupJobPostTestChannelUI();
+    }, 5000); // 봇 초기화 후 5초 뒤 실행
+  }
+
+  /**
+   * 구인구직-테스트 채널에 카드 생성 UI 설정
+   */
+  async setupJobPostTestChannelUI() {
+    try {
+      const jobTestChannelId = '1377902213002690562';
+      const jobTestChannel = await this.client.channels.fetch(jobTestChannelId).catch(() => null);
+      
+      if (!jobTestChannel) {
+        console.log('[ChannelJobPostLinkService] 구인구직-테스트 채널을 찾을 수 없음');
+        return;
+      }
+
+      // 기존 UI 메시지 확인 (봇이 보낸 메시지 중 구인구직 관련)
+      const messages = await jobTestChannel.messages.fetch({ limit: 50 });
+      const existingUI = messages.find(msg => 
+        msg.author.id === this.client.user.id && 
+        msg.embeds.length > 0 && 
+        msg.embeds[0].title?.includes('구인구직 카드 생성')
+      );
+
+      if (existingUI) {
+        console.log('[ChannelJobPostLinkService] 기존 구인구직 UI 발견, 새로 생성하지 않음');
+        return;
+      }
+
+      // 새 UI 생성
+      const { embed, actionRow } = this.createJobPostCreationUI();
+      
+      const uiMessage = await jobTestChannel.send({
+        embeds: [embed],
+        components: [actionRow]
+      });
+
+      await uiMessage.pin();
+      console.log('[ChannelJobPostLinkService] 구인구직-테스트 채널에 카드 생성 UI 추가 완료');
+
+    } catch (error) {
+      console.error('[ChannelJobPostLinkService] 구인구직 테스트 채널 UI 설정 오류:', error);
+    }
+  }
+
+  /**
+   * 구인구직 카드 생성 UI 생성
+   */
+  createJobPostCreationUI() {
+    const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
+    
+    const embed = new EmbedBuilder()
+      .setColor('#00D166')
+      .setTitle('🎮 구인구직 카드 생성')
+      .setDescription(
+        '새로운 구인구직 카드를 만들어보세요!\n\n' +
+        '**카드에 포함될 정보:**\n' +
+        '• 🎯 제목 (게임명, 모드 등)\n' +
+        '• 👥 모집 인원\n' +
+        '• ⏰ 시작 시간\n' +
+        '• 📝 상세 설명\n' +
+        '• 🏷️ 역할 태그\n\n' +
+        '아래 버튼을 클릭하여 카드를 생성하세요!'
+      )
+      .addFields(
+        {
+          name: '💡 팁',
+          value: '음성 채널을 생성하면 자동으로 연동 메뉴가 나타나며, 기존 카드와 연결하거나 새 카드를 만들 수 있습니다.',
+          inline: false
+        }
+      )
+      .setFooter({ text: '구인구직 시스템 | 카드는 24시간 후 자동 만료됩니다' })
+      .setTimestamp();
+
+    const createButton = new ButtonBuilder()
+      .setCustomId('create_job_post_manual')
+      .setLabel('🎮 새 구인구직 카드 만들기')
+      .setStyle(ButtonStyle.Primary);
+
+    const listButton = new ButtonBuilder()
+      .setCustomId('list_job_posts')
+      .setLabel('📋 현재 카드 목록 보기')
+      .setStyle(ButtonStyle.Secondary);
+
+    const actionRow = new ActionRowBuilder()
+      .addComponents(createButton, listButton);
+
+    return { embed, actionRow };
   }
 
   /**
@@ -79,10 +171,71 @@ export class ChannelJobPostLinkService {
       // 다른 봇의 초기 메시지 처리를 기다리기 위해 2초 지연
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const message = await textChannel.send({
-        embeds: [embed],
-        components: [actionRow]
-      });
+      // 10초 후 현재 채널에 있는 사용자들을 확인하여 적절한 채널에 메시지 전송
+      setTimeout(async () => {
+        try {
+          // 음성 채널에 있는 사용자들 확인
+          const voiceMembers = channel.members;
+          console.log(`[ChannelJobPostLinkService] 음성 채널 ${channel.name}에 ${voiceMembers.size}명의 사용자 확인`);
+          
+          if (voiceMembers.size > 0) {
+            // 음성 채널에 사용자가 있으면 해당 카테고리의 텍스트 채널에 메시지 전송
+            const targetChannel = await this.findBestTextChannelForUsers(channel, voiceMembers);
+            if (targetChannel) {
+              console.log(`[ChannelJobPostLinkService] 사용자 기반 채널 ${targetChannel.name}에 메시지 전송`);
+              const userMessage = await targetChannel.send({
+                embeds: [embed],
+                components: [actionRow]
+              });
+              
+              // 사용자 기반 메시지도 고정
+              try {
+                await userMessage.pin();
+                console.log(`[ChannelJobPostLinkService] 사용자 기반 메시지 고정 완료`);
+              } catch (pinError) {
+                console.log(`[ChannelJobPostLinkService] 사용자 기반 메시지 고정 실패:`, pinError.message);
+              }
+              
+              // 기존 관리 정보 업데이트
+              this.pendingLinks.set(channel.id, {
+                messageId: userMessage.id,
+                channelId: channel.id,
+                textChannelId: targetChannel.id,
+                timestamp: Date.now()
+              });
+              
+              return;
+            }
+          }
+          
+          // 사용자가 없거나 적절한 채널을 찾지 못한 경우 기본 로직 실행
+          const message = await textChannel.send({
+            embeds: [embed],
+            components: [actionRow]
+          });
+          
+          console.log(`[ChannelJobPostLinkService] 기본 채널 메시지 전송 성공! 메시지 ID: ${message.id}`);
+          
+          // 메시지를 고정하여 삭제되지 않도록 보호
+          try {
+            await message.pin();
+            console.log(`[ChannelJobPostLinkService] 메시지 고정 완료`);
+          } catch (pinError) {
+            console.log(`[ChannelJobPostLinkService] 메시지 고정 실패:`, pinError.message);
+          }
+
+          // 30초 타임아웃 설정
+          this.pendingLinks.set(channel.id, {
+            messageId: message.id,
+            channelId: channel.id,
+            textChannelId: textChannel.id,
+            timestamp: Date.now()
+          });
+          
+        } catch (error) {
+          console.error('[ChannelJobPostLinkService] 지연 메시지 전송 오류:', error);
+        }
+      }, 10000); // 10초 후 실행
       
       console.log(`[ChannelJobPostLinkService] 메시지 전송 성공! 메시지 ID: ${message.id}`);
       
@@ -340,6 +493,44 @@ export class ChannelJobPostLinkService {
 
     } catch (error) {
       console.error('[ChannelJobPostLinkService] 타임아웃 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 사용자들이 보기 좋은 텍스트 채널 찾기
+   * @param {VoiceChannel} voiceChannel - 음성 채널
+   * @param {Collection} voiceMembers - 음성 채널의 멤버들
+   * @returns {TextChannel|null} - 텍스트 채널
+   */
+  async findBestTextChannelForUsers(voiceChannel, voiceMembers) {
+    try {
+      // 구인구직-테스트 채널 우선 사용 (ID: 1377902213002690562)
+      const jobTestChannel = await this.client.channels.fetch('1377902213002690562').catch(() => null);
+      if (jobTestChannel) {
+        console.log(`[ChannelJobPostLinkService] 구인구직-테스트 채널 사용`);
+        return jobTestChannel;
+      }
+      
+      // 같은 카테고리의 텍스트 채널 중 사용자들이 접근 가능한 채널
+      if (voiceChannel.parent) {
+        const textChannels = voiceChannel.parent.children.cache.filter(ch => ch.type === 0);
+        
+        for (const [id, channel] of textChannels) {
+          // 모든 음성 채널 멤버들이 해당 텍스트 채널을 볼 수 있는지 확인
+          const canAllSee = voiceMembers.every(member => 
+            channel.permissionsFor(member).has(['ViewChannel', 'SendMessages'])
+          );
+          
+          if (canAllSee) {
+            return channel;
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[ChannelJobPostLinkService] 사용자 기반 채널 찾기 오류:', error);
+      return null;
     }
   }
 

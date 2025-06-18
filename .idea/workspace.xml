@@ -152,15 +152,7 @@
       <workItem from="1749154197350" duration="23000" />
       <workItem from="1749444188219" duration="54000" />
       <workItem from="1750145587506" duration="90000" />
-      <workItem from="1750262475947" duration="3499000" />
-    </task>
-    <task id="LOCAL-00026" summary="로그 출력시간 변경">
-      <option name="closed" value="true" />
-      <created>1743363384508</created>
-      <option name="number" value="00026" />
-      <option name="presentableId" value="LOCAL-00026" />
-      <option name="project" value="LOCAL" />
-      <updated>1743363384508</updated>
+      <workItem from="1750262475947" duration="3824000" />
     </task>
     <task id="LOCAL-00027" summary="로그 출력시간 변경">
       <option name="closed" value="true" />
@@ -546,7 +538,15 @@
       <option name="project" value="LOCAL" />
       <updated>1750265996973</updated>
     </task>
-    <option name="localTasksCounter" value="75" />
+    <task id="LOCAL-00075" summary="구인구직 카드 시스템 구현 중 에러 수정">
+      <option name="closed" value="true" />
+      <created>1750266195871</created>
+      <option name="number" value="00075" />
+      <option name="presentableId" value="LOCAL-00075" />
+      <option name="project" value="LOCAL" />
+      <updated>1750266195871</updated>
+    </task>
+    <option name="localTasksCounter" value="76" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
