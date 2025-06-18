@@ -232,46 +232,16 @@ export class ChannelJobPostLinkService {
             timestamp: Date.now()
           });
           
+          // 60초 후 자동 정리
+          setTimeout(async () => {
+            await this.handleTimeout(channel.id);
+          }, 60000);
+          
         } catch (error) {
           console.error('[ChannelJobPostLinkService] 지연 메시지 전송 오류:', error);
         }
       }, 10000); // 10초 후 실행
-      
-      console.log(`[ChannelJobPostLinkService] 메시지 전송 성공! 메시지 ID: ${message.id}`);
-      
-      // 메시지를 고정하여 삭제되지 않도록 보호
-      try {
-        await message.pin();
-        console.log(`[ChannelJobPostLinkService] 메시지 고정 완료`);
-      } catch (pinError) {
-        console.log(`[ChannelJobPostLinkService] 메시지 고정 실패:`, pinError.message);
-      }
 
-      // 30초 타임아웃 설정
-      this.pendingLinks.set(channel.id, {
-        messageId: message.id,
-        channelId: channel.id,
-        channelName: channel.name,
-        textChannelId: textChannel.id,
-        timestamp: Date.now()
-      });
-
-      // 10초 후 메시지 존재 확인
-      setTimeout(async () => {
-        try {
-          const existingMessage = await textChannel.messages.fetch(message.id);
-          if (existingMessage) {
-            console.log(`[ChannelJobPostLinkService] 10초 후 메시지 여전히 존재함`);
-          }
-        } catch (error) {
-          console.log(`[ChannelJobPostLinkService] 10초 후 메시지가 삭제됨 또는 찾을 수 없음:`, error.message);
-        }
-      }, 10000);
-
-      // 60초 후 자동 정리 (30초에서 60초로 연장)
-      setTimeout(async () => {
-        await this.handleTimeout(channel.id);
-      }, 60000);
 
       console.log(`[ChannelJobPostLinkService] 채널 ${channel.name}에 구인구직 연동 메뉴 표시`);
 
