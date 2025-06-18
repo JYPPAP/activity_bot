@@ -4,7 +4,9 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드 시스템 구현 중 에러 수정" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드 시스템 구현 중 에러 수정">
+      <change beforePath="$PROJECT_DIR$/src/services/JobPostService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/JobPostService.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -152,23 +154,7 @@
       <workItem from="1749154197350" duration="23000" />
       <workItem from="1749444188219" duration="54000" />
       <workItem from="1750145587506" duration="90000" />
-      <workItem from="1750262475947" duration="2794000" />
-    </task>
-    <task id="LOCAL-00022" summary="DB 매니저 수정">
-      <option name="closed" value="true" />
-      <created>1743361499409</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1743361499409</updated>
-    </task>
-    <task id="LOCAL-00023" summary="개발자 ID 추가">
-      <option name="closed" value="true" />
-      <created>1743362011667</created>
-      <option name="number" value="00023" />
-      <option name="presentableId" value="LOCAL-00023" />
-      <option name="project" value="LOCAL" />
-      <updated>1743362011667</updated>
+      <workItem from="1750262475947" duration="3122000" />
     </task>
     <task id="LOCAL-00024" summary="파일 매니저 &gt; DB 매니저로 변경">
       <option name="closed" value="true" />
@@ -546,7 +532,23 @@
       <option name="project" value="LOCAL" />
       <updated>1750265288602</updated>
     </task>
-    <option name="localTasksCounter" value="71" />
+    <task id="LOCAL-00071" summary="구인구직 카드 시스템 구현 중 에러 수정">
+      <option name="closed" value="true" />
+      <created>1750265409756</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1750265409756</updated>
+    </task>
+    <task id="LOCAL-00072" summary="구인구직 카드 시스템 구현 중 에러 수정">
+      <option name="closed" value="true" />
+      <created>1750265567839</created>
+      <option name="number" value="00072" />
+      <option name="presentableId" value="LOCAL-00072" />
+      <option name="project" value="LOCAL" />
+      <updated>1750265567839</updated>
+    </task>
+    <option name="localTasksCounter" value="73" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

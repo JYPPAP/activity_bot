@@ -370,8 +370,8 @@ export class JobPostService {
    */
   async getJobPostsByAuthor(authorId, includeExpired = false) {
     try {
-      const allJobs = await this.getAllJobPosts(includeExpired);
-      return allJobs.filter(job => job.authorId === authorId);
+      const allJobsResult = await this.getAllJobPosts(includeExpired);
+      return allJobsResult.data.filter(job => job.authorId === authorId);
     } catch (error) {
       console.error('[JobPostService] 사용자별 구인구직 카드 조회 오류:', error);
       return [];
@@ -386,8 +386,8 @@ export class JobPostService {
    */
   async getJobPostsByRoleTag(roleTag, includeExpired = false) {
     try {
-      const allJobs = await this.getAllJobPosts(includeExpired);
-      return allJobs.filter(job => 
+      const allJobsResult = await this.getAllJobPosts(includeExpired);
+      return allJobsResult.data.filter(job => 
         job.roleTags && job.roleTags.toLowerCase().includes(roleTag.toLowerCase())
       );
     } catch (error) {
