@@ -7,6 +7,7 @@ import {CalendarLogService} from './services/calendarLogService.js';
 import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
+import {JobPostCleanupService} from './services/jobPostCleanupService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import fs from 'fs';
@@ -42,6 +43,7 @@ export class Bot {
       this.calendarLogService
     );
     this.eventManager = new EventManager(this.client);
+    this.jobPostCleanupService = new JobPostCleanupService(this.client, this.dbManager);
 
     Bot.instance = this;
   }
@@ -68,6 +70,12 @@ export class Bot {
 
       // 달력 로그 서비스 초기화
       await this.calendarLogService.initialize();
+
+      // 구인구직 서비스 초기화
+      await this.commandHandler.initializeJobPostService();
+      
+      // 구인구직 정리 서비스 초기화
+      await this.jobPostCleanupService.initialize();
 
       // 여러 역할 출력 일정 설정 추가
       await this.scheduleRoleListings(guild);
@@ -234,6 +242,18 @@ export class Bot {
     this.eventManager.registerHandler(
       Events.ChannelCreate,
       this.logService.handleChannelCreate.bind(this.logService)
+    );
+
+    // 채널 생성 이벤트 (구인구직 연동)
+    this.eventManager.registerHandler(
+      Events.ChannelCreate,
+      this.commandHandler.handleChannelCreate.bind(this.commandHandler)
+    );
+
+    // 채널 삭제 이벤트 (구인구직 연동)
+    this.eventManager.registerHandler(
+      Events.ChannelDelete,
+      this.commandHandler.handleChannelDelete.bind(this.commandHandler)
     );
 
     // 명령어 처리 이벤트

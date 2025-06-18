@@ -204,4 +204,137 @@ export class EmbedFactory {
       .setDescription(description)
       .setTimestamp();
   }
+
+  /**
+   * 구인구직 카드 임베드를 생성합니다.
+   * @param {Object} jobPost - 구인구직 카드 데이터
+   * @param {Object} options - 추가 옵션
+   * @param {boolean} options.showButtons - 버튼 표시 여부
+   * @param {VoiceChannel|null} options.voiceChannel - 음성채널 객체
+   * @returns {Object} - { embed: EmbedBuilder, actionRow: ActionRowBuilder|null }
+   */
+  static createJobPostEmbed(jobPost, options = {}) {
+    const { showButtons = false, voiceChannel = null } = options;
+    
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2') // Discord 브랜드 색상
+      .setTitle(`🎯 ${jobPost.title}`)
+      .setTimestamp(jobPost.createdAt);
+
+    // 기본 정보 필드들
+    const fields = [
+      {
+        name: '👥 모집 인원',
+        value: `${jobPost.memberCount}명`,
+        inline: true
+      },
+      {
+        name: '⏰ 시작 시간',
+        value: jobPost.startTime,
+        inline: true
+      }
+    ];
+
+    // 역할 태그가 있으면 추가
+    if (jobPost.roleTags && jobPost.roleTags.trim()) {
+      fields.push({
+        name: '🏷️ 역할 태그',
+        value: jobPost.roleTags,
+        inline: true
+      });
+    }
+
+    // 설명이 있으면 추가
+    if (jobPost.description && jobPost.description.trim()) {
+      fields.push({
+        name: '📝 상세 설명',
+        value: jobPost.description.length > 1024 
+          ? jobPost.description.substring(0, 1021) + '...'
+          : jobPost.description,
+        inline: false
+      });
+    }
+
+    // 음성 채널 연동 상태
+    const channelStatus = jobPost.channelId 
+      ? '🔗 음성채널 연동됨'
+      : '🔄 음성채널 미연동';
+    
+    fields.push({
+      name: '🎙️ 음성채널 상태',
+      value: channelStatus,
+      inline: true
+    });
+
+    // 만료 시간 표시
+    const expiresAt = new Date(jobPost.expiresAt);
+    fields.push({
+      name: '⏳ 만료 시간',
+      value: `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`,
+      inline: true
+    });
+
+    embed.addFields(fields);
+
+    // 작성자 정보
+    embed.setFooter({
+      text: `작성자 ID: ${jobPost.authorId} | 카드 ID: ${jobPost.id}`
+    });
+
+    // 버튼 생성 (showButtons가 true이고 channelId가 있는 경우)
+    let actionRow = null;
+    if (showButtons && jobPost.channelId) {
+      // JobPostButtonFactory import가 필요하지만 순환 참조 방지를 위해 여기서는 생성하지 않음
+      // 대신 호출하는 곳에서 별도로 버튼을 생성하도록 함
+    }
+
+    return { embed, actionRow };
+  }
+
+  /**
+   * 구인구직 카드 목록 임베드를 생성합니다.
+   * @param {Array} jobPosts - 구인구직 카드 목록
+   * @param {Object} options - 추가 옵션
+   * @returns {EmbedBuilder} - 생성된 임베드
+   */
+  static createJobPostListEmbed(jobPosts, options = {}) {
+    const { title = '📋 현재 활성 구인구직 목록', showExpired = false } = options;
+    
+    const embed = new EmbedBuilder()
+      .setColor('#00D166') // 밝은 초록색
+      .setTitle(title)
+      .setTimestamp();
+
+    if (jobPosts.length === 0) {
+      embed.setDescription('현재 활성화된 구인구직이 없습니다.');
+      return embed;
+    }
+
+    // 최대 25개 필드 제한 (Discord 제한)
+    const displayJobs = jobPosts.slice(0, 25);
+    
+    displayJobs.forEach((job, index) => {
+      const channelStatus = job.channelId ? '🔗' : '🔄';
+      const expiresAt = new Date(job.expiresAt);
+      const isExpired = expiresAt.getTime() <= Date.now();
+      const statusIcon = isExpired ? '⏰' : '🎯';
+      
+      embed.addFields({
+        name: `${statusIcon} ${job.title}`,
+        value: [
+          `👥 인원: ${job.memberCount}명`,
+          `⏰ 시작: ${job.startTime}`,
+          `${channelStatus} 채널 연동${job.channelId ? '됨' : ' 안됨'}`,
+          `⏳ 만료: <t:${Math.floor(expiresAt.getTime() / 1000)}:R>`
+        ].join('\n'),
+        inline: true
+      });
+    });
+
+    if (jobPosts.length > 25) {
+      embed.setDescription(`총 ${jobPosts.length}개 중 25개만 표시됩니다.`);
+    }
+
+    return embed;
+  }
 }

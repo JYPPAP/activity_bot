@@ -10,7 +10,11 @@ import {GapStatsCommand} from './gapStatsCommand.js';
 import {GapReportCommand} from './gapReportCommand.js';
 import {GapCycleCommand} from './gapCycleCommand.js';
 import {GapAfkCommand} from './gapAfkCommand.js';
+import {JobPostCommand} from './jobPostCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
+import {JobPostInteractionService} from '../services/jobPostInteractionService.js';
+import {ChannelJobPostLinkService} from '../services/channelJobPostLinkService.js';
+import {JobPostButtonService} from '../services/jobPostButtonService.js';
 import {config} from '../config/env.js';
 
 export class CommandHandler {
@@ -22,6 +26,15 @@ export class CommandHandler {
 
     // UserClassificationService 인스턴스 생성
     this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
+    
+    // JobPostInteractionService 인스턴스 생성
+    this.jobPostInteractionService = new JobPostInteractionService(this.client, this.dbManager);
+    
+    // ChannelJobPostLinkService 인스턴스 생성
+    this.channelJobPostLinkService = new ChannelJobPostLinkService(this.client, this.dbManager, this.jobPostInteractionService);
+    
+    // JobPostButtonService 인스턴스 생성
+    this.jobPostButtonService = new JobPostButtonService(this.client, this.dbManager, this.activityTracker);
 
     this.commands = new Map();
 
@@ -38,6 +51,14 @@ export class CommandHandler {
       const gapReportCommand = new GapReportCommand(this.dbManager, this.activityTracker);
       const gapCycleCommand = new GapCycleCommand(this.dbManager);
       const gapAfkCommand = new GapAfkCommand(this.client, this.dbManager);
+      const jobPostCommand = new JobPostCommand({
+        client: this.client,
+        dbManager: this.dbManager,
+        jobPostInteractionService: this.jobPostInteractionService
+      });
+      
+      // 필터 서비스 초기화
+      await jobPostCommand.filterService.initialize();
 
       // UserClassificationService 의존성 주입
       if (gapListCommand.setUserClassificationService) {
@@ -59,6 +80,7 @@ export class CommandHandler {
       this.commands.set('gap_report', gapReportCommand);
       this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
+      this.commands.set('job_post', jobPostCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {
@@ -79,45 +101,107 @@ export class CommandHandler {
   }
 
   /**
-   * 명령어 상호작용을 처리합니다.
+   * 상호작용을 처리합니다 (명령어, 모달, 버튼 등).
    * @param interaction - 상호작용 객체
    */
   async handleInteraction(interaction) {
-    // 명령어 상호작용이 아닌 경우 무시
-    if (!interaction.isCommand()) return;
-
-    const {commandName} = interaction;
-
-    // 명령어 실행 권한 확인
-    if (!this.hasAdminPermission(interaction)) {
-      await interaction.reply({
-        content: "이 명령어를 실행할 권한이 없습니다.(관리자용)",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    // 명령어 실행
     try {
-      // 해당 명령어 핸들러가 있는지 확인
-      if (this.commands.has(commandName)) {
-        await this.commands.get(commandName).execute(interaction);
+      // 모달 제출 처리
+      if (interaction.isModalSubmit()) {
+        await this.jobPostInteractionService.handleModalSubmit(interaction);
+        return;
+      }
+
+      // SelectMenu 처리
+      if (interaction.isStringSelectMenu()) {
+        await this.channelJobPostLinkService.handleSelectMenuInteraction(interaction);
+        return;
+      }
+
+      // Button 처리
+      if (interaction.isButton()) {
+        await this.jobPostButtonService.handleButtonInteraction(interaction);
+        return;
+      }
+
+      // 명령어 상호작용이 아닌 경우 무시
+      if (!interaction.isCommand()) return;
+
+      const {commandName} = interaction;
+
+      // 명령어 실행 권한 확인
+      if (!this.hasAdminPermission(interaction)) {
+        await interaction.reply({
+          content: "이 명령어를 실행할 권한이 없습니다.(관리자용)",
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      // 명령어 실행
+      try {
+        // 해당 명령어 핸들러가 있는지 확인
+        if (this.commands.has(commandName)) {
+          await this.commands.get(commandName).execute(interaction);
+        }
+      } catch (error) {
+        console.error("명령어 처리 오류:", error);
+
+        // 이미 응답한 상호작용이 아닐 경우에만 응답
+        if (!interaction.replied && !interaction.deferred) {
+          await interaction.reply({
+            content: "요청 수행 중 오류가 발생했습니다!",
+            flags: MessageFlags.Ephemeral,
+          });
+        } else if (interaction.deferred) {
+          await interaction.followUp({
+            content: "요청 수행 중 오류가 발생했습니다!",
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       }
     } catch (error) {
-      console.error("명령어 처리 오류:", error);
-
-      // 이미 응답한 상호작용이 아닐 경우에만 응답
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: "요청 수행 중 오류가 발생했습니다!",
-          flags: MessageFlags.Ephemeral,
-        });
-      } else if (interaction.deferred) {
-        await interaction.followUp({
-          content: "요청 수행 중 오류가 발생했습니다!",
-          flags: MessageFlags.Ephemeral,
-        });
-      }
+      console.error("상호작용 처리 오류:", error);
     }
+  }
+
+  /**
+   * 구인구직 상호작용 서비스 초기화
+   */
+  async initializeJobPostService() {
+    try {
+      await this.jobPostInteractionService.initialize();
+      await this.channelJobPostLinkService.initialize();
+      await this.jobPostButtonService.initialize();
+      console.log('[CommandHandler] 구인구직 서비스 초기화 완료');
+    } catch (error) {
+      console.error('[CommandHandler] 구인구직 서비스 초기화 오류:', error);
+    }
+  }
+
+  /**
+   * 구인구직 생성 모달 표시 (외부에서 호출 가능)
+   * @param {Interaction} interaction - 상호작용 객체
+   * @param {string|null} channelId - 음성채널 ID
+   * @param {string} defaultTitle - 기본 제목
+   */
+  async showJobPostCreateModal(interaction, channelId = null, defaultTitle = '') {
+    return await this.jobPostInteractionService.showJobPostCreateModal(interaction, channelId, defaultTitle);
+  }
+
+  /**
+   * 채널 생성 이벤트 처리 (외부에서 호출)
+   * @param {Channel} channel - 생성된 채널
+   */
+  async handleChannelCreate(channel) {
+    await this.channelJobPostLinkService.handleChannelCreate(channel);
+  }
+
+  /**
+   * 채널 삭제 이벤트 처리 (외부에서 호출)
+   * @param {Channel} channel - 삭제된 채널
+   */
+  async handleChannelDelete(channel) {
+    await this.channelJobPostLinkService.handleChannelDelete(channel);
   }
 }

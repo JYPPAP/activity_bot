@@ -4,9 +4,12 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정">
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="readme 아키텍처 추가">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/UserClassificationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/UserClassificationService.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -83,13 +86,14 @@
 }</component>
   <component name="RecentsManager">
     <key name="MoveFile.RECENT_KEYS">
+      <recent name="D:\Personal Project\activity_bot\readme_src" />
       <recent name="D:\Personal Project\activity_bot" />
     </key>
   </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-6a121458b545-JavaScript-WS-251.25410.117" />
+        <option value="bundled-js-predefined-d6986cc7102b-b26f3e71634d-JavaScript-WS-251.26094.131" />
       </set>
     </attachedChunks>
   </component>
@@ -145,23 +149,16 @@
       <workItem from="1747394718609" duration="612000" />
       <workItem from="1747645299474" duration="614000" />
       <workItem from="1747661237515" duration="5296000" />
-      <workItem from="1748261442249" duration="2178000" />
-    </task>
-    <task id="LOCAL-00016" summary="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생">
-      <option name="closed" value="true" />
-      <created>1743358642223</created>
-      <option name="number" value="00016" />
-      <option name="presentableId" value="LOCAL-00016" />
-      <option name="project" value="LOCAL" />
-      <updated>1743358642223</updated>
-    </task>
-    <task id="LOCAL-00017" summary="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생">
-      <option name="closed" value="true" />
-      <created>1743358728856</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1743358728856</updated>
+      <workItem from="1748261442249" duration="4473000" />
+      <workItem from="1748335842231" duration="529000" />
+      <workItem from="1748952863887" duration="134000" />
+      <workItem from="1748966881066" duration="10000" />
+      <workItem from="1749016167264" duration="953000" />
+      <workItem from="1749108533395" duration="610000" />
+      <workItem from="1749154197350" duration="23000" />
+      <workItem from="1749444188219" duration="54000" />
+      <workItem from="1750145587506" duration="90000" />
+      <workItem from="1750262475947" duration="2128000" />
     </task>
     <task id="LOCAL-00018" summary="readMe 수정">
       <option name="closed" value="true" />
@@ -539,7 +536,23 @@
       <option name="project" value="LOCAL" />
       <updated>1748262658540</updated>
     </task>
-    <option name="localTasksCounter" value="65" />
+    <task id="LOCAL-00065" summary="-fetch 잠수 사용자 별도 테이블 분리">
+      <option name="closed" value="true" />
+      <created>1748264896586</created>
+      <option name="number" value="00065" />
+      <option name="presentableId" value="LOCAL-00065" />
+      <option name="project" value="LOCAL" />
+      <updated>1748264896586</updated>
+    </task>
+    <task id="LOCAL-00066" summary="readme 아키텍처 추가">
+      <option name="closed" value="true" />
+      <created>1748952970729</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1748952970729</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -557,8 +570,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 출력부분 색상 수정" />
-    <MESSAGE value="readMe 수정" />
     <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
     <MESSAGE value="주간 활동인원 출력 수정" />
     <MESSAGE value="주간 활동인원 출력 에러 수정" />
@@ -582,6 +593,8 @@
     <MESSAGE value="채널 이동 시 입장 시간이 초기화 되는 문제 수정" />
     <MESSAGE value="gap_check 시 날짜입력 추가" />
     <MESSAGE value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
-    <option name="LAST_COMMIT_MESSAGE" value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
+    <MESSAGE value="-fetch 잠수 사용자 별도 테이블 분리" />
+    <MESSAGE value="readme 아키텍처 추가" />
+    <option name="LAST_COMMIT_MESSAGE" value="readme 아키텍처 추가" />
   </component>
 </project>

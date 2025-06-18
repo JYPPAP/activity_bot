@@ -16,7 +16,8 @@ export class DatabaseManager {
       activity_logs: [],
       reset_history: [],
       log_members: {},
-      afk_status: {} // 잠수 상태를 별도 테이블로 분리
+      afk_status: {}, // 잠수 상태를 별도 테이블로 분리
+      job_posts: {} // 구인구직 카드 데이터
     }).write();
   }
 
@@ -625,5 +626,170 @@ export class DatabaseManager {
    */
   reloadData() {
     this.forceReload();
+  }
+
+  // ======== 구인구직 관련 메서드 ========
+
+  /**
+   * 구인구직 카드 생성
+   */
+  async createJobPost(jobPostData) {
+    try {
+      this.forceReload();
+      
+      const jobId = `job_${Date.now()}_${jobPostData.authorId.slice(0, 6)}`;
+      const now = Date.now();
+      const defaultExpiresAt = now + (24 * 60 * 60 * 1000); // 24시간 후
+      
+      const jobPost = {
+        id: jobId,
+        title: jobPostData.title,
+        memberCount: jobPostData.memberCount,
+        startTime: jobPostData.startTime,
+        description: jobPostData.description || '',
+        roleTags: jobPostData.roleTags || '',
+        channelId: jobPostData.channelId || null,
+        authorId: jobPostData.authorId,
+        createdAt: now,
+        expiresAt: jobPostData.expiresAt || defaultExpiresAt
+      };
+      
+      this.db.get('job_posts').set(jobId, jobPost).write();
+      
+      console.log(`[DB] 구인구직 카드 생성: ${jobId}, 제목: ${jobPost.title}`);
+      return jobPost;
+    } catch (error) {
+      console.error('[DB] 구인구직 카드 생성 오류:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 구인구직 카드 조회
+   */
+  async getJobPost(jobId) {
+    try {
+      this.forceReload();
+      return this.db.get('job_posts').get(jobId).value();
+    } catch (error) {
+      console.error('[DB] 구인구직 카드 조회 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 모든 구인구직 카드 조회
+   */
+  async getAllJobPosts() {
+    try {
+      this.forceReload();
+      const jobPosts = this.db.get('job_posts').value();
+      return Object.values(jobPosts);
+    } catch (error) {
+      console.error('[DB] 구인구직 카드 목록 조회 오류:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 채널 ID로 구인구직 카드 검색
+   */
+  async getJobPostByChannelId(channelId) {
+    try {
+      this.forceReload();
+      const jobPosts = this.db.get('job_posts').value();
+      
+      const jobPost = Object.values(jobPosts).find(job => job.channelId === channelId);
+      return jobPost || null;
+    } catch (error) {
+      console.error('[DB] 채널별 구인구직 카드 조회 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 구인구직 카드 업데이트
+   */
+  async updateJobPost(jobId, updateData) {
+    try {
+      this.forceReload();
+      
+      const existingJob = this.db.get('job_posts').get(jobId).value();
+      if (!existingJob) {
+        return null;
+      }
+      
+      const updatedJob = { ...existingJob, ...updateData };
+      this.db.get('job_posts').set(jobId, updatedJob).write();
+      
+      console.log(`[DB] 구인구직 카드 업데이트: ${jobId}`);
+      return updatedJob;
+    } catch (error) {
+      console.error('[DB] 구인구직 카드 업데이트 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 구인구직 카드 삭제
+   */
+  async deleteJobPost(jobId) {
+    try {
+      this.forceReload();
+      
+      const existingJob = this.db.get('job_posts').get(jobId).value();
+      if (!existingJob) {
+        return false;
+      }
+      
+      this.db.get('job_posts').unset(jobId).write();
+      
+      console.log(`[DB] 구인구직 카드 삭제: ${jobId}`);
+      return true;
+    } catch (error) {
+      console.error('[DB] 구인구직 카드 삭제 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 만료된 구인구직 카드 정리
+   */
+  async cleanupExpiredJobPosts() {
+    try {
+      this.forceReload();
+      
+      const jobPosts = this.db.get('job_posts').value();
+      const now = Date.now();
+      const deletedJobs = [];
+      
+      for (const [jobId, jobPost] of Object.entries(jobPosts)) {
+        if (jobPost.expiresAt <= now) {
+          this.db.get('job_posts').unset(jobId).write();
+          deletedJobs.push(jobId);
+          console.log(`[DB] 만료된 구인구직 카드 삭제: ${jobId}`);
+        }
+      }
+      
+      return deletedJobs;
+    } catch (error) {
+      console.error('[DB] 만료된 구인구직 카드 정리 오류:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 작성자별 구인구직 카드 조회
+   */
+  async getJobPostsByAuthor(authorId) {
+    try {
+      this.forceReload();
+      const jobPosts = this.db.get('job_posts').value();
+      
+      return Object.values(jobPosts).filter(job => job.authorId === authorId);
+    } catch (error) {
+      console.error('[DB] 작성자별 구인구직 카드 조회 오류:', error);
+      return [];
+    }
   }
 }
