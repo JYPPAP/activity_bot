@@ -51,17 +51,37 @@ export class ChannelJobPostLinkService {
       );
 
       // 적절한 텍스트 채널 찾기
-      const textChannel = await this.findAppropriateTextChannel(channel);
+      let textChannel = await this.findAppropriateTextChannel(channel);
+      
+      // 텍스트 채널을 찾지 못한 경우, 로그 채널을 강제로 사용
       if (!textChannel) {
-        console.log(`[ChannelJobPostLinkService] 채널 ${channel.name}에 대한 적절한 텍스트 채널을 찾을 수 없음`);
+        console.log(`[ChannelJobPostLinkService] 적절한 텍스트 채널을 찾지 못함, 로그 채널 사용 시도`);
+        try {
+          const { config } = await import('../config/env.js');
+          if (config.LOG_CHANNEL_ID) {
+            textChannel = await this.client.channels.fetch(config.LOG_CHANNEL_ID);
+            console.log(`[ChannelJobPostLinkService] 로그 채널로 강제 전송: ${textChannel?.name}`);
+          }
+        } catch (error) {
+          console.error('[ChannelJobPostLinkService] 로그 채널 로드 실패:', error);
+        }
+      }
+      
+      if (!textChannel) {
+        console.log(`[ChannelJobPostLinkService] 채널 ${channel.name}에 대한 텍스트 채널을 전혀 찾을 수 없음`);
         return;
       }
 
       // 메시지 전송
+      console.log(`[ChannelJobPostLinkService] ${textChannel.name} 채널에 메시지 전송 시도`);
+      console.log(`[ChannelJobPostLinkService] 사용 가능한 구인구직 카드 수: ${availableJobPosts.length}`);
+      
       const message = await textChannel.send({
         embeds: [embed],
         components: [actionRow]
       });
+      
+      console.log(`[ChannelJobPostLinkService] 메시지 전송 성공! 메시지 ID: ${message.id}`);
 
       // 30초 타임아웃 설정
       this.pendingLinks.set(channel.id, {
@@ -72,10 +92,10 @@ export class ChannelJobPostLinkService {
         timestamp: Date.now()
       });
 
-      // 30초 후 자동 정리
+      // 60초 후 자동 정리 (30초에서 60초로 연장)
       setTimeout(async () => {
         await this.handleTimeout(channel.id);
-      }, 30000);
+      }, 60000);
 
       console.log(`[ChannelJobPostLinkService] 채널 ${channel.name}에 구인구직 연동 메뉴 표시`);
 
@@ -307,35 +327,69 @@ export class ChannelJobPostLinkService {
    */
   async findAppropriateTextChannel(voiceChannel) {
     try {
+      console.log(`[ChannelJobPostLinkService] ${voiceChannel.name} 채널에 대한 텍스트 채널 찾기 시작`);
+      
       // 1. 같은 카테고리의 텍스트 채널 찾기
       if (voiceChannel.parent) {
+        console.log(`[ChannelJobPostLinkService] 카테고리: ${voiceChannel.parent.name}`);
         const textChannels = voiceChannel.parent.children.cache.filter(
-          ch => ch.type === 0 && ch.permissionsFor(this.client.user).has(['SendMessages', 'ViewChannel'])
+          ch => ch.type === 0
         );
         
-        // "일반", "채팅", "텍스트" 등이 포함된 채널 우선
-        const preferredChannel = textChannels.find(ch => 
-          /일반|채팅|텍스트|general|chat/i.test(ch.name)
-        );
+        console.log(`[ChannelJobPostLinkService] 카테고리 내 텍스트 채널 수: ${textChannels.size}`);
         
-        if (preferredChannel) return preferredChannel;
-        
-        // 그 외 첫 번째 텍스트 채널
-        const firstTextChannel = textChannels.first();
-        if (firstTextChannel) return firstTextChannel;
+        // 권한 체크를 추가로 수행
+        for (const [id, channel] of textChannels) {
+          try {
+            const permissions = channel.permissionsFor(this.client.user);
+            if (permissions && permissions.has(['SendMessages', 'ViewChannel'])) {
+              console.log(`[ChannelJobPostLinkService] 사용 가능한 텍스트 채널 발견: ${channel.name}`);
+              return channel;
+            }
+          } catch (permError) {
+            console.log(`[ChannelJobPostLinkService] 채널 ${channel.name} 권한 확인 실패:`, permError.message);
+          }
+        }
       }
 
       // 2. 길드의 시스템 채널
       if (voiceChannel.guild.systemChannel) {
+        console.log(`[ChannelJobPostLinkService] 시스템 채널 사용: ${voiceChannel.guild.systemChannel.name}`);
         return voiceChannel.guild.systemChannel;
       }
 
       // 3. 권한이 있는 첫 번째 텍스트 채널
-      const textChannel = voiceChannel.guild.channels.cache.find(
-        ch => ch.type === 0 && ch.permissionsFor(this.client.user).has(['SendMessages', 'ViewChannel'])
-      );
+      const guildTextChannels = voiceChannel.guild.channels.cache.filter(ch => ch.type === 0);
+      console.log(`[ChannelJobPostLinkService] 길드 내 총 텍스트 채널 수: ${guildTextChannels.size}`);
+      
+      for (const [id, channel] of guildTextChannels) {
+        try {
+          const permissions = channel.permissionsFor(this.client.user);
+          if (permissions && permissions.has(['SendMessages', 'ViewChannel'])) {
+            console.log(`[ChannelJobPostLinkService] 사용 가능한 길드 텍스트 채널 발견: ${channel.name}`);
+            return channel;
+          }
+        } catch (permError) {
+          console.log(`[ChannelJobPostLinkService] 길드 채널 ${channel.name} 권한 확인 실패:`, permError.message);
+        }
+      }
 
-      return textChannel || null;
+      // 4. 마지막 수단: config에 설정된 로그 채널 사용
+      try {
+        const { config } = await import('../config/env.js');
+        if (config.LOG_CHANNEL_ID) {
+          const logChannel = await this.client.channels.fetch(config.LOG_CHANNEL_ID);
+          if (logChannel) {
+            console.log(`[ChannelJobPostLinkService] 로그 채널 사용: ${logChannel.name}`);
+            return logChannel;
+          }
+        }
+      } catch (configError) {
+        console.log(`[ChannelJobPostLinkService] 로그 채널 로드 실패:`, configError.message);
+      }
+
+      console.log(`[ChannelJobPostLinkService] 사용 가능한 텍스트 채널을 찾을 수 없음`);
+      return null;
 
     } catch (error) {
       console.error('[ChannelJobPostLinkService] 텍스트 채널 찾기 오류:', error);
