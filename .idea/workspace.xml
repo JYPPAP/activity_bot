@@ -4,13 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="readme 아키텍처 추가">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/DatabaseManager.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/DatabaseManager.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/utils/embedBuilder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/embedBuilder.js" afterDir="false" />
-    </list>
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드 시스템 구현 완료&#10;&#10;      • 5단계 구현 완료:&#10;        - 기본 아키텍처 및 데이터 구조&#10;        - UI 컴포넌트 (임베드, 모달, 버튼)&#10;        - 음성 채널 연동 시스템&#10;        - 사용자 상호작용 기능&#10;        - 고급 기능 및 최적화&#10;&#10;      • 주요 기능:&#10;        - 구인구직 카드 생성/수정/삭제&#10;        - 음성채널 자동 연동 (SelectMenu)&#10;        - 입장/관전 버튼 기능&#10;        - 태그 기반 필터링 및 검색&#10;        - 자동 정리 시스템 (매시간/매일)&#10;        - 메모리 캐시 시스템 (LRU)&#10;        - 데이터 무결성 보장&#10;&#10;      • 추가된 서비스:&#10;        - JobPostService: CRUD 기본 기능&#10;        - JobPostInteractionService: 모달 처리&#10;        - ChannelJobPostLinkService: 채널 연동&#10;        - JobPostButtonService: 버튼 상호작용&#10;        - JobPostCacheService: 성능 최적화&#10;        - JobPostCleanupService: 자동 정리&#10;        - JobPostFilterService: 고급 검색&#10;&#10;      • 새로운 명령어:&#10;        - /job_post create: 카드 생성&#10;        - /job_post list: 목록 조회&#10;        - /job_post search: 키워드 검색&#10;        - /job_post filter: 태그 필터링&#10;        - /job_post tags: 인기 태그 조회&#10;        - /job_post cleanup: 수동 정리" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -158,15 +152,7 @@
       <workItem from="1749154197350" duration="23000" />
       <workItem from="1749444188219" duration="54000" />
       <workItem from="1750145587506" duration="90000" />
-      <workItem from="1750262475947" duration="2128000" />
-    </task>
-    <task id="LOCAL-00018" summary="readMe 수정">
-      <option name="closed" value="true" />
-      <created>1743359395575</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1743359395575</updated>
+      <workItem from="1750262475947" duration="2437000" />
     </task>
     <task id="LOCAL-00019" summary="활동내역 출력시 달력 서버로 변경">
       <option name="closed" value="true" />
@@ -552,7 +538,15 @@
       <option name="project" value="LOCAL" />
       <updated>1748952970729</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="구인구직 카드 시스템 구현 완료&#10;&#10;      • 5단계 구현 완료:&#10;        - 기본 아키텍처 및 데이터 구조&#10;        - UI 컴포넌트 (임베드, 모달, 버튼)&#10;        - 음성 채널 연동 시스템&#10;        - 사용자 상호작용 기능&#10;        - 고급 기능 및 최적화&#10;&#10;      • 주요 기능:&#10;        - 구인구직 카드 생성/수정/삭제&#10;        - 음성채널 자동 연동 (SelectMenu)&#10;        - 입장/관전 버튼 기능&#10;        - 태그 기반 필터링 및 검색&#10;        - 자동 정리 시스템 (매시간/매일)&#10;        - 메모리 캐시 시스템 (LRU)&#10;        - 데이터 무결성 보장&#10;&#10;      • 추가된 서비스:&#10;        - JobPostService: CRUD 기본 기능&#10;        - JobPostInteractionService: 모달 처리&#10;        - ChannelJobPostLinkService: 채널 연동&#10;        - JobPostButtonService: 버튼 상호작용&#10;        - JobPostCacheService: 성능 최적화&#10;        - JobPostCleanupService: 자동 정리&#10;        - JobPostFilterService: 고급 검색&#10;&#10;      • 새로운 명령어:&#10;        - /job_post create: 카드 생성&#10;        - /job_post list: 목록 조회&#10;        - /job_post search: 키워드 검색&#10;        - /job_post filter: 태그 필터링&#10;        - /job_post tags: 인기 태그 조회&#10;        - /job_post cleanup: 수동 정리">
+      <option name="closed" value="true" />
+      <created>1750264849585</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1750264849585</updated>
+    </task>
+    <option name="localTasksCounter" value="68" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -570,7 +564,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
     <MESSAGE value="주간 활동인원 출력 수정" />
     <MESSAGE value="주간 활동인원 출력 에러 수정" />
     <MESSAGE value="1. 명령어 추가&#10;- 잠수 명령어 추가&#10;2. 역할 활동 보고서 출력 시 정리된 형태로 출력&#10;- addFields를 사용하여 기존 문자열에서 정렬된 형태로 변환하여 출력&#10;3. 테스트인 경우 나만 볼 수 있게 수정&#10;4. 자동 출력의 경우 날짜 채널에만 출력되도록 수정" />
@@ -595,6 +588,7 @@
     <MESSAGE value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
     <MESSAGE value="-fetch 잠수 사용자 별도 테이블 분리" />
     <MESSAGE value="readme 아키텍처 추가" />
-    <option name="LAST_COMMIT_MESSAGE" value="readme 아키텍처 추가" />
+    <MESSAGE value="구인구직 카드 시스템 구현 완료&#10;&#10;      • 5단계 구현 완료:&#10;        - 기본 아키텍처 및 데이터 구조&#10;        - UI 컴포넌트 (임베드, 모달, 버튼)&#10;        - 음성 채널 연동 시스템&#10;        - 사용자 상호작용 기능&#10;        - 고급 기능 및 최적화&#10;&#10;      • 주요 기능:&#10;        - 구인구직 카드 생성/수정/삭제&#10;        - 음성채널 자동 연동 (SelectMenu)&#10;        - 입장/관전 버튼 기능&#10;        - 태그 기반 필터링 및 검색&#10;        - 자동 정리 시스템 (매시간/매일)&#10;        - 메모리 캐시 시스템 (LRU)&#10;        - 데이터 무결성 보장&#10;&#10;      • 추가된 서비스:&#10;        - JobPostService: CRUD 기본 기능&#10;        - JobPostInteractionService: 모달 처리&#10;        - ChannelJobPostLinkService: 채널 연동&#10;        - JobPostButtonService: 버튼 상호작용&#10;        - JobPostCacheService: 성능 최적화&#10;        - JobPostCleanupService: 자동 정리&#10;        - JobPostFilterService: 고급 검색&#10;&#10;      • 새로운 명령어:&#10;        - /job_post create: 카드 생성&#10;        - /job_post list: 목록 조회&#10;        - /job_post search: 키워드 검색&#10;        - /job_post filter: 태그 필터링&#10;        - /job_post tags: 인기 태그 조회&#10;        - /job_post cleanup: 수동 정리" />
+    <option name="LAST_COMMIT_MESSAGE" value="구인구직 카드 시스템 구현 완료&#10;&#10;      • 5단계 구현 완료:&#10;        - 기본 아키텍처 및 데이터 구조&#10;        - UI 컴포넌트 (임베드, 모달, 버튼)&#10;        - 음성 채널 연동 시스템&#10;        - 사용자 상호작용 기능&#10;        - 고급 기능 및 최적화&#10;&#10;      • 주요 기능:&#10;        - 구인구직 카드 생성/수정/삭제&#10;        - 음성채널 자동 연동 (SelectMenu)&#10;        - 입장/관전 버튼 기능&#10;        - 태그 기반 필터링 및 검색&#10;        - 자동 정리 시스템 (매시간/매일)&#10;        - 메모리 캐시 시스템 (LRU)&#10;        - 데이터 무결성 보장&#10;&#10;      • 추가된 서비스:&#10;        - JobPostService: CRUD 기본 기능&#10;        - JobPostInteractionService: 모달 처리&#10;        - ChannelJobPostLinkService: 채널 연동&#10;        - JobPostButtonService: 버튼 상호작용&#10;        - JobPostCacheService: 성능 최적화&#10;        - JobPostCleanupService: 자동 정리&#10;        - JobPostFilterService: 고급 검색&#10;&#10;      • 새로운 명령어:&#10;        - /job_post create: 카드 생성&#10;        - /job_post list: 목록 조회&#10;        - /job_post search: 키워드 검색&#10;        - /job_post filter: 태그 필터링&#10;        - /job_post tags: 인기 태그 조회&#10;        - /job_post cleanup: 수동 정리" />
   </component>
 </project>
