@@ -168,7 +168,7 @@ export class JobPostCleanupService {
             const success = await this.jobPostService.deleteJobPost(job.id);
             if (success) {
               cleanedCount++;
-              console.log(`[JobPostCleanupService] 고아 카드 정리: ${job.id} (채널 ${job.channelId} 삭제됨)`);
+              console.log(`[JobPostCleanupService] 구직 카드 정리: ${job.id} (채널 ${job.channelId} 삭제됨)`);
             }
           }
         }
@@ -177,7 +177,7 @@ export class JobPostCleanupService {
       return cleanedCount;
       
     } catch (error) {
-      console.error('[JobPostCleanupService] 고아 카드 정리 오류:', error);
+      console.error('[JobPostCleanupService] 구직 카드 정리 오류:', error);
       return 0;
     }
   }
@@ -288,7 +288,7 @@ export class JobPostCleanupService {
             '',
             '📊 **정리 결과:**',
             `• 만료된 카드: ${stats.expired}개`,
-            `• 고아 카드: ${stats.orphaned}개`,
+            `• 구직 카드: ${stats.orphaned}개`,
             `• 오래된 카드: ${stats.old}개`,
             `• 무결성 문제: ${stats.integrity}개`,
             '',
