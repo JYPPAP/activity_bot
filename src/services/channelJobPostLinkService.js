@@ -3,6 +3,7 @@ import { ChannelSelectMenuFactory } from '../utils/channelSelectMenu.js';
 import { JobPostModalFactory } from '../utils/jobPostModal.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { JobPostService } from './JobPostService.js';
+import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from 'discord.js';
 
 export class ChannelJobPostLinkService {
   constructor(client, dbManager, jobPostInteractionService) {
@@ -29,44 +30,23 @@ export class ChannelJobPostLinkService {
   }
 
   /**
-   * 구인구직-테스트 채널에 카드 생성 UI 설정
+   * 구인구직 포럼 채널 초기화
    */
   async setupJobPostTestChannelUI() {
     try {
-      const jobTestChannelId = '1377902213002690562';
-      const jobTestChannel = await this.client.channels.fetch(jobTestChannelId).catch(() => null);
+      const jobForumChannelId = '1377902213002690562';
+      const jobForumChannel = await this.client.channels.fetch(jobForumChannelId).catch(() => null);
       
-      if (!jobTestChannel) {
-        console.log('[ChannelJobPostLinkService] 구인구직-테스트 채널을 찾을 수 없음');
+      if (!jobForumChannel) {
+        console.log('[ChannelJobPostLinkService] 구인구직 포럼 채널을 찾을 수 없음');
         return;
       }
 
-      // 기존 UI 메시지 확인 (봇이 보낸 메시지 중 구인구직 관련)
-      const messages = await jobTestChannel.messages.fetch({ limit: 50 });
-      const existingUI = messages.find(msg => 
-        msg.author.id === this.client.user.id && 
-        msg.embeds.length > 0 && 
-        msg.embeds[0].title?.includes('구인구직 카드 생성')
-      );
-
-      if (existingUI) {
-        console.log('[ChannelJobPostLinkService] 기존 구인구직 UI 발견, 새로 생성하지 않음');
-        return;
-      }
-
-      // 새 UI 생성
-      const { embed, actionRow } = this.createJobPostCreationUI();
-      
-      const uiMessage = await jobTestChannel.send({
-        embeds: [embed],
-        components: [actionRow]
-      });
-
-      await uiMessage.pin();
-      console.log('[ChannelJobPostLinkService] 구인구직-테스트 채널에 카드 생성 UI 추가 완료');
+      console.log(`[ChannelJobPostLinkService] 구인구직 포럼 채널 초기화 완료: ${jobForumChannel.name}`);
+      console.log(`[ChannelJobPostLinkService] 채널 타입: ${jobForumChannel.type}`);
 
     } catch (error) {
-      console.error('[ChannelJobPostLinkService] 구인구직 테스트 채널 UI 설정 오류:', error);
+      console.error('[ChannelJobPostLinkService] 구인구직 포럼 채널 초기화 오류:', error);
     }
   }
 
@@ -74,7 +54,6 @@ export class ChannelJobPostLinkService {
    * 구인구직 카드 생성 UI 생성
    */
   createJobPostCreationUI() {
-    const { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } = require('discord.js');
     
     const embed = new EmbedBuilder()
       .setColor('#00D166')

@@ -25,6 +25,15 @@ export class JobPostButtonService {
    */
   async handleButtonInteraction(interaction) {
     try {
+      // 포럼 음성 채널 버튼 처리
+      if (interaction.customId.startsWith('voice_')) {
+        const forumJobPostService = this.client.bot?.forumJobPostService;
+        if (forumJobPostService) {
+          await forumJobPostService.handleVoiceButtonInteraction(interaction);
+          return;
+        }
+      }
+      
       // 새로 추가된 버튼들 처리
       if (interaction.customId === 'create_job_post_manual') {
         await this.handleManualJobPostCreation(interaction);

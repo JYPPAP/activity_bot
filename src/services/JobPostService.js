@@ -62,6 +62,7 @@ export class JobPostService {
         description: jobPostData.description || '',
         roleTags: jobPostData.roleTags || '',
         channelId: jobPostData.channelId || null,
+        threadId: jobPostData.threadId || null, // 포럼 스레드 ID
         authorId: jobPostData.authorId,
         createdAt: now,
         expiresAt: jobPostData.expiresAt || defaultExpiresAt
@@ -234,7 +235,7 @@ export class JobPostService {
       }
       
       // 업데이트할 수 있는 필드만 허용
-      const allowedFields = ['title', 'memberCount', 'startTime', 'description', 'roleTags', 'channelId', 'expiresAt'];
+      const allowedFields = ['title', 'memberCount', 'startTime', 'description', 'roleTags', 'channelId', 'threadId', 'expiresAt'];
       const filteredUpdate = {};
       
       for (const field of allowedFields) {

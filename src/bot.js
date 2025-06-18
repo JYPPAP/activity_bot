@@ -8,6 +8,7 @@ import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
 import {JobPostCleanupService} from './services/jobPostCleanupService.js';
+import {ForumJobPostService} from './services/forumJobPostService.js';
 import {EmbedFactory} from './utils/embedBuilder.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
@@ -45,6 +46,10 @@ export class Bot {
     );
     this.eventManager = new EventManager(this.client);
     this.jobPostCleanupService = new JobPostCleanupService(this.client, this.dbManager);
+    this.forumJobPostService = new ForumJobPostService(this.client, this.dbManager);
+
+    // client에 bot 참조 추가 (다른 서비스에서 접근 가능하도록)
+    this.client.bot = this;
 
     Bot.instance = this;
   }
@@ -77,6 +82,9 @@ export class Bot {
       
       // 구인구직 정리 서비스 초기화
       await this.jobPostCleanupService.initialize();
+      
+      // 포럼 구인구직 서비스 초기화
+      await this.forumJobPostService.initialize();
 
       // 여러 역할 출력 일정 설정 추가
       await this.scheduleRoleListings(guild);
@@ -245,16 +253,16 @@ export class Bot {
       this.logService.handleChannelCreate.bind(this.logService)
     );
 
-    // 채널 생성 이벤트 (구인구직 연동)
+    // 채널 생성 이벤트 (포럼 구인구직 연동)
     this.eventManager.registerHandler(
       Events.ChannelCreate,
-      this.commandHandler.handleChannelCreate.bind(this.commandHandler)
+      this.forumJobPostService.handleVoiceChannelCreate.bind(this.forumJobPostService)
     );
 
-    // 채널 삭제 이벤트 (구인구직 연동)
+    // 채널 삭제 이벤트 (포럼 구인구직 연동)
     this.eventManager.registerHandler(
       Events.ChannelDelete,
-      this.commandHandler.handleChannelDelete.bind(this.commandHandler)
+      this.forumJobPostService.handleVoiceChannelDelete.bind(this.forumJobPostService)
     );
 
     // 명령어 처리 이벤트
