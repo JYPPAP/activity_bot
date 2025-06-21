@@ -8,7 +8,8 @@ import {
   TextInputBuilder, 
   TextInputStyle,
   StringSelectMenuBuilder,
-  ChannelType 
+  ChannelType,
+  MessageFlags
 } from 'discord.js';
 
 export class VoiceChannelForumIntegrationService {
@@ -166,7 +167,7 @@ export class VoiceChannelForumIntegrationService {
       if (!voiceChannel) {
         await interaction.reply({
           content: '❌ 음성 채널을 찾을 수 없습니다.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -208,13 +209,13 @@ export class VoiceChannelForumIntegrationService {
       await interaction.reply({
         embeds: [embed],
         components: [row],
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     } catch (error) {
       console.error('버튼 인터랙션 처리 오류:', error);
       await interaction.reply({
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -245,7 +246,7 @@ export class VoiceChannelForumIntegrationService {
       console.error('드롭다운 선택 처리 오류:', error);
       await interaction.reply({
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -357,7 +358,7 @@ export class VoiceChannelForumIntegrationService {
       if (!voiceChannel || !existingThread) {
         await interaction.reply({
           content: '❌ 채널을 찾을 수 없습니다.',
-          ephemeral: true
+          flags: MessageFlags.Ephemeral
         });
         return;
       }
@@ -384,7 +385,7 @@ export class VoiceChannelForumIntegrationService {
 
       await interaction.reply({
         content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
 
       console.log(`기존 포럼 연동 완료: ${voiceChannel.name} -> ${existingThread.name}`);
@@ -392,7 +393,7 @@ export class VoiceChannelForumIntegrationService {
       console.error('기존 포럼 연동 오류:', error);
       await interaction.reply({
         content: '❌ 연동에 실패했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -513,7 +514,7 @@ export class VoiceChannelForumIntegrationService {
       console.error('모달 제출 처리 오류:', error);
       await interaction.reply({
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -539,12 +540,12 @@ export class VoiceChannelForumIntegrationService {
     if (postId) {
       await interaction.reply({
         content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>\n\n💡 음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 이 포럼과 연결할 수 있습니다.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     } else {
       await interaction.reply({
         content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -560,7 +561,7 @@ export class VoiceChannelForumIntegrationService {
     if (!voiceChannel) {
       await interaction.reply({
         content: '❌ 음성 채널을 찾을 수 없습니다.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
       return;
     }
@@ -584,12 +585,12 @@ export class VoiceChannelForumIntegrationService {
 
       await interaction.reply({
         content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     } else {
       await interaction.reply({
         content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
