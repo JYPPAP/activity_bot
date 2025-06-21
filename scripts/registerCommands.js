@@ -192,6 +192,13 @@ commands.push(
     )
 );
 
+// gap_post 명령어
+commands.push(
+  new SlashCommandBuilder()
+    .setName('gap_post')
+    .setDescription('구인구직 포럼 포스트를 생성합니다.')
+);
+
 // REST 클라이언트 생성
 const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 

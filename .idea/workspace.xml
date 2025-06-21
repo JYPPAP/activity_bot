@@ -4,8 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력">
-      <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드에서 포럼 형태로 변경&#10;/gap_post 명령어로 구인구직 모달창 출력">
+      <change beforePath="$PROJECT_DIR$/scripts/registerCommands.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/registerCommands.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -176,22 +176,6 @@
       <workItem from="1747661237515" duration="5296000" />
       <workItem from="1748261442249" duration="2178000" />
       <workItem from="1750484557499" duration="6012000" />
-    </task>
-    <task id="LOCAL-00018" summary="readMe 수정">
-      <option name="closed" value="true" />
-      <created>1743359395575</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1743359395575</updated>
-    </task>
-    <task id="LOCAL-00019" summary="활동내역 출력시 달력 서버로 변경">
-      <option name="closed" value="true" />
-      <created>1743360570652</created>
-      <option name="number" value="00019" />
-      <option name="presentableId" value="LOCAL-00019" />
-      <option name="project" value="LOCAL" />
-      <updated>1743360570652</updated>
     </task>
     <task id="LOCAL-00020" summary="활동내역 출력시 달력 서버로 변경">
       <option name="closed" value="true" />
@@ -569,7 +553,23 @@
       <option name="project" value="LOCAL" />
       <updated>1750494285267</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력">
+      <option name="closed" value="true" />
+      <created>1750494771529</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1750494771529</updated>
+    </task>
+    <task id="LOCAL-00068" summary="구인구직 카드에서 포럼 형태로 변경&#10;/gap_post 명령어로 구인구직 모달창 출력">
+      <option name="closed" value="true" />
+      <created>1750494924197</created>
+      <option name="number" value="00068" />
+      <option name="presentableId" value="LOCAL-00068" />
+      <option name="project" value="LOCAL" />
+      <updated>1750494924197</updated>
+    </task>
+    <option name="localTasksCounter" value="69" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -587,7 +587,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
     <MESSAGE value="주간 활동인원 출력 수정" />
     <MESSAGE value="주간 활동인원 출력 에러 수정" />
     <MESSAGE value="1. 명령어 추가&#10;- 잠수 명령어 추가&#10;2. 역할 활동 보고서 출력 시 정리된 형태로 출력&#10;- addFields를 사용하여 기존 문자열에서 정렬된 형태로 변환하여 출력&#10;3. 테스트인 경우 나만 볼 수 있게 수정&#10;4. 자동 출력의 경우 날짜 채널에만 출력되도록 수정" />
@@ -612,6 +611,7 @@
     <MESSAGE value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
     <MESSAGE value="구인구직 카드에서 포럼 형태로 변경" />
     <MESSAGE value="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력" />
-    <option name="LAST_COMMIT_MESSAGE" value="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력" />
+    <MESSAGE value="구인구직 카드에서 포럼 형태로 변경&#10;/gap_post 명령어로 구인구직 모달창 출력" />
+    <option name="LAST_COMMIT_MESSAGE" value="구인구직 카드에서 포럼 형태로 변경&#10;/gap_post 명령어로 구인구직 모달창 출력" />
   </component>
 </project>
