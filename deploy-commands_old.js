@@ -45,7 +45,7 @@ const commands = [
         ],
     },
     {
-        name: "체크",
+        name: "시간 체크",
         description: "특정 사용자의 활동 시간 체크",
         options: [
             {
