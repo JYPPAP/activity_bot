@@ -192,10 +192,10 @@ commands.push(
     )
 );
 
-// gap_post 명령어
+// 구직 명령어
 commands.push(
   new SlashCommandBuilder()
-    .setName('gap_post')
+    .setName('구직')
     .setDescription('구인구직 포럼 포스트를 생성합니다.')
 );
 
