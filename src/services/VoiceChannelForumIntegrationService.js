@@ -691,7 +691,7 @@ export class VoiceChannelForumIntegrationService {
       const resetButton = new ButtonBuilder()
         .setCustomId(`voice_reset_${voiceChannel.id}`)
         .setLabel('초기화')
-        .setStyle(ButtonStyle.Danger)
+        .setStyle(ButtonStyle.Success)
         .setEmoji('🔄');
 
       const voiceButtonRow = new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
