@@ -795,10 +795,27 @@ export class VoiceChannelForumIntegrationService {
           return;
         }
 
-        await interaction.reply({
-          content: `🎯 음성 채널 참여: <#${voiceChannelId}>\n\n💡 Discord 클라이언트에서 채널을 클릭하여 참여하세요!`,
-          flags: MessageFlags.Ephemeral
-        });
+        // 사용자를 음성 채널로 이동
+        try {
+          if (interaction.member.voice.channel) {
+            await interaction.member.voice.setChannel(voiceChannel);
+            await interaction.reply({
+              content: `🎯 음성 채널로 이동했습니다: **${voiceChannel.name}**`,
+              flags: MessageFlags.Ephemeral
+            });
+          } else {
+            await interaction.reply({
+              content: `🎯 음성 채널 참여를 위해 먼저 아무 음성 채널에나 접속해주세요!\n\n🔊 대상 채널: **${voiceChannel.name}**`,
+              flags: MessageFlags.Ephemeral
+            });
+          }
+        } catch (moveError) {
+          console.error('음성 채널 이동 오류:', moveError);
+          await interaction.reply({
+            content: `❌ 음성 채널 이동에 실패했습니다.\n🔊 수동 참여: <#${voiceChannelId}>`,
+            flags: MessageFlags.Ephemeral
+          });
+        }
 
       } else if (interaction.customId.startsWith('voice_spectate_')) {
         // 관전하기 버튼 처리
