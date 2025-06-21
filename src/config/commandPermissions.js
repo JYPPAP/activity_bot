@@ -65,6 +65,6 @@ export function getPermissionDeniedMessage(commandName) {
     return '❌ 이 명령어를 사용할 권한이 없습니다.';
   }
   
-  const roleList = [...SUPER_ADMIN_ROLES, ...allowedRoles].join(', ');
+  const roleList = [...allowedRoles].join(', ');
   return `❌ 이 명령어는 다음 역할이 필요합니다: ${roleList}`;
 }
