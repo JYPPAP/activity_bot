@@ -9,6 +9,11 @@ export class DatabaseManager {
     this.adapter = new FileSync(this.dbPath);
     this.db = low(this.adapter);
 
+    // 캐싱 시스템
+    this.cache = new Map();
+    this.cacheTimeout = 30000; // 30초 캐시 유지
+    this.lastCacheTime = 0;
+
     // 기본 데이터베이스 구조 설정
     this.db.defaults({
       user_activity: {},
@@ -34,22 +39,58 @@ export class DatabaseManager {
   }
 
   /**
-   * 강제 데이터 새로고침
+   * 스마트 캐싱 시스템
+   */
+  smartReload(forceReload = false) {
+    const now = Date.now();
+    
+    // 강제 새로고침이거나 캐시가 만료된 경우
+    if (forceReload || (now - this.lastCacheTime) > this.cacheTimeout) {
+      try {
+        this.db.read();
+        this.lastCacheTime = now;
+        this.cache.clear(); // 캐시 초기화
+      } catch (error) {
+        console.error('[DB] 데이터 새로고침 실패:', error);
+      }
+    }
+  }
+
+  /**
+   * 캐시된 데이터 가져오기
+   */
+  getCached(key, getter) {
+    // 스마트 새로고침 (캐시 만료 확인)
+    this.smartReload();
+    
+    if (this.cache.has(key)) {
+      return this.cache.get(key);
+    }
+    
+    const data = getter();
+    this.cache.set(key, data);
+    return data;
+  }
+
+  /**
+   * 쓰기 작업 시 캐시 무효화
+   */
+  invalidateCache() {
+    this.cache.clear();
+    this.smartReload(true); // 강제 새로고침
+  }
+
+  /**
+   * 강제 데이터 새로고침 (기존 호환성)
    */
   forceReload() {
-    try {
-      this.db.read();
-      console.log('[DB] 데이터 강제 새로고침 완료');
-    } catch (error) {
-      console.error('[DB] 데이터 새로고침 실패:', error);
-    }
+    this.smartReload(true);
   }
 
   /**
    * 데이터베이스 내 데이터 존재 확인
    */
   async hasAnyData() {
-    this.forceReload();
     return Object.keys(this.db.get('user_activity').value()).length > 0;
   }
 
@@ -88,15 +129,16 @@ export class DatabaseManager {
    * 사용자 활동 데이터 가져오기
    */
   async getUserActivity(userId) {
-    this.forceReload();
-    return this.db.get('user_activity').get(userId).value();
+    return this.getCached(`user_activity_${userId}`, () => {
+      return this.db.get('user_activity').get(userId).value();
+    });
   }
 
   /**
    * 사용자 활동 데이터 업데이트/삽입
    */
   async updateUserActivity(userId, totalTime, startTime, displayName) {
-    this.forceReload();
+    this.invalidateCache(); // 쓰기 작업 시 캐시 무효화
     this.db.get('user_activity')
         .set(userId, {
           userId,
@@ -113,9 +155,10 @@ export class DatabaseManager {
    * 모든 사용자 활동 데이터 가져오기
    */
   async getAllUserActivity() {
-    this.forceReload();
-    const activities = this.db.get('user_activity').value();
-    return Object.values(activities);
+    return this.getCached('all_user_activity', () => {
+      const activities = this.db.get('user_activity').value();
+      return Object.values(activities);
+    });
   }
 
   /**
@@ -140,15 +183,16 @@ export class DatabaseManager {
    * 역할 설정 가져오기
    */
   async getRoleConfig(roleName) {
-    this.forceReload();
-    return this.db.get('role_config').get(roleName).value();
+    return this.getCached(`role_config_${roleName}`, () => {
+      return this.db.get('role_config').get(roleName).value();
+    });
   }
 
   /**
    * 역할 설정 업데이트/삽입 (주기 필드 추가)
    */
   async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
-    this.forceReload();
+    this.invalidateCache(); // 쓰기 작업 시 캐시 무효화
     this.db.get('role_config')
         .set(roleName, {
           roleName,
@@ -164,7 +208,6 @@ export class DatabaseManager {
    * 모든 역할 설정 가져오기
    */
   async getAllRoleConfigs() {
-    this.forceReload();
     const configs = this.db.get('role_config').value();
     return Object.values(configs);
   }
@@ -197,7 +240,6 @@ export class DatabaseManager {
    * 역할 리셋 이력 가져오기
    */
   async getRoleResetHistory(roleName, limit = 5) {
-    this.forceReload();
     return this.db.get('reset_history')
                .filter({roleName})
                .sortBy('resetTime')
@@ -240,7 +282,7 @@ export class DatabaseManager {
    * 특정 기간의 활동 로그 가져오기
    */
   async getActivityLogs(startTime, endTime, eventType = null) {
-    this.forceReload();
+    this.forceReload(); // 보고서 생성 시 정확한 데이터 필요
     let query = this.db.get('activity_logs')
                     .filter(log => log.timestamp >= startTime && log.timestamp <= endTime);
 
@@ -260,7 +302,7 @@ export class DatabaseManager {
    * 특정 사용자의 활동 로그 가져오기
    */
   async getUserActivityLogs(userId, limit = 100) {
-    this.forceReload();
+    this.forceReload(); // 사용자별 상세 조회 시 정확한 데이터 필요
     const logs = this.db.get('activity_logs')
                      .filter({userId})
                      .sortBy('timestamp')
@@ -278,7 +320,7 @@ export class DatabaseManager {
    * 날짜별 활동 통계 가져오기
    */
   async getDailyActivityStats(startTime, endTime) {
-    this.forceReload();
+    this.forceReload(); // 통계 생성 시 정확한 데이터 필요
     const logs = this.db.get('activity_logs')
                      .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
                      .value();
@@ -320,7 +362,7 @@ export class DatabaseManager {
    */
   async getUserActivityByDateRange(userId, startTime, endTime) {
     try {
-      this.forceReload();
+      this.forceReload(); // 기간별 사용자 활동 조회 시 정확한 데이터 필요
       const logs = this.db.get('activity_logs')
                        .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
@@ -353,7 +395,7 @@ export class DatabaseManager {
    */
   async getActiveMembersForTimeRange(startTime, endTime) {
     try {
-      this.forceReload();
+      this.forceReload(); // 활성 멤버 통계 시 정확한 데이터 필요
       const logs = this.db.get('activity_logs')
                        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
