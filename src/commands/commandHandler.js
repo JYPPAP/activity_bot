@@ -65,7 +65,7 @@ export class CommandHandler {
       this.commands.set('gap_report', gapReportCommand);
       this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
-      this.commands.set('post', recruitmentCommand);
+      this.commands.set('gap_post', recruitmentCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {
