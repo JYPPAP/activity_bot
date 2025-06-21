@@ -12,6 +12,7 @@ import {GapCycleCommand} from './gapCycleCommand.js';
 import {GapAfkCommand} from './gapAfkCommand.js';
 import {RecruitmentCommand} from './recruitmentCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
+import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
 
 export class CommandHandler {
@@ -94,6 +95,15 @@ export class CommandHandler {
     if (!interaction.isCommand()) return;
 
     const {commandName} = interaction;
+
+    // 권한 확인
+    if (!hasCommandPermission(interaction.member, commandName)) {
+      await interaction.reply({
+        content: getPermissionDeniedMessage(commandName),
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
 
     // 명령어 실행
     try {
