@@ -4,10 +4,8 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드에서 포럼 형태로 변경">
-      <change beforePath="$PROJECT_DIR$/src/bot.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot.js" afterDir="false" />
+    <list default="true" id="7c8b4734-2202-4d9c-9a7c-515de57ce4ac" name="변경" comment="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력">
       <change beforePath="$PROJECT_DIR$/src/commands/commandHandler.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/commands/commandHandler.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/VoiceChannelForumIntegrationService.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/VoiceChannelForumIntegrationService.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -178,14 +176,6 @@
       <workItem from="1747661237515" duration="5296000" />
       <workItem from="1748261442249" duration="2178000" />
       <workItem from="1750484557499" duration="6012000" />
-    </task>
-    <task id="LOCAL-00017" summary="rowDB 로 변경&#10;Termux 환경에서 네이티브 모듈 컴파일 문제 발생">
-      <option name="closed" value="true" />
-      <created>1743358728856</created>
-      <option name="number" value="00017" />
-      <option name="presentableId" value="LOCAL-00017" />
-      <option name="project" value="LOCAL" />
-      <updated>1743358728856</updated>
     </task>
     <task id="LOCAL-00018" summary="readMe 수정">
       <option name="closed" value="true" />
@@ -571,7 +561,15 @@
       <option name="project" value="LOCAL" />
       <updated>1750340349557</updated>
     </task>
-    <option name="localTasksCounter" value="66" />
+    <task id="LOCAL-00066" summary="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력">
+      <option name="closed" value="true" />
+      <created>1750494285267</created>
+      <option name="number" value="00066" />
+      <option name="presentableId" value="LOCAL-00066" />
+      <option name="project" value="LOCAL" />
+      <updated>1750494285267</updated>
+    </task>
+    <option name="localTasksCounter" value="67" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -589,7 +587,6 @@
     </option>
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="readMe 수정" />
     <MESSAGE value="로그 상 인원 목록 출력 시 UI 개선" />
     <MESSAGE value="주간 활동인원 출력 수정" />
     <MESSAGE value="주간 활동인원 출력 에러 수정" />
@@ -614,6 +611,7 @@
     <MESSAGE value="gap_check 시 날짜입력 추가" />
     <MESSAGE value="-debug gap_report 시 잠수 사용자의 잠수 종료일이 다음 일요일로 지정된 것 수정" />
     <MESSAGE value="구인구직 카드에서 포럼 형태로 변경" />
-    <option name="LAST_COMMIT_MESSAGE" value="구인구직 카드에서 포럼 형태로 변경" />
+    <MESSAGE value="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력" />
+    <option name="LAST_COMMIT_MESSAGE" value="구인구직 카드에서 포럼 형태로 변경&#10;/post 명령어로 구인구직 모달창 출력" />
   </component>
 </project>

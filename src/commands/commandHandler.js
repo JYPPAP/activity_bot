@@ -95,15 +95,6 @@ export class CommandHandler {
 
     const {commandName} = interaction;
 
-    // 명령어 실행 권한 확인
-    if (!this.hasAdminPermission(interaction)) {
-      await interaction.reply({
-        content: "이 명령어를 실행할 권한이 없습니다.(관리자용)",
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
     // 명령어 실행
     try {
       // 해당 명령어 핸들러가 있는지 확인
