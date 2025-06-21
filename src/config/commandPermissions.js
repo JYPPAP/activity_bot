@@ -9,15 +9,15 @@ export const PUBLIC_COMMANDS = ['gap_post', 'gap_check'];
 
 // 특정 역할이 필요한 명령어들
 export const ROLE_BASED_PERMISSIONS = {
-  'gap_list': ['모더레이터', '스태프', '스태프팀장'],
-  'gap_config': ['서버관리자'],
-  'gap_reset': ['서버관리자'],
-  'gap_save': ['서버관리자'],
-  'gap_report': ['서버관리자', '스태프팀장'],
-  'gap_cycle': ['서버관리자'],
-  'gap_afk': ['모더레이터', '스태프', '스태프팀장'],
-  'gap_calendar': ['모더레이터', '스태프', '스태프팀장'],
-  'gap_stats': ['모더레이터', '스태프', '스태프팀장']
+  'gap_list': SUPER_ADMIN_ROLES,
+  'gap_config': SUPER_ADMIN_ROLES,
+  'gap_reset': SUPER_ADMIN_ROLES,
+  'gap_save': SUPER_ADMIN_ROLES,
+  'gap_report': SUPER_ADMIN_ROLES,
+  'gap_cycle': SUPER_ADMIN_ROLES,
+  'gap_afk': SUPER_ADMIN_ROLES,
+  'gap_calendar': SUPER_ADMIN_ROLES,
+  'gap_stats': SUPER_ADMIN_ROLES,
 };
 
 /**
