@@ -660,7 +660,7 @@ export class VoiceChannelForumIntegrationService {
 
       // 텍스트 크기를 키우기 위해 마크다운 사용
       const largeDescription = `## 📝 상세 설명\n${recruitmentData.description}`;
-      const largeVoiceChannel = `## 🔊 음성 채널\n[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})`;
+      const largeVoiceChannel = `## 🔊 음성 채널 (${voiceChannel.name})`;
       const largeTags = tagsText ? `## 🏷️ 태그\n${tagsText}` : '';
       const largeRecruiter = `## 👤 모집자\n<@${recruitmentData.author.id}>`;
 
@@ -675,6 +675,21 @@ export class VoiceChannelForumIntegrationService {
       content += `${largeVoiceChannel}\n\n`;
       content += `${largeRecruiter}`;
 
+      // 음성 채널 참여/관전 버튼 생성
+      const joinButton = new ButtonBuilder()
+        .setCustomId(`voice_join_${voiceChannel.id}`)
+        .setLabel('참여하기')
+        .setStyle(ButtonStyle.Success)
+        .setEmoji('🎯');
+
+      const spectateButton = new ButtonBuilder()
+        .setCustomId(`voice_spectate_${voiceChannel.id}`)
+        .setLabel('관전하기')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('👁️');
+
+      const voiceButtonRow = new ActionRowBuilder().addComponents(joinButton, spectateButton);
+
       const embed = new EmbedBuilder()
         .setDescription(content)
         .setColor(0x00FF00)
@@ -686,7 +701,8 @@ export class VoiceChannelForumIntegrationService {
       const thread = await forumChannel.threads.create({
         name: recruitmentData.title,
         message: {
-          embeds: [embed]
+          embeds: [embed],
+          components: [voiceButtonRow]
         }
       });
 
@@ -761,13 +777,93 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 음성 채널 참여/관전 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   */
+  async handleVoiceChannelButtons(interaction) {
+    try {
+      if (interaction.customId.startsWith('voice_join_')) {
+        // 참여하기 버튼 처리
+        const voiceChannelId = interaction.customId.split('_')[2];
+        const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+        
+        if (!voiceChannel) {
+          await interaction.reply({
+            content: '❌ 음성 채널을 찾을 수 없습니다.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        await interaction.reply({
+          content: `🎯 음성 채널 참여: <#${voiceChannelId}>\n\n💡 Discord 클라이언트에서 채널을 클릭하여 참여하세요!`,
+          flags: MessageFlags.Ephemeral
+        });
+
+      } else if (interaction.customId.startsWith('voice_spectate_')) {
+        // 관전하기 버튼 처리
+        const voiceChannelId = interaction.customId.split('_')[2];
+        const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+        
+        if (!voiceChannel) {
+          await interaction.reply({
+            content: '❌ 음성 채널을 찾을 수 없습니다.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        const member = interaction.member;
+        const currentNickname = member.nickname || member.user.displayName;
+        
+        // 이미 [관전] 태그가 있는지 확인
+        if (currentNickname.startsWith('[관전]')) {
+          await interaction.reply({
+            content: '👁️ 이미 관전 모드로 설정되어 있습니다.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        try {
+          // 닉네임 앞에 [관전] 추가
+          const newNickname = `[관전] ${currentNickname}`;
+          await member.setNickname(newNickname);
+          
+          await interaction.reply({
+            content: `👁️ 관전 모드로 설정되었습니다!\n🔊 음성 채널: <#${voiceChannelId}>\n📝 닉네임이 "${newNickname}"로 변경되었습니다.`,
+            flags: MessageFlags.Ephemeral
+          });
+        } catch (nicknameError) {
+          console.error('닉네임 변경 오류:', nicknameError);
+          await interaction.reply({
+            content: '❌ 닉네임 변경에 실패했습니다. 권한을 확인해주세요.\n🔊 음성 채널: <#${voiceChannelId}>',
+            flags: MessageFlags.Ephemeral
+          });
+        }
+      }
+    } catch (error) {
+      console.error('음성 채널 버튼 처리 오류:', error);
+      await interaction.reply({
+        content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+
+  /**
    * 인터랙션 처리 (버튼, 드롭다운, 모달 통합)
    * @param {Interaction} interaction - 인터랙션 객체
    */
   async handleInteraction(interaction) {
     try {
       if (interaction.isButton()) {
-        await this.handleButtonInteraction(interaction);
+        // 음성 채널 참여/관전 버튼 확인
+        if (interaction.customId.startsWith('voice_join_') || interaction.customId.startsWith('voice_spectate_')) {
+          await this.handleVoiceChannelButtons(interaction);
+        } else {
+          await this.handleButtonInteraction(interaction);
+        }
       } else if (interaction.isStringSelectMenu()) {
         await this.handleSelectMenuInteraction(interaction);
       } else if (interaction.isModalSubmit()) {
