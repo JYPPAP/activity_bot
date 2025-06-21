@@ -417,25 +417,30 @@ export class VoiceChannelForumIntegrationService {
       const roleMentions = await this.convertTagsToRoleMentions(recruitmentData.tags, guild);
       const tagsText = roleMentions ? roleMentions : '';
 
+      // 텍스트 크기를 키우기 위해 마크다운 사용
+      const largeDescription = `## 📝 상세 설명\n${recruitmentData.description}`;
+      const largeVoiceChannel = `## 🔊 음성 채널\n음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.`;
+      const largeTags = tagsText ? `## 🏷️ 태그\n${tagsText}` : '';
+      const largeRecruiter = `## 👤 모집자\n<@${recruitmentData.author.id}>`;
+
+      // 전체 내용을 하나의 큰 텍스트로 구성
+      let content = `# 🎮 ${recruitmentData.title}\n\n`;
+      
+      if (largeTags) {
+        content += `${largeTags}\n\n`;
+      }
+      
+      content += `${largeDescription}\n\n`;
+      content += `${largeVoiceChannel}\n\n`;
+      content += `${largeRecruiter}`;
+
       const embed = new EmbedBuilder()
-        .setTitle(`🎮 ${recruitmentData.title}`)
-        .addFields(
-          { name: '📝 상세 설명', value: recruitmentData.description, inline: false },
-          { name: '🔊 음성 채널', value: '음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.', inline: false },
-          { name: '👤 모집자', value: `<@${recruitmentData.author.id}>`, inline: true },
-          { name: '⏰ 등록 시간', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
-        )
+        .setDescription(content)
         .setColor(0xFFB800) // 독립 포스트는 주황색으로 구분
         .setFooter({ 
           text: '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
           iconURL: recruitmentData.author.displayAvatarURL()
-        })
-        .setTimestamp();
-
-      // 태그가 있으면 설명 필드 위에 추가
-      if (tagsText) {
-        embed.spliceFields(0, 0, { name: '🏷️ 태그', value: tagsText, inline: false });
-      }
+        });
 
       const thread = await forumChannel.threads.create({
         name: recruitmentData.title,
@@ -443,6 +448,14 @@ export class VoiceChannelForumIntegrationService {
           embeds: [embed]
         }
       });
+
+      // 모집자를 스레드에 자동으로 추가 (팔로우)
+      try {
+        await thread.members.add(recruitmentData.author.id);
+        console.log(`모집자가 독립 스레드에 자동으로 추가됨: ${recruitmentData.author.id}`);
+      } catch (addError) {
+        console.warn('모집자를 독립 스레드에 추가하는데 실패:', addError.message);
+      }
 
       console.log(`독립 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return thread.id;
@@ -645,25 +658,30 @@ export class VoiceChannelForumIntegrationService {
       const roleMentions = await this.convertTagsToRoleMentions(recruitmentData.tags, voiceChannel.guild);
       const tagsText = roleMentions ? roleMentions : '';
 
+      // 텍스트 크기를 키우기 위해 마크다운 사용
+      const largeDescription = `## 📝 상세 설명\n${recruitmentData.description}`;
+      const largeVoiceChannel = `## 🔊 음성 채널\n[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})`;
+      const largeTags = tagsText ? `## 🏷️ 태그\n${tagsText}` : '';
+      const largeRecruiter = `## 👤 모집자\n<@${recruitmentData.author.id}>`;
+
+      // 전체 내용을 하나의 큰 텍스트로 구성
+      let content = `# 🎮 ${recruitmentData.title}\n\n`;
+      
+      if (largeTags) {
+        content += `${largeTags}\n\n`;
+      }
+      
+      content += `${largeDescription}\n\n`;
+      content += `${largeVoiceChannel}\n\n`;
+      content += `${largeRecruiter}`;
+
       const embed = new EmbedBuilder()
-        .setTitle(`🎮 ${recruitmentData.title}`)
-        .addFields(
-          { name: '📝 상세 설명', value: recruitmentData.description, inline: false },
-          { name: '🔊 음성 채널', value: `[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})`, inline: false },
-          { name: '👤 모집자', value: `<@${recruitmentData.author.id}>`, inline: true },
-          { name: '⏰ 등록 시간', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
-        )
+        .setDescription(content)
         .setColor(0x00FF00)
         .setFooter({ 
           text: '음성 채널이 삭제되면 이 포스트는 자동으로 아카이브됩니다.',
           iconURL: recruitmentData.author.displayAvatarURL()
-        })
-        .setTimestamp();
-
-      // 태그가 있으면 설명 필드 위에 추가
-      if (tagsText) {
-        embed.spliceFields(0, 0, { name: '🏷️ 태그', value: tagsText, inline: false });
-      }
+        });
 
       const thread = await forumChannel.threads.create({
         name: recruitmentData.title,
@@ -671,6 +689,14 @@ export class VoiceChannelForumIntegrationService {
           embeds: [embed]
         }
       });
+
+      // 모집자를 스레드에 자동으로 추가 (팔로우)
+      try {
+        await thread.members.add(recruitmentData.author.id);
+        console.log(`모집자가 스레드에 자동으로 추가됨: ${recruitmentData.author.id}`);
+      } catch (addError) {
+        console.warn('모집자를 스레드에 추가하는데 실패:', addError.message);
+      }
 
       console.log(`포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return thread.id;
