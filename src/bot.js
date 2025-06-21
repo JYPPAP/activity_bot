@@ -7,6 +7,7 @@ import {CalendarLogService} from './services/calendarLogService.js';
 import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
+import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumIntegrationService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import fs from 'fs';
@@ -40,6 +41,11 @@ export class Bot {
       this.activityTracker,
       this.dbManager,
       this.calendarLogService
+    );
+    this.voiceForumService = new VoiceChannelForumIntegrationService(
+      this.client,
+      config.FORUM_CHANNEL_ID,
+      config.VOICE_CATEGORY_ID
     );
     this.eventManager = new EventManager(this.client);
 
@@ -236,10 +242,28 @@ export class Bot {
       this.logService.handleChannelCreate.bind(this.logService)
     );
 
+    // 음성채널-포럼 연동: 채널 생성 이벤트
+    this.eventManager.registerHandler(
+      Events.ChannelCreate,
+      this.voiceForumService.handleChannelCreate.bind(this.voiceForumService)
+    );
+
+    // 음성채널-포럼 연동: 채널 삭제 이벤트
+    this.eventManager.registerHandler(
+      Events.ChannelDelete,
+      this.voiceForumService.handleChannelDelete.bind(this.voiceForumService)
+    );
+
     // 명령어 처리 이벤트
     this.eventManager.registerHandler(
       Events.InteractionCreate,
       this.commandHandler.handleInteraction.bind(this.commandHandler)
+    );
+
+    // 음성채널-포럼 연동: 인터랙션 처리 이벤트
+    this.eventManager.registerHandler(
+      Events.InteractionCreate,
+      this.voiceForumService.handleInteraction.bind(this.voiceForumService)
     );
 
     // 이벤트 핸들러 초기화
