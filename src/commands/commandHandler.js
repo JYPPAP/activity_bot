@@ -10,15 +10,17 @@ import {GapStatsCommand} from './gapStatsCommand.js';
 import {GapReportCommand} from './gapReportCommand.js';
 import {GapCycleCommand} from './gapCycleCommand.js';
 import {GapAfkCommand} from './gapAfkCommand.js';
+import {RecruitmentCommand} from './recruitmentCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
 import {config} from '../config/env.js';
 
 export class CommandHandler {
-  constructor(client, activityTracker, dbManager, calendarLogService) {
+  constructor(client, activityTracker, dbManager, calendarLogService, voiceForumService) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
     this.calendarLogService = calendarLogService;
+    this.voiceForumService = voiceForumService;
 
     // UserClassificationService 인스턴스 생성
     this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
@@ -38,6 +40,10 @@ export class CommandHandler {
       const gapReportCommand = new GapReportCommand(this.dbManager, this.activityTracker);
       const gapCycleCommand = new GapCycleCommand(this.dbManager);
       const gapAfkCommand = new GapAfkCommand(this.client, this.dbManager);
+      const recruitmentCommand = new RecruitmentCommand({
+        client: this.client,
+        voiceForumService: this.voiceForumService
+      });
 
       // UserClassificationService 의존성 주입
       if (gapListCommand.setUserClassificationService) {
@@ -59,6 +65,7 @@ export class CommandHandler {
       this.commands.set('gap_report', gapReportCommand);
       this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
+      this.commands.set('post', recruitmentCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {

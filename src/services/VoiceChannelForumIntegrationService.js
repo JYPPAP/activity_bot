@@ -65,6 +65,28 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 음성 채널 업데이트 이벤트 핸들러
+   * @param {Channel} oldChannel - 업데이트 전 채널
+   * @param {Channel} newChannel - 업데이트 후 채널
+   */
+  async handleChannelUpdate(oldChannel, newChannel) {
+    try {
+      // 음성 채널이고 이름이 변경되었으며 매핑된 포럼이 있는 경우
+      if (newChannel.type === ChannelType.GuildVoice && 
+          oldChannel.name !== newChannel.name &&
+          this.channelPostMap.has(newChannel.id)) {
+        
+        console.log(`음성 채널 이름 변경 감지: ${oldChannel.name} -> ${newChannel.name} (ID: ${newChannel.id})`);
+        
+        const postId = this.channelPostMap.get(newChannel.id);
+        await this.updateVoiceChannelLink(postId, newChannel.name, newChannel.id, newChannel.guild.id);
+      }
+    } catch (error) {
+      console.error('음성 채널 업데이트 처리 오류:', error);
+    }
+  }
+
+  /**
    * 구인구직 연동 임베드 메시지를 음성 채널에 전송
    * @param {VoiceChannel} voiceChannel - 음성 채널
    */
@@ -229,6 +251,52 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 독립적인 구인구직 모달 표시 (명령어용)
+   * @param {Interaction} interaction - 인터랙션 객체
+   */
+  async showStandaloneRecruitmentModal(interaction) {
+    try {
+      const modal = new ModalBuilder()
+        .setCustomId('standalone_recruitment_modal')
+        .setTitle('구인구직 포럼 생성');
+
+      const titleInput = new TextInputBuilder()
+        .setCustomId('recruitment_title')
+        .setLabel('제목')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('예: [롤] [3명] [오후 8시]')
+        .setRequired(true)
+        .setMaxLength(100);
+
+      const tagsInput = new TextInputBuilder()
+        .setCustomId('recruitment_tags')
+        .setLabel('태그 (쉼표로 구분)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('예: 게임, 랭크, 캐주얼')
+        .setRequired(false)
+        .setMaxLength(100);
+
+      const descriptionInput = new TextInputBuilder()
+        .setCustomId('recruitment_description')
+        .setLabel('상세 설명')
+        .setStyle(TextInputStyle.Paragraph)
+        .setPlaceholder('게임 모드, 티어, 기타 요구사항 등을 자유롭게 작성해주세요.')
+        .setRequired(false)
+        .setMaxLength(1000);
+
+      const firstRow = new ActionRowBuilder().addComponents(titleInput);
+      const secondRow = new ActionRowBuilder().addComponents(tagsInput);
+      const thirdRow = new ActionRowBuilder().addComponents(descriptionInput);
+
+      modal.addComponents(firstRow, secondRow, thirdRow);
+
+      await interaction.showModal(modal);
+    } catch (error) {
+      console.error('독립 모달 표시 오류:', error);
+    }
+  }
+
+  /**
    * 구인구직 모달 표시 (새 포럼 생성용)
    * @param {Interaction} interaction - 인터랙션 객체
    * @param {string} voiceChannelId - 음성 채널 ID
@@ -308,6 +376,9 @@ export class VoiceChannelForumIntegrationService {
 
       await existingThread.send({ embeds: [linkEmbed] });
 
+      // 기존 포럼 포스트의 음성 채널 필드 업데이트
+      await this.updateVoiceChannelLink(existingPostId, voiceChannel.name, voiceChannel.id, voiceChannel.guild.id);
+
       // 채널-포스트 매핑 저장
       this.channelPostMap.set(voiceChannelId, existingPostId);
 
@@ -327,52 +398,116 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 독립적인 포럼 포스트 생성 (음성 채널 없이)
+   * @param {Object} recruitmentData - 구인구직 데이터
+   * @returns {string|null} - 생성된 포스트 ID 또는 null
+   */
+  async createStandaloneForumPost(recruitmentData) {
+    try {
+      const forumChannel = await this.client.channels.fetch(this.forumChannelId);
+      
+      if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
+        console.error('포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.');
+        return null;
+      }
+
+      // 태그를 역할 멘션으로 변환 (길드 정보 필요)
+      const guild = forumChannel.guild;
+      const roleMentions = await this.convertTagsToRoleMentions(recruitmentData.tags, guild);
+      const tagsText = roleMentions ? roleMentions : '';
+
+      const embed = new EmbedBuilder()
+        .setTitle(`🎮 ${recruitmentData.title}`)
+        .addFields(
+          { name: '📝 상세 설명', value: recruitmentData.description, inline: false },
+          { name: '🔊 음성 채널', value: '음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.', inline: false },
+          { name: '👤 모집자', value: `<@${recruitmentData.author.id}>`, inline: true },
+          { name: '⏰ 등록 시간', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+        )
+        .setColor(0xFFB800) // 독립 포스트는 주황색으로 구분
+        .setFooter({ 
+          text: '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
+          iconURL: recruitmentData.author.displayAvatarURL()
+        })
+        .setTimestamp();
+
+      // 태그가 있으면 설명 필드 위에 추가
+      if (tagsText) {
+        embed.spliceFields(0, 0, { name: '🏷️ 태그', value: tagsText, inline: false });
+      }
+
+      const thread = await forumChannel.threads.create({
+        name: recruitmentData.title,
+        message: {
+          embeds: [embed]
+        }
+      });
+
+      console.log(`독립 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
+      return thread.id;
+    } catch (error) {
+      console.error('독립 포럼 포스트 생성 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 음성 채널 이름 실시간 업데이트
+   * @param {string} postId - 포스트 ID
+   * @param {string} newChannelName - 새로운 채널 이름
+   * @param {string} channelId - 채널 ID
+   * @param {string} guildId - 길드 ID
+   */
+  async updateVoiceChannelLink(postId, newChannelName, channelId, guildId) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread() || thread.archived) {
+        return;
+      }
+
+      // 스레드의 첫 번째 메시지 (임베드) 가져오기
+      const messages = await thread.messages.fetch({ limit: 1 });
+      const firstMessage = messages.first();
+      
+      if (!firstMessage || !firstMessage.embeds.length) {
+        return;
+      }
+
+      const embed = EmbedBuilder.from(firstMessage.embeds[0]);
+      
+      // 음성 채널 필드 찾아서 업데이트
+      const fieldIndex = embed.data.fields?.findIndex(field => 
+        field.name === '🔊 음성 채널'
+      );
+
+      if (fieldIndex !== -1) {
+        embed.data.fields[fieldIndex].value = `[${newChannelName} 참여하기](https://discord.com/channels/${guildId}/${channelId})`;
+        
+        await firstMessage.edit({ embeds: [embed] });
+        console.log(`포럼 포스트 음성 채널 링크 업데이트: ${newChannelName} (ID: ${postId})`);
+      }
+    } catch (error) {
+      console.error('음성 채널 링크 업데이트 오류:', error);
+    }
+  }
+
+  /**
    * 모달 제출 처리
    * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
    */
   async handleModalSubmit(interaction) {
     try {
-      if (!interaction.customId.startsWith('recruitment_modal_')) {
+      // 독립적인 구인구직 모달 처리
+      if (interaction.customId === 'standalone_recruitment_modal') {
+        await this.handleStandaloneModalSubmit(interaction);
         return;
       }
 
-      const voiceChannelId = interaction.customId.split('_')[2];
-      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
-
-      if (!voiceChannel) {
-        await interaction.reply({
-          content: '❌ 음성 채널을 찾을 수 없습니다.',
-          ephemeral: true
-        });
+      // 음성 채널 연동 모달 처리
+      if (interaction.customId.startsWith('recruitment_modal_')) {
+        await this.handleVoiceChannelModalSubmit(interaction);
         return;
-      }
-
-      // 모달 입력값 추출
-      const title = interaction.fields.getTextInputValue('recruitment_title');
-      const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
-      const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
-
-      // 포럼 채널에서 포스트 생성
-      const postId = await this.createForumPost(voiceChannel, {
-        title,
-        tags,
-        description,
-        author: interaction.user
-      });
-
-      if (postId) {
-        // 채널-포스트 매핑 저장
-        this.channelPostMap.set(voiceChannelId, postId);
-
-        await interaction.reply({
-          content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
-          ephemeral: true
-        });
-      } else {
-        await interaction.reply({
-          content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
-          ephemeral: true
-        });
       }
     } catch (error) {
       console.error('모달 제출 처리 오류:', error);
@@ -381,6 +516,113 @@ export class VoiceChannelForumIntegrationService {
         ephemeral: true
       });
     }
+  }
+
+  /**
+   * 독립적인 모달 제출 처리
+   * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
+   */
+  async handleStandaloneModalSubmit(interaction) {
+    // 모달 입력값 추출
+    const title = interaction.fields.getTextInputValue('recruitment_title');
+    const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
+    const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
+
+    // 독립적인 포럼 포스트 생성
+    const postId = await this.createStandaloneForumPost({
+      title,
+      tags,
+      description,
+      author: interaction.user
+    });
+
+    if (postId) {
+      await interaction.reply({
+        content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>\n\n💡 음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 이 포럼과 연결할 수 있습니다.`,
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
+   * 음성 채널 연동 모달 제출 처리
+   * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
+   */
+  async handleVoiceChannelModalSubmit(interaction) {
+    const voiceChannelId = interaction.customId.split('_')[2];
+    const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+
+    if (!voiceChannel) {
+      await interaction.reply({
+        content: '❌ 음성 채널을 찾을 수 없습니다.',
+        ephemeral: true
+      });
+      return;
+    }
+
+    // 모달 입력값 추출
+    const title = interaction.fields.getTextInputValue('recruitment_title');
+    const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
+    const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
+
+    // 포럼 채널에서 포스트 생성
+    const postId = await this.createForumPost(voiceChannel, {
+      title,
+      tags,
+      description,
+      author: interaction.user
+    });
+
+    if (postId) {
+      // 채널-포스트 매핑 저장
+      this.channelPostMap.set(voiceChannelId, postId);
+
+      await interaction.reply({
+        content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
+        ephemeral: true
+      });
+    } else {
+      await interaction.reply({
+        content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
+   * 태그를 역할 멘션으로 변환
+   * @param {string} tags - 쉼표로 구분된 태그 문자열
+   * @param {Guild} guild - 디스코드 길드 객체
+   * @returns {string} - 변환된 역할 멘션 문자열
+   */
+  async convertTagsToRoleMentions(tags, guild) {
+    if (!tags || !tags.trim()) {
+      return '';
+    }
+
+    const tagArray = tags.split(',').map(tag => tag.trim());
+    const roleMentions = [];
+
+    for (const tag of tagArray) {
+      // 길드에서 태그와 일치하는 역할 찾기 (대소문자 구분 안함)
+      const role = guild.roles.cache.find(r => 
+        r.name.toLowerCase() === tag.toLowerCase()
+      );
+
+      if (role) {
+        roleMentions.push(`<@&${role.id}>`);
+      } else {
+        // 역할이 없으면 그냥 텍스트로 표시
+        roleMentions.push(`@${tag}`);
+      }
+    }
+
+    return roleMentions.join(', ');
   }
 
   /**
@@ -398,7 +640,9 @@ export class VoiceChannelForumIntegrationService {
         return null;
       }
 
-      const tagsText = recruitmentData.tags ? `**태그:** ${recruitmentData.tags}` : '';
+      // 태그를 역할 멘션으로 변환
+      const roleMentions = await this.convertTagsToRoleMentions(recruitmentData.tags, voiceChannel.guild);
+      const tagsText = roleMentions ? roleMentions : '';
 
       const embed = new EmbedBuilder()
         .setTitle(`🎮 ${recruitmentData.title}`)
@@ -448,22 +692,44 @@ export class VoiceChannelForumIntegrationService {
         return;
       }
 
-      // 아카이브 알림 메시지 전송
-      const archiveEmbed = new EmbedBuilder()
-        .setTitle('📁 구인구직 종료')
-        .setDescription('연결된 음성 채널이 삭제되어 이 구인구직이 자동으로 종료되었습니다.')
-        .setColor(0xFF6B6B)
-        .setTimestamp();
+      // 이미 아카이브되었거나 잠겨있는지 확인
+      if (thread.archived) {
+        console.log(`스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
+        return;
+      }
 
-      await thread.send({ embeds: [archiveEmbed] });
+      // 아카이브 알림 메시지 전송 (스레드가 활성화되어 있을 때만)
+      try {
+        const archiveEmbed = new EmbedBuilder()
+          .setTitle('📁 구인구직 종료')
+          .setDescription('연결된 음성 채널이 삭제되어 이 구인구직이 자동으로 종료되었습니다.')
+          .setColor(0xFF6B6B)
+          .setTimestamp();
 
-      // 스레드 아카이브
-      await thread.setArchived(true);
-      await thread.setLocked(true);
+        await thread.send({ embeds: [archiveEmbed] });
+      } catch (messageError) {
+        console.warn('아카이브 메시지 전송 실패 (스레드가 이미 제한될 수 있음):', messageError.message);
+      }
 
-      console.log(`포럼 포스트 아카이브 완료: ${thread.name} (ID: ${postId})`);
+      // 스레드 아카이브 및 잠금
+      try {
+        if (!thread.archived) {
+          await thread.setArchived(true);
+        }
+        if (!thread.locked) {
+          await thread.setLocked(true);
+        }
+        console.log(`포럼 포스트 아카이브 완료: ${thread.name} (ID: ${postId})`);
+      } catch (archiveError) {
+        // 이미 아카이브된 경우의 에러는 무시
+        if (archiveError.code === 50083) {
+          console.log(`스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
+        } else {
+          console.error('스레드 아카이브 실패:', archiveError.message);
+        }
+      }
     } catch (error) {
-      console.error('포럼 포스트 아카이브 오류:', error);
+      console.error('포럼 포스트 아카이브 처리 오류:', error.message);
     }
   }
 

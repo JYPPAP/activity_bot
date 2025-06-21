@@ -36,16 +36,17 @@ export class Bot {
     this.logService = new LogService(this.client, config.LOG_CHANNEL_ID);
     this.calendarLogService = new CalendarLogService(this.client, this.dbManager);
     this.activityTracker = new ActivityTracker(this.client, this.dbManager, this.logService);
-    this.commandHandler = new CommandHandler(
-      this.client,
-      this.activityTracker,
-      this.dbManager,
-      this.calendarLogService
-    );
     this.voiceForumService = new VoiceChannelForumIntegrationService(
       this.client,
       config.FORUM_CHANNEL_ID,
       config.VOICE_CATEGORY_ID
+    );
+    this.commandHandler = new CommandHandler(
+      this.client,
+      this.activityTracker,
+      this.dbManager,
+      this.calendarLogService,
+      this.voiceForumService
     );
     this.eventManager = new EventManager(this.client);
 
@@ -252,6 +253,12 @@ export class Bot {
     this.eventManager.registerHandler(
       Events.ChannelDelete,
       this.voiceForumService.handleChannelDelete.bind(this.voiceForumService)
+    );
+
+    // 음성채널-포럼 연동: 채널 업데이트 이벤트
+    this.eventManager.registerHandler(
+      Events.ChannelUpdate,
+      this.voiceForumService.handleChannelUpdate.bind(this.voiceForumService)
     );
 
     // 명령어 처리 이벤트
