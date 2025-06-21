@@ -48,10 +48,10 @@ commands.push(
     )
 );
 
-// 시간 체크 명령어
+// 시간체크 명령어
 commands.push(
   new SlashCommandBuilder()
-    .setName('시간 체크')
+    .setName('시간체크')
     .setDescription('특정 사용자의 활동 시간을 확인합니다.')
     .addUserOption(option =>
       option.setName('user')

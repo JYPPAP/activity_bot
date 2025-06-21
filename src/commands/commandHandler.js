@@ -59,7 +59,7 @@ export class CommandHandler {
       this.commands.set('gap_list', gapListCommand);
       this.commands.set('gap_config', gapConfigCommand);
       this.commands.set('gap_reset', gapResetCommand);
-      this.commands.set('시간 체크', gapCheckCommand);
+      this.commands.set('시간체크', gapCheckCommand);
       this.commands.set('gap_save', gapSaveCommand);
       this.commands.set('gap_calendar', gapCalendarCommand);
       this.commands.set('gap_stats', gapStatsCommand);
