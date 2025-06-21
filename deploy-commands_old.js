@@ -45,7 +45,7 @@ const commands = [
         ],
     },
     {
-        name: "gap_check",
+        name: "체크",
         description: "특정 사용자의 활동 시간 체크",
         options: [
             {

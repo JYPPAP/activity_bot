@@ -143,7 +143,7 @@ pm2 logs discord-bot
 - `/gap_list [role]` - 역할별 활동 시간 목록 표시
 - `/gap_config [role] [hours]` - 역할의 최소 활동 시간 설정
 - `/gap_reset [role]` - 역할의 활동 시간 초기화
-- `/gap_check [user]` - 특정 사용자의 활동 시간 확인
+- `/체크 [user]` - 특정 사용자의 활동 시간 확인
 - `/gap_save` - 활동 데이터 저장
 - `/gap_calendar [start_date] [end_date]` - 날짜별 활동 로그 확인
 - `/gap_stats [days] [user]` - 상세 활동 통계 확인

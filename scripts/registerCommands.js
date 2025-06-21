@@ -48,10 +48,10 @@ commands.push(
     )
 );
 
-// gap_check 명령어
+// 체크 명령어
 commands.push(
   new SlashCommandBuilder()
-    .setName('gap_check')
+    .setName('체크')
     .setDescription('특정 사용자의 활동 시간을 확인합니다.')
     .addUserOption(option =>
       option.setName('user')

@@ -436,7 +436,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
                 flags: MessageFlags.Ephemeral,
             });
 
-        } else if (commandName === "gap_check") {
+        } else if (commandName === "체크") {
             await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
             const user = interaction.options.getUser("user");
