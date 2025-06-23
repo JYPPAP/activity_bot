@@ -18,6 +18,13 @@ export class VoiceChannelForumIntegrationService {
     this.forumChannelId = forumChannelId; // 1385861379377987655
     this.voiceCategoryId = voiceCategoryId; // 1243578210684243970
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
+    
+    // 디버깅용: 주기적으로 매핑 상태 출력
+    setInterval(() => {
+      if (this.channelPostMap.size > 0) {
+        console.log(`[VoiceForumService] 현재 채널-포스트 매핑:`, Array.from(this.channelPostMap.entries()));
+      }
+    }, 30000); // 30초마다
   }
 
   /**
@@ -97,15 +104,25 @@ export class VoiceChannelForumIntegrationService {
       // 음성 채널에 사용자가 입장하거나 퇴장한 경우
       const channelChanged = oldState.channelId !== newState.channelId;
       
+      console.log(`[VoiceForumService] 음성 상태 변경 감지: ${oldState.channelId} -> ${newState.channelId}, 사용자: ${newState.member?.displayName || 'Unknown'}`);
+      
       if (channelChanged) {
         // 이전 채널에서 퇴장한 경우
         if (oldState.channelId && this.channelPostMap.has(oldState.channelId)) {
-          await this.updateForumPostTitle(oldState.channelId);
+          console.log(`[VoiceForumService] 이전 채널에서 퇴장 처리: ${oldState.channelId}`);
+          // 약간의 지연을 두어 Discord API 동기화 기다림
+          setTimeout(() => {
+            this.updateForumPostTitle(oldState.channelId);
+          }, 1000);
         }
         
         // 새 채널에 입장한 경우
         if (newState.channelId && this.channelPostMap.has(newState.channelId)) {
-          await this.updateForumPostTitle(newState.channelId);
+          console.log(`[VoiceForumService] 새 채널에 입장 처리: ${newState.channelId}`);
+          // 약간의 지연을 두어 Discord API 동기화 기다림
+          setTimeout(() => {
+            this.updateForumPostTitle(newState.channelId);
+          }, 1000);
         }
       }
     } catch (error) {
@@ -122,21 +139,32 @@ export class VoiceChannelForumIntegrationService {
     try {
       const voiceChannel = await this.client.channels.fetch(voiceChannelId);
       if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
+        console.log(`[VoiceForumService] 음성 채널을 찾을 수 없음: ${voiceChannelId}`);
         return 0;
       }
 
       // 음성 채널의 모든 멤버를 가져와서 관전자가 아닌 사용자 수를 카운트
       const members = voiceChannel.members;
       let activeCount = 0;
+      let spectatorCount = 0;
+
+      console.log(`[VoiceForumService] 음성 채널 ${voiceChannel.name}의 전체 멤버 수: ${members.size}`);
 
       for (const [memberId, member] of members) {
         const nickname = member.nickname || member.user.displayName;
+        console.log(`[VoiceForumService] 멤버 확인: ${nickname} (ID: ${memberId})`);
+        
         // [관전]으로 시작하지 않는 사용자만 카운트
         if (!nickname.startsWith('[관전]')) {
           activeCount++;
+          console.log(`[VoiceForumService] 활성 참여자로 카운트: ${nickname}`);
+        } else {
+          spectatorCount++;
+          console.log(`[VoiceForumService] 관전자로 제외: ${nickname}`);
         }
       }
 
+      console.log(`[VoiceForumService] 최종 카운트 - 활성: ${activeCount}, 관전: ${spectatorCount}, 총: ${members.size}`);
       return activeCount;
     } catch (error) {
       console.error('참여자 수 카운트 오류:', error);
@@ -145,26 +173,33 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 포럼 포스트 제목에서 현재 참여자 수 업데이트
+   * 포럼 포스트 제목 및 내용에서 현재 참여자 수 업데이트
    * @param {string} voiceChannelId - 음성 채널 ID
    */
   async updateForumPostTitle(voiceChannelId) {
     try {
       const postId = this.channelPostMap.get(voiceChannelId);
-      if (!postId) return;
+      if (!postId) {
+        console.log(`[VoiceForumService] 포스트 ID를 찾을 수 없음: ${voiceChannelId}`);
+        return;
+      }
 
       const thread = await this.client.channels.fetch(postId);
       if (!thread || !thread.isThread() || thread.archived) {
+        console.log(`[VoiceForumService] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
         return;
       }
 
       // 현재 참여자 수 카운트
       const currentCount = await this.countActiveParticipants(voiceChannelId);
+      console.log(`[VoiceForumService] 현재 참여자 수: ${currentCount}`);
       
       // 현재 제목에서 패턴 찾기 (예: 1/5, 2/5 등)
       const currentTitle = thread.name;
       const participantPattern = /\d+\/\d+/;
       const match = currentTitle.match(participantPattern);
+      
+      console.log(`[VoiceForumService] 현재 제목: ${currentTitle}, 패턴 매치: ${match ? match[0] : 'none'}`);
       
       if (match) {
         // 기존 패턴이 있는 경우 현재 참여자 수만 업데이트
@@ -173,14 +208,64 @@ export class VoiceChannelForumIntegrationService {
         const newPattern = `${currentCount}/${maxCount}`;
         const newTitle = currentTitle.replace(participantPattern, newPattern);
         
+        console.log(`[VoiceForumService] 패턴 변경: ${currentPattern} -> ${newPattern}`);
+        console.log(`[VoiceForumService] 제목 변경: ${currentTitle} -> ${newTitle}`);
+        
         // 제목이 실제로 변경된 경우에만 업데이트
         if (newTitle !== currentTitle) {
+          // 1. 스레드 제목 업데이트
           await thread.setName(newTitle);
-          console.log(`포럼 포스트 제목 업데이트: ${currentTitle} -> ${newTitle}`);
+          console.log(`[VoiceForumService] 스레드 제목 업데이트 완료`);
+          
+          // 2. 포럼 포스트 내용의 제목도 업데이트
+          await this.updateForumPostContent(thread, currentPattern, newPattern);
+          
+          console.log(`포럼 포스트 제목 및 내용 업데이트: ${currentTitle} -> ${newTitle}`);
+        } else {
+          console.log(`[VoiceForumService] 제목 변경 불필요 (동일함)`);
         }
+      } else {
+        console.log(`[VoiceForumService] 제목에서 참여자 패턴을 찾을 수 없음`);
       }
     } catch (error) {
       console.error('포럼 포스트 제목 업데이트 오류:', error);
+    }
+  }
+
+  /**
+   * 포럼 포스트 내용의 제목 부분 업데이트
+   * @param {ThreadChannel} thread - 스레드 채널
+   * @param {string} oldPattern - 기존 패턴 (예: "1/5")
+   * @param {string} newPattern - 새로운 패턴 (예: "2/5")
+   */
+  async updateForumPostContent(thread, oldPattern, newPattern) {
+    try {
+      // 스레드의 첫 번째 메시지 (임베드) 가져오기
+      const messages = await thread.messages.fetch({ limit: 1 });
+      const firstMessage = messages.first();
+      
+      if (!firstMessage || !firstMessage.embeds.length) {
+        return;
+      }
+
+      const embed = EmbedBuilder.from(firstMessage.embeds[0]);
+      
+      // 임베드의 description에서 제목 부분 찾아서 업데이트
+      if (embed.data.description) {
+        const updatedDescription = embed.data.description.replace(
+          new RegExp(oldPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
+          newPattern
+        );
+        
+        // description이 실제로 변경된 경우에만 업데이트
+        if (updatedDescription !== embed.data.description) {
+          embed.setDescription(updatedDescription);
+          await firstMessage.edit({ embeds: [embed] });
+          console.log(`포럼 포스트 내용 업데이트: ${oldPattern} -> ${newPattern}`);
+        }
+      }
+    } catch (error) {
+      console.error('포럼 포스트 내용 업데이트 오류:', error);
     }
   }
 
