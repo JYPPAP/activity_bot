@@ -163,7 +163,7 @@ export class VoiceChannelForumIntegrationService {
         console.error(`[VoiceForumService] 큐 업데이트 오류:`, error);
         this.updateQueue.delete(voiceChannelId);
       }
-    }, 1500); // 1.5초 지연
+    }, 5000); // 5초 지연
 
     this.updateQueue.set(voiceChannelId, timeoutId);
     console.log(`[VoiceForumService] 제목 업데이트 큐에 추가: ${voiceChannelId}`);
@@ -303,10 +303,10 @@ export class VoiceChannelForumIntegrationService {
             
             // 최대 3번까지 재시도
             if (retryCount < 2) {
-              console.log(`[VoiceForumService] ${1000 * (retryCount + 2)}ms 후 재시도...`);
+              console.log(`[VoiceForumService] ${1000 * (retryCount + 30)}ms 후 재시도...`);
               setTimeout(() => {
                 this.updateForumPostTitle(voiceChannelId, retryCount + 1);
-              }, 1000 * (retryCount + 2)); // 2초, 3초, 4초 간격
+              }, 1000 * (retryCount + 30)); // 2초, 3초, 4초 간격
             } else {
               console.error(`[VoiceForumService] 최대 재시도 횟수 초과. 업데이트 포기: ${voiceChannelId}`);
             }
@@ -322,10 +322,10 @@ export class VoiceChannelForumIntegrationService {
       
       // 최대 3번까지 재시도
       if (retryCount < 2) {
-        console.log(`[VoiceForumService] ${1000 * (retryCount + 2)}ms 후 재시도...`);
+        console.log(`[VoiceForumService] ${1000 * (retryCount + 30)}ms 후 재시도...`);
         setTimeout(() => {
           this.updateForumPostTitle(voiceChannelId, retryCount + 1);
-        }, 1000 * (retryCount + 2));
+        }, 1000 * (retryCount + 30));
       }
     }
   }
@@ -350,7 +350,7 @@ export class VoiceChannelForumIntegrationService {
         }
         
         // 다음 시도 전 대기 (지수적 백오프)
-        const delay = Math.pow(2, attempt) * 1000; // 2초, 4초, 8초
+        const delay = Math.pow(30, attempt) * 1000; // 2초, 4초, 8초
         console.log(`[VoiceForumService] ${delay}ms 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
