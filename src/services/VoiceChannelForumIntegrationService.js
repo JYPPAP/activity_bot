@@ -680,7 +680,6 @@ export class VoiceChannelForumIntegrationService {
       filteredThreads = new Map(threadsArray.map(thread => [thread.id, thread]));
       
       console.log(`[VoiceForumService] 최대 15개로 제한: ${filteredThreads.size}개 포스트`);
-      }
       
       return Array.from(filteredThreads.values())
         .map(thread => ({
