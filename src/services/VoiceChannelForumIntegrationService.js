@@ -720,10 +720,15 @@ export class VoiceChannelForumIntegrationService {
                   }
                 } else {
                   console.log(`[VoiceForumService] ❌ 봇 포스트에 임베드 없음: ${thread.name}`);
+                  console.log(`[VoiceForumService] 메시지 내용 길이: ${firstMessage.content?.length || 0}`);
+                  console.log(`[VoiceForumService] 메시지 내용 일부:`, firstMessage.content ? firstMessage.content.substring(0, 200) + '...' : 'null');
+                  
                   // 임베드가 없는 경우 메시지 내용에서 직접 검색
                   if (firstMessage.content && firstMessage.content.includes(`<@${userId}>`)) {
                     isUserPost = true;
                     console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 메시지 내용에서 모집자 발견: ${thread.name}`);
+                  } else {
+                    console.log(`[VoiceForumService] ❌ 메시지 내용에서도 모집자 패턴 없음: <@${userId}>`);
                   }
                 }
               } else {
