@@ -695,27 +695,39 @@ export class VoiceChannelForumIntegrationService {
               }
               
               // 2. 봇이 작성했지만 내용에 모집자 ID가 있는 경우 (/구직 명령어)
-              else if (firstMessage.author.bot && firstMessage.embeds.length > 0) {
-                const embedDescription = firstMessage.embeds[0].description;
-                console.log(`[VoiceForumService] 봇 포스트 내용 확인: ${thread.name}`);
-                console.log(`[VoiceForumService] 임베드 설명 일부:`, embedDescription ? embedDescription.substring(0, 200) + '...' : 'null');
+              else if (firstMessage.author.bot) {
+                console.log(`[VoiceForumService] 봇 포스트 분석 시작: ${thread.name}`);
+                console.log(`[VoiceForumService] 임베드 개수: ${firstMessage.embeds?.length || 0}`);
                 
-                if (embedDescription) {
-                  // 모집자 멘션 패턴 찾기: <@사용자ID>
-                  const recruiterPattern = new RegExp(`<@${userId}>`);
-                  console.log(`[VoiceForumService] 모집자 패턴 검색: <@${userId}>`);
+                // 임베드가 있는지 확인하고 안전하게 접근
+                if (firstMessage.embeds && firstMessage.embeds.length > 0) {
+                  const embedDescription = firstMessage.embeds[0].description;
+                  console.log(`[VoiceForumService] 임베드 설명 일부:`, embedDescription ? embedDescription.substring(0, 200) + '...' : 'null');
                   
-                  if (recruiterPattern.test(embedDescription)) {
-                    isUserPost = true;
-                    console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 모집자 발견: ${thread.name}`);
+                  if (embedDescription) {
+                    // 모집자 멘션 패턴 찾기: <@사용자ID>
+                    const recruiterPattern = new RegExp(`<@${userId}>`);
+                    console.log(`[VoiceForumService] 모집자 패턴 검색: <@${userId}>`);
+                    
+                    if (recruiterPattern.test(embedDescription)) {
+                      isUserPost = true;
+                      console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 모집자 발견: ${thread.name}`);
+                    } else {
+                      console.log(`[VoiceForumService] ❌ 모집자 패턴 없음: ${thread.name}`);
+                    }
                   } else {
-                    console.log(`[VoiceForumService] ❌ 모집자 패턴 없음: ${thread.name}`);
+                    console.log(`[VoiceForumService] ❌ 임베드 설명 없음: ${thread.name}`);
                   }
                 } else {
-                  console.log(`[VoiceForumService] ❌ 임베드 설명 없음: ${thread.name}`);
+                  console.log(`[VoiceForumService] ❌ 봇 포스트에 임베드 없음: ${thread.name}`);
+                  // 임베드가 없는 경우 메시지 내용에서 직접 검색
+                  if (firstMessage.content && firstMessage.content.includes(`<@${userId}>`)) {
+                    isUserPost = true;
+                    console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 메시지 내용에서 모집자 발견: ${thread.name}`);
+                  }
                 }
               } else {
-                console.log(`[VoiceForumService] 기타 포스트 (봇=${firstMessage.author.bot}, 임베드=${firstMessage.embeds.length}): ${thread.name}`);
+                console.log(`[VoiceForumService] 기타 포스트 (봇=${firstMessage.author.bot}, 임베드=${firstMessage.embeds?.length || 0}): ${thread.name}`);
               }
               
               if (isUserPost) {
