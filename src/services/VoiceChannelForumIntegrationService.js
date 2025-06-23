@@ -19,6 +19,7 @@ export class VoiceChannelForumIntegrationService {
     this.voiceCategoryId = voiceCategoryId; // 1243578210684243970
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
+    this.sentEmbedChannels = new Set(); // 임베드를 전송한 채널 ID 추적 (중복 방지)
     
     // ========== 구인구직 기능 권한 설정 ==========
     // 구인구직 기능 활성화 여부 (true: 활성화, false: 비활성화)
@@ -169,7 +170,8 @@ export class VoiceChannelForumIntegrationService {
         
         // 매핑 제거
         this.channelPostMap.delete(channel.id);
-        console.log(`[VoiceForumService] 채널-포스트 매핑 제거 완료`);
+        this.sentEmbedChannels.delete(channel.id); // 임베드 전송 기록도 제거
+        console.log(`[VoiceForumService] 채널-포스트 매핑 및 임베드 기록 제거 완료`);
         console.log(`[VoiceForumService] ✅ 아카이브 처리 완료`);
       } else {
         console.log(`[VoiceForumService] ❌ 아카이브 조건 불충족:`);
@@ -248,7 +250,8 @@ export class VoiceChannelForumIntegrationService {
           const voiceChannel = newState.channel;
           if (voiceChannel && 
               voiceChannel.parentId === this.voiceCategoryId && 
-              !this.channelPostMap.has(newState.channelId)) {
+              !this.channelPostMap.has(newState.channelId) &&
+              !this.sentEmbedChannels.has(newState.channelId)) {
             
             console.log(`[VoiceForumService] 권한 있는 사용자 입장, 임베드 확인: ${voiceChannel.name}`);
             
@@ -256,6 +259,9 @@ export class VoiceChannelForumIntegrationService {
             setTimeout(async () => {
               await this.checkAndSendRecruitmentEmbedIfNeeded(voiceChannel);
             }, 2000);
+            
+            // 해당 채널에 임베드 전송했다고 마킹 (중복 방지)
+            this.sentEmbedChannels.add(newState.channelId);
           }
         }
         // =======================================
@@ -351,6 +357,7 @@ export class VoiceChannelForumIntegrationService {
         if (postId) {
           await this.archiveForumPost(postId);
           this.channelPostMap.delete(voiceChannelId);
+          this.sentEmbedChannels.delete(voiceChannelId); // 임베드 전송 기록도 제거
         }
       }
     } catch (error) {
@@ -426,6 +433,7 @@ export class VoiceChannelForumIntegrationService {
         console.log(`[VoiceForumService] 🗑️ 삭제된 채널의 포럼 포스트 아카이브 시작: ${voiceChannelId} -> ${postId}`);
         await this.archiveForumPost(postId);
         this.channelPostMap.delete(voiceChannelId);
+        this.sentEmbedChannels.delete(voiceChannelId); // 임베드 전송 기록도 제거
         console.log(`[VoiceForumService] ✅ 삭제된 채널 정리 완료: ${voiceChannelId}`);
       }
     } catch (error) {
@@ -614,7 +622,7 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 구인구직 연동 임베드 메시지를 음성 채널에 전송
+   * 구인구직 연동 임베드 메시지를 권한 있는 사용자에게만 표시
    * @param {VoiceChannel} voiceChannel - 음성 채널
    */
   async sendRecruitmentEmbed(voiceChannel) {
@@ -627,9 +635,22 @@ export class VoiceChannelForumIntegrationService {
       }
       // =============================
 
+      // 권한 있는 사용자들만 찾기
+      const authorizedMembers = [];
+      for (const [memberId, member] of voiceChannel.members) {
+        if (this.hasRecruitmentPermission(member.user, member)) {
+          authorizedMembers.push(member);
+        }
+      }
+
+      if (authorizedMembers.length === 0) {
+        console.log(`[VoiceForumService] 권한 있는 사용자가 없어 임베드 전송 안함: ${voiceChannel.name}`);
+        return;
+      }
+
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동')
-        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n✅ **권한이 있는 사용자만** 이 메시지를 볼 수 있습니다')
+        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n✅ **관리자 및 권한 사용자 전용**')
         .addFields(
           { name: '📍 채널', value: voiceChannel.name, inline: true },
           { name: '🔗 바로가기', value: `<#${voiceChannel.id}>`, inline: true }
@@ -645,12 +666,21 @@ export class VoiceChannelForumIntegrationService {
 
       const row = new ActionRowBuilder().addComponents(button);
 
-      await voiceChannel.send({
-        embeds: [embed],
-        components: [row]
-      });
+      // 권한 있는 사용자들에게만 개별적으로 전송 (임시 메시지로)
+      for (const member of authorizedMembers) {
+        try {
+          await member.send({
+            content: `**${voiceChannel.name}** 음성 채널에서 구인구직 연동을 사용할 수 있습니다.`,
+            embeds: [embed],
+            components: [row]
+          });
+          console.log(`[VoiceForumService] 권한 사용자에게 DM 전송 완료: ${member.displayName}`);
+        } catch (dmError) {
+          console.log(`[VoiceForumService] DM 전송 실패 (차단/설정): ${member.displayName}`);
+        }
+      }
 
-      console.log(`구인구직 임베드 전송 완료: ${voiceChannel.name}`);
+      console.log(`구인구직 임베드 전송 완료: ${voiceChannel.name} (${authorizedMembers.length}명에게 전송)`);
     } catch (error) {
       console.error('구인구직 임베드 전송 오류:', error);
     }
