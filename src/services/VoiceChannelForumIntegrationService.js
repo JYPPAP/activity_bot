@@ -882,7 +882,7 @@ export class VoiceChannelForumIntegrationService {
       console.log(`[VoiceForumService] 🔗 기존 포럼 연동 매핑 저장: ${voiceChannelId} -> ${existingPostId}`);
       console.log(`[VoiceForumService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
 
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`,
         flags: MessageFlags.Ephemeral
       });
@@ -890,7 +890,7 @@ export class VoiceChannelForumIntegrationService {
       console.log(`기존 포럼 연동 완료: ${voiceChannel.name} -> ${existingThread.name}`);
     } catch (error) {
       console.error('기존 포럼 연동 오류:', error);
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: '❌ 연동에 실패했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
@@ -1011,6 +1011,8 @@ export class VoiceChannelForumIntegrationService {
    */
   async handleModalSubmit(interaction) {
     try {
+      console.log(`[VoiceForumService] 모달 제출 처리 시작: ${interaction.customId}`);
+      
       // 독립적인 구인구직 모달 처리
       if (interaction.customId === 'standalone_recruitment_modal') {
         await this.handleStandaloneModalSubmit(interaction);
@@ -1024,10 +1026,40 @@ export class VoiceChannelForumIntegrationService {
       }
     } catch (error) {
       console.error('모달 제출 처리 오류:', error);
-      await interaction.reply({
+      
+      // 안전한 오류 응답
+      await this.safeReply(interaction, {
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
+    }
+  }
+
+  /**
+   * 안전한 인터랙션 응답 (만료 및 중복 응답 방지)
+   * @param {Interaction} interaction - 인터랙션 객체
+   * @param {Object} replyOptions - 응답 옵션
+   */
+  async safeReply(interaction, replyOptions) {
+    try {
+      // 인터랙션이 이미 응답되었거나 지연 응답된 경우 체크
+      if (interaction.replied) {
+        console.log(`[VoiceForumService] 인터랙션이 이미 응답됨 - followUp 사용`);
+        await interaction.followUp(replyOptions);
+      } else if (interaction.deferred) {
+        console.log(`[VoiceForumService] 인터랙션이 지연됨 - editReply 사용`);
+        await interaction.editReply(replyOptions);
+      } else {
+        console.log(`[VoiceForumService] 일반 응답 사용`);
+        await interaction.reply(replyOptions);
+      }
+    } catch (error) {
+      // Unknown interaction 오류 등을 무시
+      if (error.code === 10062) {
+        console.warn(`[VoiceForumService] 인터랙션 만료됨 - 응답 무시`);
+      } else {
+        console.error(`[VoiceForumService] 안전한 응답 실패:`, error);
+      }
     }
   }
 
@@ -1036,27 +1068,42 @@ export class VoiceChannelForumIntegrationService {
    * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
    */
   async handleStandaloneModalSubmit(interaction) {
-    // 모달 입력값 추출
-    const title = interaction.fields.getTextInputValue('recruitment_title');
-    const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
-    const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
+    console.log(`[VoiceForumService] 독립 모달 제출 처리 시작`);
+    
+    try {
+      // 모달 입력값 추출
+      const title = interaction.fields.getTextInputValue('recruitment_title');
+      const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
+      const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
 
-    // 독립적인 포럼 포스트 생성
-    const postId = await this.createStandaloneForumPost({
-      title,
-      tags,
-      description,
-      author: interaction.user
-    });
+      console.log(`[VoiceForumService] 포럼 포스트 생성 중: ${title}`);
 
-    if (postId) {
-      await interaction.reply({
-        content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>\n\n💡 음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 이 포럼과 연결할 수 있습니다.`,
-        flags: MessageFlags.Ephemeral
+      // 독립적인 포럼 포스트 생성
+      const postId = await this.createStandaloneForumPost({
+        title,
+        tags,
+        description,
+        author: interaction.user
       });
-    } else {
-      await interaction.reply({
-        content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+
+      if (postId) {
+        await this.safeReply(interaction, {
+          content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>\n\n💡 음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 이 포럼과 연결할 수 있습니다.`,
+          flags: MessageFlags.Ephemeral
+        });
+        console.log(`[VoiceForumService] 독립 포럼 생성 완료: ${postId}`);
+      } else {
+        await this.safeReply(interaction, {
+          content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        console.log(`[VoiceForumService] 독립 포럼 생성 실패`);
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 독립 모달 제출 처리 오류:`, error);
+      
+      await this.safeReply(interaction, {
+        content: '❌ 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
     }
@@ -1067,43 +1114,58 @@ export class VoiceChannelForumIntegrationService {
    * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
    */
   async handleVoiceChannelModalSubmit(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+    console.log(`[VoiceForumService] 음성 채널 연동 모달 제출 처리 시작`);
+    
+    try {
+      const voiceChannelId = interaction.customId.split('_')[2];
+      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
 
-    if (!voiceChannel) {
-      await interaction.reply({
-        content: '❌ 음성 채널을 찾을 수 없습니다.',
-        flags: MessageFlags.Ephemeral
+      if (!voiceChannel) {
+        await this.safeReply(interaction, {
+          content: '❌ 음성 채널을 찾을 수 없습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      // 모달 입력값 추출
+      const title = interaction.fields.getTextInputValue('recruitment_title');
+      const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
+      const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
+
+      console.log(`[VoiceForumService] 음성 채널 연동 포럼 생성 중: ${title}`);
+
+      // 포럼 채널에서 포스트 생성
+      const postId = await this.createForumPost(voiceChannel, {
+        title,
+        tags,
+        description,
+        author: interaction.user
       });
-      return;
-    }
 
-    // 모달 입력값 추출
-    const title = interaction.fields.getTextInputValue('recruitment_title');
-    const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
-    const description = interaction.fields.getTextInputValue('recruitment_description') || '설명 없음';
+      if (postId) {
+        // 채널-포스트 매핑 저장
+        this.channelPostMap.set(voiceChannelId, postId);
+        console.log(`[VoiceForumService] 🔗 새 포럼 생성 매핑 저장: ${voiceChannelId} -> ${postId}`);
+        console.log(`[VoiceForumService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
 
-    // 포럼 채널에서 포스트 생성
-    const postId = await this.createForumPost(voiceChannel, {
-      title,
-      tags,
-      description,
-      author: interaction.user
-    });
-
-    if (postId) {
-      // 채널-포스트 매핑 저장
-      this.channelPostMap.set(voiceChannelId, postId);
-      console.log(`[VoiceForumService] 🔗 새 포럼 생성 매핑 저장: ${voiceChannelId} -> ${postId}`);
-      console.log(`[VoiceForumService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
-
-      await interaction.reply({
-        content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
-        flags: MessageFlags.Ephemeral
-      });
-    } else {
-      await interaction.reply({
-        content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+        await this.safeReply(interaction, {
+          content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
+          flags: MessageFlags.Ephemeral
+        });
+        console.log(`[VoiceForumService] 음성 채널 연동 포럼 생성 완료: ${postId}`);
+      } else {
+        await this.safeReply(interaction, {
+          content: '❌ 포럼 포스트 생성에 실패했습니다. 다시 시도해주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        console.log(`[VoiceForumService] 음성 채널 연동 포럼 생성 실패`);
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 음성 채널 연동 모달 제출 처리 오류:`, error);
+      
+      await this.safeReply(interaction, {
+        content: '❌ 처리 중 오류가 발생했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
     }
