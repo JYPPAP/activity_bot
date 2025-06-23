@@ -594,13 +594,47 @@ export class VoiceChannelForumIntegrationService {
         const userPosts = [];
         for (const [threadId, thread] of filteredThreads) {
           try {
-            // 스레드의 첫 번째 메시지 가져오기 (작성자 확인용)
+            // 스레드의 첫 번째 메시지 가져오기 (내용에서 모집자 확인용)
             const messages = await thread.messages.fetch({ limit: 1 });
             const firstMessage = messages.first();
             
-            if (firstMessage && firstMessage.author.id === userId) {
-              userPosts.push(thread);
-              console.log(`[VoiceForumService] 사용자 포스트 발견: ${thread.name}`);
+            if (firstMessage) {
+              let isUserPost = false;
+              
+              // 1. 메시지 작성자가 사용자인 경우 (직접 연동)
+              if (firstMessage.author.id === userId) {
+                isUserPost = true;
+                console.log(`[VoiceForumService] 직접 작성 포스트: ${thread.name}`);
+              }
+              
+              // 2. 봇이 작성했지만 내용에 모집자 ID가 있는 경우 (/구직 명령어)
+              else if (firstMessage.author.bot && firstMessage.embeds.length > 0) {
+                const embedDescription = firstMessage.embeds[0].description;
+                console.log(`[VoiceForumService] 봇 포스트 내용 확인: ${thread.name}`);
+                console.log(`[VoiceForumService] 임베드 설명 일부:`, embedDescription ? embedDescription.substring(0, 200) + '...' : 'null');
+                
+                if (embedDescription) {
+                  // 모집자 멘션 패턴 찾기: <@사용자ID>
+                  const recruiterPattern = new RegExp(`<@${userId}>`);
+                  console.log(`[VoiceForumService] 모집자 패턴 검색: <@${userId}>`);
+                  
+                  if (recruiterPattern.test(embedDescription)) {
+                    isUserPost = true;
+                    console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 모집자 발견: ${thread.name}`);
+                  } else {
+                    console.log(`[VoiceForumService] ❌ 모집자 패턴 없음: ${thread.name}`);
+                  }
+                } else {
+                  console.log(`[VoiceForumService] ❌ 임베드 설명 없음: ${thread.name}`);
+                }
+              } else {
+                console.log(`[VoiceForumService] 기타 포스트 (봇=${firstMessage.author.bot}, 임베드=${firstMessage.embeds.length}): ${thread.name}`);
+              }
+              
+              if (isUserPost) {
+                userPosts.push(thread);
+                console.log(`[VoiceForumService] 사용자 포스트 발견: ${thread.name}`);
+              }
             }
           } catch (fetchError) {
             console.warn(`[VoiceForumService] 스레드 메시지 조회 실패: ${threadId}`, fetchError.message);
@@ -921,6 +955,9 @@ export class VoiceChannelForumIntegrationService {
       const largeVoiceChannel = `## 🔊 음성 채널\n음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.`;
       const largeTags = tagsText ? `## 🏷️ 태그\n${tagsText}` : '';
       const largeRecruiter = `## 👤 모집자\n<@${recruitmentData.author.id}>`;
+
+      console.log(`[VoiceForumService] 독립 포스트 생성 - 모집자: <@${recruitmentData.author.id}>`);
+      console.log(`[VoiceForumService] 독립 포스트 생성 - 제목: ${recruitmentData.title}`);
 
       // 전체 내용을 하나의 큰 텍스트로 구성
       let content = `# 🎮 ${recruitmentData.title}\n\n`;
