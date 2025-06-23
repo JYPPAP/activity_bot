@@ -84,15 +84,52 @@ export class VoiceChannelForumIntegrationService {
       if (channel.type === ChannelType.GuildVoice && 
           channel.parentId === this.voiceCategoryId) {
         
-        console.log(`음성 채널 생성 감지: ${channel.name} (ID: ${channel.id})`);
+        console.log(`[VoiceForumService] 음성 채널 생성 감지: ${channel.name} (ID: ${channel.id})`);
         
-        // 5초 지연 후 임베드 메시지 전송
+        // ========== 권한 체크 ==========
+        // 구인구직 기능이 비활성화된 경우 임베드 전송 안함
+        if (!this.RECRUITMENT_ENABLED) {
+          console.log(`[VoiceForumService] 구인구직 기능 비활성화로 임베드 전송 안함: ${channel.name}`);
+          return;
+        }
+        
+        // 권한이 있는 사용자가 채널에 있는지 확인하고 임베드 전송
         setTimeout(async () => {
-          await this.sendRecruitmentEmbed(channel);
+          await this.checkAndSendRecruitmentEmbed(channel);
         }, 5000);
+        // =============================
       }
     } catch (error) {
       console.error('음성 채널 생성 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 권한이 있는 사용자가 있을 때만 구인구직 임베드 전송
+   * @param {VoiceChannel} voiceChannel - 음성 채널
+   */
+  async checkAndSendRecruitmentEmbed(voiceChannel) {
+    try {
+      // 채널에 있는 멤버들 중 권한이 있는 사용자가 있는지 확인
+      const members = voiceChannel.members;
+      let hasAuthorizedUser = false;
+
+      for (const [memberId, member] of members) {
+        if (this.hasRecruitmentPermission(member.user, member)) {
+          hasAuthorizedUser = true;
+          console.log(`[VoiceForumService] 권한 있는 사용자 발견: ${member.displayName} (${member.id})`);
+          break;
+        }
+      }
+
+      if (hasAuthorizedUser) {
+        console.log(`[VoiceForumService] 권한 있는 사용자가 있어 임베드 전송: ${voiceChannel.name}`);
+        await this.sendRecruitmentEmbed(voiceChannel);
+      } else {
+        console.log(`[VoiceForumService] 권한 있는 사용자가 없어 임베드 전송 안함: ${voiceChannel.name}`);
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 권한 확인 및 임베드 전송 오류:`, error);
     }
   }
 
@@ -201,9 +238,59 @@ export class VoiceChannelForumIntegrationService {
           // 중복 업데이트 방지를 위한 큐 기반 업데이트
           this.queueTitleUpdate(newState.channelId, false);
         }
+        
+        // ========== 구인구직 임베드 확인 ==========
+        // 권한이 있는 사용자가 새 채널에 입장한 경우, 해당 채널에 임베드가 없으면 전송
+        if (newState.channelId && 
+            newState.member && 
+            this.hasRecruitmentPermission(newState.member.user, newState.member)) {
+          
+          const voiceChannel = newState.channel;
+          if (voiceChannel && 
+              voiceChannel.parentId === this.voiceCategoryId && 
+              !this.channelPostMap.has(newState.channelId)) {
+            
+            console.log(`[VoiceForumService] 권한 있는 사용자 입장, 임베드 확인: ${voiceChannel.name}`);
+            
+            // 채널에 구인구직 임베드가 없는지 확인하고 전송
+            setTimeout(async () => {
+              await this.checkAndSendRecruitmentEmbedIfNeeded(voiceChannel);
+            }, 2000);
+          }
+        }
+        // =======================================
       }
     } catch (error) {
       console.error('음성 상태 업데이트 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 채널에 구인구직 임베드가 없으면 전송
+   * @param {VoiceChannel} voiceChannel - 음성 채널
+   */
+  async checkAndSendRecruitmentEmbedIfNeeded(voiceChannel) {
+    try {
+      // 최근 메시지들을 확인해서 구인구직 임베드가 이미 있는지 확인
+      const recentMessages = await voiceChannel.messages.fetch({ limit: 10 });
+      
+      let hasRecruitmentEmbed = false;
+      for (const [messageId, message] of recentMessages) {
+        if (message.author.bot && 
+            message.embeds.length > 0 && 
+            message.embeds[0].title === '🎯 구인구직 연동') {
+          hasRecruitmentEmbed = true;
+          console.log(`[VoiceForumService] 구인구직 임베드가 이미 존재함: ${voiceChannel.name}`);
+          break;
+        }
+      }
+
+      if (!hasRecruitmentEmbed) {
+        console.log(`[VoiceForumService] 구인구직 임베드가 없어 새로 전송: ${voiceChannel.name}`);
+        await this.sendRecruitmentEmbed(voiceChannel);
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 임베드 확인 및 전송 오류:`, error);
     }
   }
 
@@ -542,7 +629,7 @@ export class VoiceChannelForumIntegrationService {
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동')
-        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n⚠️ **현재 베타 기능** - 특정 사용자만 이용 가능')
+        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n✅ **권한이 있는 사용자만** 이 메시지를 볼 수 있습니다')
         .addFields(
           { name: '📍 채널', value: voiceChannel.name, inline: true },
           { name: '🔗 바로가기', value: `<#${voiceChannel.id}>`, inline: true }
