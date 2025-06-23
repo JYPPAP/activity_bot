@@ -431,9 +431,10 @@ export class VoiceChannelForumIntegrationService {
 
   /**
    * 활성화된 포럼 포스트 목록 가져오기
+   * @param {string} userId - 사용자 ID (옵션, 지정시 해당 사용자가 작성한 포스트만)
    * @returns {Array} - 활성화된 포럼 포스트 배열
    */
-  async getActiveForumPosts() {
+  async getActiveForumPosts(userId = null) {
     try {
       const forumChannel = await this.client.channels.fetch(this.forumChannelId);
       
@@ -444,8 +445,33 @@ export class VoiceChannelForumIntegrationService {
       // 활성화된 스레드만 가져오기
       const activeThreads = await forumChannel.threads.fetchActive();
       
-      return activeThreads.threads
-        .filter(thread => !thread.archived && !thread.locked)
+      let filteredThreads = activeThreads.threads.filter(thread => !thread.archived && !thread.locked);
+      
+      // 특정 사용자의 포스트만 필터링 (요청된 경우)
+      if (userId) {
+        console.log(`[VoiceForumService] ${userId} 사용자의 포스트만 필터링 중...`);
+        
+        const userPosts = [];
+        for (const [threadId, thread] of filteredThreads) {
+          try {
+            // 스레드의 첫 번째 메시지 가져오기 (작성자 확인용)
+            const messages = await thread.messages.fetch({ limit: 1 });
+            const firstMessage = messages.first();
+            
+            if (firstMessage && firstMessage.author.id === userId) {
+              userPosts.push(thread);
+              console.log(`[VoiceForumService] 사용자 포스트 발견: ${thread.name}`);
+            }
+          } catch (fetchError) {
+            console.warn(`[VoiceForumService] 스레드 메시지 조회 실패: ${threadId}`, fetchError.message);
+          }
+        }
+        
+        filteredThreads = new Map(userPosts.map(thread => [thread.id, thread]));
+        console.log(`[VoiceForumService] 필터링 결과: ${filteredThreads.size}개 포스트`);
+      }
+      
+      return Array.from(filteredThreads.values())
         .map(thread => ({
           id: thread.id,
           name: thread.name,
@@ -479,12 +505,12 @@ export class VoiceChannelForumIntegrationService {
         return;
       }
 
-      // 활성화된 포럼 포스트 가져오기
-      const activePosts = await this.getActiveForumPosts();
+      // 활성화된 포럼 포스트 가져오기 (버튼을 누른 사용자의 포스트만)
+      const activePosts = await this.getActiveForumPosts(interaction.user.id);
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동 방법 선택')
-        .setDescription('새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.')
+        .setDescription('새로운 포럼을 생성하거나 본인이 작성한 기존 포럼에 연동할 수 있습니다.')
         .setColor(0x5865F2);
 
       const selectOptions = [
@@ -495,15 +521,18 @@ export class VoiceChannelForumIntegrationService {
         }
       ];
 
-      // 활성화된 포럼이 있으면 선택지에 추가
+      // 사용자가 작성한 활성화된 포럼이 있으면 선택지에 추가
       if (activePosts.length > 0) {
         activePosts.forEach(post => {
           selectOptions.push({
             label: `🔗 ${post.name}`,
-            description: `${post.name} 포럼에 연동`,
+            description: `내가 작성한 "${post.name}" 포럼에 연동`,
             value: `existing_forum_${voiceChannelId}_${post.id}`
           });
         });
+      } else {
+        // 사용자가 작성한 포럼이 없는 경우 안내 메시지 추가
+        embed.setDescription('새로운 포럼을 생성하거나 본인이 작성한 기존 포럼에 연동할 수 있습니다.\n\n💡 현재 연동할 수 있는 본인 작성 포럼이 없습니다.');
       }
 
       const selectMenu = new StringSelectMenuBuilder()
@@ -985,7 +1014,7 @@ export class VoiceChannelForumIntegrationService {
       const waitButton = new ButtonBuilder()
         .setCustomId(`voice_wait_${voiceChannel.id}`)
         .setLabel('대기하기')
-        .setStyle(ButtonStyle.Primary)
+        .setStyle(ButtonStyle.Success)
         .setEmoji('⏳');
 
       const spectateButton = new ButtonBuilder()
@@ -997,7 +1026,7 @@ export class VoiceChannelForumIntegrationService {
       const resetButton = new ButtonBuilder()
         .setCustomId(`voice_reset_${voiceChannel.id}`)
         .setLabel('초기화')
-        .setStyle(ButtonStyle.Success)
+        .setStyle(ButtonStyle.Primary)
         .setEmoji('🔄');
 
       const voiceButtonRow = new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
