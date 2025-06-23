@@ -18,6 +18,7 @@ export class VoiceChannelForumIntegrationService {
     this.forumChannelId = forumChannelId; // 1385861379377987655
     this.voiceCategoryId = voiceCategoryId; // 1243578210684243970
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
+    this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
     
     // 디버깅용: 주기적으로 매핑 상태 출력
     setInterval(() => {
@@ -55,17 +56,26 @@ export class VoiceChannelForumIntegrationService {
    */
   async handleChannelDelete(channel) {
     try {
+      console.log(`[VoiceForumService] 채널 삭제 이벤트 감지: ${channel.name} (ID: ${channel.id}, Type: ${channel.type})`);
+      console.log(`[VoiceForumService] 현재 매핑된 채널들:`, Array.from(this.channelPostMap.keys()));
+      console.log(`[VoiceForumService] 삭제된 채널이 매핑에 있는가?`, this.channelPostMap.has(channel.id));
+      
       // 음성 채널이고 매핑된 포럼 포스트가 있는 경우
       if (channel.type === ChannelType.GuildVoice && 
           this.channelPostMap.has(channel.id)) {
         
-        console.log(`음성 채널 삭제 감지: ${channel.name} (ID: ${channel.id})`);
+        console.log(`[VoiceForumService] 음성 채널 삭제 감지: ${channel.name} (ID: ${channel.id})`);
         
         const postId = this.channelPostMap.get(channel.id);
+        console.log(`[VoiceForumService] 연결된 포럼 포스트 ID: ${postId}`);
+        
         await this.archiveForumPost(postId);
         
         // 매핑 제거
         this.channelPostMap.delete(channel.id);
+        console.log(`[VoiceForumService] 채널-포스트 매핑 제거 완료`);
+      } else {
+        console.log(`[VoiceForumService] 아카이브 조건 불일치: 음성채널=${channel.type === ChannelType.GuildVoice}, 매핑존재=${this.channelPostMap.has(channel.id)}`);
       }
     } catch (error) {
       console.error('음성 채널 삭제 처리 오류:', error);
@@ -110,23 +120,88 @@ export class VoiceChannelForumIntegrationService {
         // 이전 채널에서 퇴장한 경우
         if (oldState.channelId && this.channelPostMap.has(oldState.channelId)) {
           console.log(`[VoiceForumService] 이전 채널에서 퇴장 처리: ${oldState.channelId}`);
-          // 약간의 지연을 두어 Discord API 동기화 기다림
-          setTimeout(() => {
-            this.updateForumPostTitle(oldState.channelId);
-          }, 1000);
+          // 중복 업데이트 방지를 위한 큐 기반 업데이트
+          this.queueTitleUpdate(oldState.channelId, true);
         }
         
         // 새 채널에 입장한 경우
         if (newState.channelId && this.channelPostMap.has(newState.channelId)) {
           console.log(`[VoiceForumService] 새 채널에 입장 처리: ${newState.channelId}`);
-          // 약간의 지연을 두어 Discord API 동기화 기다림
-          setTimeout(() => {
-            this.updateForumPostTitle(newState.channelId);
-          }, 1000);
+          // 중복 업데이트 방지를 위한 큐 기반 업데이트
+          this.queueTitleUpdate(newState.channelId, false);
         }
       }
     } catch (error) {
       console.error('음성 상태 업데이트 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 제목 업데이트를 큐에 추가 (중복 방지)
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {boolean} checkEmpty - 빈 채널 확인 여부
+   */
+  queueTitleUpdate(voiceChannelId, checkEmpty = false) {
+    // 이미 큐에 있는 업데이트 취소
+    if (this.updateQueue.has(voiceChannelId)) {
+      clearTimeout(this.updateQueue.get(voiceChannelId));
+    }
+
+    // 새로운 업데이트 예약
+    const timeoutId = setTimeout(async () => {
+      try {
+        console.log(`[VoiceForumService] 큐에서 제목 업데이트 실행: ${voiceChannelId}`);
+        await this.updateForumPostTitle(voiceChannelId);
+        
+        if (checkEmpty) {
+          await this.checkAndArchiveIfEmpty(voiceChannelId);
+        }
+        
+        // 큐에서 제거
+        this.updateQueue.delete(voiceChannelId);
+      } catch (error) {
+        console.error(`[VoiceForumService] 큐 업데이트 오류:`, error);
+        this.updateQueue.delete(voiceChannelId);
+      }
+    }, 1500); // 1.5초 지연
+
+    this.updateQueue.set(voiceChannelId, timeoutId);
+    console.log(`[VoiceForumService] 제목 업데이트 큐에 추가: ${voiceChannelId}`);
+  }
+
+  /**
+   * 음성 채널이 비었는지 확인하고 포럼 포스트 아카이브
+   * @param {string} voiceChannelId - 음성 채널 ID
+   */
+  async checkAndArchiveIfEmpty(voiceChannelId) {
+    try {
+      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+      if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
+        console.log(`[VoiceForumService] 음성 채널을 찾을 수 없음 또는 삭제됨: ${voiceChannelId}`);
+        // 채널이 삭제된 경우 포럼 포스트 아카이브
+        const postId = this.channelPostMap.get(voiceChannelId);
+        if (postId) {
+          console.log(`[VoiceForumService] 삭제된 채널의 포럼 포스트 아카이브: ${voiceChannelId} -> ${postId}`);
+          await this.archiveForumPost(postId);
+          this.channelPostMap.delete(voiceChannelId);
+        }
+        return;
+      }
+
+      // 음성 채널이 완전히 비었는지 확인
+      const memberCount = voiceChannel.members.size;
+      console.log(`[VoiceForumService] 음성 채널 ${voiceChannel.name} 멤버 수: ${memberCount}`);
+      
+      if (memberCount === 0) {
+        console.log(`[VoiceForumService] 음성 채널이 비어있음. 포럼 포스트 아카이브: ${voiceChannelId}`);
+        const postId = this.channelPostMap.get(voiceChannelId);
+        if (postId) {
+          await this.archiveForumPost(postId);
+          this.channelPostMap.delete(voiceChannelId);
+        }
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 빈 채널 확인 및 아카이브 오류:`, error);
     }
   }
 
@@ -175,8 +250,9 @@ export class VoiceChannelForumIntegrationService {
   /**
    * 포럼 포스트 제목 및 내용에서 현재 참여자 수 업데이트
    * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {number} retryCount - 재시도 횟수
    */
-  async updateForumPostTitle(voiceChannelId) {
+  async updateForumPostTitle(voiceChannelId, retryCount = 0) {
     try {
       const postId = this.channelPostMap.get(voiceChannelId);
       if (!postId) {
@@ -213,14 +289,28 @@ export class VoiceChannelForumIntegrationService {
         
         // 제목이 실제로 변경된 경우에만 업데이트
         if (newTitle !== currentTitle) {
-          // 1. 스레드 제목 업데이트
-          await thread.setName(newTitle);
-          console.log(`[VoiceForumService] 스레드 제목 업데이트 완료`);
-          
-          // 2. 포럼 포스트 내용의 제목도 업데이트
-          await this.updateForumPostContent(thread, currentPattern, newPattern);
-          
-          console.log(`포럼 포스트 제목 및 내용 업데이트: ${currentTitle} -> ${newTitle}`);
+          try {
+            // 1. 스레드 제목 업데이트 (재시도 로직 포함)
+            await this.updateThreadNameWithRetry(thread, newTitle, 3);
+            console.log(`[VoiceForumService] 스레드 제목 업데이트 완료`);
+            
+            // 2. 포럼 포스트 내용의 제목도 업데이트
+            await this.updateForumPostContent(thread, currentPattern, newPattern);
+            
+            console.log(`포럼 포스트 제목 및 내용 업데이트: ${currentTitle} -> ${newTitle}`);
+          } catch (updateError) {
+            console.error(`[VoiceForumService] 업데이트 실패 (시도 ${retryCount + 1}/3):`, updateError.message);
+            
+            // 최대 3번까지 재시도
+            if (retryCount < 2) {
+              console.log(`[VoiceForumService] ${1000 * (retryCount + 2)}ms 후 재시도...`);
+              setTimeout(() => {
+                this.updateForumPostTitle(voiceChannelId, retryCount + 1);
+              }, 1000 * (retryCount + 2)); // 2초, 3초, 4초 간격
+            } else {
+              console.error(`[VoiceForumService] 최대 재시도 횟수 초과. 업데이트 포기: ${voiceChannelId}`);
+            }
+          }
         } else {
           console.log(`[VoiceForumService] 제목 변경 불필요 (동일함)`);
         }
@@ -229,6 +319,41 @@ export class VoiceChannelForumIntegrationService {
       }
     } catch (error) {
       console.error('포럼 포스트 제목 업데이트 오류:', error);
+      
+      // 최대 3번까지 재시도
+      if (retryCount < 2) {
+        console.log(`[VoiceForumService] ${1000 * (retryCount + 2)}ms 후 재시도...`);
+        setTimeout(() => {
+          this.updateForumPostTitle(voiceChannelId, retryCount + 1);
+        }, 1000 * (retryCount + 2));
+      }
+    }
+  }
+
+  /**
+   * 스레드 이름 업데이트 (재시도 로직 포함)
+   * @param {ThreadChannel} thread - 스레드 채널
+   * @param {string} newName - 새로운 이름
+   * @param {number} maxRetries - 최대 재시도 횟수
+   */
+  async updateThreadNameWithRetry(thread, newName, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        await thread.setName(newName);
+        console.log(`[VoiceForumService] 스레드 이름 업데이트 성공 (시도 ${attempt}/${maxRetries})`);
+        return; // 성공시 함수 종료
+      } catch (error) {
+        console.warn(`[VoiceForumService] 스레드 이름 업데이트 실패 (시도 ${attempt}/${maxRetries}):`, error.message);
+        
+        if (attempt === maxRetries) {
+          throw error; // 마지막 시도에서 실패하면 에러 throw
+        }
+        
+        // 다음 시도 전 대기 (지수적 백오프)
+        const delay = Math.pow(2, attempt) * 1000; // 2초, 4초, 8초
+        console.log(`[VoiceForumService] ${delay}ms 후 재시도...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
   }
 
@@ -915,21 +1040,26 @@ export class VoiceChannelForumIntegrationService {
    */
   async archiveForumPost(postId) {
     try {
+      console.log(`[VoiceForumService] 포럼 포스트 아카이브 시작: ${postId}`);
+      
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread()) {
-        console.error('스레드를 찾을 수 없습니다:', postId);
+        console.error(`[VoiceForumService] 스레드를 찾을 수 없습니다: ${postId}`);
         return;
       }
 
+      console.log(`[VoiceForumService] 스레드 정보: ${thread.name}, 아카이브됨: ${thread.archived}, 잠김: ${thread.locked}`);
+
       // 이미 아카이브되었거나 잠겨있는지 확인
       if (thread.archived) {
-        console.log(`스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
+        console.log(`[VoiceForumService] 스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
         return;
       }
 
       // 아카이브 알림 메시지 전송 (스레드가 활성화되어 있을 때만)
       try {
+        console.log(`[VoiceForumService] 아카이브 알림 메시지 전송 중...`);
         const archiveEmbed = new EmbedBuilder()
           .setTitle('📁 구인구직 종료')
           .setDescription('연결된 음성 채널이 삭제되어 이 구인구직이 자동으로 종료되었습니다.')
@@ -937,29 +1067,36 @@ export class VoiceChannelForumIntegrationService {
           .setTimestamp();
 
         await thread.send({ embeds: [archiveEmbed] });
+        console.log(`[VoiceForumService] 아카이브 알림 메시지 전송 완료`);
       } catch (messageError) {
-        console.warn('아카이브 메시지 전송 실패 (스레드가 이미 제한될 수 있음):', messageError.message);
+        console.warn(`[VoiceForumService] 아카이브 메시지 전송 실패:`, messageError.message);
       }
 
       // 스레드 아카이브 및 잠금
       try {
+        console.log(`[VoiceForumService] 스레드 아카이브 및 잠금 시작...`);
+        
         if (!thread.archived) {
           await thread.setArchived(true);
+          console.log(`[VoiceForumService] 스레드 아카이브 완료`);
         }
+        
         if (!thread.locked) {
           await thread.setLocked(true);
+          console.log(`[VoiceForumService] 스레드 잠금 완료`);
         }
-        console.log(`포럼 포스트 아카이브 완료: ${thread.name} (ID: ${postId})`);
+        
+        console.log(`[VoiceForumService] 포럼 포스트 아카이브 완료: ${thread.name} (ID: ${postId})`);
       } catch (archiveError) {
         // 이미 아카이브된 경우의 에러는 무시
         if (archiveError.code === 50083) {
-          console.log(`스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
+          console.log(`[VoiceForumService] 스레드가 이미 아카이브되어 있습니다: ${thread.name} (ID: ${postId})`);
         } else {
-          console.error('스레드 아카이브 실패:', archiveError.message);
+          console.error(`[VoiceForumService] 스레드 아카이브 실패:`, archiveError);
         }
       }
     } catch (error) {
-      console.error('포럼 포스트 아카이브 처리 오류:', error.message);
+      console.error(`[VoiceForumService] 포럼 포스트 아카이브 처리 오류:`, error);
     }
   }
 
