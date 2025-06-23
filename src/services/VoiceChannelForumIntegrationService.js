@@ -20,10 +20,13 @@ export class VoiceChannelForumIntegrationService {
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
     
-    // 디버깅용: 주기적으로 매핑 상태 출력
-    setInterval(() => {
+    // 디버깅용: 주기적으로 매핑 상태 출력 및 삭제된 채널 정리
+    setInterval(async () => {
       if (this.channelPostMap.size > 0) {
         console.log(`[VoiceForumService] ⏰ 정기 체크 - 현재 채널-포스트 매핑 (${this.channelPostMap.size}개):`, Array.from(this.channelPostMap.entries()));
+        
+        // 삭제된 채널 정리
+        await this.cleanupDeletedChannels();
       } else {
         console.log(`[VoiceForumService] ⏰ 정기 체크 - 현재 매핑된 채널 없음`);
       }
@@ -206,12 +209,7 @@ export class VoiceChannelForumIntegrationService {
       if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
         console.log(`[VoiceForumService] 음성 채널을 찾을 수 없음 또는 삭제됨: ${voiceChannelId}`);
         // 채널이 삭제된 경우 포럼 포스트 아카이브
-        const postId = this.channelPostMap.get(voiceChannelId);
-        if (postId) {
-          console.log(`[VoiceForumService] 삭제된 채널의 포럼 포스트 아카이브: ${voiceChannelId} -> ${postId}`);
-          await this.archiveForumPost(postId);
-          this.channelPostMap.delete(voiceChannelId);
-        }
+        await this.handleDeletedChannelCleanup(voiceChannelId);
         return;
       }
 
@@ -228,6 +226,13 @@ export class VoiceChannelForumIntegrationService {
         }
       }
     } catch (error) {
+      // 채널이 삭제된 경우 (Unknown Channel 오류)
+      if (error.code === 10003) {
+        console.log(`[VoiceForumService] 🗑️ 빈 채널 체크 중 삭제된 채널 감지: ${voiceChannelId}`);
+        await this.handleDeletedChannelCleanup(voiceChannelId);
+        return;
+      }
+      
       console.error(`[VoiceForumService] 빈 채널 확인 및 아카이브 오류:`, error);
     }
   }
@@ -269,8 +274,67 @@ export class VoiceChannelForumIntegrationService {
       console.log(`[VoiceForumService] 최종 카운트 - 활성: ${activeCount}, 관전: ${spectatorCount}, 총: ${members.size}`);
       return activeCount;
     } catch (error) {
+      // 채널이 삭제된 경우 (Unknown Channel 오류)
+      if (error.code === 10003) {
+        console.log(`[VoiceForumService] 🗑️ 채널이 삭제됨 감지: ${voiceChannelId}`);
+        // 삭제된 채널의 포럼 포스트 아카이브 처리
+        await this.handleDeletedChannelCleanup(voiceChannelId);
+        return 0;
+      }
+      
       console.error('참여자 수 카운트 오류:', error);
       return 0;
+    }
+  }
+
+  /**
+   * 삭제된 채널의 정리 작업
+   * @param {string} voiceChannelId - 삭제된 음성 채널 ID
+   */
+  async handleDeletedChannelCleanup(voiceChannelId) {
+    try {
+      const postId = this.channelPostMap.get(voiceChannelId);
+      if (postId) {
+        console.log(`[VoiceForumService] 🗑️ 삭제된 채널의 포럼 포스트 아카이브 시작: ${voiceChannelId} -> ${postId}`);
+        await this.archiveForumPost(postId);
+        this.channelPostMap.delete(voiceChannelId);
+        console.log(`[VoiceForumService] ✅ 삭제된 채널 정리 완료: ${voiceChannelId}`);
+      }
+    } catch (error) {
+      console.error(`[VoiceForumService] 삭제된 채널 정리 오류:`, error);
+    }
+  }
+
+  /**
+   * 모든 매핑된 채널 중 삭제된 채널들을 정리
+   */
+  async cleanupDeletedChannels() {
+    console.log(`[VoiceForumService] 🧹 삭제된 채널 일괄 정리 시작 (매핑 수: ${this.channelPostMap.size})`);
+    
+    const deletedChannels = [];
+    
+    for (const [channelId, postId] of this.channelPostMap.entries()) {
+      try {
+        await this.client.channels.fetch(channelId);
+        // 채널이 존재하면 계속
+      } catch (error) {
+        if (error.code === 10003) {
+          // Unknown Channel 오류 - 채널이 삭제됨
+          console.log(`[VoiceForumService] 🗑️ 정리 대상 발견: ${channelId} -> ${postId}`);
+          deletedChannels.push(channelId);
+        }
+      }
+    }
+    
+    // 삭제된 채널들 정리
+    for (const channelId of deletedChannels) {
+      await this.handleDeletedChannelCleanup(channelId);
+    }
+    
+    if (deletedChannels.length > 0) {
+      console.log(`[VoiceForumService] ✅ 삭제된 채널 일괄 정리 완료: ${deletedChannels.length}개 채널 정리됨`);
+    } else {
+      console.log(`[VoiceForumService] ✅ 삭제된 채널 없음 - 정리 불필요`);
     }
   }
 
