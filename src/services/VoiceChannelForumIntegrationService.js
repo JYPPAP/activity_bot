@@ -23,7 +23,9 @@ export class VoiceChannelForumIntegrationService {
     // 디버깅용: 주기적으로 매핑 상태 출력
     setInterval(() => {
       if (this.channelPostMap.size > 0) {
-        console.log(`[VoiceForumService] 현재 채널-포스트 매핑:`, Array.from(this.channelPostMap.entries()));
+        console.log(`[VoiceForumService] ⏰ 정기 체크 - 현재 채널-포스트 매핑 (${this.channelPostMap.size}개):`, Array.from(this.channelPostMap.entries()));
+      } else {
+        console.log(`[VoiceForumService] ⏰ 정기 체크 - 현재 매핑된 채널 없음`);
       }
     }, 30000); // 30초마다
   }
@@ -56,15 +58,28 @@ export class VoiceChannelForumIntegrationService {
    */
   async handleChannelDelete(channel) {
     try {
-      console.log(`[VoiceForumService] 채널 삭제 이벤트 감지: ${channel.name} (ID: ${channel.id}, Type: ${channel.type})`);
-      console.log(`[VoiceForumService] 현재 매핑된 채널들:`, Array.from(this.channelPostMap.keys()));
-      console.log(`[VoiceForumService] 삭제된 채널이 매핑에 있는가?`, this.channelPostMap.has(channel.id));
+      console.log(`[VoiceForumService] ═══ 채널 삭제 이벤트 시작 ═══`);
+      console.log(`[VoiceForumService] 채널명: ${channel.name}`);
+      console.log(`[VoiceForumService] 채널ID: ${channel.id}`);
+      console.log(`[VoiceForumService] 채널타입: ${channel.type} (음성채널: ${ChannelType.GuildVoice})`);
+      console.log(`[VoiceForumService] 카테고리ID: ${channel.parentId} (대상카테고리: ${this.voiceCategoryId})`);
+      console.log(`[VoiceForumService] 현재 전체 매핑:`, this.channelPostMap);
+      console.log(`[VoiceForumService] 매핑된 채널 수: ${this.channelPostMap.size}`);
+      console.log(`[VoiceForumService] 삭제된 채널이 매핑에 있는가? ${this.channelPostMap.has(channel.id)}`);
+      
+      // 조건 체크
+      const isVoiceChannel = channel.type === ChannelType.GuildVoice;
+      const isInTargetCategory = channel.parentId === this.voiceCategoryId;
+      const hasMappedPost = this.channelPostMap.has(channel.id);
+      
+      console.log(`[VoiceForumService] 조건 체크:`);
+      console.log(`[VoiceForumService] - 음성 채널인가? ${isVoiceChannel}`);
+      console.log(`[VoiceForumService] - 대상 카테고리인가? ${isInTargetCategory}`);
+      console.log(`[VoiceForumService] - 매핑된 포스트가 있는가? ${hasMappedPost}`);
       
       // 음성 채널이고 매핑된 포럼 포스트가 있는 경우
-      if (channel.type === ChannelType.GuildVoice && 
-          this.channelPostMap.has(channel.id)) {
-        
-        console.log(`[VoiceForumService] 음성 채널 삭제 감지: ${channel.name} (ID: ${channel.id})`);
+      if (isVoiceChannel && hasMappedPost) {
+        console.log(`[VoiceForumService] ✅ 아카이브 조건 충족 - 처리 시작`);
         
         const postId = this.channelPostMap.get(channel.id);
         console.log(`[VoiceForumService] 연결된 포럼 포스트 ID: ${postId}`);
@@ -74,11 +89,23 @@ export class VoiceChannelForumIntegrationService {
         // 매핑 제거
         this.channelPostMap.delete(channel.id);
         console.log(`[VoiceForumService] 채널-포스트 매핑 제거 완료`);
+        console.log(`[VoiceForumService] ✅ 아카이브 처리 완료`);
       } else {
-        console.log(`[VoiceForumService] 아카이브 조건 불일치: 음성채널=${channel.type === ChannelType.GuildVoice}, 매핑존재=${this.channelPostMap.has(channel.id)}`);
+        console.log(`[VoiceForumService] ❌ 아카이브 조건 불충족:`);
+        console.log(`[VoiceForumService] - 음성채널: ${isVoiceChannel}`);
+        console.log(`[VoiceForumService] - 대상카테고리: ${isInTargetCategory}`);
+        console.log(`[VoiceForumService] - 매핑존재: ${hasMappedPost}`);
+        
+        if (!hasMappedPost) {
+          console.log(`[VoiceForumService] 💡 매핑이 없는 이유 확인:`);
+          console.log(`[VoiceForumService] - 포럼 생성 시 매핑이 저장되었는가?`);
+          console.log(`[VoiceForumService] - 이전에 매핑이 삭제되었는가?`);
+        }
       }
+      
+      console.log(`[VoiceForumService] ═══ 채널 삭제 이벤트 종료 ═══`);
     } catch (error) {
-      console.error('음성 채널 삭제 처리 오류:', error);
+      console.error('[VoiceForumService] 음성 채널 삭제 처리 오류:', error);
     }
   }
 
@@ -717,6 +744,8 @@ export class VoiceChannelForumIntegrationService {
 
       // 채널-포스트 매핑 저장
       this.channelPostMap.set(voiceChannelId, existingPostId);
+      console.log(`[VoiceForumService] 🔗 기존 포럼 연동 매핑 저장: ${voiceChannelId} -> ${existingPostId}`);
+      console.log(`[VoiceForumService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
 
       await interaction.reply({
         content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`,
@@ -930,6 +959,8 @@ export class VoiceChannelForumIntegrationService {
     if (postId) {
       // 채널-포스트 매핑 저장
       this.channelPostMap.set(voiceChannelId, postId);
+      console.log(`[VoiceForumService] 🔗 새 포럼 생성 매핑 저장: ${voiceChannelId} -> ${postId}`);
+      console.log(`[VoiceForumService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
 
       await interaction.reply({
         content: `✅ 구인구직이 성공적으로 등록되었습니다!\n🔗 포럼: <#${postId}>`,
