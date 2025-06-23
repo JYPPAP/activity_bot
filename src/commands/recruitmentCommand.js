@@ -14,6 +14,16 @@ export class RecruitmentCommand extends CommandBase {
    */
   async execute(interaction) {
     try {
+      // ========== 권한 체크 ==========
+      if (!this.voiceForumService.hasRecruitmentPermission(interaction.user, interaction.member)) {
+        await interaction.reply({
+          content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      // =============================
+
       // 모달 표시를 위해 defer 하지 않고 바로 실행
       await this.voiceForumService.showStandaloneRecruitmentModal(interaction);
     } catch (error) {

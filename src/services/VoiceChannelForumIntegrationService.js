@@ -20,6 +20,16 @@ export class VoiceChannelForumIntegrationService {
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
     
+    // ========== 구인구직 기능 권한 설정 ==========
+    // 구인구직 기능 활성화 여부 (true: 활성화, false: 비활성화)
+    this.RECRUITMENT_ENABLED = true;
+    
+    // 구인구직 기능 접근 허용 사용자 ID 목록
+    this.ALLOWED_USER_IDS = [
+      '592666673627004939' // 특정 사용자 ID
+    ];
+    // ==========================================
+    
     // 디버깅용: 주기적으로 매핑 상태 출력 및 삭제된 채널 정리
     setInterval(async () => {
       if (this.channelPostMap.size > 0) {
@@ -32,6 +42,37 @@ export class VoiceChannelForumIntegrationService {
       }
     }, 30000); // 30초마다
   }
+
+  /**
+   * ========== 권한 체크 메서드 ==========
+   * 사용자가 구인구직 기능에 접근할 수 있는지 확인
+   * @param {User} user - 확인할 사용자
+   * @param {GuildMember} member - 길드 멤버 객체 (관리자 권한 확인용)
+   * @returns {boolean} - 접근 가능 여부
+   */
+  hasRecruitmentPermission(user, member = null) {
+    // 구인구직 기능이 비활성화된 경우
+    if (!this.RECRUITMENT_ENABLED) {
+      console.log(`[VoiceForumService] ❌ 구인구직 기능이 비활성화됨`);
+      return false;
+    }
+
+    // 허용된 사용자 ID 목록에 있는 경우
+    if (this.ALLOWED_USER_IDS.includes(user.id)) {
+      console.log(`[VoiceForumService] ✅ 허용된 사용자: ${user.displayName} (${user.id})`);
+      return true;
+    }
+
+    // 관리자 권한이 있는 경우
+    if (member && member.permissions.has('Administrator')) {
+      console.log(`[VoiceForumService] ✅ 관리자 권한: ${user.displayName} (${user.id})`);
+      return true;
+    }
+
+    console.log(`[VoiceForumService] ❌ 권한 없음: ${user.displayName} (${user.id})`);
+    return false;
+  }
+  // ====================================
 
   /**
    * 음성 채널 생성 이벤트 핸들러
@@ -491,9 +532,17 @@ export class VoiceChannelForumIntegrationService {
    */
   async sendRecruitmentEmbed(voiceChannel) {
     try {
+      // ========== 권한 체크 ==========
+      // 구인구직 기능이 비활성화된 경우 임베드 전송 안함
+      if (!this.RECRUITMENT_ENABLED) {
+        console.log(`[VoiceForumService] 구인구직 기능 비활성화로 임베드 전송 안함: ${voiceChannel.name}`);
+        return;
+      }
+      // =============================
+
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동')
-        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?')
+        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n⚠️ **현재 베타 기능** - 특정 사용자만 이용 가능')
         .addFields(
           { name: '📍 채널', value: voiceChannel.name, inline: true },
           { name: '🔗 바로가기', value: `<#${voiceChannel.id}>`, inline: true }
@@ -584,6 +633,16 @@ export class VoiceChannelForumIntegrationService {
       if (!interaction.customId.startsWith('recruitment_options_')) {
         return;
       }
+
+      // ========== 권한 체크 ==========
+      if (!this.hasRecruitmentPermission(interaction.user, interaction.member)) {
+        await interaction.reply({
+          content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      // =============================
 
       const voiceChannelId = interaction.customId.split('_')[2];
       const voiceChannel = await this.client.channels.fetch(voiceChannelId);
@@ -684,6 +743,18 @@ export class VoiceChannelForumIntegrationService {
    */
   async showStandaloneRecruitmentModal(interaction) {
     try {
+      // ========== 권한 체크 ==========
+      // 이 메서드는 이미 RecruitmentCommand에서 권한 체크를 했지만
+      // 추가 보안을 위해 여기서도 체크
+      if (!this.hasRecruitmentPermission(interaction.user, interaction.member)) {
+        await interaction.reply({
+          content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      // =============================
+
       const modal = new ModalBuilder()
         .setCustomId('standalone_recruitment_modal')
         .setTitle('구인구직 포럼 생성');
