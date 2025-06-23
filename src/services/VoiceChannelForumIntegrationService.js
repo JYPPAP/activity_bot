@@ -657,11 +657,10 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 활성화된 포럼 포스트 목록 가져오기
-   * @param {string} userId - 사용자 ID (옵션, 지정시 해당 사용자가 작성한 포스트만)
+   * 활성화된 포럼 포스트 목록 가져오기 (최대 15개)
    * @returns {Array} - 활성화된 포럼 포스트 배열
    */
-  async getActiveForumPosts(userId = null) {
+  async getActiveForumPosts() {
     try {
       const forumChannel = await this.client.channels.fetch(this.forumChannelId);
       
@@ -674,79 +673,13 @@ export class VoiceChannelForumIntegrationService {
       
       let filteredThreads = activeThreads.threads.filter(thread => !thread.archived && !thread.locked);
       
-      // 특정 사용자의 포스트만 필터링 (요청된 경우)
-      if (userId) {
-        console.log(`[VoiceForumService] ${userId} 사용자의 포스트만 필터링 중...`);
-        
-        const userPosts = [];
-        for (const [threadId, thread] of filteredThreads) {
-          try {
-            // 스레드의 첫 번째 메시지 가져오기 (내용에서 모집자 확인용)
-            const messages = await thread.messages.fetch({ limit: 1 });
-            const firstMessage = messages.first();
-            
-            if (firstMessage) {
-              let isUserPost = false;
-              
-              // 1. 메시지 작성자가 사용자인 경우 (직접 연동)
-              if (firstMessage.author.id === userId) {
-                isUserPost = true;
-                console.log(`[VoiceForumService] 직접 작성 포스트: ${thread.name}`);
-              }
-              
-              // 2. 봇이 작성했지만 내용에 모집자 ID가 있는 경우 (/구직 명령어)
-              else if (firstMessage.author.bot) {
-                console.log(`[VoiceForumService] 봇 포스트 분석 시작: ${thread.name}`);
-                console.log(`[VoiceForumService] 임베드 개수: ${firstMessage.embeds?.length || 0}`);
-                
-                // 임베드가 있는지 확인하고 안전하게 접근
-                if (firstMessage.embeds && firstMessage.embeds.length > 0) {
-                  const embedDescription = firstMessage.embeds[0].description;
-                  console.log(`[VoiceForumService] 임베드 설명 일부:`, embedDescription ? embedDescription.substring(0, 200) + '...' : 'null');
-                  
-                  if (embedDescription) {
-                    // 모집자 멘션 패턴 찾기: <@사용자ID>
-                    const recruiterPattern = new RegExp(`<@${userId}>`);
-                    console.log(`[VoiceForumService] 모집자 패턴 검색: <@${userId}>`);
-                    
-                    if (recruiterPattern.test(embedDescription)) {
-                      isUserPost = true;
-                      console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 모집자 발견: ${thread.name}`);
-                    } else {
-                      console.log(`[VoiceForumService] ❌ 모집자 패턴 없음: ${thread.name}`);
-                    }
-                  } else {
-                    console.log(`[VoiceForumService] ❌ 임베드 설명 없음: ${thread.name}`);
-                  }
-                } else {
-                  console.log(`[VoiceForumService] ❌ 봇 포스트에 임베드 없음: ${thread.name}`);
-                  console.log(`[VoiceForumService] 메시지 내용 길이: ${firstMessage.content?.length || 0}`);
-                  console.log(`[VoiceForumService] 메시지 내용 일부:`, firstMessage.content ? firstMessage.content.substring(0, 200) + '...' : 'null');
-                  
-                  // 임베드가 없는 경우 메시지 내용에서 직접 검색
-                  if (firstMessage.content && firstMessage.content.includes(`<@${userId}>`)) {
-                    isUserPost = true;
-                    console.log(`[VoiceForumService] ✅ 봇 작성 포스트의 메시지 내용에서 모집자 발견: ${thread.name}`);
-                  } else {
-                    console.log(`[VoiceForumService] ❌ 메시지 내용에서도 모집자 패턴 없음: <@${userId}>`);
-                  }
-                }
-              } else {
-                console.log(`[VoiceForumService] 기타 포스트 (봇=${firstMessage.author.bot}, 임베드=${firstMessage.embeds?.length || 0}): ${thread.name}`);
-              }
-              
-              if (isUserPost) {
-                userPosts.push(thread);
-                console.log(`[VoiceForumService] 사용자 포스트 발견: ${thread.name}`);
-              }
-            }
-          } catch (fetchError) {
-            console.warn(`[VoiceForumService] 스레드 메시지 조회 실패: ${threadId}`, fetchError.message);
-          }
-        }
-        
-        filteredThreads = new Map(userPosts.map(thread => [thread.id, thread]));
-        console.log(`[VoiceForumService] 필터링 결과: ${filteredThreads.size}개 포스트`);
+      console.log(`[VoiceForumService] 활성화된 포럼 포스트 ${filteredThreads.size}개 발견`);
+      
+      // 최대 15개로 제한
+      const threadsArray = Array.from(filteredThreads.values()).slice(0, 15);
+      filteredThreads = new Map(threadsArray.map(thread => [thread.id, thread]));
+      
+      console.log(`[VoiceForumService] 최대 15개로 제한: ${filteredThreads.size}개 포스트`);
       }
       
       return Array.from(filteredThreads.values())
@@ -774,7 +707,7 @@ export class VoiceChannelForumIntegrationService {
 
       // ========== 권한 체크 ==========
       if (!this.hasRecruitmentPermission(interaction.user, interaction.member)) {
-        await interaction.reply({
+        await this.safeReply(interaction, {
           content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
           flags: MessageFlags.Ephemeral
         });
@@ -786,19 +719,19 @@ export class VoiceChannelForumIntegrationService {
       const voiceChannel = await this.client.channels.fetch(voiceChannelId);
 
       if (!voiceChannel) {
-        await interaction.reply({
+        await this.safeReply(interaction, {
           content: '❌ 음성 채널을 찾을 수 없습니다.',
           flags: MessageFlags.Ephemeral
         });
         return;
       }
 
-      // 활성화된 포럼 포스트 가져오기 (버튼을 누른 사용자의 포스트만)
-      const activePosts = await this.getActiveForumPosts(interaction.user.id);
+      // 활성화된 포럼 포스트 가져오기 (모든 포스트, 최대 15개)
+      const activePosts = await this.getActiveForumPosts();
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동 방법 선택')
-        .setDescription('새로운 포럼을 생성하거나 본인이 작성한 기존 포럼에 연동할 수 있습니다.')
+        .setDescription('새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.')
         .setColor(0x5865F2);
 
       const selectOptions = [
@@ -809,18 +742,15 @@ export class VoiceChannelForumIntegrationService {
         }
       ];
 
-      // 사용자가 작성한 활성화된 포럼이 있으면 선택지에 추가
+      // 활성화된 포럼이 있으면 선택지에 추가 (최대 15개)
       if (activePosts.length > 0) {
         activePosts.forEach(post => {
           selectOptions.push({
             label: `🔗 ${post.name}`,
-            description: `내가 작성한 "${post.name}" 포럼에 연동`,
+            description: `"${post.name}" 포럼에 연동`,
             value: `existing_forum_${voiceChannelId}_${post.id}`
           });
         });
-      } else {
-        // 사용자가 작성한 포럼이 없는 경우 안내 메시지 추가
-        embed.setDescription('새로운 포럼을 생성하거나 본인이 작성한 기존 포럼에 연동할 수 있습니다.\n\n💡 현재 연동할 수 있는 본인 작성 포럼이 없습니다.');
       }
 
       const selectMenu = new StringSelectMenuBuilder()
@@ -830,14 +760,14 @@ export class VoiceChannelForumIntegrationService {
 
       const row = new ActionRowBuilder().addComponents(selectMenu);
 
-      await interaction.reply({
+      await this.safeReply(interaction, {
         embeds: [embed],
         components: [row],
         flags: MessageFlags.Ephemeral
       });
     } catch (error) {
       console.error('버튼 인터랙션 처리 오류:', error);
-      await interaction.reply({
+      await this.safeReply(interaction, {
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
