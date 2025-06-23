@@ -225,6 +225,12 @@ export class Bot {
       this.activityTracker.handleVoiceStateUpdate.bind(this.activityTracker)
     );
 
+    // 음성채널-포럼 연동: 음성 상태 변경 이벤트
+    this.eventManager.registerHandler(
+      Events.VoiceStateUpdate,
+      this.voiceForumService.handleVoiceStateUpdate.bind(this.voiceForumService)
+    );
+
     // 멤버 업데이트 이벤트
     this.eventManager.registerHandler(
       Events.GuildMemberUpdate,

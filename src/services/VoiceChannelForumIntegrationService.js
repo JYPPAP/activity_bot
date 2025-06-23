@@ -88,6 +88,103 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 음성 채널 상태 변경 이벤트 핸들러 (사용자 입장/퇴장)
+   * @param {VoiceState} oldState - 이전 음성 상태
+   * @param {VoiceState} newState - 새로운 음성 상태
+   */
+  async handleVoiceStateUpdate(oldState, newState) {
+    try {
+      // 음성 채널에 사용자가 입장하거나 퇴장한 경우
+      const channelChanged = oldState.channelId !== newState.channelId;
+      
+      if (channelChanged) {
+        // 이전 채널에서 퇴장한 경우
+        if (oldState.channelId && this.channelPostMap.has(oldState.channelId)) {
+          await this.updateForumPostTitle(oldState.channelId);
+        }
+        
+        // 새 채널에 입장한 경우
+        if (newState.channelId && this.channelPostMap.has(newState.channelId)) {
+          await this.updateForumPostTitle(newState.channelId);
+        }
+      }
+    } catch (error) {
+      console.error('음성 상태 업데이트 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 음성 채널의 참여자 수를 카운트 (관전자 제외)
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @returns {number} - 관전자를 제외한 참여자 수
+   */
+  async countActiveParticipants(voiceChannelId) {
+    try {
+      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+      if (!voiceChannel || voiceChannel.type !== ChannelType.GuildVoice) {
+        return 0;
+      }
+
+      // 음성 채널의 모든 멤버를 가져와서 관전자가 아닌 사용자 수를 카운트
+      const members = voiceChannel.members;
+      let activeCount = 0;
+
+      for (const [memberId, member] of members) {
+        const nickname = member.nickname || member.user.displayName;
+        // [관전]으로 시작하지 않는 사용자만 카운트
+        if (!nickname.startsWith('[관전]')) {
+          activeCount++;
+        }
+      }
+
+      return activeCount;
+    } catch (error) {
+      console.error('참여자 수 카운트 오류:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 포럼 포스트 제목에서 현재 참여자 수 업데이트
+   * @param {string} voiceChannelId - 음성 채널 ID
+   */
+  async updateForumPostTitle(voiceChannelId) {
+    try {
+      const postId = this.channelPostMap.get(voiceChannelId);
+      if (!postId) return;
+
+      const thread = await this.client.channels.fetch(postId);
+      if (!thread || !thread.isThread() || thread.archived) {
+        return;
+      }
+
+      // 현재 참여자 수 카운트
+      const currentCount = await this.countActiveParticipants(voiceChannelId);
+      
+      // 현재 제목에서 패턴 찾기 (예: 1/5, 2/5 등)
+      const currentTitle = thread.name;
+      const participantPattern = /\d+\/\d+/;
+      const match = currentTitle.match(participantPattern);
+      
+      if (match) {
+        // 기존 패턴이 있는 경우 현재 참여자 수만 업데이트
+        const [currentPattern] = match;
+        const maxCount = currentPattern.split('/')[1]; // 최대 인원수는 유지
+        const newPattern = `${currentCount}/${maxCount}`;
+        const newTitle = currentTitle.replace(participantPattern, newPattern);
+        
+        // 제목이 실제로 변경된 경우에만 업데이트
+        if (newTitle !== currentTitle) {
+          await thread.setName(newTitle);
+          console.log(`포럼 포스트 제목 업데이트: ${currentTitle} -> ${newTitle}`);
+        }
+      }
+    } catch (error) {
+      console.error('포럼 포스트 제목 업데이트 오류:', error);
+    }
+  }
+
+  /**
    * 구인구직 연동 임베드 메시지를 음성 채널에 전송
    * @param {VoiceChannel} voiceChannel - 음성 채널
    */
@@ -265,7 +362,7 @@ export class VoiceChannelForumIntegrationService {
         .setCustomId('recruitment_title')
         .setLabel('제목')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: [롤] [3명] [오후 8시]')
+        .setPlaceholder('예: [칼바람] [1/5] [오후 8시]')
         .setRequired(true)
         .setMaxLength(100);
 
@@ -273,7 +370,7 @@ export class VoiceChannelForumIntegrationService {
         .setCustomId('recruitment_tags')
         .setLabel('태그 (쉼표로 구분)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: 게임, 랭크, 캐주얼')
+        .setPlaceholder('예: 칼바람, 롤, 스팀게임')
         .setRequired(false)
         .setMaxLength(100);
 
@@ -312,7 +409,7 @@ export class VoiceChannelForumIntegrationService {
         .setCustomId('recruitment_title')
         .setLabel('제목')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: [롤] [3명] [오후 8시]')
+        .setPlaceholder('예: [칼바람] [1/5] [오후 8시]')
         .setRequired(true)
         .setMaxLength(100);
 
@@ -320,7 +417,7 @@ export class VoiceChannelForumIntegrationService {
         .setCustomId('recruitment_tags')
         .setLabel('태그 (쉼표로 구분)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: 게임, 랭크, 캐주얼')
+        .setPlaceholder('예: 칼바람, 롤, 스팀게임')
         .setRequired(false)
         .setMaxLength(100);
 
@@ -369,8 +466,7 @@ export class VoiceChannelForumIntegrationService {
         .setDescription(`새로운 음성 채널이 이 구인구직에 연동되었습니다!`)
         .addFields(
           { name: '🎯 연결된 음성 채널', value: `[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})`, inline: false },
-          { name: '👤 연동자', value: `<@${interaction.user.id}>`, inline: true },
-          { name: '⏰ 연동 시간', value: `<t:${Math.floor(Date.now() / 1000)}:R>`, inline: true }
+          { name: '👤 연동자', value: `<@${interaction.user.id}>`, inline: true }
         )
         .setColor(0x00FF00)
         .setTimestamp();
