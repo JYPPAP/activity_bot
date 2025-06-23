@@ -650,7 +650,7 @@ export class VoiceChannelForumIntegrationService {
 
       const embed = new EmbedBuilder()
         .setTitle('🎯 구인구직 연동')
-        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n✅ **관리자 및 권한 사용자 전용**')
+        .setDescription('이 음성 채널을 구인구직 포럼에 연동하시겠습니까?\n\n✅ **관리자 및 권한 사용자 전용(개발중)**')
         .addFields(
           { name: '📍 채널', value: voiceChannel.name, inline: true },
           { name: '🔗 바로가기', value: `<#${voiceChannel.id}>`, inline: true }
