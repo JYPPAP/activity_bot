@@ -570,9 +570,9 @@ export class VoiceChannelForumIntegrationService {
 
       const titleInput = new TextInputBuilder()
         .setCustomId('recruitment_title')
-        .setLabel('제목')
+        .setLabel('제목 (현재 인원/최대 인원) 필수')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: [칼바람] [1/5] [오후 8시]')
+        .setPlaceholder('예: 칼바람 1/5 오후 8시')
         .setRequired(true)
         .setMaxLength(100);
 
@@ -617,9 +617,9 @@ export class VoiceChannelForumIntegrationService {
 
       const titleInput = new TextInputBuilder()
         .setCustomId('recruitment_title')
-        .setLabel('제목')
+        .setLabel('제목 (현재 인원/최대 인원) 필수')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: [칼바람] [1/5] [오후 8시]')
+        .setPlaceholder('예: 칼바람 1/5 오후 8시')
         .setRequired(true)
         .setMaxLength(100);
 
