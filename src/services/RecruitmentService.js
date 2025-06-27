@@ -162,15 +162,17 @@ export class RecruitmentService {
    */
   async linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedRoles = []) {
     try {
+      // 즉시 defer 처리하여 3초 제한시간 해결
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      
       const [voiceChannelInfo, postInfo] = await Promise.all([
         this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId),
         this.forumPostManager.getPostInfo(existingPostId)
       ]);
 
       if (!voiceChannelInfo || !postInfo) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '❌ 채널 또는 포스트를 찾을 수 없습니다.',
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: '❌ 채널 또는 포스트를 찾을 수 없습니다.'
         });
         return;
       }
@@ -187,19 +189,21 @@ export class RecruitmentService {
       // 채널-포스트 매핑 저장
       this.mappingService.addMapping(voiceChannelId, existingPostId);
 
-      await SafeInteraction.safeReply(interaction, {
-        content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`
       });
 
       console.log(`[RecruitmentService] 기존 포럼 연동 완료: ${voiceChannelInfo.name} -> ${postInfo.name}`);
       
     } catch (error) {
       console.error('[RecruitmentService] 기존 포럼 연동 오류:', error);
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.LINK_FAILED,
-        flags: MessageFlags.Ephemeral
-      });
+      try {
+        await interaction.editReply({
+          content: RecruitmentConfig.MESSAGES.LINK_FAILED
+        });
+      } catch (editError) {
+        console.error('[RecruitmentService] 에러 응답 실패:', editError);
+      }
     }
   }
   
