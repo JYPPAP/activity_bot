@@ -10,6 +10,7 @@
     "restart": "pm2 restart discord-bot",
     "logs": "pm2 logs discord-bot",
     "restart-logs": "pm2 restart discord-bot && pm2 logs discord-bot",
+    "rel": "git pull && pm2 restart discord-bot && pm2 logs discord-bot",
     "dev": "nodemon src/index.js"
   },
   "keywords": [
