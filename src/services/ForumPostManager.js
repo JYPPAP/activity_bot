@@ -99,7 +99,7 @@ export class ForumPostManager {
     if (voiceChannelId) {
       const voiceChannel = await this.client.channels.fetch(voiceChannelId);
       if (voiceChannel) {
-        content += `## 🔊 음성 채널\n[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})\n\n`;
+        content += `## 🔊 음성 채널\nhttps://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id}\n\n`;
       }
     } else {
       content += `## 🔊 음성 채널\n음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.\n\n`;
