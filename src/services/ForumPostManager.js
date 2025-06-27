@@ -62,6 +62,19 @@ export class ForumPostManager {
         console.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패:', addError.message);
       }
       
+      // 음성 채널이 있으면 별도 메시지로 네이티브 링크 추가
+      if (voiceChannelId) {
+        try {
+          const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+          if (voiceChannel) {
+            await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannelId}`);
+            console.log(`[ForumPostManager] 음성 채널 링크 메시지 추가됨: ${voiceChannel.name}`);
+          }
+        } catch (linkError) {
+          console.warn('[ForumPostManager] 음성 채널 링크 메시지 추가 실패:', linkError.message);
+        }
+      }
+      
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return thread.id;
       
@@ -98,15 +111,6 @@ export class ForumPostManager {
     }
     
     content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
-    
-    if (voiceChannelId) {
-      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
-      if (voiceChannel) {
-        content += `## 🔊 음성 채널\nhttps://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id}\n\n`;
-      }
-    } else {
-      content += `## 🔊 음성 채널\n음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.\n\n`;
-    }
     
     content += `## 👤 모집자\n<@${recruitmentData.author.id}>`;
     
@@ -220,13 +224,14 @@ export class ForumPostManager {
         .setTitle('🔊 음성 채널 연동')
         .setDescription('새로운 음성 채널이 이 구인구직에 연동되었습니다!')
         .addFields(
-          { name: '🎯 연결된 음성 채널', value: `[${voiceChannelName} 참여하기](https://discord.com/channels/${guildId}/${voiceChannelId})`, inline: false },
           { name: '👤 연동자', value: `<@${linkerId}>`, inline: true }
         )
         .setColor(RecruitmentConfig.COLORS.SUCCESS)
         .setTimestamp();
       
+      // Embed와 별도로 네이티브 채널 링크 전송
       await thread.send({ embeds: [linkEmbed] });
+      await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${guildId}/${voiceChannelId}`);
       console.log(`[ForumPostManager] 음성 채널 연동 메시지 전송 완료: ${postId}`);
       return true;
       
