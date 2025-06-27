@@ -24,8 +24,7 @@ export class RecruitmentUIBuilder {
         '• 🆕 **새 포럼 생성**: 새로운 구인구직 포럼을 만들어 연동\n' +
         '• 🔗 **기존 포럼 선택**: 이미 생성된 구인구직에 음성 채널 연결\n\n' +
         '💡 **추가기능**\n' +
-        '• 👁️ **관전 모드**: 별명에 [관전] 태그 추가\n' +
-        '• 🔄 **채널 초기화**: 모든 참여자 연결 해제'
+        '• 👁️ **관전 모드**: 별명에 [관전] 태그 추가'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '아래 버튼을 클릭하여 원하는 작업을 선택하세요.' });
@@ -51,6 +50,25 @@ export class RecruitmentUIBuilder {
       new ActionRowBuilder().addComponents(connectButton),
       new ActionRowBuilder().addComponents(spectateButton)
     ];
+  }
+  
+  /**
+   * 연동 방법 선택 임베드 생성
+   * @param {string} voiceChannelName - 음성 채널 이름
+   * @returns {EmbedBuilder} - 생성된 임베드
+   */
+  static createMethodSelectionEmbed(voiceChannelName) {
+    return new EmbedBuilder()
+      .setTitle('🎮 구인구직 포럼 연동')
+      .setDescription(
+        `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
+        '📌 **연동 방법**\n' +
+        '• 🆕 **새 포럼 생성**: 새로운 구인구직 포럼을 만들어 연동\n' +
+        '• 🔗 **기존 포럼 선택**: 이미 생성된 구인구직에 음성 채널 연결\n\n' +
+        '💡 아래 드롭다운에서 원하는 방법을 선택하세요.'
+      )
+      .setColor(RecruitmentConfig.COLORS.INFO)
+      .setFooter({ text: '연동 방법을 선택한 후 다음 단계로 진행됩니다.' });
   }
   
   /**

@@ -33,11 +33,21 @@ export class RecruitmentService {
         return;
       }
       
+      // 음성 채널 정보 가져오기
+      const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
+      if (!voiceChannelInfo) {
+        await SafeInteraction.safeReply(interaction, {
+          content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
       // 기존 포스트 목록 가져오기
       const existingPosts = await this.forumPostManager.getExistingPosts(7);
       
       // 연동 방법 선택 UI 생성
-      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
+      const embed = RecruitmentUIBuilder.createMethodSelectionEmbed(voiceChannelInfo.name);
       const selectMenu = RecruitmentUIBuilder.createMethodSelectMenu(voiceChannelId, existingPosts);
       
       await SafeInteraction.safeReply(interaction, {
@@ -64,14 +74,28 @@ export class RecruitmentService {
       const voiceChannelId = interaction.customId.replace(DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_METHOD, '');
       const selectedValue = interaction.values[0];
       
-      // 역할 태그 선택 UI로 전환
-      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
-      const components = RecruitmentUIBuilder.createRoleTagButtons([], voiceChannelId, selectedValue, false);
-      
-      await SafeInteraction.safeUpdate(interaction, {
-        embeds: [embed],
-        components: components
-      });
+      if (selectedValue === DiscordConstants.METHOD_VALUES.NEW_FORUM) {
+        // 새 포럼 생성: 역할 태그 선택 UI로 전환
+        const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
+        const components = RecruitmentUIBuilder.createRoleTagButtons([], voiceChannelId, selectedValue, false);
+        
+        await SafeInteraction.safeUpdate(interaction, {
+          embeds: [embed],
+          components: components
+        });
+        
+      } else if (selectedValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
+        // 기존 포럼 선택: 바로 연동 처리
+        const existingPostId = selectedValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');
+        await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, []);
+        
+      } else {
+        console.warn(`[RecruitmentService] 알 수 없는 선택 값: ${selectedValue}`);
+        await SafeInteraction.safeReply(interaction, {
+          content: '❌ 잘못된 선택입니다. 다시 시도해주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+      }
       
     } catch (error) {
       console.error('[RecruitmentService] 연동 방법 선택 처리 오류:', error);
