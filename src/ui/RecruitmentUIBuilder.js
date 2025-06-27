@@ -47,14 +47,9 @@ export class RecruitmentUIBuilder {
       .setLabel('👁️ 관전 모드')
       .setStyle(ButtonStyle.Secondary);
     
-    const resetButton = new ButtonBuilder()
-      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
-      .setLabel('🔄 채널 초기화')
-      .setStyle(ButtonStyle.Danger);
-    
     return [
       new ActionRowBuilder().addComponents(connectButton),
-      new ActionRowBuilder().addComponents(spectateButton, resetButton)
+      new ActionRowBuilder().addComponents(spectateButton)
     ];
   }
   
@@ -126,31 +121,40 @@ export class RecruitmentUIBuilder {
   static createRoleTagButtons(selectedTags = [], voiceChannelId = null, methodValue = null, isStandalone = false) {
     const components = [];
     
-    // 4행 4열 버튼 그리드 생성
+    // 4행 4열 버튼 그리드 생성 (15개 태그만 표시)
     for (let row = 0; row < RecruitmentConfig.BUTTON_GRID_ROWS; row++) {
       const actionRow = new ActionRowBuilder();
+      let hasButtons = false;
       
       for (let col = 0; col < RecruitmentConfig.BUTTON_GRID_COLS; col++) {
         const tagIndex = row * RecruitmentConfig.BUTTON_GRID_COLS + col;
         const tag = RecruitmentConfig.ROLE_TAG_VALUES[tagIndex];
-        const isSelected = selectedTags.includes(tag);
         
-        let buttonCustomId;
-        if (isStandalone) {
-          buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}`;
-        } else {
-          buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON}${tag}_${voiceChannelId}_${methodValue}`;
+        // 태그가 존재할 때만 버튼 생성
+        if (tag) {
+          const isSelected = selectedTags.includes(tag);
+          
+          let buttonCustomId;
+          if (isStandalone) {
+            buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}`;
+          } else {
+            buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON}${tag}_${voiceChannelId}_${methodValue}`;
+          }
+          
+          const button = new ButtonBuilder()
+            .setCustomId(buttonCustomId)
+            .setLabel(tag)
+            .setStyle(isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary);
+          
+          actionRow.addComponents(button);
+          hasButtons = true;
         }
-        
-        const button = new ButtonBuilder()
-          .setCustomId(buttonCustomId)
-          .setLabel(tag)
-          .setStyle(isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-        
-        actionRow.addComponents(button);
       }
       
-      components.push(actionRow);
+      // 버튼이 있는 행만 추가
+      if (hasButtons) {
+        components.push(actionRow);
+      }
     }
     
     // 완료 버튼 추가

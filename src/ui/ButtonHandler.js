@@ -176,8 +176,6 @@ export class ButtonHandler {
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE)) {
         await this.handleSpectateButton(interaction);
-      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET)) {
-        await this.handleResetButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -228,38 +226,6 @@ export class ButtonHandler {
     }
   }
   
-  /**
-   * 초기화 버튼 처리
-   * @param {ButtonInteraction} interaction - 버튼 인터랙션
-   * @returns {Promise<void>}
-   */
-  async handleResetButton(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
-    
-    if (!voiceChannelInfo) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-        flags: MessageFlags.Ephemeral
-      });
-      return;
-    }
-
-    const memberCount = voiceChannelInfo.memberCount;
-    const success = await this.voiceChannelManager.resetVoiceChannel(voiceChannelId);
-    
-    if (success) {
-      await SafeInteraction.safeReply(interaction, {
-        content: `🔄 음성 채널이 초기화되었습니다!\n🔊 채널: **${voiceChannelInfo.name}**\n👥 연결 해제된 인원: **${memberCount}명**`,
-        flags: MessageFlags.Ephemeral
-      });
-    } else {
-      await SafeInteraction.safeReply(interaction, {
-        content: `❌ 음성 채널 초기화에 실패했습니다.\n🔊 채널: **${voiceChannelInfo.name}**`,
-        flags: MessageFlags.Ephemeral
-      });
-    }
-  }
   
   /**
    * 버튼 처리 라우팅
@@ -300,7 +266,6 @@ export class ButtonHandler {
    * @returns {boolean} - 음성 채널 버튼 여부
    */
   isVoiceChannelButton(customId) {
-    return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) ||
-           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET);
+    return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE);
   }
 }
