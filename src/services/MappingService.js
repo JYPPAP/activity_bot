@@ -6,17 +6,24 @@ export class MappingService {
     this.forumPostManager = forumPostManager;
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
+    this.postOwnerMap = new Map(); // 포럼 포스트 ID -> 모집자 ID 매핑 (이미지 추가 권한용)
   }
   
   /**
    * 채널-포스트 매핑 추가
    * @param {string} voiceChannelId - 음성 채널 ID
    * @param {string} postId - 포럼 포스트 ID
+   * @param {string} ownerId - 모집자 ID (선택사항)
    * @returns {void}
    */
-  addMapping(voiceChannelId, postId) {
+  addMapping(voiceChannelId, postId, ownerId = null) {
     this.channelPostMap.set(voiceChannelId, postId);
-    console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
+    if (ownerId) {
+      this.postOwnerMap.set(postId, ownerId);
+      console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId} (소유자: ${ownerId})`);
+    } else {
+      console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
+    }
     this.logCurrentMappings();
   }
   
@@ -309,5 +316,36 @@ export class MappingService {
       console.error(`[MappingService] 매핑 상세 정보 가져오기 실패: ${voiceChannelId}`, error);
       return null;
     }
+  }
+  
+  /**
+   * 포스트 소유자 정보 추가
+   * @param {string} postId - 포럼 포스트 ID
+   * @param {string} ownerId - 모집자 ID
+   * @returns {void}
+   */
+  addPostOwner(postId, ownerId) {
+    this.postOwnerMap.set(postId, ownerId);
+    console.log(`[MappingService] 포스트 소유자 추가: ${postId} -> ${ownerId}`);
+  }
+  
+  /**
+   * 포스트 소유자 확인
+   * @param {string} postId - 포럼 포스트 ID
+   * @param {string} userId - 확인할 사용자 ID
+   * @returns {boolean} - 소유자 여부
+   */
+  isPostOwner(postId, userId) {
+    const ownerId = this.postOwnerMap.get(postId);
+    return ownerId === userId;
+  }
+  
+  /**
+   * 포스트 소유자 ID 조회
+   * @param {string} postId - 포럼 포스트 ID
+   * @returns {string|null} - 소유자 ID
+   */
+  getPostOwner(postId) {
+    return this.postOwnerMap.get(postId) || null;
   }
 }

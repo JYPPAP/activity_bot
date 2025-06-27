@@ -131,6 +131,11 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createVoiceChannelButtons(voiceChannelId) {
+    const imageButton = new ButtonBuilder()
+      .setCustomId(`image_add_${voiceChannelId}`)
+      .setLabel('📷 이미지 추가')
+      .setStyle(ButtonStyle.Secondary);
+
     const waitButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
       .setLabel('⏳ 대기')
@@ -146,7 +151,7 @@ export class ForumPostManager {
       .setLabel('🔄 초기화')
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
+    return new ActionRowBuilder().addComponents(imageButton, waitButton, spectateButton, resetButton);
   }
   
   /**
@@ -154,6 +159,11 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createGeneralNicknameButtons() {
+    const imageButton = new ButtonBuilder()
+      .setCustomId('image_add_general')
+      .setLabel('📷 이미지 추가')
+      .setStyle(ButtonStyle.Secondary);
+
     const waitButton = new ButtonBuilder()
       .setCustomId('general_wait')
       .setLabel('⏳ 대기')
@@ -169,7 +179,7 @@ export class ForumPostManager {
       .setLabel('🔄 초기화')
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
+    return new ActionRowBuilder().addComponents(imageButton, waitButton, spectateButton, resetButton);
   }
   
   /**
@@ -362,6 +372,83 @@ export class ForumPostManager {
     } catch (error) {
       console.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, error);
       return null;
+    }
+  }
+  
+  /**
+   * 포럼 포스트에 이미지 추가
+   * @param {string} postId - 포럼 포스트 ID
+   * @param {string} imageUrl - 이미지 URL
+   * @param {Message} originalMessage - 원본 메시지 (선택사항)
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async addImageToPost(postId, imageUrl, originalMessage = null) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        return false;
+      }
+      
+      // 방법 1: 별도 메시지로 이미지 추가 (더 안정적)
+      await thread.send({
+        content: '📷 **추가된 이미지**',
+        files: [{
+          attachment: imageUrl,
+          name: 'uploaded_image.png'
+        }]
+      });
+      
+      console.log(`[ForumPostManager] 이미지 추가 완료: ${postId} - ${imageUrl}`);
+      
+      // 성공 피드백 (원본 메시지 작성자에게)
+      if (originalMessage) {
+        try {
+          const successMessage = await thread.send({
+            content: `✅ <@${originalMessage.author.id}> 이미지가 성공적으로 추가되었습니다!`
+          });
+          
+          // 5초 후 성공 메시지 삭제
+          setTimeout(async () => {
+            try {
+              await successMessage.delete();
+            } catch (deleteError) {
+              // 삭제 실패는 무시
+            }
+          }, 5000);
+        } catch (feedbackError) {
+          console.warn('[ForumPostManager] 성공 피드백 전송 실패:', feedbackError.message);
+        }
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 이미지 추가 실패: ${postId}`, error);
+      
+      // 실패 피드백
+      if (originalMessage) {
+        try {
+          const thread = await this.client.channels.fetch(postId);
+          const failMessage = await thread.send({
+            content: `❌ <@${originalMessage.author.id}> 이미지 추가에 실패했습니다. 파일 형식이나 크기를 확인해주세요.`
+          });
+          
+          // 10초 후 실패 메시지 삭제
+          setTimeout(async () => {
+            try {
+              await failMessage.delete();
+            } catch (deleteError) {
+              // 삭제 실패는 무시
+            }
+          }, 10000);
+        } catch (feedbackError) {
+          console.warn('[ForumPostManager] 실패 피드백 전송 실패:', feedbackError.message);
+        }
+      }
+      
+      return false;
     }
   }
 }

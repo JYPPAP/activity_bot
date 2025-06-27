@@ -197,6 +197,9 @@ export class ModalHandler {
       const postId = await this.forumPostManager.createForumPost(recruitmentData);
       
       if (postId) {
+        // 독립 포럼의 소유자 정보 추가
+        this.recruitmentService.mappingService.addPostOwner(postId, recruitmentData.author.id);
+        
         await interaction.editReply({
           content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>`
         });

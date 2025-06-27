@@ -183,7 +183,9 @@ export class ButtonHandler {
     try {
       const customId = interaction.customId;
       
-      if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
+      if (customId.startsWith('image_add_')) {
+        await this.handleImageAddButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) || customId === 'general_spectate') {
         await this.handleSpectateButton(interaction);
@@ -436,12 +438,74 @@ export class ButtonHandler {
    * @returns {boolean} - 음성 채널 버튼 여부
    */
   isVoiceChannelButton(customId) {
-    return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT) ||
+    return customId.startsWith('image_add_') ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset';
+  }
+  
+  /**
+   * 이미지 추가 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleImageAddButton(interaction) {
+    try {
+      // 즉시 defer 처리
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      
+      // 포럼 포스트 ID 추출 (스레드 ID)
+      const postId = interaction.channelId;
+      
+      // 권한 확인 - MappingService를 통해 포스트 소유자 확인
+      const mappingService = this.recruitmentService.mappingService;
+      if (!mappingService.isPostOwner(postId, interaction.user.id)) {
+        await interaction.editReply({
+          content: '❌ 이미지 추가 권한이 없습니다. 포럼 작성자만 이미지를 추가할 수 있습니다.'
+        });
+        return;
+      }
+      
+      // 안내 메시지 전송 및 30초 타이머 설정
+      const guideMessage = await interaction.editReply({
+        content: '📷 **이미지 추가 모드**\n\n30초 내에 이 포럼에 이미지를 첨부하여 메시지를 보내주세요.\n이미지가 감지되면 자동으로 메인 포스트에 추가됩니다.'
+      });
+      
+      // 30초 후 안내 메시지 삭제
+      setTimeout(async () => {
+        try {
+          await interaction.editReply({
+            content: '⏰ 이미지 추가 시간이 만료되었습니다.'
+          });
+          
+          // 5초 후 메시지 완전 삭제
+          setTimeout(async () => {
+            try {
+              await interaction.deleteReply();
+            } catch (deleteError) {
+              // 삭제 실패는 무시 (이미 삭제되었거나 권한 없음)
+            }
+          }, 5000);
+        } catch (editError) {
+          // 편집 실패는 무시
+        }
+      }, 30000);
+      
+      console.log(`[ButtonHandler] 이미지 추가 모드 활성화: 포스트 ${postId}, 사용자 ${interaction.user.id}`);
+      
+    } catch (error) {
+      console.error('[ButtonHandler] 이미지 추가 버튼 처리 오류:', error);
+      try {
+        await interaction.editReply({
+          content: '❌ 이미지 추가 모드를 시작하는데 실패했습니다.'
+        });
+      } catch (editError) {
+        // 편집 실패는 무시
+      }
+    }
   }
 }

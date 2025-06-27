@@ -132,8 +132,8 @@ export class RecruitmentService {
         };
       }
       
-      // 채널-포스트 매핑 추가
-      this.mappingService.addMapping(voiceChannelId, postId);
+      // 채널-포스트 매핑 추가 (모집자 정보 포함)
+      this.mappingService.addMapping(voiceChannelId, postId, linkerId);
       
       console.log(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${postId}`);
       

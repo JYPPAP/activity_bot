@@ -274,8 +274,79 @@ export class Bot {
       this.commandHandler.handleInteraction.bind(this.commandHandler)
     );
 
+    // 메시지 생성 이벤트 (이미지 업로드 감지용)
+    this.eventManager.registerHandler(
+      Events.MessageCreate,
+      this.handleMessageCreate.bind(this)
+    );
+
     // 이벤트 핸들러 초기화
     this.eventManager.initialize();
+  }
+
+  /**
+   * 메시지 생성 이벤트 처리 (이미지 업로드 감지)
+   * @param {Message} message - 생성된 메시지
+   * @returns {Promise<void>}
+   */
+  async handleMessageCreate(message) {
+    try {
+      // 봇 메시지는 무시
+      if (message.author.bot) return;
+      
+      // 포럼 스레드가 아니면 무시
+      if (!message.channel.isThread() || message.channel.parent?.type !== 15) return; // 15 = GUILD_FORUM
+      
+      // 이미지 첨부파일이 없으면 무시
+      if (!message.attachments.size) return;
+      
+      // 이미지 파일만 필터링
+      const imageAttachments = message.attachments.filter(attachment => {
+        const fileType = attachment.contentType?.toLowerCase();
+        return fileType && (
+          fileType.startsWith('image/') ||
+          fileType.includes('png') ||
+          fileType.includes('jpg') ||
+          fileType.includes('jpeg') ||
+          fileType.includes('gif') ||
+          fileType.includes('webp')
+        );
+      });
+      
+      if (!imageAttachments.size) return;
+      
+      // 포스트 소유자 권한 확인
+      const postId = message.channelId;
+      const userId = message.author.id;
+      const mappingService = this.voiceForumService.mappingService;
+      
+      if (!mappingService.isPostOwner(postId, userId)) {
+        console.log(`[Bot] 이미지 업로드 권한 없음: 포스트 ${postId}, 사용자 ${userId}`);
+        return;
+      }
+      
+      // 이미지 처리
+      const imageAttachment = imageAttachments.first();
+      const imageUrl = imageAttachment.url;
+      
+      console.log(`[Bot] 이미지 업로드 감지: 포스트 ${postId}, 사용자 ${userId}, 이미지 ${imageUrl}`);
+      
+      // ForumPostManager를 통해 이미지 추가
+      const success = await this.voiceForumService.forumPostManager.addImageToPost(postId, imageUrl, message);
+      
+      if (success) {
+        // 성공 시 원본 메시지 삭제 (선택사항)
+        try {
+          await message.delete();
+          console.log(`[Bot] 이미지 처리 완료 후 원본 메시지 삭제: ${message.id}`);
+        } catch (deleteError) {
+          console.warn('[Bot] 원본 메시지 삭제 실패:', deleteError.message);
+        }
+      }
+      
+    } catch (error) {
+      console.error('[Bot] 메시지 생성 이벤트 처리 오류:', error);
+    }
   }
 
   login() {
