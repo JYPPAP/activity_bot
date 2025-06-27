@@ -291,19 +291,56 @@ export class Bot {
    */
   async handleMessageCreate(message) {
     try {
+      console.log('[Bot] 메시지 감지:', {
+        author: message.author.tag,
+        bot: message.author.bot,
+        channelId: message.channelId,
+        channelType: message.channel.type,
+        isThread: message.channel.isThread(),
+        parentId: message.channel.parentId,
+        parentType: message.channel.parent?.type,
+        parentName: message.channel.parent?.name,
+        attachments: message.attachments.size,
+        content: message.content.substring(0, 50)
+      });
+      
       // 봇 메시지는 무시
-      if (message.author.bot) return;
+      if (message.author.bot) {
+        console.log('[Bot] 봇 메시지이므로 무시');
+        return;
+      }
       
       // 포럼 스레드가 아니면 무시
-      if (!message.channel.isThread() || message.channel.parent?.type !== 15) return; // 15 = GUILD_FORUM
+      if (!message.channel.isThread()) {
+        console.log('[Bot] 스레드가 아니므로 무시');
+        return;
+      }
+      
+      if (!message.channel.parent?.isForumChannel()) {
+        console.log('[Bot] 포럼 채널이 아니므로 무시');
+        return;
+      }
       
       // 이미지 첨부파일이 없으면 무시
-      if (!message.attachments.size) return;
+      if (!message.attachments.size) {
+        console.log('[Bot] 첨부파일이 없으므로 무시');
+        return;
+      }
       
       // 이미지 파일만 필터링
+      console.log('[Bot] 첨부파일 상세 정보:');
+      message.attachments.forEach((attachment, index) => {
+        console.log(`  [${index}]:`, {
+          name: attachment.name,
+          contentType: attachment.contentType,
+          size: attachment.size,
+          url: attachment.url.substring(0, 100) + '...'
+        });
+      });
+      
       const imageAttachments = message.attachments.filter(attachment => {
         const fileType = attachment.contentType?.toLowerCase();
-        return fileType && (
+        const isImage = fileType && (
           fileType.startsWith('image/') ||
           fileType.includes('png') ||
           fileType.includes('jpg') ||
@@ -311,17 +348,33 @@ export class Bot {
           fileType.includes('gif') ||
           fileType.includes('webp')
         );
+        console.log(`[Bot] 첨부파일 "${attachment.name}" 이미지 여부:`, isImage, `(contentType: ${fileType})`);
+        return isImage;
       });
       
-      if (!imageAttachments.size) return;
+      if (!imageAttachments.size) {
+        console.log('[Bot] 이미지 첨부파일이 없으므로 무시');
+        return;
+      }
       
       // 포스트 소유자 권한 확인
       const postId = message.channelId;
       const userId = message.author.id;
       const mappingService = this.voiceForumService.mappingService;
       
-      if (!mappingService.isPostOwner(postId, userId)) {
-        console.log(`[Bot] 이미지 업로드 권한 없음: 포스트 ${postId}, 사용자 ${userId}`);
+      const postOwner = mappingService.getPostOwner(postId);
+      const isOwner = mappingService.isPostOwner(postId, userId);
+      
+      console.log('[Bot] 권한 확인:', {
+        postId,
+        userId,
+        postOwner,
+        isOwner,
+        mappingExists: postOwner !== null
+      });
+      
+      if (!isOwner) {
+        console.log(`[Bot] 이미지 업로드 권한 없음: 포스트 ${postId}, 사용자 ${userId}, 소유자 ${postOwner}`);
         return;
       }
       
