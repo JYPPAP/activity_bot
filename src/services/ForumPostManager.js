@@ -5,9 +5,10 @@ import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
 
 export class ForumPostManager {
-  constructor(client, forumChannelId) {
+  constructor(client, forumChannelId, forumTagId) {
     this.client = client;
     this.forumChannelId = forumChannelId;
+    this.forumTagId = forumTagId;
   }
   
   /**
@@ -48,7 +49,9 @@ export class ForumPostManager {
       
       const thread = await forumChannel.threads.create({
         name: title,
-        message: messageOptions
+        message: messageOptions,
+        appliedTags: this.forumTagId ? [this.forumTagId] : undefined,
+        autoArchiveDuration: 1440
       });
       
       // 모집자를 스레드에 자동으로 추가

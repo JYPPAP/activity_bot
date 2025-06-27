@@ -6,6 +6,7 @@ export class VoiceChannelManager {
   constructor(client, voiceCategoryId) {
     this.client = client;
     this.voiceCategoryId = voiceCategoryId;
+    console.log(`[VoiceChannelManager] 초기화됨 - 대상 카테고리 ID: ${this.voiceCategoryId}`);
   }
   
   /**
@@ -73,6 +74,7 @@ export class VoiceChannelManager {
       result.channelId = newState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
       console.log(`[VoiceChannelManager] 음성 채널 입장 분석: ${newState.member?.displayName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`);
+      console.log(`[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, 설정된 voiceCategoryId: ${this.voiceCategoryId}`);
     }
     // 채널 퇴장
     else if (oldState.channel && !newState.channel) {

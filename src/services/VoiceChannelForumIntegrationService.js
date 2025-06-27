@@ -9,6 +9,7 @@ import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 import { InteractionRouter } from '../ui/InteractionRouter.js';
 import { ModalHandler } from '../ui/ModalHandler.js';
 import { ButtonHandler } from '../ui/ButtonHandler.js';
+import { config } from '../config/env.js';
 
 export class VoiceChannelForumIntegrationService {
   constructor(client, forumChannelId, voiceCategoryId) {
@@ -18,7 +19,7 @@ export class VoiceChannelForumIntegrationService {
     
     // Core Services 초기화
     this.voiceChannelManager = new VoiceChannelManager(client, voiceCategoryId);
-    this.forumPostManager = new ForumPostManager(client, forumChannelId);
+    this.forumPostManager = new ForumPostManager(client, forumChannelId, config.FORUM_TAG_ID);
     this.participantTracker = new ParticipantTracker(client);
     this.mappingService = new MappingService(client, this.voiceChannelManager, this.forumPostManager);
     
