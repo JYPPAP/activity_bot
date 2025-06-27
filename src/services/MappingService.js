@@ -7,6 +7,7 @@ export class MappingService {
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
     this.postOwnerMap = new Map(); // 포럼 포스트 ID -> 모집자 ID 매핑 (이미지 추가 권한용)
+    this.imageUploadPermissions = new Map(); // 포럼 포스트 ID -> { userId, expiresAt } 임시 이미지 업로드 권한
   }
   
   /**
@@ -347,5 +348,87 @@ export class MappingService {
    */
   getPostOwner(postId) {
     return this.postOwnerMap.get(postId) || null;
+  }
+  
+  /**
+   * 임시 이미지 업로드 권한 부여
+   * @param {string} postId - 포럼 포스트 ID
+   * @param {string} userId - 사용자 ID
+   * @param {number} durationMs - 권한 지속 시간 (기본 30초)
+   * @returns {void}
+   */
+  grantTemporaryImagePermission(postId, userId, durationMs = 30000) {
+    const expiresAt = Date.now() + durationMs;
+    this.imageUploadPermissions.set(postId, { userId, expiresAt });
+    console.log(`[MappingService] 임시 이미지 업로드 권한 부여: 포스트 ${postId} -> 사용자 ${userId} (${durationMs/1000}초)`);
+    
+    // 만료 시간 후 자동 정리
+    setTimeout(() => {
+      this.revokeTemporaryImagePermission(postId);
+    }, durationMs);
+  }
+  
+  /**
+   * 임시 이미지 업로드 권한 확인
+   * @param {string} postId - 포럼 포스트 ID
+   * @param {string} userId - 확인할 사용자 ID
+   * @returns {boolean} - 권한 여부
+   */
+  hasTemporaryImagePermission(postId, userId) {
+    const permission = this.imageUploadPermissions.get(postId);
+    
+    if (!permission) {
+      console.log(`[MappingService] 임시 권한 없음: 포스트 ${postId}`);
+      return false;
+    }
+    
+    if (permission.userId !== userId) {
+      console.log(`[MappingService] 임시 권한 사용자 불일치: 포스트 ${postId}, 요청자 ${userId}, 권한자 ${permission.userId}`);
+      return false;
+    }
+    
+    if (Date.now() > permission.expiresAt) {
+      console.log(`[MappingService] 임시 권한 만료: 포스트 ${postId}`);
+      this.imageUploadPermissions.delete(postId);
+      return false;
+    }
+    
+    console.log(`[MappingService] 임시 권한 확인됨: 포스트 ${postId}, 사용자 ${userId}`);
+    return true;
+  }
+  
+  /**
+   * 임시 이미지 업로드 권한 제거
+   * @param {string} postId - 포럼 포스트 ID
+   * @returns {boolean} - 제거 성공 여부
+   */
+  revokeTemporaryImagePermission(postId) {
+    const existed = this.imageUploadPermissions.delete(postId);
+    if (existed) {
+      console.log(`[MappingService] 임시 이미지 업로드 권한 제거: 포스트 ${postId}`);
+    }
+    return existed;
+  }
+  
+  /**
+   * 만료된 임시 권한들 정리
+   * @returns {number} - 정리된 권한 수
+   */
+  cleanupExpiredImagePermissions() {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [postId, permission] of this.imageUploadPermissions.entries()) {
+      if (now > permission.expiresAt) {
+        this.imageUploadPermissions.delete(postId);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      console.log(`[MappingService] 만료된 임시 권한 ${cleanedCount}개 정리 완료`);
+    }
+    
+    return cleanedCount;
   }
 }

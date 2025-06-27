@@ -357,24 +357,15 @@ export class Bot {
         return;
       }
       
-      // 포스트 소유자 권한 확인
+      // 임시 이미지 업로드 권한 확인
       const postId = message.channelId;
       const userId = message.author.id;
       const mappingService = this.voiceForumService.mappingService;
       
-      const postOwner = mappingService.getPostOwner(postId);
-      const isOwner = mappingService.isPostOwner(postId, userId);
+      console.log('[Bot] 임시 권한 확인 시작:', { postId, userId });
       
-      console.log('[Bot] 권한 확인:', {
-        postId,
-        userId,
-        postOwner,
-        isOwner,
-        mappingExists: postOwner !== null
-      });
-      
-      if (!isOwner) {
-        console.log(`[Bot] 이미지 업로드 권한 없음: 포스트 ${postId}, 사용자 ${userId}, 소유자 ${postOwner}`);
+      if (!mappingService.hasTemporaryImagePermission(postId, userId)) {
+        console.log(`[Bot] 임시 이미지 업로드 권한 없음: 포스트 ${postId}, 사용자 ${userId}`);
         return;
       }
       
@@ -388,6 +379,9 @@ export class Bot {
       const success = await this.voiceForumService.forumPostManager.addImageToPost(postId, imageUrl, message);
       
       if (success) {
+        // 성공 시 임시 권한 제거
+        mappingService.revokeTemporaryImagePermission(postId);
+        
         // 성공 시 원본 메시지 삭제 (선택사항)
         try {
           await message.delete();

@@ -461,14 +461,9 @@ export class ButtonHandler {
       // 포럼 포스트 ID 추출 (스레드 ID)
       const postId = interaction.channelId;
       
-      // 권한 확인 - MappingService를 통해 포스트 소유자 확인
+      // 임시 이미지 업로드 권한 부여
       const mappingService = this.recruitmentService.mappingService;
-      if (!mappingService.isPostOwner(postId, interaction.user.id)) {
-        await interaction.editReply({
-          content: '❌ 이미지 추가 권한이 없습니다. 포럼 작성자만 이미지를 추가할 수 있습니다.'
-        });
-        return;
-      }
+      mappingService.grantTemporaryImagePermission(postId, interaction.user.id, 30000); // 30초
       
       // 안내 메시지 전송 및 30초 타이머 설정
       const guideMessage = await interaction.editReply({
