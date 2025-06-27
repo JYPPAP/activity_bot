@@ -209,34 +209,37 @@ export class ButtonHandler {
    * @returns {Promise<void>}
    */
   async handleSpectateButton(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    // 즉시 defer하여 3초 제한 해결
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    if (!voiceChannel) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-        flags: MessageFlags.Ephemeral
-      });
-      return;
+    const voiceChannelId = interaction.customId.split('_')[2];
+    let voiceChannel = null;
+    let channelName = '삭제된 채널';
+    
+    // 안전한 채널 fetch
+    try {
+      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+      if (voiceChannel) {
+        channelName = voiceChannel.name;
+      }
+    } catch (error) {
+      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
     const member = interaction.member;
     const result = await this.voiceChannelManager.setSpectatorMode(member);
     
     if (result.success) {
-      await SafeInteraction.safeReply(interaction, {
-        content: `${RecruitmentConfig.MESSAGES.SPECTATOR_MODE_SET}\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `${RecruitmentConfig.MESSAGES.SPECTATOR_MODE_SET}\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
       });
     } else if (result.alreadySpectator) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.ALREADY_SPECTATOR,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: RecruitmentConfig.MESSAGES.ALREADY_SPECTATOR
       });
     } else {
-      await SafeInteraction.safeReply(interaction, {
-        content: `${RecruitmentConfig.MESSAGES.NICKNAME_CHANGE_FAILED}\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `${RecruitmentConfig.MESSAGES.NICKNAME_CHANGE_FAILED}\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -247,34 +250,37 @@ export class ButtonHandler {
    * @returns {Promise<void>}
    */
   async handleConnectButton(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    // 즉시 defer하여 3초 제한 해결
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    if (!voiceChannel) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-        flags: MessageFlags.Ephemeral
-      });
-      return;
+    const voiceChannelId = interaction.customId.split('_')[2];
+    let voiceChannel = null;
+    let channelName = '삭제된 채널';
+    
+    // 안전한 채널 fetch
+    try {
+      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+      if (voiceChannel) {
+        channelName = voiceChannel.name;
+      }
+    } catch (error) {
+      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
     const member = interaction.member;
     const result = await this.voiceChannelManager.restoreNormalMode(member);
     
     if (result.success) {
-      await SafeInteraction.safeReply(interaction, {
-        content: `✅ 참여 모드로 설정되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `✅ 참여 모드로 설정되었습니다!\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
       });
     } else if (result.alreadyNormal) {
-      await SafeInteraction.safeReply(interaction, {
-        content: '이미 참여 모드입니다.',
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: '이미 참여 모드입니다.'
       });
     } else {
-      await SafeInteraction.safeReply(interaction, {
-        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -285,34 +291,37 @@ export class ButtonHandler {
    * @returns {Promise<void>}
    */
   async handleWaitButton(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    // 즉시 defer하여 3초 제한 해결
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    if (!voiceChannel) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-        flags: MessageFlags.Ephemeral
-      });
-      return;
+    const voiceChannelId = interaction.customId.split('_')[2];
+    let voiceChannel = null;
+    let channelName = '삭제된 채널';
+    
+    // 안전한 채널 fetch
+    try {
+      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+      if (voiceChannel) {
+        channelName = voiceChannel.name;
+      }
+    } catch (error) {
+      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
     const member = interaction.member;
     const result = await this.voiceChannelManager.setWaitingMode(member);
     
     if (result.success) {
-      await SafeInteraction.safeReply(interaction, {
-        content: `⏳ 대기 모드로 설정되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `⏳ 대기 모드로 설정되었습니다!\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
       });
     } else if (result.alreadyWaiting) {
-      await SafeInteraction.safeReply(interaction, {
-        content: '이미 대기 모드입니다.',
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: '이미 대기 모드입니다.'
       });
     } else {
-      await SafeInteraction.safeReply(interaction, {
-        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -323,29 +332,33 @@ export class ButtonHandler {
    * @returns {Promise<void>}
    */
   async handleResetButton(interaction) {
-    const voiceChannelId = interaction.customId.split('_')[2];
-    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    // 즉시 defer하여 3초 제한 해결
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    if (!voiceChannel) {
-      await SafeInteraction.safeReply(interaction, {
-        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-        flags: MessageFlags.Ephemeral
-      });
-      return;
+    const voiceChannelId = interaction.customId.split('_')[2];
+    let voiceChannel = null;
+    let channelName = '삭제된 채널';
+    
+    // 안전한 채널 fetch
+    try {
+      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+      if (voiceChannel) {
+        channelName = voiceChannel.name;
+      }
+    } catch (error) {
+      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
     const member = interaction.member;
     const result = await this.voiceChannelManager.restoreNormalMode(member);
     
     if (result.success) {
-      await SafeInteraction.safeReply(interaction, {
-        content: `🔄 닉네임이 초기화되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `🔄 닉네임이 초기화되었습니다!\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
       });
     } else {
-      await SafeInteraction.safeReply(interaction, {
-        content: `닉네임 초기화에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
-        flags: MessageFlags.Ephemeral
+      await interaction.editReply({
+        content: `닉네임 초기화에 실패했습니다.\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }

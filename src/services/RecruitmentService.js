@@ -211,9 +211,22 @@ export class RecruitmentService {
    */
   async handleVoiceStateUpdate(oldState, newState) {
     try {
+      const userId = newState.id;
+      const memberName = newState.member?.displayName || 'Unknown';
+      
+      console.log(`[RecruitmentService] 음성 상태 변경 감지: ${memberName} (${userId})`);
+      
       const stateChange = this.voiceChannelManager.analyzeVoiceStateChange(oldState, newState);
+      console.log(`[RecruitmentService] 상태 변경 분석:`, {
+        isTargetCategory: stateChange.isTargetCategory,
+        wasTargetCategory: stateChange.wasTargetCategory,
+        channelId: stateChange.channelId,
+        oldChannelId: stateChange.oldChannelId,
+        actionType: stateChange.actionType
+      });
       
       if (!stateChange.isTargetCategory && !stateChange.wasTargetCategory) {
+        console.log(`[RecruitmentService] 대상 카테고리가 아니므로 무시`);
         return; // 대상 카테고리가 아니면 무시
       }
       
@@ -222,13 +235,21 @@ export class RecruitmentService {
       
       if (stateChange.channelId && this.mappingService.hasMapping(stateChange.channelId)) {
         channelsToUpdate.add(stateChange.channelId);
+        console.log(`[RecruitmentService] 신규 채널 업데이트 대상: ${stateChange.channelId}`);
       }
       
       if (stateChange.oldChannelId && this.mappingService.hasMapping(stateChange.oldChannelId)) {
         channelsToUpdate.add(stateChange.oldChannelId);
+        console.log(`[RecruitmentService] 이전 채널 업데이트 대상: ${stateChange.oldChannelId}`);
+      }
+      
+      if (channelsToUpdate.size === 0) {
+        console.log(`[RecruitmentService] 매핑된 채널이 없어서 업데이트 건너뜀`);
+        return;
       }
       
       // 업데이트 큐에 추가
+      console.log(`[RecruitmentService] ${channelsToUpdate.size}개 채널을 업데이트 큐에 추가`);
       for (const channelId of channelsToUpdate) {
         this.mappingService.queueUpdate(channelId);
       }
@@ -246,9 +267,19 @@ export class RecruitmentService {
    */
   async handleGuildMemberUpdate(oldMember, newMember) {
     try {
+      console.log(`[RecruitmentService] 길드 멤버 업데이트 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
+      
       const tagChange = this.participantTracker.detectNicknameTagChange(oldMember, newMember);
+      console.log(`[RecruitmentService] 태그 변경 분석:`, {
+        changed: tagChange.changed,
+        becameActive: tagChange.becameActive,
+        becameInactive: tagChange.becameInactive,
+        oldTags: tagChange.oldTags,
+        newTags: tagChange.newTags
+      });
       
       if (!tagChange.changed) {
+        console.log(`[RecruitmentService] 태그 변경이 없어서 무시`);
         return; // 태그 변경이 없으면 무시
       }
 
@@ -257,13 +288,16 @@ export class RecruitmentService {
       // 사용자가 현재 음성 채널에 있는지 확인
       const voiceState = newMember.voice;
       if (!voiceState || !voiceState.channel) {
+        console.log(`[RecruitmentService] 사용자가 음성 채널에 없어서 무시`);
         return;
       }
 
       const voiceChannelId = voiceState.channel.id;
+      console.log(`[RecruitmentService] 사용자가 있는 음성 채널: ${voiceChannelId} (${voiceState.channel.name})`);
       
       // 매핑된 포럼 포스트가 있는지 확인
       if (!this.mappingService.hasMapping(voiceChannelId)) {
+        console.log(`[RecruitmentService] 채널 ${voiceChannelId}에 매핑된 포럼 포스트가 없어서 무시`);
         return;
       }
 

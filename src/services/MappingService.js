@@ -111,11 +111,16 @@ export class MappingService {
    */
   async processQueuedUpdate(voiceChannelId) {
     try {
+      console.log(`[MappingService] 큐된 업데이트 처리 시작: ${voiceChannelId}`);
+      
       const postId = this.getPostId(voiceChannelId);
       if (!postId) {
         console.log(`[MappingService] 매핑된 포스트가 없음: ${voiceChannelId}`);
+        console.log(`[MappingService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
         return;
       }
+      
+      console.log(`[MappingService] 매핑된 포스트 ID: ${postId}`);
       
       // 음성 채널 정보 가져오기
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
@@ -125,10 +130,18 @@ export class MappingService {
         return;
       }
       
+      console.log(`[MappingService] 음성 채널 정보:`, {
+        name: voiceChannelInfo.name,
+        memberCount: voiceChannelInfo.members?.size || 0,
+        categoryId: voiceChannelInfo.parentId
+      });
+      
       // 참여자 수 계산
       const ParticipantTracker = (await import('./ParticipantTracker.js')).ParticipantTracker;
       const participantTracker = new ParticipantTracker(this.client);
       const currentCount = participantTracker.countActiveParticipants(voiceChannelInfo);
+      
+      console.log(`[MappingService] 활성 참여자 수: ${currentCount}`);
       
       // 제목에서 최대 인원 수 추출
       const postInfo = await this.forumPostManager.getPostInfo(postId);
@@ -138,17 +151,29 @@ export class MappingService {
         return;
       }
       
+      console.log(`[MappingService] 포스트 정보:`, {
+        name: postInfo.name,
+        archived: postInfo.archived,
+        messageCount: postInfo.messageCount
+      });
+      
       const maxCount = participantTracker.extractMaxParticipants(postInfo.name);
+      console.log(`[MappingService] 최대 인원 수: ${maxCount}`);
       
       // 참여자 수 업데이트 메시지 전송
-      await this.forumPostManager.sendParticipantUpdateMessage(
+      console.log(`[MappingService] 참여자 수 업데이트 메시지 전송 시작...`);
+      const updateResult = await this.forumPostManager.sendParticipantUpdateMessage(
         postId, 
         currentCount, 
         maxCount, 
         voiceChannelInfo.name
       );
       
-      console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
+      if (updateResult) {
+        console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
+      } else {
+        console.log(`[MappingService] 참여자 수 업데이트 실패: ${voiceChannelId} -> ${postId}`);
+      }
       
     } catch (error) {
       console.error(`[MappingService] 큐된 업데이트 처리 오류: ${voiceChannelId}`, error);

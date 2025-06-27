@@ -59,37 +59,46 @@ export class VoiceChannelManager {
    */
   analyzeVoiceStateChange(oldState, newState) {
     const result = {
-      type: null,
+      actionType: null,
       channelId: null,
+      oldChannelId: null,
       member: newState.member,
-      isTargetCategory: false
+      isTargetCategory: false,
+      wasTargetCategory: false
     };
     
     // 채널 입장
     if (!oldState.channel && newState.channel) {
-      result.type = 'join';
+      result.actionType = 'join';
       result.channelId = newState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
+      console.log(`[VoiceChannelManager] 음성 채널 입장 분석: ${newState.member?.displayName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`);
     }
     // 채널 퇴장
     else if (oldState.channel && !newState.channel) {
-      result.type = 'leave';
-      result.channelId = oldState.channel.id;
-      result.isTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
+      result.actionType = 'leave';
+      result.oldChannelId = oldState.channel.id;
+      result.channelId = oldState.channel.id; // 퇴장한 채널을 channelId로도 설정
+      result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
+      result.isTargetCategory = result.wasTargetCategory; // 호환성을 위해
+      console.log(`[VoiceChannelManager] 음성 채널 퇴장 분석: ${newState.member?.displayName} <- ${oldState.channel.name} (카테고리 일치: ${result.wasTargetCategory})`);
     }
     // 채널 이동
     else if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
-      result.type = 'move';
+      result.actionType = 'move';
       result.channelId = newState.channel.id;
       result.oldChannelId = oldState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
       result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
+      console.log(`[VoiceChannelManager] 음성 채널 이동 분석: ${newState.member?.displayName} ${oldState.channel.name} -> ${newState.channel.name} (이전 카테고리: ${result.wasTargetCategory}, 현재 카테고리: ${result.isTargetCategory})`);
     }
     // 상태 변경 (음소거, 화면 공유 등)
     else if (oldState.channel && newState.channel && oldState.channel.id === newState.channel.id) {
-      result.type = 'update';
+      result.actionType = 'update';
       result.channelId = newState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
+      // 상태 변경은 일반적으로 참여자 수에 영향을 주지 않으므로 로그를 최소화
+      console.log(`[VoiceChannelManager] 음성 상태 변경: ${newState.member?.displayName} in ${newState.channel.name}`);
     }
     
     return result;
