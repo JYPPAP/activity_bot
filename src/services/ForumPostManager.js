@@ -28,17 +28,23 @@ export class ForumPostManager {
       const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
       const title = this.generatePostTitle(recruitmentData);
       
-      // 음성 채널이 연동된 경우에만 버튼 추가
+      // 버튼 구성
       let components = [];
+      
       if (voiceChannelId) {
+        // 음성 채널 연동된 경우: 음성 채널 버튼 사용
         const voiceChannelButtons = this.createVoiceChannelButtons(voiceChannelId);
         components.push(voiceChannelButtons);
+      } else {
+        // 독립 포럼 포스트: 범용 별명 변경 버튼 사용
+        const generalButtons = this.createGeneralNicknameButtons();
+        components.push(generalButtons);
       }
       
-      const messageOptions = { embeds: [embed] };
-      if (components.length > 0) {
-        messageOptions.components = components;
-      }
+      const messageOptions = { 
+        embeds: [embed],
+        components: components
+      };
       
       const thread = await forumChannel.threads.create({
         name: title,
@@ -130,6 +136,29 @@ export class ForumPostManager {
 
     const resetButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
+      .setLabel('🔄 초기화')
+      .setStyle(ButtonStyle.Primary);
+
+    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
+  }
+  
+  /**
+   * 범용 별명 변경 버튼 생성 (채널 ID 없음)
+   * @returns {ActionRowBuilder} - 생성된 버튼 행
+   */
+  createGeneralNicknameButtons() {
+    const waitButton = new ButtonBuilder()
+      .setCustomId('general_wait')
+      .setLabel('⏳ 대기')
+      .setStyle(ButtonStyle.Success);
+
+    const spectateButton = new ButtonBuilder()
+      .setCustomId('general_spectate')
+      .setLabel('👁️ 관전')
+      .setStyle(ButtonStyle.Secondary);
+
+    const resetButton = new ButtonBuilder()
+      .setCustomId('general_reset')
       .setLabel('🔄 초기화')
       .setStyle(ButtonStyle.Primary);
 

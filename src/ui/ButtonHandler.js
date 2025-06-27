@@ -185,11 +185,11 @@ export class ButtonHandler {
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
-      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE)) {
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) || customId === 'general_spectate') {
         await this.handleSpectateButton(interaction);
-      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT)) {
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) || customId === 'general_wait') {
         await this.handleWaitButton(interaction);
-      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET)) {
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) || customId === 'general_reset') {
         await this.handleResetButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
@@ -212,18 +212,28 @@ export class ButtonHandler {
     // 즉시 defer하여 3초 제한 해결
     await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    const voiceChannelId = interaction.customId.split('_')[2];
-    let voiceChannel = null;
-    let channelName = '삭제된 채널';
+    const customId = interaction.customId;
+    let channelInfo = '';
     
-    // 안전한 채널 fetch
-    try {
-      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
-      if (voiceChannel) {
-        channelName = voiceChannel.name;
+    // 범용 버튼인지 확인
+    if (customId === 'general_spectate') {
+      channelInfo = '🎮 일반 구인구직';
+    } else {
+      const voiceChannelId = customId.split('_')[2];
+      let voiceChannel = null;
+      let channelName = '삭제된 채널';
+      
+      // 안전한 채널 fetch
+      try {
+        voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+        if (voiceChannel) {
+          channelName = voiceChannel.name;
+        }
+      } catch (error) {
+        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
-    } catch (error) {
-      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+      
+      channelInfo = `🔊 음성 채널: **${channelName}**`;
     }
 
     const member = interaction.member;
@@ -231,7 +241,7 @@ export class ButtonHandler {
     
     if (result.success) {
       await interaction.editReply({
-        content: `${RecruitmentConfig.MESSAGES.SPECTATOR_MODE_SET}\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
+        content: `${RecruitmentConfig.MESSAGES.SPECTATOR_MODE_SET}\n${channelInfo}\n📝 닉네임: "${result.newNickname}"`
       });
     } else if (result.alreadySpectator) {
       await interaction.editReply({
@@ -239,7 +249,7 @@ export class ButtonHandler {
       });
     } else {
       await interaction.editReply({
-        content: `${RecruitmentConfig.MESSAGES.NICKNAME_CHANGE_FAILED}\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
+        content: `${RecruitmentConfig.MESSAGES.NICKNAME_CHANGE_FAILED}\n${channelInfo}\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -294,18 +304,28 @@ export class ButtonHandler {
     // 즉시 defer하여 3초 제한 해결
     await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    const voiceChannelId = interaction.customId.split('_')[2];
-    let voiceChannel = null;
-    let channelName = '삭제된 채널';
+    const customId = interaction.customId;
+    let channelInfo = '';
     
-    // 안전한 채널 fetch
-    try {
-      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
-      if (voiceChannel) {
-        channelName = voiceChannel.name;
+    // 범용 버튼인지 확인
+    if (customId === 'general_wait') {
+      channelInfo = '🎮 일반 구인구직';
+    } else {
+      const voiceChannelId = customId.split('_')[2];
+      let voiceChannel = null;
+      let channelName = '삭제된 채널';
+      
+      // 안전한 채널 fetch
+      try {
+        voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+        if (voiceChannel) {
+          channelName = voiceChannel.name;
+        }
+      } catch (error) {
+        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
-    } catch (error) {
-      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+      
+      channelInfo = `🔊 음성 채널: **${channelName}**`;
     }
 
     const member = interaction.member;
@@ -313,7 +333,7 @@ export class ButtonHandler {
     
     if (result.success) {
       await interaction.editReply({
-        content: `⏳ 대기 모드로 설정되었습니다!\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
+        content: `⏳ 대기 모드로 설정되었습니다!\n${channelInfo}\n📝 닉네임: "${result.newNickname}"`
       });
     } else if (result.alreadyWaiting) {
       await interaction.editReply({
@@ -321,7 +341,7 @@ export class ButtonHandler {
       });
     } else {
       await interaction.editReply({
-        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
+        content: `닉네임 변경에 실패했습니다.\n${channelInfo}\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -335,18 +355,28 @@ export class ButtonHandler {
     // 즉시 defer하여 3초 제한 해결
     await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
     
-    const voiceChannelId = interaction.customId.split('_')[2];
-    let voiceChannel = null;
-    let channelName = '삭제된 채널';
+    const customId = interaction.customId;
+    let channelInfo = '';
     
-    // 안전한 채널 fetch
-    try {
-      voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
-      if (voiceChannel) {
-        channelName = voiceChannel.name;
+    // 범용 버튼인지 확인
+    if (customId === 'general_reset') {
+      channelInfo = '🎮 일반 구인구직';
+    } else {
+      const voiceChannelId = customId.split('_')[2];
+      let voiceChannel = null;
+      let channelName = '삭제된 채널';
+      
+      // 안전한 채널 fetch
+      try {
+        voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+        if (voiceChannel) {
+          channelName = voiceChannel.name;
+        }
+      } catch (error) {
+        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
-    } catch (error) {
-      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+      
+      channelInfo = `🔊 음성 채널: **${channelName}**`;
     }
 
     const member = interaction.member;
@@ -354,11 +384,15 @@ export class ButtonHandler {
     
     if (result.success) {
       await interaction.editReply({
-        content: `🔄 닉네임이 초기화되었습니다!\n🔊 음성 채널: **${channelName}**\n📝 닉네임: "${result.newNickname}"`
+        content: `🔄 닉네임이 초기화되었습니다!\n${channelInfo}\n📝 닉네임: "${result.newNickname}"`
+      });
+    } else if (result.alreadyNormal) {
+      await interaction.editReply({
+        content: '이미 정상 모드입니다.'
       });
     } else {
       await interaction.editReply({
-        content: `닉네임 초기화에 실패했습니다.\n🔊 음성 채널: **${channelName}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
+        content: `닉네임 초기화에 실패했습니다.\n${channelInfo}\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`
       });
     }
   }
@@ -405,6 +439,9 @@ export class ButtonHandler {
     return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) ||
-           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET);
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) ||
+           customId === 'general_wait' ||
+           customId === 'general_spectate' ||
+           customId === 'general_reset';
   }
 }
