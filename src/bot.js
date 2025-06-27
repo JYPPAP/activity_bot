@@ -267,22 +267,11 @@ export class Bot {
       this.voiceForumService.handleChannelDelete.bind(this.voiceForumService)
     );
 
-    // 음성채널-포럼 연동: 채널 업데이트 이벤트
-    this.eventManager.registerHandler(
-      Events.ChannelUpdate,
-      this.voiceForumService.handleChannelUpdate.bind(this.voiceForumService)
-    );
 
-    // 명령어 처리 이벤트
+    // 모든 인터랙션 처리 (명령어 + 구인구직 UI)
     this.eventManager.registerHandler(
       Events.InteractionCreate,
       this.commandHandler.handleInteraction.bind(this.commandHandler)
-    );
-
-    // 음성채널-포럼 연동: 인터랙션 처리 이벤트
-    this.eventManager.registerHandler(
-      Events.InteractionCreate,
-      this.voiceForumService.handleInteraction.bind(this.voiceForumService)
     );
 
     // 이벤트 핸들러 초기화

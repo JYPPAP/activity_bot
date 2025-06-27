@@ -91,8 +91,24 @@ export class CommandHandler {
    * @param interaction - 상호작용 객체
    */
   async handleInteraction(interaction) {
-    // 명령어 상호작용이 아닌 경우 무시
-    if (!interaction.isCommand()) return;
+    // 명령어 상호작용인 경우 명령어 처리
+    if (interaction.isCommand()) {
+      await this.handleCommandInteraction(interaction);
+      return;
+    }
+    
+    // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+      await this.voiceForumService.handleInteraction(interaction);
+      return;
+    }
+  }
+  
+  /**
+   * 명령어 인터랙션 처리
+   * @param interaction - 명령어 인터랙션 객체
+   */
+  async handleCommandInteraction(interaction) {
 
     const {commandName} = interaction;
 

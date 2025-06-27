@@ -1,0 +1,294 @@
+// src/services/ForumPostManager.js - 포럼 포스트 관리
+import { EmbedBuilder } from 'discord.js';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { TextProcessor } from '../utils/TextProcessor.js';
+
+export class ForumPostManager {
+  constructor(client, forumChannelId) {
+    this.client = client;
+    this.forumChannelId = forumChannelId;
+  }
+  
+  /**
+   * 포럼 포스트 생성
+   * @param {Object} recruitmentData - 구인구직 데이터
+   * @param {string} voiceChannelId - 음성 채널 ID (선택사항)
+   * @returns {Promise<string|null>} - 생성된 포스트 ID
+   */
+  async createForumPost(recruitmentData, voiceChannelId = null) {
+    try {
+      const forumChannel = await this.client.channels.fetch(this.forumChannelId);
+      
+      if (!forumChannel || forumChannel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
+        console.error('[ForumPostManager] 포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.');
+        return null;
+      }
+      
+      const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
+      const title = this.generatePostTitle(recruitmentData);
+      
+      const thread = await forumChannel.threads.create({
+        name: title,
+        message: { embeds: [embed] }
+      });
+      
+      // 모집자를 스레드에 자동으로 추가
+      try {
+        await thread.members.add(recruitmentData.author.id);
+        console.log(`[ForumPostManager] 모집자가 스레드에 추가됨: ${recruitmentData.author.displayName}`);
+      } catch (addError) {
+        console.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패:', addError.message);
+      }
+      
+      console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
+      return thread.id;
+      
+    } catch (error) {
+      console.error('[ForumPostManager] 포럼 포스트 생성 오류:', error);
+      return null;
+    }
+  }
+  
+  /**
+   * 포럼 포스트 제목 생성
+   * @param {Object} recruitmentData - 구인구직 데이터
+   * @returns {string} - 생성된 제목
+   */
+  generatePostTitle(recruitmentData) {
+    const cleanedNickname = TextProcessor.cleanNickname(recruitmentData.author.displayName);
+    return `[${cleanedNickname}] ${recruitmentData.title}`;
+  }
+  
+  /**
+   * 포럼 포스트 임베드 생성
+   * @param {Object} recruitmentData - 구인구직 데이터
+   * @param {string} voiceChannelId - 음성 채널 ID (선택사항)
+   * @returns {Promise<EmbedBuilder>} - 생성된 임베드
+   */
+  async createPostEmbed(recruitmentData, voiceChannelId = null) {
+    const guild = this.client.guilds.cache.first(); // 또는 특정 길드 가져오기
+    const roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
+    
+    let content = `# 🎮 ${recruitmentData.title}\n\n`;
+    
+    if (roleMentions) {
+      content += `## 🏷️ 태그\n${roleMentions}\n\n`;
+    }
+    
+    content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
+    
+    if (voiceChannelId) {
+      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+      if (voiceChannel) {
+        content += `## 🔊 음성 채널\n[${voiceChannel.name} 참여하기](https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannel.id})\n\n`;
+      }
+    } else {
+      content += `## 🔊 음성 채널\n음성 채널에서 연동 버튼을 클릭하면 자동으로 연결됩니다.\n\n`;
+    }
+    
+    content += `## 👤 모집자\n<@${recruitmentData.author.id}>`;
+    
+    const embed = new EmbedBuilder()
+      .setDescription(content)
+      .setColor(voiceChannelId ? RecruitmentConfig.COLORS.SUCCESS : RecruitmentConfig.COLORS.STANDALONE_POST)
+      .setFooter({
+        text: voiceChannelId ? '음성 채널과 연동된 구인구직입니다.' : '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
+        iconURL: recruitmentData.author.displayAvatarURL()
+      });
+    
+    return embed;
+  }
+  
+  /**
+   * 포럼 포스트에 참여자 수 업데이트 메시지 전송
+   * @param {string} postId - 포스트 ID
+   * @param {number} currentCount - 현재 참여자 수
+   * @param {number} maxCount - 최대 참여자 수
+   * @param {string} voiceChannelName - 음성 채널 이름
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async sendParticipantUpdateMessage(postId, currentCount, maxCount, voiceChannelName) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread() || thread.archived) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        return false;
+      }
+      
+      const timeString = TextProcessor.formatKoreanTime();
+      const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n**🔊 채널**: ${voiceChannelName}\n**⏰ 업데이트**: ${timeString}`;
+      
+      await thread.send(updateMessage);
+      console.log(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 실패: ${postId}`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * 포럼 포스트에 음성 채널 연동 메시지 전송
+   * @param {string} postId - 포스트 ID
+   * @param {string} voiceChannelName - 음성 채널 이름
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {string} guildId - 길드 ID
+   * @param {string} linkerId - 연동한 사용자 ID
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async sendVoiceChannelLinkMessage(postId, voiceChannelName, voiceChannelId, guildId, linkerId) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread() || thread.archived) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        return false;
+      }
+      
+      const linkEmbed = new EmbedBuilder()
+        .setTitle('🔊 음성 채널 연동')
+        .setDescription('새로운 음성 채널이 이 구인구직에 연동되었습니다!')
+        .addFields(
+          { name: '🎯 연결된 음성 채널', value: `[${voiceChannelName} 참여하기](https://discord.com/channels/${guildId}/${voiceChannelId})`, inline: false },
+          { name: '👤 연동자', value: `<@${linkerId}>`, inline: true }
+        )
+        .setColor(RecruitmentConfig.COLORS.SUCCESS)
+        .setTimestamp();
+      
+      await thread.send({ embeds: [linkEmbed] });
+      console.log(`[ForumPostManager] 음성 채널 연동 메시지 전송 완료: ${postId}`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 음성 채널 연동 메시지 전송 실패: ${postId}`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * 기존 포럼 포스트 목록 가져오기
+   * @param {number} limit - 가져올 포스트 수 (기본값: 10)
+   * @returns {Promise<Array>} - 포스트 목록
+   */
+  async getExistingPosts(limit = 10) {
+    try {
+      const forumChannel = await this.client.channels.fetch(this.forumChannelId);
+      
+      if (!forumChannel || forumChannel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
+        console.error('[ForumPostManager] 포럼 채널을 찾을 수 없습니다.');
+        return [];
+      }
+      
+      // 활성 스레드 가져오기
+      const threads = await forumChannel.threads.fetchActive();
+      const recentPosts = Array.from(threads.threads.values())
+        .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+        .slice(0, limit);
+      
+      return recentPosts.map(thread => ({
+        id: thread.id,
+        name: thread.name,
+        messageCount: thread.messageCount,
+        memberCount: thread.memberCount,
+        createdAt: thread.createdAt,
+        lastMessageId: thread.lastMessageId
+      }));
+      
+    } catch (error) {
+      console.error('[ForumPostManager] 기존 포스트 목록 가져오기 실패:', error);
+      return [];
+    }
+  }
+  
+  /**
+   * 포럼 포스트 아카이브 처리
+   * @param {string} postId - 포스트 ID
+   * @param {string} reason - 아카이브 사유
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async archivePost(postId, reason = '음성 채널 삭제됨') {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        return false;
+      }
+      
+      if (thread.archived) {
+        console.log(`[ForumPostManager] 이미 아카이브된 스레드: ${postId}`);
+        return true;
+      }
+      
+      // 아카이브 메시지 전송
+      const archiveEmbed = new EmbedBuilder()
+        .setTitle('📁 구인구직 종료')
+        .setDescription(`이 구인구직이 자동으로 종료되었습니다.\n**사유**: ${reason}`)
+        .setColor(RecruitmentConfig.COLORS.WARNING)
+        .setTimestamp();
+      
+      await thread.send({ embeds: [archiveEmbed] });
+      
+      // 스레드 아카이브
+      await thread.setArchived(true, reason);
+      
+      console.log(`[ForumPostManager] 포럼 포스트 아카이브 완료: ${postId} (${reason})`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 포럼 포스트 아카이브 실패: ${postId}`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * 포럼 포스트 존재 여부 확인
+   * @param {string} postId - 포스트 ID
+   * @returns {Promise<boolean>} - 존재 여부
+   */
+  async postExists(postId) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      return thread && thread.isThread() && !thread.archived;
+    } catch (error) {
+      if (error.code === 10003) { // Unknown Channel
+        return false;
+      }
+      console.error(`[ForumPostManager] 포스트 존재 확인 실패: ${postId}`, error);
+      return false;
+    }
+  }
+  
+  /**
+   * 포럼 포스트 정보 가져오기
+   * @param {string} postId - 포스트 ID
+   * @returns {Promise<Object|null>} - 포스트 정보
+   */
+  async getPostInfo(postId) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        return null;
+      }
+      
+      return {
+        id: thread.id,
+        name: thread.name,
+        archived: thread.archived,
+        messageCount: thread.messageCount,
+        memberCount: thread.memberCount,
+        createdAt: thread.createdAt,
+        lastMessageId: thread.lastMessageId,
+        ownerId: thread.ownerId
+      };
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, error);
+      return null;
+    }
+  }
+}
