@@ -20,11 +20,7 @@ export class RecruitmentUIBuilder {
       .setTitle('🎮 구인구직 포럼 연동')
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
-        '📌 **연동 방법**\n' +
-        '• 🆕 **새 포럼 생성**: 새로운 구인구직 포럼을 만들어 연동\n' +
-        '• 🔗 **기존 포럼 선택**: 이미 생성된 구인구직에 음성 채널 연결\n\n' +
-        '💡 **추가기능**\n' +
-        '• 👁️ **관전 모드**: 별명에 [관전] 태그 추가'
+        '• 👁️ **관전**: 별명에 [관전] 태그 추가'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '아래 버튼을 클릭하여 원하는 작업을 선택하세요.' });
@@ -38,17 +34,16 @@ export class RecruitmentUIBuilder {
   static createInitialButtons(voiceChannelId) {
     const connectButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT}${voiceChannelId}`)
-      .setLabel('🎯 구인구직 연동하기')
+      .setLabel('🎯 연동하기')
       .setStyle(ButtonStyle.Primary);
     
     const spectateButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
-      .setLabel('👁️ 관전 모드')
+      .setLabel('👁️ 관전')
       .setStyle(ButtonStyle.Secondary);
     
     return [
-      new ActionRowBuilder().addComponents(connectButton),
-      new ActionRowBuilder().addComponents(spectateButton)
+      new ActionRowBuilder().addComponents(connectButton, spectateButton)
     ];
   }
   

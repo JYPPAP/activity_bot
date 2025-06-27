@@ -66,12 +66,21 @@ export class ButtonHandler {
       const voiceChannelId = parts[2];
       const methodValue = parts.slice(3).join('_');
       
-      if (methodValue.startsWith(DiscordConstants.METHOD_VALUES.NEW_FORUM_PREFIX)) {
+      console.log(`[ButtonHandler] 완료 버튼 처리 - methodValue: "${methodValue}"`);
+      
+      if (methodValue === DiscordConstants.METHOD_VALUES.NEW_FORUM) {
+        console.log(`[ButtonHandler] 새 포럼 생성 모달 표시`);
         await this.modalHandler.showRecruitmentModal(interaction, voiceChannelId, selectedTags);
       } else if (methodValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
-        const methodParts = methodValue.split('_');
-        const existingPostId = methodParts[3];
+        console.log(`[ButtonHandler] 기존 포럼 연동 처리`);
+        const existingPostId = methodValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');
         await this.recruitmentService.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedTags);
+      } else {
+        console.warn(`[ButtonHandler] 알 수 없는 methodValue: "${methodValue}"`);
+        await SafeInteraction.safeReply(interaction, {
+          content: '❌ 알 수 없는 요청입니다. 다시 시도해주세요.',
+          flags: MessageFlags.Ephemeral
+        });
       }
     }
   }
