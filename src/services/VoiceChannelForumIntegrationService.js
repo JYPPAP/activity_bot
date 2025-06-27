@@ -768,42 +768,58 @@ export class VoiceChannelForumIntegrationService {
       const selectedValue = interaction.values[0];
       const voiceChannelId = interaction.customId.split('_')[3];
 
-      // 역할 태그 선택 단계로 이동
+      // 역할 태그 선택 단계로 이동 (버튼 형태)
       const embed = new EmbedBuilder()
         .setTitle('🎮 역할 태그 선택')
-        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
+        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)\n\n선택된 태그: **없음**')
         .setColor(0x5865F2);
 
-      const roleTagOptions = [
-        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
-        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
-        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
-        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
-        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
-        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
-        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
-        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
-        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
-        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
-        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
-        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
-        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
-        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
-        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
-      ];
+      // 15개 태그를 3행 5열로 배치
+      const roleTagValues = ['롤', '배그', '발로', '스팀', '롤체', '옵치', '기타', '에펙', '보드게임', 'RPG', '마크', '넥슨', '공포', '생존', '퍼즐'];
+      
+      // 첫 번째 행 (5개)
+      const row1 = new ActionRowBuilder();
+      for (let i = 0; i < 5; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`role_btn_${roleTagValues[i]}_${voiceChannelId}_${selectedValue}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row1.addComponents(button);
+      }
 
-      const roleSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`role_tags_select_${voiceChannelId}_${selectedValue}`)
-        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
-        .setMinValues(1)
-        .setMaxValues(5)
-        .addOptions(roleTagOptions);
+      // 두 번째 행 (5개)
+      const row2 = new ActionRowBuilder();
+      for (let i = 5; i < 10; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`role_btn_${roleTagValues[i]}_${voiceChannelId}_${selectedValue}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row2.addComponents(button);
+      }
 
-      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
+      // 세 번째 행 (5개)
+      const row3 = new ActionRowBuilder();
+      for (let i = 10; i < 15; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`role_btn_${roleTagValues[i]}_${voiceChannelId}_${selectedValue}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row3.addComponents(button);
+      }
+
+      // 선택 완료 버튼
+      const completeButton = new ButtonBuilder()
+        .setCustomId(`role_complete_${voiceChannelId}_${selectedValue}`)
+        .setLabel('선택 완료')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('✅')
+        .setDisabled(true); // 초기에는 비활성화
+
+      const row4 = new ActionRowBuilder().addComponents(completeButton);
 
       await this.safeReply(interaction, {
         embeds: [embed],
-        components: [row],
+        components: [row1, row2, row3, row4],
         flags: MessageFlags.Ephemeral
       });
 
@@ -868,42 +884,58 @@ export class VoiceChannelForumIntegrationService {
       }
       // =============================
 
-      // 역할 태그 선택 단계부터 시작
+      // 역할 태그 선택 단계부터 시작 (버튼 형태)
       const embed = new EmbedBuilder()
         .setTitle('🎮 역할 태그 선택')
-        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
+        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)\n\n선택된 태그: **없음**')
         .setColor(0x5865F2);
 
-      const roleTagOptions = [
-        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
-        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
-        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
-        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
-        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
-        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
-        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
-        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
-        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
-        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
-        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
-        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
-        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
-        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
-        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
-      ];
+      // 15개 태그를 3행 5열로 배치
+      const roleTagValues = ['롤', '배그', '발로', '스팀', '롤체', '옵치', '기타', '에펙', '보드게임', 'RPG', '마크', '넥슨', '공포', '생존', '퍼즐'];
+      
+      // 첫 번째 행 (5개)
+      const row1 = new ActionRowBuilder();
+      for (let i = 0; i < 5; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`standalone_role_btn_${roleTagValues[i]}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row1.addComponents(button);
+      }
 
-      const roleSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId('standalone_role_tags_select')
-        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
-        .setMinValues(1)
-        .setMaxValues(5)
-        .addOptions(roleTagOptions);
+      // 두 번째 행 (5개)
+      const row2 = new ActionRowBuilder();
+      for (let i = 5; i < 10; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`standalone_role_btn_${roleTagValues[i]}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row2.addComponents(button);
+      }
 
-      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
+      // 세 번째 행 (5개)
+      const row3 = new ActionRowBuilder();
+      for (let i = 10; i < 15; i++) {
+        const button = new ButtonBuilder()
+          .setCustomId(`standalone_role_btn_${roleTagValues[i]}`)
+          .setLabel(roleTagValues[i])
+          .setStyle(ButtonStyle.Secondary);
+        row3.addComponents(button);
+      }
+
+      // 선택 완료 버튼
+      const completeButton = new ButtonBuilder()
+        .setCustomId('standalone_role_complete')
+        .setLabel('선택 완료')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('✅')
+        .setDisabled(true); // 초기에는 비활성화
+
+      const row4 = new ActionRowBuilder().addComponents(completeButton);
 
       await interaction.reply({
         embeds: [embed],
-        components: [row],
+        components: [row1, row2, row3, row4],
         flags: MessageFlags.Ephemeral
       });
     } catch (error) {
@@ -1712,8 +1744,15 @@ export class VoiceChannelForumIntegrationService {
   async handleInteraction(interaction) {
     try {
       if (interaction.isButton()) {
+        // 역할 태그 버튼 확인
+        if (interaction.customId.startsWith('role_btn_') || 
+            interaction.customId.startsWith('standalone_role_btn_') ||
+            interaction.customId.startsWith('role_complete_') ||
+            interaction.customId.startsWith('standalone_role_complete')) {
+          await this.handleRoleTagButtons(interaction);
+        }
         // 음성 채널 대기/관전/초기화 버튼 확인
-        if (interaction.customId.startsWith('voice_wait_') || 
+        else if (interaction.customId.startsWith('voice_wait_') || 
             interaction.customId.startsWith('voice_spectate_') || 
             interaction.customId.startsWith('voice_reset_')) {
           await this.handleVoiceChannelButtons(interaction);
@@ -1727,6 +1766,209 @@ export class VoiceChannelForumIntegrationService {
       }
     } catch (error) {
       console.error('인터랙션 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 길드 멤버 업데이트 이벤트 핸들러 (별명 변경 시 실시간 갱신)
+   * @param {GuildMember} oldMember - 변경 전 멤버 정보
+   * @param {GuildMember} newMember - 변경 후 멤버 정보
+   */
+  async handleGuildMemberUpdate(oldMember, newMember) {
+    try {
+      // 별명 변경이 아닌 경우 무시
+      if (oldMember.displayName === newMember.displayName) {
+        return;
+      }
+
+      console.log(`[VoiceForumService] 멤버 별명 변경 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
+
+      // 사용자가 현재 음성 채널에 있는지 확인
+      const voiceState = newMember.voice;
+      if (!voiceState || !voiceState.channel) {
+        console.log(`[VoiceForumService] 멤버가 음성 채널에 없음: ${newMember.displayName}`);
+        return;
+      }
+
+      const voiceChannelId = voiceState.channel.id;
+      const postId = this.channelPostMap.get(voiceChannelId);
+
+      if (!postId) {
+        console.log(`[VoiceForumService] 매핑된 포럼 포스트 없음: ${voiceChannelId}`);
+        return;
+      }
+
+      // [관전] 또는 [대기] 태그 변경을 감지
+      const oldHasWaitTag = oldMember.displayName.includes('[대기]') || oldMember.displayName.includes('[관전]');
+      const newHasWaitTag = newMember.displayName.includes('[대기]') || newMember.displayName.includes('[관전]');
+
+      // 태그 상태가 변경된 경우에만 업데이트
+      if (oldHasWaitTag !== newHasWaitTag) {
+        console.log(`[VoiceForumService] 대기/관전 태그 변경 감지 - 참여자 수 업데이트 실행: ${voiceChannelId}`);
+        
+        // 참여자 수 업데이트
+        await this.queueParticipantUpdate(voiceChannelId);
+      } else {
+        console.log(`[VoiceForumService] 태그 상태 변경 없음 - 업데이트 스킵`);
+      }
+
+    } catch (error) {
+      console.error('[VoiceForumService] 길드 멤버 업데이트 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 역할 태그 버튼 처리 (다중 선택 지원)
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   */
+  async handleRoleTagButtons(interaction) {
+    try {
+      const customId = interaction.customId;
+      
+      // 완료 버튼 처리
+      if (customId.startsWith('role_complete_') || customId === 'standalone_role_complete') {
+        // 선택된 태그들을 메시지에서 추출
+        const embed = interaction.message.embeds[0];
+        const description = embed.description;
+        const selectedTagsMatch = description.match(/선택된 태그: \*\*(.*?)\*\*/);
+        
+        if (!selectedTagsMatch || selectedTagsMatch[1] === '없음') {
+          await interaction.reply({
+            content: '❌ 최소 1개의 태그를 선택해주세요.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+
+        const selectedTags = selectedTagsMatch[1].split(', ');
+        
+        if (customId === 'standalone_role_complete') {
+          // 독립적인 구인구직 모달 표시
+          await this.showStandaloneRecruitmentModalWithRoles(interaction, selectedTags);
+        } else {
+          // 음성 채널 연동의 경우
+          const parts = customId.split('_');
+          const voiceChannelId = parts[2];
+          const methodValue = parts.slice(3).join('_');
+          
+          if (methodValue.startsWith('new_forum_')) {
+            await this.showRecruitmentModal(interaction, voiceChannelId, selectedTags);
+          } else if (methodValue.startsWith('existing_forum_')) {
+            const methodParts = methodValue.split('_');
+            const existingPostId = methodParts[3];
+            await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedTags);
+          }
+        }
+        return;
+      }
+
+      // 태그 선택/해제 처리
+      let selectedRole, voiceChannelId, methodValue;
+      let isStandalone = false;
+      
+      if (customId.startsWith('standalone_role_btn_')) {
+        selectedRole = customId.split('_')[3];
+        isStandalone = true;
+      } else {
+        const parts = customId.split('_');
+        selectedRole = parts[2];
+        voiceChannelId = parts[3];
+        methodValue = parts.slice(4).join('_');
+      }
+
+      // 현재 임베드에서 선택된 태그들 추출
+      const embed = EmbedBuilder.from(interaction.message.embeds[0]);
+      const description = embed.data.description;
+      const selectedTagsMatch = description.match(/선택된 태그: \*\*(.*?)\*\*/);
+      
+      let selectedTags = [];
+      if (selectedTagsMatch && selectedTagsMatch[1] !== '없음') {
+        selectedTags = selectedTagsMatch[1].split(', ');
+      }
+
+      // 태그 토글
+      const index = selectedTags.indexOf(selectedRole);
+      if (index > -1) {
+        // 이미 선택된 태그 제거
+        selectedTags.splice(index, 1);
+      } else {
+        // 새 태그 추가 (최대 5개)
+        if (selectedTags.length >= 5) {
+          await interaction.reply({
+            content: '❌ 최대 5개까지만 선택할 수 있습니다.',
+            flags: MessageFlags.Ephemeral
+          });
+          return;
+        }
+        selectedTags.push(selectedRole);
+      }
+
+      // 임베드 업데이트
+      const selectedTagsText = selectedTags.length > 0 ? selectedTags.join(', ') : '없음';
+      const updatedDescription = description.replace(
+        /선택된 태그: \*\*(.*?)\*\*/,
+        `선택된 태그: **${selectedTagsText}**`
+      );
+      embed.setDescription(updatedDescription);
+
+      // 버튼들 업데이트
+      const updatedComponents = [];
+      const roleTagValues = ['롤', '배그', '발로', '스팀', '롤체', '옵치', '기타', '에펙', '보드게임', 'RPG', '마크', '넥슨', '공포', '생존', '퍼즐'];
+      
+      // 3행의 버튼들 재생성
+      for (let row = 0; row < 3; row++) {
+        const actionRow = new ActionRowBuilder();
+        for (let i = 0; i < 5; i++) {
+          const tagIndex = row * 5 + i;
+          const tag = roleTagValues[tagIndex];
+          const isSelected = selectedTags.includes(tag);
+          
+          let buttonCustomId;
+          if (isStandalone) {
+            buttonCustomId = `standalone_role_btn_${tag}`;
+          } else {
+            buttonCustomId = `role_btn_${tag}_${voiceChannelId}_${methodValue}`;
+          }
+          
+          const button = new ButtonBuilder()
+            .setCustomId(buttonCustomId)
+            .setLabel(tag)
+            .setStyle(isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary);
+          
+          actionRow.addComponents(button);
+        }
+        updatedComponents.push(actionRow);
+      }
+
+      // 완료 버튼 업데이트
+      let completeCustomId;
+      if (isStandalone) {
+        completeCustomId = 'standalone_role_complete';
+      } else {
+        completeCustomId = `role_complete_${voiceChannelId}_${methodValue}`;
+      }
+      
+      const completeButton = new ButtonBuilder()
+        .setCustomId(completeCustomId)
+        .setLabel('선택 완료')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('✅')
+        .setDisabled(selectedTags.length === 0);
+
+      const completeRow = new ActionRowBuilder().addComponents(completeButton);
+      updatedComponents.push(completeRow);
+
+      await interaction.update({
+        embeds: [embed],
+        components: updatedComponents
+      });
+
+    } catch (error) {
+      console.error('역할 태그 버튼 처리 오류:', error);
+      await this.safeReply(interaction, {
+        content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+        flags: MessageFlags.Ephemeral
+      });
     }
   }
 }

@@ -237,6 +237,12 @@ export class Bot {
       this.activityTracker.handleGuildMemberUpdate.bind(this.activityTracker)
     );
 
+    // 음성채널-포럼 연동: 멤버 업데이트 이벤트 (별명 변경 시 실시간 갱신)
+    this.eventManager.registerHandler(
+      Events.GuildMemberUpdate,
+      this.voiceForumService.handleGuildMemberUpdate.bind(this.voiceForumService)
+    );
+
     // 채널 업데이트 이벤트
     this.eventManager.registerHandler(
       Events.ChannelUpdate,
