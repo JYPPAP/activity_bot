@@ -120,18 +120,18 @@ export class ForumPostManager {
   createVoiceChannelButtons(voiceChannelId) {
     const waitButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
-      .setLabel('⏳ 대기하기')
-      .setStyle(ButtonStyle.Secondary);
+      .setLabel('⏳ 대기')
+      .setStyle(ButtonStyle.Success);
 
     const spectateButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
-      .setLabel('👁️ 관전하기')
+      .setLabel('👁️ 관전')
       .setStyle(ButtonStyle.Secondary);
 
     const resetButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
       .setLabel('🔄 초기화')
-      .setStyle(ButtonStyle.Danger);
+      .setStyle(ButtonStyle.Primary);
 
     return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
   }
