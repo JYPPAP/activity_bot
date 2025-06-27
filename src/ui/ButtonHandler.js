@@ -183,8 +183,14 @@ export class ButtonHandler {
     try {
       const customId = interaction.customId;
       
-      if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE)) {
+      if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
+        await this.handleConnectButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE)) {
         await this.handleSpectateButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT)) {
+        await this.handleWaitButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET)) {
+        await this.handleResetButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -235,6 +241,114 @@ export class ButtonHandler {
     }
   }
   
+  /**
+   * 참여하기 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleConnectButton(interaction) {
+    const voiceChannelId = interaction.customId.split('_')[2];
+    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    
+    if (!voiceChannel) {
+      await SafeInteraction.safeReply(interaction, {
+        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const member = interaction.member;
+    const result = await this.voiceChannelManager.restoreNormalMode(member);
+    
+    if (result.success) {
+      await SafeInteraction.safeReply(interaction, {
+        content: `✅ 참여 모드로 설정되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
+        flags: MessageFlags.Ephemeral
+      });
+    } else if (result.alreadyNormal) {
+      await SafeInteraction.safeReply(interaction, {
+        content: '이미 참여 모드입니다.',
+        flags: MessageFlags.Ephemeral
+      });
+    } else {
+      await SafeInteraction.safeReply(interaction, {
+        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+  
+  /**
+   * 대기하기 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleWaitButton(interaction) {
+    const voiceChannelId = interaction.customId.split('_')[2];
+    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    
+    if (!voiceChannel) {
+      await SafeInteraction.safeReply(interaction, {
+        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const member = interaction.member;
+    const result = await this.voiceChannelManager.setWaitingMode(member);
+    
+    if (result.success) {
+      await SafeInteraction.safeReply(interaction, {
+        content: `⏳ 대기 모드로 설정되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
+        flags: MessageFlags.Ephemeral
+      });
+    } else if (result.alreadyWaiting) {
+      await SafeInteraction.safeReply(interaction, {
+        content: '이미 대기 모드입니다.',
+        flags: MessageFlags.Ephemeral
+      });
+    } else {
+      await SafeInteraction.safeReply(interaction, {
+        content: `닉네임 변경에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+  
+  /**
+   * 초기화 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleResetButton(interaction) {
+    const voiceChannelId = interaction.customId.split('_')[2];
+    const voiceChannel = await interaction.client.channels.fetch(voiceChannelId);
+    
+    if (!voiceChannel) {
+      await SafeInteraction.safeReply(interaction, {
+        content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
+        flags: MessageFlags.Ephemeral
+      });
+      return;
+    }
+
+    const member = interaction.member;
+    const result = await this.voiceChannelManager.restoreNormalMode(member);
+    
+    if (result.success) {
+      await SafeInteraction.safeReply(interaction, {
+        content: `🔄 닉네임이 초기화되었습니다!\n🔊 음성 채널: **${voiceChannel.name}**\n📝 닉네임: "${result.newNickname}"`,
+        flags: MessageFlags.Ephemeral
+      });
+    } else {
+      await SafeInteraction.safeReply(interaction, {
+        content: `닉네임 초기화에 실패했습니다.\n🔊 음성 채널: **${voiceChannel.name}**\n💡 수동으로 닉네임을 "${result.newNickname}"로 변경해주세요.`,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
   
   /**
    * 버튼 처리 라우팅
@@ -275,6 +389,9 @@ export class ButtonHandler {
    * @returns {boolean} - 음성 채널 버튼 여부
    */
   isVoiceChannelButton(customId) {
-    return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE);
+    return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET);
   }
 }

@@ -12,6 +12,7 @@ export class DiscordConstants {
   static CUSTOM_ID_PREFIXES = {
     VOICE_CONNECT: 'voice_connect_',
     VOICE_SPECTATE: 'voice_spectate_',
+    VOICE_WAIT: 'voice_wait_',
     VOICE_RESET: 'voice_reset_',
     RECRUITMENT_MODAL: 'recruitment_modal_',
     RECRUITMENT_METHOD: 'recruitment_method_',

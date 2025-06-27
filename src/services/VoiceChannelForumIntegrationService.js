@@ -124,6 +124,44 @@ export class VoiceChannelForumIntegrationService {
    */
   
   /**
+   * 독립 구인구직 시작 - 역할 태그 선택 화면 표시
+   * @param {Interaction} interaction - 인터랙션 객체
+   * @returns {Promise<void>}
+   */
+  async showStandaloneRecruitmentModal(interaction) {
+    try {
+      // 권한 체크는 이미 RecruitmentCommand에서 했지만 추가 보안을 위해 다시 체크
+      if (!this.hasRecruitmentPermission(interaction.user, interaction.member)) {
+        await interaction.reply({
+          content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
+          flags: 64 // MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      // 역할 태그 선택 화면 표시
+      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], true);
+      const components = RecruitmentUIBuilder.createRoleTagButtons([], null, null, true);
+
+      await interaction.reply({
+        embeds: [embed],
+        components: components,
+        flags: 64 // MessageFlags.Ephemeral
+      });
+      
+    } catch (error) {
+      console.error('[VoiceForumService] 독립 구인구직 모달 표시 오류:', error);
+      
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+          flags: 64 // MessageFlags.Ephemeral
+        });
+      }
+    }
+  }
+  
+  /**
    * 독립적인 포럼 포스트 생성 (음성 채널 없이)
    * @param {Object} recruitmentData - 구인구직 데이터
    * @returns {Promise<string|null>} - 생성된 포스트 ID 또는 null

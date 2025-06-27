@@ -57,6 +57,11 @@ export class ActivityTracker {
    */
   async saveActivityData() {
     const now = Date.now();
+    const activeUsers = Array.from(this.channelActivityTime.entries()).filter(([_, activity]) => activity.startTime);
+    
+    if (activeUsers.length > 0) {
+      console.log(`[ActivityTracker] 활동 데이터 저장 시작 - ${activeUsers.length}명의 활성 사용자`);
+    }
 
     try {
       // 트랜잭션 시작
@@ -226,6 +231,11 @@ export class ActivityTracker {
     const userId = newState.id;
     const member = newState.member;
     const now = Date.now();
+    
+    // 음성 상태 변경 로그 (주요 변경사항만)
+    const actionType = this.isChannelJoin(oldState, newState) ? '입장' : 
+                      this.isChannelLeave(oldState, newState) ? '퇴장' : '이동';
+    console.log(`[ActivityTracker] 음성 채널 ${actionType}: ${member.displayName} (${userId})`);
 
     // 채널 입장 처리 (로그 기록용)
     if (this.isChannelJoin(oldState, newState)) {
@@ -415,6 +425,11 @@ export class ActivityTracker {
   async handleGuildMemberUpdate(oldMember, newMember) {
     const {id: userId} = newMember;
     const now = Date.now();
+    
+    // 별명 변경이 있는 경우에만 로그 출력
+    if (oldMember.displayName !== newMember.displayName) {
+      console.log(`[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`);
+    }
 
     // 멤버가 [관전] 또는 [대기] 상태로 변경된 경우
     if (newMember.displayName.includes(FILTERS.OBSERVATION) ||

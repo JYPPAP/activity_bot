@@ -1,5 +1,5 @@
 // src/services/ForumPostManager.js - 포럼 포스트 관리
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
@@ -28,9 +28,21 @@ export class ForumPostManager {
       const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
       const title = this.generatePostTitle(recruitmentData);
       
+      // 음성 채널이 연동된 경우에만 버튼 추가
+      let components = [];
+      if (voiceChannelId) {
+        const voiceChannelButtons = this.createVoiceChannelButtons(voiceChannelId);
+        components.push(voiceChannelButtons);
+      }
+      
+      const messageOptions = { embeds: [embed] };
+      if (components.length > 0) {
+        messageOptions.components = components;
+      }
+      
       const thread = await forumChannel.threads.create({
         name: title,
-        message: { embeds: [embed] }
+        message: messageOptions
       });
       
       // 모집자를 스레드에 자동으로 추가
@@ -98,6 +110,30 @@ export class ForumPostManager {
       });
     
     return embed;
+  }
+  
+  /**
+   * 음성 채널 상호작용 버튼 생성
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @returns {ActionRowBuilder} - 생성된 버튼 행
+   */
+  createVoiceChannelButtons(voiceChannelId) {
+    const waitButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
+      .setLabel('⏳ 대기하기')
+      .setStyle(ButtonStyle.Secondary);
+
+    const spectateButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
+      .setLabel('👁️ 관전하기')
+      .setStyle(ButtonStyle.Secondary);
+
+    const resetButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
+      .setLabel('🔄 초기화')
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
   }
   
   /**

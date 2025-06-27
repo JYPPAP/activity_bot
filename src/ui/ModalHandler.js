@@ -197,16 +197,14 @@ export class ModalHandler {
       const postId = await this.forumPostManager.createForumPost(recruitmentData);
       
       if (postId) {
-        await SafeInteraction.safeReply(interaction, {
-          content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>`,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>`
         });
         
         console.log(`[ModalHandler] 독립 구인구직 생성 완료: ${recruitmentData.title} (ID: ${postId})`);
       } else {
-        await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.LINK_FAILED,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: RecruitmentConfig.MESSAGES.LINK_FAILED
         });
       }
       
@@ -237,16 +235,14 @@ export class ModalHandler {
       );
       
       if (result.success) {
-        await SafeInteraction.safeReply(interaction, {
-          content: `✅ 구인구직 포럼이 성공적으로 생성되고 음성 채널과 연동되었습니다!\n🔗 포럼: <#${result.postId}>`,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: `✅ 구인구직 포럼이 성공적으로 생성되고 음성 채널과 연동되었습니다!\n🔗 포럼: <#${result.postId}>`
         });
         
         console.log(`[ModalHandler] 음성 채널 연동 구인구직 생성 완료: ${recruitmentData.title} (ID: ${result.postId})`);
       } else {
-        await SafeInteraction.safeReply(interaction, {
-          content: result.message || RecruitmentConfig.MESSAGES.LINK_FAILED,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: result.message || RecruitmentConfig.MESSAGES.LINK_FAILED
         });
       }
       

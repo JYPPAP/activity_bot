@@ -147,7 +147,6 @@ export class DatabaseManager {
           displayName
         })
         .write();
-    console.log(`[DB] 사용자 활동 업데이트: ${userId}, displayName: ${displayName}`);
     return true;
   }
 
