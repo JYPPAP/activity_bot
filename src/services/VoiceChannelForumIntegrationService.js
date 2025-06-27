@@ -304,11 +304,11 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 제목 업데이트를 큐에 추가 (중복 방지)
+   * 참여자 수 업데이트를 큐에 추가 (중복 방지)
    * @param {string} voiceChannelId - 음성 채널 ID
    * @param {boolean} checkEmpty - 빈 채널 확인 여부
    */
-  queueTitleUpdate(voiceChannelId, checkEmpty = false) {
+  queueParticipantUpdate(voiceChannelId, checkEmpty = false) {
     // 이미 큐에 있는 업데이트 취소
     if (this.updateQueue.has(voiceChannelId)) {
       clearTimeout(this.updateQueue.get(voiceChannelId));
@@ -317,8 +317,8 @@ export class VoiceChannelForumIntegrationService {
     // 새로운 업데이트 예약
     const timeoutId = setTimeout(async () => {
       try {
-        console.log(`[VoiceForumService] 큐에서 제목 업데이트 실행: ${voiceChannelId}`);
-        await this.updateForumPostTitle(voiceChannelId);
+        console.log(`[VoiceForumService] 큐에서 참여자 수 업데이트 실행: ${voiceChannelId}`);
+        await this.sendParticipantUpdateMessage(voiceChannelId);
         
         if (checkEmpty) {
           await this.checkAndArchiveIfEmpty(voiceChannelId);
@@ -330,10 +330,10 @@ export class VoiceChannelForumIntegrationService {
         console.error(`[VoiceForumService] 큐 업데이트 오류:`, error);
         this.updateQueue.delete(voiceChannelId);
       }
-    }, 5000); // 5초 지연
+    }, 3000); // 3초 지연 (채팅 메시지는 더 빠르게)
 
     this.updateQueue.set(voiceChannelId, timeoutId);
-    console.log(`[VoiceForumService] 제목 업데이트 큐에 추가: ${voiceChannelId}`);
+    console.log(`[VoiceForumService] 참여자 수 업데이트 큐에 추가: ${voiceChannelId}`);
   }
 
   /**
@@ -478,11 +478,10 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 포럼 포스트 제목 및 내용에서 현재 참여자 수 업데이트
+   * 포럼 포스트에 참여자 수 업데이트 메시지 전송 (큰 폰트)
    * @param {string} voiceChannelId - 음성 채널 ID
-   * @param {number} retryCount - 재시도 횟수
    */
-  async updateForumPostTitle(voiceChannelId, retryCount = 0) {
+  async sendParticipantUpdateMessage(voiceChannelId) {
     try {
       const postId = this.channelPostMap.get(voiceChannelId);
       if (!postId) {
@@ -500,129 +499,42 @@ export class VoiceChannelForumIntegrationService {
       const currentCount = await this.countActiveParticipants(voiceChannelId);
       console.log(`[VoiceForumService] 현재 참여자 수: ${currentCount}`);
       
-      // 현재 제목에서 패턴 찾기 (예: 1/5, 2/5 등)
+      // 현재 제목에서 최대 인원수 패턴 찾기 (예: 1/5, 2/5 등)
       const currentTitle = thread.name;
       const participantPattern = /\d+\/\d+/;
       const match = currentTitle.match(participantPattern);
       
-      console.log(`[VoiceForumService] 현재 제목: ${currentTitle}, 패턴 매치: ${match ? match[0] : 'none'}`);
-      
+      let maxCount = '?';
       if (match) {
-        // 기존 패턴이 있는 경우 현재 참여자 수만 업데이트
         const [currentPattern] = match;
-        const maxCount = currentPattern.split('/')[1]; // 최대 인원수는 유지
-        const newPattern = `${currentCount}/${maxCount}`;
-        const newTitle = currentTitle.replace(participantPattern, newPattern);
-        
-        console.log(`[VoiceForumService] 패턴 변경: ${currentPattern} -> ${newPattern}`);
-        console.log(`[VoiceForumService] 제목 변경: ${currentTitle} -> ${newTitle}`);
-        
-        // 제목이 실제로 변경된 경우에만 업데이트
-        if (newTitle !== currentTitle) {
-          try {
-            // 1. 스레드 제목 업데이트 (재시도 로직 포함)
-            await this.updateThreadNameWithRetry(thread, newTitle, 3);
-            console.log(`[VoiceForumService] 스레드 제목 업데이트 완료`);
-            
-            // 2. 포럼 포스트 내용의 제목도 업데이트
-            await this.updateForumPostContent(thread, currentPattern, newPattern);
-            
-            console.log(`포럼 포스트 제목 및 내용 업데이트: ${currentTitle} -> ${newTitle}`);
-          } catch (updateError) {
-            console.error(`[VoiceForumService] 업데이트 실패 (시도 ${retryCount + 1}/3):`, updateError.message);
-            
-            // 최대 3번까지 재시도
-            if (retryCount < 2) {
-              console.log(`[VoiceForumService] ${1000 * (retryCount + 30)}ms 후 재시도...`);
-              setTimeout(() => {
-                this.updateForumPostTitle(voiceChannelId, retryCount + 1);
-              }, 1000 * (retryCount + 30)); // 2초, 3초, 4초 간격
-            } else {
-              console.error(`[VoiceForumService] 최대 재시도 횟수 초과. 업데이트 포기: ${voiceChannelId}`);
-            }
-          }
-        } else {
-          console.log(`[VoiceForumService] 제목 변경 불필요 (동일함)`);
-        }
-      } else {
-        console.log(`[VoiceForumService] 제목에서 참여자 패턴을 찾을 수 없음`);
+        maxCount = currentPattern.split('/')[1]; // 최대 인원수 추출
       }
+      
+      // 음성 채널 정보 가져오기
+      const voiceChannel = await this.client.channels.fetch(voiceChannelId);
+      const voiceChannelName = voiceChannel ? voiceChannel.name : '알 수 없는 채널';
+      
+      // 현재 시간
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('ko-KR', { 
+        hour: '2-digit', 
+        minute: '2-digit',
+        hour12: true 
+      });
+      
+      // 큰 폰트로 참여자 수 메시지 생성
+      const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n**🔊 채널**: ${voiceChannelName}\n**⏰ 업데이트**: ${timeString}`;
+      
+      // 포럼 포스트에 새 메시지 전송
+      await thread.send(updateMessage);
+      console.log(`[VoiceForumService] 참여자 수 업데이트 메시지 전송 완료: ${currentCount}/${maxCount}명`);
+      
     } catch (error) {
-      console.error('포럼 포스트 제목 업데이트 오류:', error);
-      
-      // 최대 3번까지 재시도
-      if (retryCount < 2) {
-        console.log(`[VoiceForumService] ${1000 * (retryCount + 30)}ms 후 재시도...`);
-        setTimeout(() => {
-          this.updateForumPostTitle(voiceChannelId, retryCount + 1);
-        }, 1000 * (retryCount + 30));
-      }
+      console.error('[VoiceForumService] 참여자 수 업데이트 메시지 전송 오류:', error);
     }
   }
 
-  /**
-   * 스레드 이름 업데이트 (재시도 로직 포함)
-   * @param {ThreadChannel} thread - 스레드 채널
-   * @param {string} newName - 새로운 이름
-   * @param {number} maxRetries - 최대 재시도 횟수
-   */
-  async updateThreadNameWithRetry(thread, newName, maxRetries = 3) {
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        await thread.setName(newName);
-        console.log(`[VoiceForumService] 스레드 이름 업데이트 성공 (시도 ${attempt}/${maxRetries})`);
-        return; // 성공시 함수 종료
-      } catch (error) {
-        console.warn(`[VoiceForumService] 스레드 이름 업데이트 실패 (시도 ${attempt}/${maxRetries}):`, error.message);
-        
-        if (attempt === maxRetries) {
-          throw error; // 마지막 시도에서 실패하면 에러 throw
-        }
-        
-        // 다음 시도 전 대기 (지수적 백오프)
-        const delay = Math.pow(30, attempt) * 1000; // 2초, 4초, 8초
-        console.log(`[VoiceForumService] ${delay}ms 후 재시도...`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      }
-    }
-  }
 
-  /**
-   * 포럼 포스트 내용의 제목 부분 업데이트
-   * @param {ThreadChannel} thread - 스레드 채널
-   * @param {string} oldPattern - 기존 패턴 (예: "1/5")
-   * @param {string} newPattern - 새로운 패턴 (예: "2/5")
-   */
-  async updateForumPostContent(thread, oldPattern, newPattern) {
-    try {
-      // 스레드의 첫 번째 메시지 (임베드) 가져오기
-      const messages = await thread.messages.fetch({ limit: 1 });
-      const firstMessage = messages.first();
-      
-      if (!firstMessage || !firstMessage.embeds.length) {
-        return;
-      }
-
-      const embed = EmbedBuilder.from(firstMessage.embeds[0]);
-      
-      // 임베드의 description에서 제목 부분 찾아서 업데이트
-      if (embed.data.description) {
-        const updatedDescription = embed.data.description.replace(
-          new RegExp(oldPattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-          newPattern
-        );
-        
-        // description이 실제로 변경된 경우에만 업데이트
-        if (updatedDescription !== embed.data.description) {
-          embed.setDescription(updatedDescription);
-          await firstMessage.edit({ embeds: [embed] });
-          console.log(`포럼 포스트 내용 업데이트: ${oldPattern} -> ${newPattern}`);
-        }
-      }
-    } catch (error) {
-      console.error('포럼 포스트 내용 업데이트 오류:', error);
-    }
-  }
 
   /**
    * 구인구직 연동 임베드 메시지를 음성 채널에 전송 (권한 사용자만 볼 수 있음)
@@ -746,39 +658,38 @@ export class VoiceChannelForumIntegrationService {
         return;
       }
 
-      // 활성화된 포럼 포스트 가져오기 (모든 포스트, 최대 15개)
-      const activePosts = await this.getActiveForumPosts();
-
+      // 역할 태그 선택 단계를 먼저 표시
       const embed = new EmbedBuilder()
-        .setTitle('🎯 구인구직 연동 방법 선택')
-        .setDescription('새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.')
+        .setTitle('🎮 역할 태그 선택')
+        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
         .setColor(0x5865F2);
 
-      const selectOptions = [
-        {
-          label: '🆕 새 구인구직 포럼 생성',
-          description: '새로운 포럼 포스트를 생성합니다',
-          value: `new_forum_${voiceChannelId}`
-        }
+      const roleTagOptions = [
+        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
+        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
+        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
+        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
+        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
+        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
+        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
+        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
+        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
+        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
+        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
+        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
+        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
+        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
+        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
       ];
 
-      // 활성화된 포럼이 있으면 선택지에 추가 (최대 15개)
-      if (activePosts.length > 0) {
-        activePosts.forEach(post => {
-          selectOptions.push({
-            label: `🔗 ${post.name}`,
-            description: `"${post.name}" 포럼에 연동`,
-            value: `existing_forum_${voiceChannelId}_${post.id}`
-          });
-        });
-      }
+      const roleSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`role_tags_select_${voiceChannelId}`)
+        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
+        .setMinValues(1)
+        .setMaxValues(5)
+        .addOptions(roleTagOptions);
 
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`recruitment_select_${voiceChannelId}`)
-        .setPlaceholder('연동 방법을 선택하세요')
-        .addOptions(selectOptions);
-
-      const row = new ActionRowBuilder().addComponents(selectMenu);
+      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
 
       await this.safeReply(interaction, {
         embeds: [embed],
@@ -800,25 +711,95 @@ export class VoiceChannelForumIntegrationService {
    */
   async handleSelectMenuInteraction(interaction) {
     try {
-      if (!interaction.customId.startsWith('recruitment_select_')) {
+      // 역할 태그 선택 처리
+      if (interaction.customId.startsWith('role_tags_select_')) {
+        await this.handleRoleTagSelection(interaction);
         return;
       }
 
-      const selectedValue = interaction.values[0];
-      const voiceChannelId = interaction.customId.split('_')[2];
+      // 기존 구인구직 선택 처리
+      if (interaction.customId.startsWith('recruitment_select_')) {
+        const selectedValue = interaction.values[0];
+        const voiceChannelId = interaction.customId.split('_')[2];
 
-      if (selectedValue.startsWith('new_forum_')) {
-        // 새 포럼 생성 - 모달 표시
-        await this.showRecruitmentModal(interaction, voiceChannelId);
-      } else if (selectedValue.startsWith('existing_forum_')) {
-        // 기존 포럼 연동
-        const parts = selectedValue.split('_');
-        const existingPostId = parts[3];
-        await this.linkToExistingForum(interaction, voiceChannelId, existingPostId);
+        if (selectedValue.startsWith('new_forum_')) {
+          // 새 포럼 생성 - 모달 표시
+          const parts = selectedValue.split('_');
+          const selectedRoles = parts.length > 3 ? parts.slice(3).join('_').split(',') : [];
+          await this.showRecruitmentModal(interaction, voiceChannelId, selectedRoles);
+        } else if (selectedValue.startsWith('existing_forum_')) {
+          // 기존 포럼 연동
+          const parts = selectedValue.split('_');
+          const existingPostId = parts[3];
+          const selectedRoles = parts.length > 4 ? parts.slice(4).join('_').split(',') : [];
+          await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedRoles);
+        }
+        return;
       }
     } catch (error) {
       console.error('드롭다운 선택 처리 오류:', error);
-      await interaction.reply({
+      await this.safeReply(interaction, {
+        content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+
+  /**
+   * 역할 태그 선택 처리
+   * @param {StringSelectMenuInteraction} interaction - 드롭다운 인터랙션
+   */
+  async handleRoleTagSelection(interaction) {
+    try {
+      const voiceChannelId = interaction.customId.split('_')[3];
+      const selectedRoles = interaction.values;
+
+      // 선택된 역할들은 이미 한글 value이므로 바로 사용
+      const rolesText = selectedRoles.join(', ');
+
+      // 이제 연동 방법 선택 단계로 이동
+      const activePosts = await this.getActiveForumPosts();
+
+      const embed = new EmbedBuilder()
+        .setTitle('🎯 구인구직 연동 방법 선택')
+        .setDescription(`**선택된 태그**: ${rolesText}\n\n새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.`)
+        .setColor(0x5865F2);
+
+      const selectOptions = [
+        {
+          label: '🆕 새 구인구직 포럼 생성',
+          description: '새로운 포럼 포스트를 생성합니다',
+          value: `new_forum_${voiceChannelId}_${selectedRoles.join(',')}`
+        }
+      ];
+
+      // 활성화된 포럼이 있으면 선택지에 추가 (최대 15개)
+      if (activePosts.length > 0) {
+        activePosts.forEach(post => {
+          selectOptions.push({
+            label: `🔗 ${post.name}`,
+            description: `"${post.name}" 포럼에 연동`,
+            value: `existing_forum_${voiceChannelId}_${post.id}_${selectedRoles.join(',')}`
+          });
+        });
+      }
+
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`recruitment_select_${voiceChannelId}`)
+        .setPlaceholder('연동 방법을 선택하세요')
+        .addOptions(selectOptions);
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
+
+      await this.safeReply(interaction, {
+        embeds: [embed],
+        components: [row],
+        flags: MessageFlags.Ephemeral
+      });
+
+    } catch (error) {
+      console.error('역할 태그 선택 처리 오류:', error);
+      await this.safeReply(interaction, {
         content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
         flags: MessageFlags.Ephemeral
       });
@@ -845,21 +826,21 @@ export class VoiceChannelForumIntegrationService {
 
       const modal = new ModalBuilder()
         .setCustomId('standalone_recruitment_modal')
-        .setTitle('구인구직 포럼 생성');
+        .setTitle('구인구직 포럼 생성 (장기 컨텐츠는 연동X)');
 
       const titleInput = new TextInputBuilder()
         .setCustomId('recruitment_title')
-        .setLabel('제목 (현재 인원/최대 인원) 필수')
+        .setLabel('제목 (양식에 맞게 작성)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: 칼바람 1/5 오후 8시')
+        .setPlaceholder('게임 현재인원/최대인원 시간')
         .setRequired(true)
         .setMaxLength(100);
 
       const tagsInput = new TextInputBuilder()
         .setCustomId('recruitment_tags')
-        .setLabel('태그 (쉼표로 구분)')
+        .setLabel('역할 태그 (쉼표로 구분)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: 칼바람, 롤, 스팀게임')
+        .setPlaceholder('예: 롤, 배그, 옵치, 발로, 스팀')
         .setRequired(false)
         .setMaxLength(100);
 
@@ -887,12 +868,13 @@ export class VoiceChannelForumIntegrationService {
    * 구인구직 모달 표시 (새 포럼 생성용)
    * @param {Interaction} interaction - 인터랙션 객체
    * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {Array} selectedRoles - 선택된 역할 태그 배열
    */
-  async showRecruitmentModal(interaction, voiceChannelId) {
+  async showRecruitmentModal(interaction, voiceChannelId, selectedRoles = []) {
     try {
       const modal = new ModalBuilder()
         .setCustomId(`recruitment_modal_${voiceChannelId}`)
-        .setTitle('새 구인구직 포럼 생성');
+        .setTitle('새 구인구직 포럼 생성 (장기 컨텐츠는 연동X)');
 
       const titleInput = new TextInputBuilder()
         .setCustomId('recruitment_title')
@@ -902,13 +884,20 @@ export class VoiceChannelForumIntegrationService {
         .setRequired(true)
         .setMaxLength(100);
 
+      // 선택된 역할들은 이미 한글 value이므로 바로 사용
+      let tagsValue = '';
+      if (selectedRoles && selectedRoles.length > 0) {
+        tagsValue = selectedRoles.join(', ');
+      }
+
       const tagsInput = new TextInputBuilder()
         .setCustomId('recruitment_tags')
-        .setLabel('태그 (쉼표로 구분)')
+        .setLabel('역할 태그 (수정 가능)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('예: 칼바람, 롤, 스팀게임')
+        .setPlaceholder('예: 롤, 배그, 옵치, 발로, 스팀')
         .setRequired(false)
-        .setMaxLength(100);
+        .setMaxLength(100)
+        .setValue(tagsValue); // 선택된 태그들을 자동으로 입력
 
       const descriptionInput = new TextInputBuilder()
         .setCustomId('recruitment_description')
@@ -935,8 +924,9 @@ export class VoiceChannelForumIntegrationService {
    * @param {Interaction} interaction - 인터랙션 객체
    * @param {string} voiceChannelId - 음성 채널 ID
    * @param {string} existingPostId - 기존 포스트 ID
+   * @param {Array} selectedRoles - 선택된 역할 태그 배열
    */
-  async linkToExistingForum(interaction, voiceChannelId, existingPostId) {
+  async linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedRoles = []) {
     try {
       const voiceChannel = await this.client.channels.fetch(voiceChannelId);
       const existingThread = await this.client.channels.fetch(existingPostId);
@@ -1032,8 +1022,12 @@ export class VoiceChannelForumIntegrationService {
           iconURL: recruitmentData.author.displayAvatarURL()
         });
 
+      // 모집자 별명 정리 후 제목에 추가
+      const cleanedNickname = this.cleanNickname(recruitmentData.author.displayName);
+      const finalTitle = `[${cleanedNickname}] ${recruitmentData.title}`;
+
       const thread = await forumChannel.threads.create({
-        name: recruitmentData.title,
+        name: finalTitle,
         message: {
           embeds: [embed]
         }
@@ -1294,6 +1288,17 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
+   * 사용자 별명에서 대기/관전 태그 제거
+   * @param {string} displayName - 사용자 표시 이름
+   * @returns {string} - 정리된 별명
+   */
+  cleanNickname(displayName) {
+    return displayName
+      .replace(/^\[대기\]\s*/, '')
+      .replace(/^\[관전\]\s*/, '');
+  }
+
+  /**
    * 포럼 채널에 포스트 생성
    * @param {VoiceChannel} voiceChannel - 음성 채널
    * @param {Object} recruitmentData - 구인구직 데이터
@@ -1358,8 +1363,12 @@ export class VoiceChannelForumIntegrationService {
           iconURL: recruitmentData.author.displayAvatarURL()
         });
 
+      // 모집자 별명 정리 후 제목에 추가
+      const cleanedNickname = this.cleanNickname(recruitmentData.author.displayName);
+      const finalTitle = `[${cleanedNickname}] ${recruitmentData.title}`;
+
       const thread = await forumChannel.threads.create({
-        name: recruitmentData.title,
+        name: finalTitle,
         message: {
           embeds: [embed],
           components: [voiceButtonRow]
