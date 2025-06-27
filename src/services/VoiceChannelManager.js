@@ -264,4 +264,36 @@ export class VoiceChannelManager {
       newNickname: newNickname
     };
   }
+  
+  /**
+   * 정상 모드로 복구 (태그 제거)
+   * @param {GuildMember} member - 대상 멤버
+   * @returns {Promise<Object>} - 변경 결과
+   */
+  async restoreNormalMode(member) {
+    const currentNickname = member.nickname || member.user.displayName;
+    let newNickname = currentNickname;
+    
+    // [대기] 또는 [관전] 태그 제거
+    if (currentNickname.startsWith('[대기]')) {
+      newNickname = currentNickname.replace('[대기]', '').trim();
+    } else if (currentNickname.startsWith('[관전]')) {
+      newNickname = currentNickname.replace('[관전]', '').trim();
+    } else {
+      return {
+        success: false,
+        alreadyNormal: true,
+        message: '이미 정상 모드입니다.'
+      };
+    }
+    
+    const success = await this.changeNickname(member, newNickname);
+    
+    return {
+      success,
+      alreadyNormal: false,
+      oldNickname: currentNickname,
+      newNickname: newNickname
+    };
+  }
 }
