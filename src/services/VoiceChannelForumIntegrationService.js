@@ -238,14 +238,14 @@ export class VoiceChannelForumIntegrationService {
         if (oldState.channelId && this.channelPostMap.has(oldState.channelId)) {
           console.log(`[VoiceForumService] 이전 채널에서 퇴장 처리: ${oldState.channelId}`);
           // 중복 업데이트 방지를 위한 큐 기반 업데이트
-          this.queueTitleUpdate(oldState.channelId, true);
+          this.queueParticipantUpdate(oldState.channelId, true);
         }
         
         // 새 채널에 입장한 경우
         if (newState.channelId && this.channelPostMap.has(newState.channelId)) {
           console.log(`[VoiceForumService] 새 채널에 입장 처리: ${newState.channelId}`);
           // 중복 업데이트 방지를 위한 큐 기반 업데이트
-          this.queueTitleUpdate(newState.channelId, false);
+          this.queueParticipantUpdate(newState.channelId, false);
         }
         
         // ========== 구인구직 임베드 확인 ==========
@@ -658,38 +658,39 @@ export class VoiceChannelForumIntegrationService {
         return;
       }
 
-      // 역할 태그 선택 단계를 먼저 표시
+      // 활성화된 포럼 포스트 가져오기 (모든 포스트, 최대 15개)
+      const activePosts = await this.getActiveForumPosts();
+
       const embed = new EmbedBuilder()
-        .setTitle('🎮 역할 태그 선택')
-        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
+        .setTitle('🎯 구인구직 연동 방법 선택')
+        .setDescription('새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.')
         .setColor(0x5865F2);
 
-      const roleTagOptions = [
-        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
-        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
-        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
-        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
-        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
-        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
-        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
-        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
-        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
-        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
-        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
-        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
-        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
-        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
-        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
+      const selectOptions = [
+        {
+          label: '🆕 새 구인구직 포럼 생성',
+          description: '새로운 포럼 포스트를 생성합니다',
+          value: `new_forum_${voiceChannelId}`
+        }
       ];
 
-      const roleSelectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`role_tags_select_${voiceChannelId}`)
-        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
-        .setMinValues(1)
-        .setMaxValues(5)
-        .addOptions(roleTagOptions);
+      // 활성화된 포럼이 있으면 선택지에 추가 (최대 15개)
+      if (activePosts.length > 0) {
+        activePosts.forEach(post => {
+          selectOptions.push({
+            label: `🔗 ${post.name}`,
+            description: `"${post.name}" 포럼에 연동`,
+            value: `existing_forum_${voiceChannelId}_${post.id}`
+          });
+        });
+      }
 
-      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
+      const selectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`recruitment_method_select_${voiceChannelId}`)
+        .setPlaceholder('연동 방법을 선택하세요')
+        .addOptions(selectOptions);
+
+      const row = new ActionRowBuilder().addComponents(selectMenu);
 
       await this.safeReply(interaction, {
         embeds: [embed],
@@ -711,13 +712,26 @@ export class VoiceChannelForumIntegrationService {
    */
   async handleSelectMenuInteraction(interaction) {
     try {
+      // 독립적인 구인구직의 역할 태그 선택 처리
+      if (interaction.customId === 'standalone_role_tags_select') {
+        const selectedRoles = interaction.values;
+        await this.showStandaloneRecruitmentModalWithRoles(interaction, selectedRoles);
+        return;
+      }
+
+      // 연동 방법 선택 처리 (새로 추가)
+      if (interaction.customId.startsWith('recruitment_method_select_')) {
+        await this.handleMethodSelection(interaction);
+        return;
+      }
+
       // 역할 태그 선택 처리
       if (interaction.customId.startsWith('role_tags_select_')) {
         await this.handleRoleTagSelection(interaction);
         return;
       }
 
-      // 기존 구인구직 선택 처리
+      // 기존 구인구직 선택 처리 (역할 태그 선택 후)
       if (interaction.customId.startsWith('recruitment_select_')) {
         const selectedValue = interaction.values[0];
         const voiceChannelId = interaction.customId.split('_')[2];
@@ -746,56 +760,86 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 역할 태그 선택 처리
+   * 연동 방법 선택 처리 (새 포럼 생성 vs 기존 포럼 연동)
    * @param {StringSelectMenuInteraction} interaction - 드롭다운 인터랙션
    */
-  async handleRoleTagSelection(interaction) {
+  async handleMethodSelection(interaction) {
     try {
+      const selectedValue = interaction.values[0];
       const voiceChannelId = interaction.customId.split('_')[3];
-      const selectedRoles = interaction.values;
 
-      // 선택된 역할들은 이미 한글 value이므로 바로 사용
-      const rolesText = selectedRoles.join(', ');
-
-      // 이제 연동 방법 선택 단계로 이동
-      const activePosts = await this.getActiveForumPosts();
-
+      // 역할 태그 선택 단계로 이동
       const embed = new EmbedBuilder()
-        .setTitle('🎯 구인구직 연동 방법 선택')
-        .setDescription(`**선택된 태그**: ${rolesText}\n\n새로운 포럼을 생성하거나 기존 포럼에 연동할 수 있습니다.`)
+        .setTitle('🎮 역할 태그 선택')
+        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
         .setColor(0x5865F2);
 
-      const selectOptions = [
-        {
-          label: '🆕 새 구인구직 포럼 생성',
-          description: '새로운 포럼 포스트를 생성합니다',
-          value: `new_forum_${voiceChannelId}_${selectedRoles.join(',')}`
-        }
+      const roleTagOptions = [
+        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
+        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
+        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
+        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
+        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
+        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
+        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
+        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
+        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
+        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
+        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
+        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
+        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
+        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
+        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
       ];
 
-      // 활성화된 포럼이 있으면 선택지에 추가 (최대 15개)
-      if (activePosts.length > 0) {
-        activePosts.forEach(post => {
-          selectOptions.push({
-            label: `🔗 ${post.name}`,
-            description: `"${post.name}" 포럼에 연동`,
-            value: `existing_forum_${voiceChannelId}_${post.id}_${selectedRoles.join(',')}`
-          });
-        });
-      }
+      const roleSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId(`role_tags_select_${voiceChannelId}_${selectedValue}`)
+        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
+        .setMinValues(1)
+        .setMaxValues(5)
+        .addOptions(roleTagOptions);
 
-      const selectMenu = new StringSelectMenuBuilder()
-        .setCustomId(`recruitment_select_${voiceChannelId}`)
-        .setPlaceholder('연동 방법을 선택하세요')
-        .addOptions(selectOptions);
-
-      const row = new ActionRowBuilder().addComponents(selectMenu);
+      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
 
       await this.safeReply(interaction, {
         embeds: [embed],
         components: [row],
         flags: MessageFlags.Ephemeral
       });
+
+    } catch (error) {
+      console.error('연동 방법 선택 처리 오류:', error);
+      await this.safeReply(interaction, {
+        content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+
+  /**
+   * 역할 태그 선택 처리
+   * @param {StringSelectMenuInteraction} interaction - 드롭다운 인터랙션
+   */
+  async handleRoleTagSelection(interaction) {
+    try {
+      const parts = interaction.customId.split('_');
+      const voiceChannelId = parts[3];
+      const methodValue = parts.slice(4).join('_'); // selectedValue 복원
+      const selectedRoles = interaction.values;
+
+      // 선택된 역할들은 이미 한글 value이므로 바로 사용
+      const rolesText = selectedRoles.join(', ');
+
+      // 연동 방법에 따라 처리
+      if (methodValue.startsWith('new_forum_')) {
+        // 새 포럼 생성 - 모달 표시
+        await this.showRecruitmentModal(interaction, voiceChannelId, selectedRoles);
+      } else if (methodValue.startsWith('existing_forum_')) {
+        // 기존 포럼 연동
+        const methodParts = methodValue.split('_');
+        const existingPostId = methodParts[3];
+        await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedRoles);
+      }
 
     } catch (error) {
       console.error('역할 태그 선택 처리 오류:', error);
@@ -807,7 +851,7 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 독립적인 구인구직 모달 표시 (명령어용)
+   * 독립적인 구인구직 모달 표시 (명령어용) - 역할 태그 선택부터 시작
    * @param {Interaction} interaction - 인터랙션 객체
    */
   async showStandaloneRecruitmentModal(interaction) {
@@ -824,6 +868,56 @@ export class VoiceChannelForumIntegrationService {
       }
       // =============================
 
+      // 역할 태그 선택 단계부터 시작
+      const embed = new EmbedBuilder()
+        .setTitle('🎮 역할 태그 선택')
+        .setDescription('구인구직에 표시할 게임/활동 태그를 선택해주세요.\n(최대 5개까지 선택 가능)')
+        .setColor(0x5865F2);
+
+      const roleTagOptions = [
+        { label: '🔫 배틀그라운드', value: '배그', emoji: '🔫' },
+        { label: '🎯 발로란트', value: '발로', emoji: '🎯' },
+        { label: '♟️ 전략적 팀 전투 (롤토체스)', value: '롤체', emoji: '♟️' },
+        { label: '⚔️ 오버워치', value: '옵치', emoji: '⚔️' },
+        { label: '🚂 스팀 게임', value: '스팀', emoji: '🚂' },
+        { label: '🔺 에이펙스 레전드', value: '에펙', emoji: '🔺' },
+        { label: '🎮 기타 게임', value: '기타', emoji: '🎮' },
+        { label: '🎲 보드게임', value: '보드게임', emoji: '🎲' },
+        { label: '🏰 RPG게임 (로스트아크)', value: 'RPG', emoji: '🏰' },
+        { label: '⛏️ 마인크래프트', value: '마크', emoji: '⛏️' },
+        { label: '🎪 넥슨 게임', value: '넥슨', emoji: '🎪' },
+        { label: '🎮 리그 오브 레전드', value: '롤', emoji: '🎮' },
+        { label: '👻 공포 게임', value: '공포', emoji: '👻' },
+        { label: '🏝️ 생존 게임', value: '생존', emoji: '🏝️' },
+        { label: '🧩 퍼즐 게임', value: '퍼즐', emoji: '🧩' }
+      ];
+
+      const roleSelectMenu = new StringSelectMenuBuilder()
+        .setCustomId('standalone_role_tags_select')
+        .setPlaceholder('게임/활동 태그를 선택하세요 (여러개 가능)')
+        .setMinValues(1)
+        .setMaxValues(5)
+        .addOptions(roleTagOptions);
+
+      const row = new ActionRowBuilder().addComponents(roleSelectMenu);
+
+      await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        flags: MessageFlags.Ephemeral
+      });
+    } catch (error) {
+      console.error('독립 모달 표시 오류:', error);
+    }
+  }
+
+  /**
+   * 독립적인 구인구직 모달 실제 표시 (역할 태그 선택 후)
+   * @param {Interaction} interaction - 인터랙션 객체
+   * @param {Array} selectedRoles - 선택된 역할 태그 배열
+   */
+  async showStandaloneRecruitmentModalWithRoles(interaction, selectedRoles = []) {
+    try {
       const modal = new ModalBuilder()
         .setCustomId('standalone_recruitment_modal')
         .setTitle('구인구직 포럼 생성 (장기 컨텐츠는 연동X)');
@@ -836,13 +930,20 @@ export class VoiceChannelForumIntegrationService {
         .setRequired(true)
         .setMaxLength(100);
 
+      // 선택된 역할들은 이미 한글 value이므로 바로 사용
+      let tagsValue = '';
+      if (selectedRoles && selectedRoles.length > 0) {
+        tagsValue = selectedRoles.join(', ');
+      }
+
       const tagsInput = new TextInputBuilder()
         .setCustomId('recruitment_tags')
-        .setLabel('역할 태그 (쉼표로 구분)')
+        .setLabel('역할 태그 (수정 가능)')
         .setStyle(TextInputStyle.Short)
         .setPlaceholder('예: 롤, 배그, 옵치, 발로, 스팀')
         .setRequired(false)
-        .setMaxLength(100);
+        .setMaxLength(100)
+        .setValue(tagsValue); // 선택된 태그들을 자동으로 입력
 
       const descriptionInput = new TextInputBuilder()
         .setCustomId('recruitment_description')
