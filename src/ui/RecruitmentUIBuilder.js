@@ -1,10 +1,10 @@
 // src/ui/RecruitmentUIBuilder.js - 구인구직 UI 빌더
-import { 
-  EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  StringSelectMenuBuilder 
+import {
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  StringSelectMenuBuilder
 } from 'discord.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
@@ -20,12 +20,14 @@ export class RecruitmentUIBuilder {
       .setTitle('🎮 구인구직 포럼 연동')
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
-        '• 👁️ **관전**: 별명에 [관전] 태그 추가'
+        '• 👁️ **관전**: 별명에 [관전] 태그 추가\n' +
+        '• ⏳ **대기**: 별명에 [대기] 태그 추가\n' +
+        '• 🔄 **초기화**: 별명의 태그를 제거'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '아래 버튼을 클릭하여 원하는 작업을 선택하세요.' });
   }
-  
+
   /**
    * 구인구직 연동 버튼들 생성
    * @param {string} voiceChannelId - 음성 채널 ID
@@ -36,17 +38,27 @@ export class RecruitmentUIBuilder {
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT}${voiceChannelId}`)
       .setLabel('🎯 연동하기')
       .setStyle(ButtonStyle.Primary);
-    
+
     const spectateButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
-      .setLabel('👁️ 관전')
+      .setLabel('관전')
       .setStyle(ButtonStyle.Secondary);
-    
+
+    const waitButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
+      .setLabel('대기')
+      .setStyle(ButtonStyle.Success);
+
+    const resetButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
+      .setLabel('초기화')
+      .setStyle(ButtonStyle.Primary);
+
     return [
-      new ActionRowBuilder().addComponents(connectButton, spectateButton)
+      new ActionRowBuilder().addComponents(connectButton, spectateButton, waitButton, resetButton)
     ];
   }
-  
+
   /**
    * 연동 방법 선택 임베드 생성
    * @param {string} voiceChannelName - 음성 채널 이름
@@ -65,7 +77,7 @@ export class RecruitmentUIBuilder {
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '연동 방법을 선택한 후 다음 단계로 진행됩니다.' });
   }
-  
+
   /**
    * 연동 방법 선택 드롭다운 생성
    * @param {string} voiceChannelId - 음성 채널 ID
@@ -81,7 +93,7 @@ export class RecruitmentUIBuilder {
         emoji: '🆕'
       }
     ];
-    
+
     // 기존 포스트가 있으면 선택 옵션 추가
     existingPosts.forEach((post, index) => {
       if (index < 8) { // 최대 8개까지만 (새 포럼 생성 + 7개 기존 포스트)
@@ -93,15 +105,15 @@ export class RecruitmentUIBuilder {
         });
       }
     });
-    
+
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_METHOD}${voiceChannelId}`)
       .setPlaceholder('연동 방법을 선택하세요')
       .addOptions(options);
-    
+
     return new ActionRowBuilder().addComponents(selectMenu);
   }
-  
+
   /**
    * 역할 태그 선택 임베드 생성
    * @param {Array} selectedTags - 선택된 태그 목록
@@ -111,7 +123,7 @@ export class RecruitmentUIBuilder {
   static createRoleTagSelectionEmbed(selectedTags = [], isStandalone = false) {
     const selectedTagsText = selectedTags.length > 0 ? selectedTags.join(', ') : '없음';
     const modeText = isStandalone ? '독립 구인구직' : '음성 채널 연동';
-    
+
     return new EmbedBuilder()
       .setTitle('🏷️ 역할 태그 선택')
       .setDescription(
@@ -122,7 +134,7 @@ export class RecruitmentUIBuilder {
       )
       .setColor(RecruitmentConfig.COLORS.INFO);
   }
-  
+
   /**
    * 역할 태그 버튼 그리드 생성
    * @param {Array} selectedTags - 선택된 태그 목록
@@ -133,43 +145,43 @@ export class RecruitmentUIBuilder {
    */
   static createRoleTagButtons(selectedTags = [], voiceChannelId = null, methodValue = null, isStandalone = false) {
     const components = [];
-    
+
     // 4행 4열 버튼 그리드 생성 (15개 태그만 표시)
     for (let row = 0; row < RecruitmentConfig.BUTTON_GRID_ROWS; row++) {
       const actionRow = new ActionRowBuilder();
       let hasButtons = false;
-      
+
       for (let col = 0; col < RecruitmentConfig.BUTTON_GRID_COLS; col++) {
         const tagIndex = row * RecruitmentConfig.BUTTON_GRID_COLS + col;
         const tag = RecruitmentConfig.ROLE_TAG_VALUES[tagIndex];
-        
+
         // 태그가 존재할 때만 버튼 생성
         if (tag) {
           const isSelected = selectedTags.includes(tag);
-          
+
           let buttonCustomId;
           if (isStandalone) {
             buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}`;
           } else {
             buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON}${tag}_${voiceChannelId}_${methodValue}`;
           }
-          
+
           const button = new ButtonBuilder()
             .setCustomId(buttonCustomId)
             .setLabel(tag)
             .setStyle(isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-          
+
           actionRow.addComponents(button);
           hasButtons = true;
         }
       }
-      
+
       // 버튼이 있는 행만 추가
       if (hasButtons) {
         components.push(actionRow);
       }
     }
-    
+
     // 완료 버튼 추가
     let completeCustomId;
     if (isStandalone) {
@@ -177,20 +189,20 @@ export class RecruitmentUIBuilder {
     } else {
       completeCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_COMPLETE}${voiceChannelId}_${methodValue}`;
     }
-    
+
     const completeButton = new ButtonBuilder()
       .setCustomId(completeCustomId)
       .setLabel('선택 완료')
       .setStyle(ButtonStyle.Primary)
       .setEmoji('✅')
       .setDisabled(selectedTags.length === 0);
-    
+
     const completeRow = new ActionRowBuilder().addComponents(completeButton);
     components.push(completeRow);
-    
+
     return components;
   }
-  
+
   /**
    * 독립 구인구직 생성 임베드
    * @returns {EmbedBuilder} - 생성된 임베드
@@ -209,7 +221,7 @@ export class RecruitmentUIBuilder {
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '(장기 컨텐츠는 연동X)' });
   }
-  
+
   /**
    * 성공 메시지 임베드 생성
    * @param {string} title - 제목
@@ -223,14 +235,14 @@ export class RecruitmentUIBuilder {
       .setDescription(description)
       .setColor(RecruitmentConfig.COLORS.SUCCESS)
       .setTimestamp();
-    
+
     if (fields.length > 0) {
       embed.addFields(fields);
     }
-    
+
     return embed;
   }
-  
+
   /**
    * 에러 메시지 임베드 생성
    * @param {string} title - 제목
@@ -244,7 +256,7 @@ export class RecruitmentUIBuilder {
       .setColor(RecruitmentConfig.COLORS.ERROR)
       .setTimestamp();
   }
-  
+
   /**
    * 경고 메시지 임베드 생성
    * @param {string} title - 제목
@@ -258,7 +270,7 @@ export class RecruitmentUIBuilder {
       .setColor(RecruitmentConfig.COLORS.WARNING)
       .setTimestamp();
   }
-  
+
   /**
    * 참여자 정보 임베드 생성
    * @param {string} voiceChannelName - 음성 채널 이름
