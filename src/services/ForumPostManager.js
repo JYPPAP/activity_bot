@@ -83,10 +83,20 @@ export class ForumPostManager {
           
           // 실제 역할 멘션이 포함된 경우에만 메시지 전송
           if (roleMentions && roleMentions.includes('<@&')) {
+            // roleMentions에서 역할 ID 추출
+            const roleIds = [];
+            const roleMatches = roleMentions.match(/<@&(\d+)>/g);
+            if (roleMatches) {
+              roleMatches.forEach(match => {
+                const roleId = match.match(/\d+/)[0];
+                roleIds.push(roleId);
+              });
+            }
+            
             await thread.send({
               content: `🏷️ **모집 태그**: ${roleMentions}`,
               allowedMentions: { 
-                roles: true  // 역할 멘션 허용
+                roles: roleIds  // 실제 멘션된 역할 ID 배열
               }
             });
             console.log(`[ForumPostManager] 역할 멘션 메시지 전송됨: ${roleMentions}`);
