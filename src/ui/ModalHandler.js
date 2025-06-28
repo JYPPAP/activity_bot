@@ -27,7 +27,7 @@ export class ModalHandler {
     try {
       const modal = new ModalBuilder()
         .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_MODAL}${voiceChannelId}`)
-        .setTitle('새 구인구직 포럼 생성 (장기 컨텐츠는 연동X)');
+        .setTitle('새 구인구직 포럼 생성');
 
       const titleInput = new TextInputBuilder()
         .setCustomId('recruitment_title')

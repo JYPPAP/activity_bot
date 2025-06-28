@@ -90,7 +90,9 @@ export class ForumPostManager {
    * @returns {string} - 생성된 제목
    */
   generatePostTitle(recruitmentData) {
-    const cleanedNickname = TextProcessor.cleanNickname(recruitmentData.author.displayName);
+    // 서버 멤버 객체면 서버 닉네임 사용, 아니면 전역명 사용
+    const displayName = recruitmentData.author.displayName || recruitmentData.author.username;
+    const cleanedNickname = TextProcessor.cleanNickname(displayName);
     return `[${cleanedNickname}] ${recruitmentData.title}`;
   }
   
