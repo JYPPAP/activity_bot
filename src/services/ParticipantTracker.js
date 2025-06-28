@@ -21,8 +21,9 @@ export class ParticipantTracker {
     voiceChannel.members.forEach(member => {
       const displayName = member.displayName;
       
-      // [대기] 또는 [관전] 태그가 없는 경우만 카운트
-      if (!TextProcessor.hasWaitOrSpectateTag(displayName)) {
+      // [관전] 태그만 제외하고 카운트 ([대기]는 포함)
+      const { hasSpectateTag } = TextProcessor.checkSpecialTags(displayName);
+      if (!hasSpectateTag) {
         activeCount++;
       }
     });

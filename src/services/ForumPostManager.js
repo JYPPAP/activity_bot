@@ -210,7 +210,7 @@ export class ForumPostManager {
       }
       
       const timeString = TextProcessor.formatKoreanTime();
-      const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n**🔊 채널**: ${voiceChannelName}\n**⏰ 업데이트**: ${timeString}`;
+      const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n**⏰ 업데이트**: ${timeString}`;
       
       await thread.send(updateMessage);
       console.log(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
