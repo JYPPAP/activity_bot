@@ -6,6 +6,7 @@ export class MappingService {
     this.forumPostManager = forumPostManager;
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
+    this.lastParticipantCounts = new Map(); // 음성채널 ID -> 마지막 전송된 참여자 수
   }
   
   /**
@@ -28,6 +29,8 @@ export class MappingService {
   removeMapping(voiceChannelId) {
     const existed = this.channelPostMap.delete(voiceChannelId);
     if (existed) {
+      // 참여자 수 기록도 함께 제거
+      this.lastParticipantCounts.delete(voiceChannelId);
       console.log(`[MappingService] 매핑 제거: ${voiceChannelId}`);
       this.logCurrentMappings();
     }
@@ -160,8 +163,15 @@ export class MappingService {
       const maxCount = participantTracker.extractMaxParticipants(postInfo.name);
       console.log(`[MappingService] 최대 인원 수: ${maxCount}`);
       
+      // 이전 참여자 수와 비교
+      const lastCount = this.lastParticipantCounts.get(voiceChannelId);
+      if (lastCount === currentCount) {
+        console.log(`[MappingService] 참여자 수 변경 없음 (${currentCount}/${maxCount}), 메시지 전송 건너뛰기`);
+        return;
+      }
+      
       // 참여자 수 업데이트 메시지 전송
-      console.log(`[MappingService] 참여자 수 업데이트 메시지 전송 시작...`);
+      console.log(`[MappingService] 참여자 수 변경 감지: ${lastCount} -> ${currentCount}, 메시지 전송 시작...`);
       const updateResult = await this.forumPostManager.sendParticipantUpdateMessage(
         postId, 
         currentCount, 
@@ -170,6 +180,8 @@ export class MappingService {
       );
       
       if (updateResult) {
+        // 성공적으로 전송된 경우에만 마지막 참여자 수 저장
+        this.lastParticipantCounts.set(voiceChannelId, currentCount);
         console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
       } else {
         console.log(`[MappingService] 참여자 수 업데이트 실패: ${voiceChannelId} -> ${postId}`);
