@@ -29,6 +29,19 @@ export class ForumPostManager {
       const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
       const title = this.generatePostTitle(recruitmentData);
       
+      // 역할 멘션 생성 및 역할 ID 추출
+      let roleMentions = '';
+      let roleIds = [];
+      if (recruitmentData.tags) {
+        const guild = forumChannel.guild;
+        roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
+        
+        const roleMatches = roleMentions.match(/<@&(\d+)>/g);
+        if (roleMatches) {
+          roleIds = roleMatches.map(match => match.match(/\d+/)[0]);
+        }
+      }
+      
       // 버튼 구성
       let components = [];
       
@@ -43,8 +56,12 @@ export class ForumPostManager {
       }
       
       const messageOptions = { 
+        content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,  // 역할 멘션만
         embeds: [embed],
-        components: components
+        components: components,
+        allowedMentions: { 
+          roles: roleIds 
+        }
       };
       
       const thread = await forumChannel.threads.create({
@@ -75,36 +92,6 @@ export class ForumPostManager {
         }
       }
       
-      // 역할 태그가 있으면 별도 메시지로 역할 멘션 전송
-      if (recruitmentData.tags) {
-        try {
-          const guild = this.client.guilds.cache.first();
-          const roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
-          
-          // 실제 역할 멘션이 포함된 경우에만 메시지 전송
-          if (roleMentions && roleMentions.includes('<@&')) {
-            // roleMentions에서 역할 ID 추출
-            const roleIds = [];
-            const roleMatches = roleMentions.match(/<@&(\d+)>/g);
-            if (roleMatches) {
-              roleMatches.forEach(match => {
-                const roleId = match.match(/\d+/)[0];
-                roleIds.push(roleId);
-              });
-            }
-            
-            await thread.send({
-              content: `🏷️ **모집 태그**: ${roleMentions}`,
-              allowedMentions: { 
-                roles: roleIds  // 실제 멘션된 역할 ID 배열
-              }
-            });
-            console.log(`[ForumPostManager] 역할 멘션 메시지 전송됨: ${roleMentions}`);
-          }
-        } catch (mentionError) {
-          console.warn('[ForumPostManager] 역할 멘션 메시지 전송 실패:', mentionError.message);
-        }
-      }
       
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return thread.id;
@@ -136,9 +123,11 @@ export class ForumPostManager {
   async createPostEmbed(recruitmentData, voiceChannelId = null) {
     let content = `# 🎮 ${recruitmentData.title}\n\n`;
     
-    // embed에는 역할 멘션 없이 일반 텍스트만 표시
+    // embed에 역할 멘션 표시
     if (recruitmentData.tags) {
-      content += `## 🏷️ 태그\n${recruitmentData.tags}\n\n`;
+      const guild = this.client.guilds.cache.first();
+      const roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
+      content += `## 🏷️ 태그\n${roleMentions}\n\n`;
     }
     
     content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
