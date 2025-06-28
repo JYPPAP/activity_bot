@@ -179,7 +179,7 @@ export class ModalHandler {
       title: title.trim(),
       tags: tags.trim(),
       description: description.trim(),
-      author: interaction.user
+      author: interaction.member || interaction.user
     };
   }
   
