@@ -29,15 +29,31 @@ export class TextProcessor {
       const roleMentions = [];
       
       for (const tag of tagArray) {
-        const role = guild.roles.cache.find(r => 
-          r.name.toLowerCase() === tag.toLowerCase() || 
-          r.name.includes(tag)
-        );
-        
-        if (role) {
-          roleMentions.push(`<@&${role.id}>`);
+        // 이미 @멘션 형태인 경우
+        if (tag.startsWith('@')) {
+          const roleName = tag.substring(1); // @ 제거
+          const role = guild.roles.cache.find(r => 
+            r.name.toLowerCase() === roleName.toLowerCase() || 
+            r.name.includes(roleName)
+          );
+          
+          if (role) {
+            roleMentions.push(`<@&${role.id}>`);
+          } else {
+            roleMentions.push(`**${tag}**`); // 역할을 찾을 수 없으면 굵은 글씨로
+          }
         } else {
-          roleMentions.push(`**${tag}**`); // 역할을 찾을 수 없으면 굵은 글씨로
+          // 기존 로직 (@ 없는 경우)
+          const role = guild.roles.cache.find(r => 
+            r.name.toLowerCase() === tag.toLowerCase() || 
+            r.name.includes(tag)
+          );
+          
+          if (role) {
+            roleMentions.push(`<@&${role.id}>`);
+          } else {
+            roleMentions.push(`**${tag}**`);
+          }
         }
       }
       
