@@ -1,4 +1,4 @@
-// src/commands/gapCheckCommand.js - gap_check 명령어 (수정)
+// src/commands/gapCheckCommand.js - 시간체크 명령어 (수정)
 import {MessageFlags} from 'discord.js';
 import {formatTime} from '../utils/formatters.js';
 
@@ -9,7 +9,7 @@ export class GapCheckCommand {
   }
 
   /**
-   * gap_check 명령어를 실행합니다.
+   * 시간체크 명령어를 실행합니다.
    * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
@@ -75,7 +75,7 @@ export class GapCheckCommand {
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      console.error('gap_check 명령어 실행 오류:', error);
+      console.error('시간체크 명령어 실행 오류:', error);
       await interaction.followUp({
         content: '활동 시간 확인 중 오류가 발생했습니다.',
         flags: MessageFlags.Ephemeral,

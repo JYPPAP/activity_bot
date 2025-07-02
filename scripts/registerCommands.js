@@ -48,10 +48,10 @@ commands.push(
     )
 );
 
-// gap_check 명령어
+// 시간체크 명령어
 commands.push(
   new SlashCommandBuilder()
-    .setName('gap_check')
+    .setName('시간체크')
     .setDescription('특정 사용자의 활동 시간을 확인합니다.')
     .addUserOption(option =>
       option.setName('user')
@@ -190,6 +190,13 @@ commands.push(
             .setDescription('잠수 상태 유지 기한 (YYMMDD 형식, 예: 250510)')
             .setRequired(true)
     )
+);
+
+// 구직 명령어
+commands.push(
+  new SlashCommandBuilder()
+    .setName('구직')
+    .setDescription('구인구직 포럼 포스트를 생성합니다.')
 );
 
 // REST 클라이언트 생성

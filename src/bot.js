@@ -7,6 +7,7 @@ import {CalendarLogService} from './services/calendarLogService.js';
 import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
+import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumIntegrationService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import fs from 'fs';
@@ -35,11 +36,17 @@ export class Bot {
     this.logService = new LogService(this.client, config.LOG_CHANNEL_ID);
     this.calendarLogService = new CalendarLogService(this.client, this.dbManager);
     this.activityTracker = new ActivityTracker(this.client, this.dbManager, this.logService);
+    this.voiceForumService = new VoiceChannelForumIntegrationService(
+      this.client,
+      config.FORUM_CHANNEL_ID,
+      config.VOICE_CATEGORY_ID
+    );
     this.commandHandler = new CommandHandler(
       this.client,
       this.activityTracker,
       this.dbManager,
-      this.calendarLogService
+      this.calendarLogService,
+      this.voiceForumService
     );
     this.eventManager = new EventManager(this.client);
 
@@ -218,10 +225,22 @@ export class Bot {
       this.activityTracker.handleVoiceStateUpdate.bind(this.activityTracker)
     );
 
+    // 음성채널-포럼 연동: 음성 상태 변경 이벤트
+    this.eventManager.registerHandler(
+      Events.VoiceStateUpdate,
+      this.voiceForumService.handleVoiceStateUpdate.bind(this.voiceForumService)
+    );
+
     // 멤버 업데이트 이벤트
     this.eventManager.registerHandler(
       Events.GuildMemberUpdate,
       this.activityTracker.handleGuildMemberUpdate.bind(this.activityTracker)
+    );
+
+    // 음성채널-포럼 연동: 멤버 업데이트 이벤트 (별명 변경 시 실시간 갱신)
+    this.eventManager.registerHandler(
+      Events.GuildMemberUpdate,
+      this.voiceForumService.handleGuildMemberUpdate.bind(this.voiceForumService)
     );
 
     // 채널 업데이트 이벤트
@@ -236,7 +255,20 @@ export class Bot {
       this.logService.handleChannelCreate.bind(this.logService)
     );
 
-    // 명령어 처리 이벤트
+    // 음성채널-포럼 연동: 채널 생성 이벤트
+    this.eventManager.registerHandler(
+      Events.ChannelCreate,
+      this.voiceForumService.handleChannelCreate.bind(this.voiceForumService)
+    );
+
+    // 음성채널-포럼 연동: 채널 삭제 이벤트
+    this.eventManager.registerHandler(
+      Events.ChannelDelete,
+      this.voiceForumService.handleChannelDelete.bind(this.voiceForumService)
+    );
+
+
+    // 모든 인터랙션 처리 (명령어 + 구인구직 UI)
     this.eventManager.registerHandler(
       Events.InteractionCreate,
       this.commandHandler.handleInteraction.bind(this.commandHandler)

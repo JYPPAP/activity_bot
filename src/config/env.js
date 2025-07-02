@@ -33,7 +33,12 @@ export const config = {
   DEV_ID: process.env.DEV_ID,
 
   // 목록 출력 채널
-  CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID
+  CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID,
+
+  // 구인구직 포럼 관련
+  FORUM_CHANNEL_ID: process.env.FORUM_CHANNEL_ID,
+  VOICE_CATEGORY_ID: process.env.VOICE_CATEGORY_ID,
+  FORUM_TAG_ID: process.env.FORUM_TAG_ID
 };
 
 // 필수 환경변수 확인

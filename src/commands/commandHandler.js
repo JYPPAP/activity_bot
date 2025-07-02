@@ -10,15 +10,18 @@ import {GapStatsCommand} from './gapStatsCommand.js';
 import {GapReportCommand} from './gapReportCommand.js';
 import {GapCycleCommand} from './gapCycleCommand.js';
 import {GapAfkCommand} from './gapAfkCommand.js';
+import {RecruitmentCommand} from './recruitmentCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
+import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
 
 export class CommandHandler {
-  constructor(client, activityTracker, dbManager, calendarLogService) {
+  constructor(client, activityTracker, dbManager, calendarLogService, voiceForumService) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
     this.calendarLogService = calendarLogService;
+    this.voiceForumService = voiceForumService;
 
     // UserClassificationService 인스턴스 생성
     this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
@@ -38,6 +41,10 @@ export class CommandHandler {
       const gapReportCommand = new GapReportCommand(this.dbManager, this.activityTracker);
       const gapCycleCommand = new GapCycleCommand(this.dbManager);
       const gapAfkCommand = new GapAfkCommand(this.client, this.dbManager);
+      const recruitmentCommand = new RecruitmentCommand({
+        client: this.client,
+        voiceForumService: this.voiceForumService
+      });
 
       // UserClassificationService 의존성 주입
       if (gapListCommand.setUserClassificationService) {
@@ -52,13 +59,14 @@ export class CommandHandler {
       this.commands.set('gap_list', gapListCommand);
       this.commands.set('gap_config', gapConfigCommand);
       this.commands.set('gap_reset', gapResetCommand);
-      this.commands.set('gap_check', gapCheckCommand);
+      this.commands.set('시간체크', gapCheckCommand);
       this.commands.set('gap_save', gapSaveCommand);
       this.commands.set('gap_calendar', gapCalendarCommand);
       this.commands.set('gap_stats', gapStatsCommand);
       this.commands.set('gap_report', gapReportCommand);
       this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
+      this.commands.set('구직', recruitmentCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);
     } catch (error) {
@@ -83,15 +91,31 @@ export class CommandHandler {
    * @param interaction - 상호작용 객체
    */
   async handleInteraction(interaction) {
-    // 명령어 상호작용이 아닌 경우 무시
-    if (!interaction.isCommand()) return;
+    // 명령어 상호작용인 경우 명령어 처리
+    if (interaction.isCommand()) {
+      await this.handleCommandInteraction(interaction);
+      return;
+    }
+    
+    // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+      await this.voiceForumService.handleInteraction(interaction);
+      return;
+    }
+  }
+  
+  /**
+   * 명령어 인터랙션 처리
+   * @param interaction - 명령어 인터랙션 객체
+   */
+  async handleCommandInteraction(interaction) {
 
     const {commandName} = interaction;
 
-    // 명령어 실행 권한 확인
-    if (!this.hasAdminPermission(interaction)) {
+    // 권한 확인
+    if (!hasCommandPermission(interaction.member, commandName)) {
       await interaction.reply({
-        content: "이 명령어를 실행할 권한이 없습니다.(관리자용)",
+        content: getPermissionDeniedMessage(commandName),
         flags: MessageFlags.Ephemeral,
       });
       return;
