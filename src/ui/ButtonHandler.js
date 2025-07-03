@@ -180,8 +180,21 @@ export class ButtonHandler {
    * @returns {Promise<void>}
    */
   async handleVoiceChannelButtons(interaction) {
+    // 중복 처리 방지
+    if (!SafeInteraction.startProcessing(interaction)) {
+      return;
+    }
+
     try {
+      // 인터랙션 유효성 검사
+      const validation = SafeInteraction.validateInteraction(interaction);
+      if (!validation.valid) {
+        console.warn(`[ButtonHandler] 유효하지 않은 인터랙션: ${validation.reason}`);
+        return;
+      }
+
       const customId = interaction.customId;
+      console.log(`[ButtonHandler] 음성 채널 버튼 처리: ${customId}`);
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
@@ -199,9 +212,19 @@ export class ButtonHandler {
       
     } catch (error) {
       console.error('[ButtonHandler] 음성 채널 버튼 처리 오류:', error);
+      
+      // 10062 에러는 별도 처리
+      if (error.code === 10062) {
+        console.warn('[ButtonHandler] 만료된 인터랙션 - 에러 응답 생략');
+        return;
+      }
+      
       await SafeInteraction.safeReply(interaction, 
         SafeInteraction.createErrorResponse('음성 채널 버튼 처리', error)
       );
+    } finally {
+      // 처리 완료 표시
+      SafeInteraction.finishProcessing(interaction);
     }
   }
   
