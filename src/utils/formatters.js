@@ -70,9 +70,9 @@ export const formatParticipantName = (nickname) => {
  */
 export const formatParticipantList = (participants = []) => {
   if (!participants || participants.length === 0) {
-    return '참가자(0명): 없음';
+    return '## 👥 **참가자(0명)**: 없음';
   }
   
   const formattedNames = participants.map(name => ` \` ${name} \` `).join(',');
-  return `참가자(${participants.length}명): ${formattedNames}`;
+  return `## 👥 **참가자(${participants.length}명)**: ${formattedNames}`;
 };
