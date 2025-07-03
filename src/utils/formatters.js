@@ -53,3 +53,26 @@ export const formatMembersList = (members = []) => {
 export const cleanRoleName = (roleName) => {
   return roleName.replace(/@/g, '');
 };
+
+/**
+ * 참가자 이름을 백틱과 공백으로 감싸서 포맷팅합니다.
+ * @param {string} nickname - 참가자 닉네임
+ * @returns {string} - 백틱으로 감싸진 닉네임
+ */
+export const formatParticipantName = (nickname) => {
+  return ` \` ${nickname} \` `;
+};
+
+/**
+ * 참가자 목록을 포맷팅합니다.
+ * @param {Array<string>} participants - 참가자 닉네임 배열
+ * @returns {string} - "참가자: ` 이름1 `, ` 이름2 `" 형식의 문자열
+ */
+export const formatParticipantList = (participants = []) => {
+  if (!participants || participants.length === 0) {
+    return '참가자(0명): 없음';
+  }
+  
+  const formattedNames = participants.map(name => ` \` ${name} \` `).join(',');
+  return `참가자(${participants.length}명): ${formattedNames}`;
+};

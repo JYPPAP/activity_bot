@@ -8,6 +8,7 @@ import {CommandHandler} from './commands/commandHandler.js';
 import {UserClassificationService} from './services/UserClassificationService.js';
 import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
 import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumIntegrationService.js';
+import {EmojiReactionService} from './services/EmojiReactionService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import fs from 'fs';
@@ -28,6 +29,7 @@ export class Bot {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessageReactions,
       ],
     });
 
@@ -40,6 +42,10 @@ export class Bot {
       this.client,
       config.FORUM_CHANNEL_ID,
       config.VOICE_CATEGORY_ID
+    );
+    this.emojiReactionService = new EmojiReactionService(
+      this.client,
+      this.voiceForumService.forumPostManager
     );
     this.commandHandler = new CommandHandler(
       this.client,
@@ -272,6 +278,18 @@ export class Bot {
     this.eventManager.registerHandler(
       Events.InteractionCreate,
       this.commandHandler.handleInteraction.bind(this.commandHandler)
+    );
+
+    // 이모지 반응 추가 이벤트
+    this.eventManager.registerHandler(
+      Events.MessageReactionAdd,
+      this.emojiReactionService.handleMessageReactionAdd.bind(this.emojiReactionService)
+    );
+
+    // 이모지 반응 제거 이벤트
+    this.eventManager.registerHandler(
+      Events.MessageReactionRemove,
+      this.emojiReactionService.handleMessageReactionRemove.bind(this.emojiReactionService)
     );
 
     // 이벤트 핸들러 초기화

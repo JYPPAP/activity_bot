@@ -3,6 +3,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
+import { formatParticipantList } from '../utils/formatters.js';
 
 export class ForumPostManager {
   constructor(client, forumChannelId, forumTagId) {
@@ -392,6 +393,77 @@ export class ForumPostManager {
     } catch (error) {
       console.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, error);
       return null;
+    }
+  }
+
+  /**
+   * 포럼 포스트에 참가자 목록 메시지 전송
+   * @param {string} postId - 포스트 ID
+   * @param {Array<string>} participants - 참가자 닉네임 배열
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async sendParticipantList(postId, participants) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        return false;
+      }
+      
+      if (thread.archived) {
+        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        return false;
+      }
+      
+      // 참가자 목록 포맷팅
+      const participantListText = formatParticipantList(participants);
+      
+      // 메시지 전송
+      await thread.send(participantListText);
+      
+      console.log(`[ForumPostManager] 참가자 목록 메시지 전송 완료: ${postId} (${participants.length}명)`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 참가자 목록 메시지 전송 실패: ${postId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 포럼 포스트에 참가자 수 업데이트 메시지 전송 (이모지 반응 기반)
+   * @param {string} postId - 포스트 ID
+   * @param {Array<string>} participants - 참가자 닉네임 배열
+   * @param {string} emojiName - 이모지 이름 (기본값: '참가')
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async sendEmojiParticipantUpdate(postId, participants, emojiName = '참가') {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        return false;
+      }
+      
+      if (thread.archived) {
+        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        return false;
+      }
+      
+      const timeString = TextProcessor.formatKoreanTime();
+      const participantListText = formatParticipantList(participants);
+      const updateMessage = `# 🎯 ${emojiName} 이모지 반응 현황\n${participantListText}\n**⏰ 업데이트**: ${timeString}`;
+      
+      await thread.send(updateMessage);
+      
+      console.log(`[ForumPostManager] 이모지 참가자 현황 업데이트 완료: ${postId} (${participants.length}명)`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, error);
+      return false;
     }
   }
 }
