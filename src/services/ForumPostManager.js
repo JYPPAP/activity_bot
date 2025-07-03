@@ -151,22 +151,27 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createVoiceChannelButtons(voiceChannelId) {
+    const closeButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE}${voiceChannelId}`)
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setStyle(ButtonStyle.Danger);
+
+    const spectateButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
+      .setLabel(`${DiscordConstants.EMOJIS.SPECTATOR} 관전`)
+      .setStyle(ButtonStyle.Secondary);
+
     const waitButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
       .setLabel('⏳ 대기')
       .setStyle(ButtonStyle.Success);
 
-    const spectateButton = new ButtonBuilder()
-      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
-      .setLabel('👁️ 관전')
-      .setStyle(ButtonStyle.Secondary);
-
     const resetButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
-      .setLabel('🔄 초기화')
+      .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
+    return new ActionRowBuilder().addComponents(closeButton, spectateButton, waitButton, resetButton);
   }
   
   /**
@@ -174,22 +179,27 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createGeneralNicknameButtons() {
+    const closeButton = new ButtonBuilder()
+      .setCustomId('general_close')
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setStyle(ButtonStyle.Danger);
+
+    const spectateButton = new ButtonBuilder()
+      .setCustomId('general_spectate')
+      .setLabel(`${DiscordConstants.EMOJIS.SPECTATOR} 관전`)
+      .setStyle(ButtonStyle.Secondary);
+
     const waitButton = new ButtonBuilder()
       .setCustomId('general_wait')
       .setLabel('⏳ 대기')
       .setStyle(ButtonStyle.Success);
 
-    const spectateButton = new ButtonBuilder()
-      .setCustomId('general_spectate')
-      .setLabel('👁️ 관전')
-      .setStyle(ButtonStyle.Secondary);
-
     const resetButton = new ButtonBuilder()
       .setCustomId('general_reset')
-      .setLabel('🔄 초기화')
+      .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(waitButton, spectateButton, resetButton);
+    return new ActionRowBuilder().addComponents(closeButton, spectateButton, waitButton, resetButton);
   }
   
   /**

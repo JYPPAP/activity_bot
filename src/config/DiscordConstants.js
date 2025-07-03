@@ -11,6 +11,7 @@ export class DiscordConstants {
   // ========== 커스텀 ID 접두사 ==========
   static CUSTOM_ID_PREFIXES = {
     VOICE_CONNECT: 'voice_connect_',
+    VOICE_CLOSE: 'voice_close_',
     VOICE_SPECTATE: 'voice_spectate_',
     VOICE_WAIT: 'voice_wait_',
     VOICE_RESET: 'voice_reset_',
@@ -48,7 +49,8 @@ export class DiscordConstants {
     WARNING: '⚠️',
     SPECTATOR: '👁️',
     RESET: '🔄',
-    CONNECT: '🎯'
+    CONNECT: '🎯',
+    CLOSE: '🔒'
   };
   
   // ========== 특수 태그 ==========

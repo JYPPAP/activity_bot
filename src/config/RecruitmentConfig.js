@@ -39,7 +39,10 @@ export class RecruitmentConfig {
     GENERIC_ERROR: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
     SPECTATOR_MODE_SET: '👁️ 관전 모드로 설정되었습니다!',
     ALREADY_SPECTATOR: '👁️ 이미 관전 모드로 설정되어 있습니다.',
-    NICKNAME_CHANGE_FAILED: '❌ 닉네임 변경에 실패했습니다.'
+    NICKNAME_CHANGE_FAILED: '❌ 닉네임 변경에 실패했습니다.',
+    CLOSE_POST_SUCCESS: '🔒 포스트가 성공적으로 닫혔습니다.',
+    CLOSE_POST_FAILED: '❌ 포스트 닫기에 실패했습니다.',
+    CLOSE_POST_REASON: '수동 종료'
   };
   
   // ========== 색상 설정 ==========

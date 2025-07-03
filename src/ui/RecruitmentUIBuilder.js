@@ -41,17 +41,17 @@ export class RecruitmentUIBuilder {
 
     const spectateButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
-      .setLabel('관전')
+      .setLabel(`${DiscordConstants.EMOJIS.SPECTATOR} 관전`)
       .setStyle(ButtonStyle.Secondary);
 
     const waitButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`)
-      .setLabel('대기')
+      .setLabel('⏳ 대기')
       .setStyle(ButtonStyle.Success);
 
     const resetButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`)
-      .setLabel('초기화')
+      .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
     return [
