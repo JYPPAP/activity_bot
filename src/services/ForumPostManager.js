@@ -484,10 +484,10 @@ export class ForumPostManager {
       
       // 이전 이모지 반응 메시지들 삭제
       await this._deleteTrackedMessages(postId, 'emoji_reaction');
-      
+
       const timeString = TextProcessor.formatKoreanTime();
       const participantListText = formatParticipantList(participants);
-      const updateMessage = `# 🎯 ${emojiName} 이모지 반응 현황\n${participantListText}\n**⏰ 업데이트**: ${timeString}`;
+      const updateMessage = `${participantListText}\n**⏰ 업데이트**: ${timeString}`;
       
       const sentMessage = await thread.send(updateMessage);
       
