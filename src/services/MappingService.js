@@ -250,7 +250,21 @@ export class MappingService {
    * @returns {Promise<Object>} - 정리 결과
    */
   async performFullCleanup() {
-    console.log(`[MappingService] 전체 정리 작업 시작 (현재 매핑: ${this.getMappingCount()}개)`);
+    const currentMappings = this.getMappingCount();
+    
+    // 매핑이 없으면 정리 작업 스킵
+    if (currentMappings === 0) {
+      console.log(`[MappingService] 매핑이 없어 정리 작업을 스킵합니다.`);
+      return {
+        deletedChannels: 0,
+        deletedPosts: 0,
+        totalCleaned: 0,
+        remainingMappings: 0,
+        skipped: true
+      };
+    }
+    
+    console.log(`[MappingService] 전체 정리 작업 시작 (현재 매핑: ${currentMappings}개)`);
     
     const deletedChannels = await this.cleanupDeletedChannels();
     const deletedPosts = await this.cleanupDeletedPosts();
