@@ -163,10 +163,11 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createVoiceChannelButtons(voiceChannelId) {
-    const closeButton = new ButtonBuilder()
-      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE}${voiceChannelId}`)
-      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
-      .setStyle(ButtonStyle.Danger);
+    // 닫기 버튼 비활성화 (임시)
+    // const closeButton = new ButtonBuilder()
+    //   .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE}${voiceChannelId}`)
+    //   .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+    //   .setStyle(ButtonStyle.Danger);
 
     const spectateButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`)
@@ -183,7 +184,8 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(closeButton, spectateButton, waitButton, resetButton);
+    // 닫기 버튼 제거 (closeButton -> 제거)
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton);
   }
   
   /**
@@ -191,10 +193,11 @@ export class ForumPostManager {
    * @returns {ActionRowBuilder} - 생성된 버튼 행
    */
   createGeneralNicknameButtons() {
-    const closeButton = new ButtonBuilder()
-      .setCustomId('general_close')
-      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
-      .setStyle(ButtonStyle.Danger);
+    // 닫기 버튼 비활성화 (임시)
+    // const closeButton = new ButtonBuilder()
+    //   .setCustomId('general_close')
+    //   .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+    //   .setStyle(ButtonStyle.Danger);
 
     const spectateButton = new ButtonBuilder()
       .setCustomId('general_spectate')
@@ -211,7 +214,8 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder().addComponents(closeButton, spectateButton, waitButton, resetButton);
+    // 닫기 버튼 제거 (closeButton -> 제거)
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton);
   }
   
   /**

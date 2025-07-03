@@ -198,8 +198,9 @@ export class ButtonHandler {
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
-      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE) || customId === 'general_close') {
-        await this.handleCloseButton(interaction);
+      // 닫기 버튼 처리 비활성화 (임시)
+      // } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE) || customId === 'general_close') {
+      //   await this.handleCloseButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) || customId === 'general_spectate') {
         await this.handleSpectateButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) || customId === 'general_wait') {
@@ -371,51 +372,52 @@ export class ButtonHandler {
     }
   }
   
-  /**
-   * 포스트 닫기 버튼 처리
-   * @param {ButtonInteraction} interaction - 버튼 인터랙션
-   * @returns {Promise<void>}
-   */
-  async handleCloseButton(interaction) {
-    // 즉시 defer하여 3초 제한 해결
-    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
-    
-    try {
-      // 현재 포스트가 포럼 스레드인지 확인
-      if (!interaction.channel || !interaction.channel.isThread()) {
-        await interaction.editReply({
-          content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n포럼 포스트에서만 사용할 수 있습니다.'
-        });
-        return;
-      }
+  // 닫기 버튼 처리 비활성화 (임시)
+  // /**
+  //  * 포스트 닫기 버튼 처리
+  //  * @param {ButtonInteraction} interaction - 버튼 인터랙션
+  //  * @returns {Promise<void>}
+  //  */
+  // async handleCloseButton(interaction) {
+  //   // 즉시 defer하여 3초 제한 해결
+  //   await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+  //   
+  //   try {
+  //     // 현재 포스트가 포럼 스레드인지 확인
+  //     if (!interaction.channel || !interaction.channel.isThread()) {
+  //       await interaction.editReply({
+  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n포럼 포스트에서만 사용할 수 있습니다.'
+  //       });
+  //       return;
+  //     }
 
-      const postId = interaction.channel.id;
-      
-      // RecruitmentService를 통해 ForumPostManager에 접근하여 포스트 아카이빙
-      const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(
-        postId, 
-        RecruitmentConfig.MESSAGES.CLOSE_POST_REASON
-      );
+  //     const postId = interaction.channel.id;
+  //     
+  //     // RecruitmentService를 통해 ForumPostManager에 접근하여 포스트 아카이빙
+  //     const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(
+  //       postId, 
+  //       RecruitmentConfig.MESSAGES.CLOSE_POST_REASON
+  //     );
 
-      if (archiveSuccess) {
-        await interaction.editReply({
-          content: RecruitmentConfig.MESSAGES.CLOSE_POST_SUCCESS
-        });
-        console.log(`[ButtonHandler] 포스트 닫기 성공: ${postId}`);
-      } else {
-        await interaction.editReply({
-          content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED
-        });
-        console.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
-      }
-      
-    } catch (error) {
-      console.error('[ButtonHandler] 포스트 닫기 오류:', error);
-      await interaction.editReply({
-        content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n오류가 발생했습니다.'
-      });
-    }
-  }
+  //     if (archiveSuccess) {
+  //       await interaction.editReply({
+  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_SUCCESS
+  //       });
+  //       console.log(`[ButtonHandler] 포스트 닫기 성공: ${postId}`);
+  //     } else {
+  //       await interaction.editReply({
+  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED
+  //       });
+  //       console.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
+  //     }
+  //     
+  //   } catch (error) {
+  //     console.error('[ButtonHandler] 포스트 닫기 오류:', error);
+  //     await interaction.editReply({
+  //       content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n오류가 발생했습니다.'
+  //     });
+  //   }
+  // }
   
   /**
    * 초기화 버튼 처리
