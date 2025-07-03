@@ -321,9 +321,10 @@ export class ForumPostManager {
    * 포럼 포스트 아카이브 처리
    * @param {string} postId - 포스트 ID
    * @param {string} reason - 아카이브 사유
+   * @param {boolean} lockThread - 스레드 잠금 여부 (기본값: true)
    * @returns {Promise<boolean>} - 성공 여부
    */
-  async archivePost(postId, reason = '음성 채널 삭제됨') {
+  async archivePost(postId, reason = '음성 채널 삭제됨', lockThread = true) {
     try {
       const thread = await this.client.channels.fetch(postId);
       
@@ -339,12 +340,23 @@ export class ForumPostManager {
       
       // 아카이브 메시지 전송
       const archiveEmbed = new EmbedBuilder()
-        .setTitle('📁 구인구직 종료')
-        .setDescription(`이 구인구직이 자동으로 종료되었습니다.\n**사유**: ${reason}`)
+        .setTitle('🔒 구인구직 종료')
+        .setDescription(`이 구인구직이 자동으로 종료되었습니다.\n**사유**: ${reason}\n\n${lockThread ? '📝 이 포스트는 잠금 처리되어 더 이상 메시지를 작성할 수 없습니다.' : ''}`)
         .setColor(RecruitmentConfig.COLORS.WARNING)
         .setTimestamp();
       
       await thread.send({ embeds: [archiveEmbed] });
+      
+      // 스레드 잠금 (옵션)
+      if (lockThread && !thread.locked) {
+        try {
+          await thread.setLocked(true, reason);
+          console.log(`[ForumPostManager] 스레드 잠금 완료: ${postId}`);
+        } catch (lockError) {
+          console.error(`[ForumPostManager] 스레드 잠금 실패: ${postId}`, lockError);
+          // 잠금 실패해도 아카이브는 계속 진행
+        }
+      }
       
       // 스레드 아카이브
       await thread.setArchived(true, reason);
