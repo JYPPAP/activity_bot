@@ -262,7 +262,7 @@ export class MappingService {
       remainingMappings: this.getMappingCount()
     };
     
-    console.log(`[MappingService] 전체 정리 작업 완료:`, result);
+    // console.log(`[MappingService] 전체 정리 작업 완료:`, result);
     return result;
   }
   
