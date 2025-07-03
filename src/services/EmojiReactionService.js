@@ -1,5 +1,4 @@
 // src/services/EmojiReactionService.js - 이모지 반응 처리 서비스
-import { formatParticipantList } from '../utils/formatters.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
 
 export class EmojiReactionService {
@@ -39,8 +38,8 @@ export class EmojiReactionService {
       // 해당 이모지에 반응한 모든 사용자 가져오기
       const participants = await this.getReactionParticipants(reaction);
 
-      // 참가자 목록 메시지 전송
-      await this.sendParticipantListMessage(reaction.message.channel, participants);
+      // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
+      await this.forumPostManager.sendEmojiParticipantUpdate(reaction.message.channel.id, participants, '참가');
 
     } catch (error) {
       console.error('[EmojiReactionService] 이모지 반응 처리 오류:', error);
@@ -75,8 +74,8 @@ export class EmojiReactionService {
       // 해당 이모지에 반응한 모든 사용자 가져오기
       const participants = await this.getReactionParticipants(reaction);
 
-      // 참가자 목록 메시지 전송
-      await this.sendParticipantListMessage(reaction.message.channel, participants);
+      // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
+      await this.forumPostManager.sendEmojiParticipantUpdate(reaction.message.channel.id, participants, '참가');
 
     } catch (error) {
       console.error('[EmojiReactionService] 이모지 반응 제거 처리 오류:', error);
@@ -153,26 +152,6 @@ export class EmojiReactionService {
     }
   }
 
-  /**
-   * 포럼 포스트에 참가자 목록 메시지 전송
-   * @param {Channel} channel - 포럼 스레드 채널
-   * @param {Array<string>} participants - 참가자 닉네임 배열
-   * @returns {Promise<void>}
-   */
-  async sendParticipantListMessage(channel, participants) {
-    try {
-      // 참가자 목록 포맷팅
-      const participantListText = formatParticipantList(participants);
-      
-      // 메시지 전송
-      await channel.send(participantListText);
-      
-      console.log(`[EmojiReactionService] 참가자 목록 메시지 전송 완료: ${channel.name} (${participants.length}명)`);
-
-    } catch (error) {
-      console.error('[EmojiReactionService] 참가자 목록 메시지 전송 실패:', error);
-    }
-  }
 
   /**
    * 특정 포스트의 특정 메시지에서 이모지 반응 참가자 가져오기
