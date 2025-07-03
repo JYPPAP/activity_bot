@@ -268,12 +268,12 @@ export class ActivityTracker {
 
   // 채널 입장인지 확인
   isChannelJoin(oldState, newState) {
-    return newState.channelId && !config.EXCLUDED_CHANNELS.includes(newState.channelId);
+    return newState.channelId && !config.EXCLUDED_CHANNELS_FOR_LOGS.includes(newState.channelId);
   }
 
   // 채널 퇴장인지 확인
   isChannelLeave(oldState, newState) {
-    return oldState.channelId && !config.EXCLUDED_CHANNELS.includes(oldState.channelId);
+    return oldState.channelId && !config.EXCLUDED_CHANNELS_FOR_LOGS.includes(oldState.channelId);
   }
 
   // 관전 또는 대기 상태인지 확인

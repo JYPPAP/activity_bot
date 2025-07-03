@@ -19,14 +19,21 @@ export const config = {
   CLIENT_ID: process.env.CLIENT_ID,
   LOG_CHANNEL_ID: process.env.LOG_CHANNEL_ID,
 
-  // 제외할 채널 ID 배열
+  // 제외할 채널 ID 배열 (활동 시간 추적용)
   EXCLUDED_CHANNELS: [
     process.env.EXCLUDE_CHANNELID_1,
     process.env.EXCLUDE_CHANNELID_2,
     process.env.EXCLUDE_CHANNELID_3,
     process.env.EXCLUDE_CHANNELID_4,
     process.env.EXCLUDE_CHANNELID_5,
-    process.env.EXCLUDE_CHANNELID_6, // 방-생성하기 채널 ID 추가
+    process.env.EXCLUDE_CHANNELID_6,
+  ].filter(Boolean), // null 또는 undefined 값 제거
+
+  // 제외할 채널 ID 배열 (로그 출력용)
+  EXCLUDED_CHANNELS_FOR_LOGS: [
+    process.env.EXCLUDE_CHANNELID_1,
+    process.env.EXCLUDE_CHANNELID_2,
+    process.env.EXCLUDE_CHANNELID_3,
   ].filter(Boolean), // null 또는 undefined 값 제거
 
   // 개발자 ID

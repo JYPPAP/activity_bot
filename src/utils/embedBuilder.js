@@ -173,11 +173,12 @@ export class EmbedFactory {
    * 로그 메시지 임베드를 생성합니다.
    * @param {string} message - 로그 메시지
    * @param {Array<string>} members - 채널에 있는 멤버 목록
+   * @param {string} colorCode - 임베드 색상 코드 (선택사항, 기본값: COLORS.LOG)
    * @returns {EmbedBuilder} - 생성된 임베드
    */
-  static createLogEmbed(message, members) {
+  static createLogEmbed(message, members, colorCode = COLORS.LOG) {
     const embed = new EmbedBuilder()
-      .setColor(COLORS.LOG)
+      .setColor(colorCode)
       .setDescription(`**${message}**`)
       .setFooter({
         text: `로그 기록 시간: ${formatKoreanDate(new Date())}`
