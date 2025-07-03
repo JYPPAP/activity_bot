@@ -93,6 +93,17 @@ export class ForumPostManager {
         }
       }
       
+      // 참가 안내 메시지 추가
+      try {
+        const participationGuide = 
+          '🎯 **참가 이모지를 클릭하여 참가 의사를 표시해주세요!**\n' +
+          '👥 참가 이모지에 반응하면 실시간으로 참가자 목록이 업데이트됩니다.';
+        
+        await thread.send(participationGuide);
+        console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
+      } catch (guideError) {
+        console.warn('[ForumPostManager] 참가 안내 메시지 추가 실패:', guideError.message);
+      }
       
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return thread.id;
