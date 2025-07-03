@@ -21,7 +21,8 @@ export class DatabaseManager {
       activity_logs: [],
       reset_history: [],
       log_members: {},
-      afk_status: {} // 잠수 상태를 별도 테이블로 분리
+      afk_status: {}, // 잠수 상태를 별도 테이블로 분리
+      forum_messages: {} // 포럼 메시지 추적 테이블
     }).write();
   }
 
@@ -666,5 +667,119 @@ export class DatabaseManager {
    */
   reloadData() {
     this.forceReload();
+  }
+
+  // ======== 포럼 메시지 추적 관련 메서드 ========
+
+  /**
+   * 포럼 메시지 ID 추적 저장
+   * @param {string} threadId - 스레드 ID
+   * @param {string} messageType - 메시지 타입 ('participant_count', 'emoji_reaction')
+   * @param {string} messageId - 메시지 ID
+   */
+  async trackForumMessage(threadId, messageType, messageId) {
+    try {
+      this.invalidateCache();
+      
+      // threadId를 키로 하는 객체 구조: { threadId: { participant_count: [messageIds], emoji_reaction: [messageIds] } }
+      const threadData = this.db.get('forum_messages').get(threadId).value() || {};
+      
+      if (!threadData[messageType]) {
+        threadData[messageType] = [];
+      }
+      
+      // 중복 메시지 ID 방지
+      if (!threadData[messageType].includes(messageId)) {
+        threadData[messageType].push(messageId);
+      }
+      
+      this.db.get('forum_messages').set(threadId, threadData).write();
+      
+      console.log(`[DB] 포럼 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
+      return true;
+    } catch (error) {
+      console.error('[DB] 포럼 메시지 추적 저장 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 특정 스레드의 추적된 메시지 ID들 가져오기
+   * @param {string} threadId - 스레드 ID
+   * @param {string} messageType - 메시지 타입
+   * @returns {Array<string>} - 메시지 ID 배열
+   */
+  async getTrackedMessages(threadId, messageType) {
+    try {
+      this.smartReload();
+      
+      const threadData = this.db.get('forum_messages').get(threadId).value();
+      if (!threadData || !threadData[messageType]) {
+        return [];
+      }
+      
+      return threadData[messageType] || [];
+    } catch (error) {
+      console.error('[DB] 추적된 메시지 조회 오류:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 특정 스레드의 특정 타입 메시지 추적 정보 삭제
+   * @param {string} threadId - 스레드 ID
+   * @param {string} messageType - 메시지 타입
+   * @returns {Array<string>} - 삭제된 메시지 ID 배열
+   */
+  async clearTrackedMessages(threadId, messageType) {
+    try {
+      this.invalidateCache();
+      
+      const threadData = this.db.get('forum_messages').get(threadId).value();
+      if (!threadData || !threadData[messageType]) {
+        return [];
+      }
+      
+      const messageIds = threadData[messageType] || [];
+      
+      // 해당 타입의 메시지 추적 정보 삭제
+      delete threadData[messageType];
+      
+      // 스레드 데이터가 비어있으면 전체 삭제, 아니면 업데이트
+      if (Object.keys(threadData).length === 0) {
+        this.db.get('forum_messages').unset(threadId).write();
+      } else {
+        this.db.get('forum_messages').set(threadId, threadData).write();
+      }
+      
+      console.log(`[DB] 추적된 메시지 삭제: ${threadId}, ${messageType}, ${messageIds.length}개`);
+      return messageIds;
+    } catch (error) {
+      console.error('[DB] 추적된 메시지 삭제 오류:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 모든 포럼 메시지 추적 정보 삭제 (스레드 단위)
+   * @param {string} threadId - 스레드 ID
+   */
+  async clearAllTrackedMessagesForThread(threadId) {
+    try {
+      this.invalidateCache();
+      
+      const threadData = this.db.get('forum_messages').get(threadId).value();
+      if (!threadData) {
+        return {};
+      }
+      
+      this.db.get('forum_messages').unset(threadId).write();
+      
+      console.log(`[DB] 스레드의 모든 추적 메시지 삭제: ${threadId}`);
+      return threadData;
+    } catch (error) {
+      console.error('[DB] 스레드 메시지 추적 정보 삭제 오류:', error);
+      return {};
+    }
   }
 }

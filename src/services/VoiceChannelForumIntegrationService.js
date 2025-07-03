@@ -12,14 +12,15 @@ import { ButtonHandler } from '../ui/ButtonHandler.js';
 import { config } from '../config/env.js';
 
 export class VoiceChannelForumIntegrationService {
-  constructor(client, forumChannelId, voiceCategoryId) {
+  constructor(client, forumChannelId, voiceCategoryId, databaseManager = null) {
     this.client = client;
     this.forumChannelId = forumChannelId;
     this.voiceCategoryId = voiceCategoryId;
+    this.databaseManager = databaseManager;
     
     // Core Services 초기화
     this.voiceChannelManager = new VoiceChannelManager(client, voiceCategoryId);
-    this.forumPostManager = new ForumPostManager(client, forumChannelId, config.FORUM_TAG_ID);
+    this.forumPostManager = new ForumPostManager(client, forumChannelId, config.FORUM_TAG_ID, databaseManager);
     this.participantTracker = new ParticipantTracker(client);
     this.mappingService = new MappingService(client, this.voiceChannelManager, this.forumPostManager);
     

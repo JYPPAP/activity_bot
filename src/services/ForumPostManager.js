@@ -6,10 +6,11 @@ import { TextProcessor } from '../utils/TextProcessor.js';
 import { formatParticipantList } from '../utils/formatters.js';
 
 export class ForumPostManager {
-  constructor(client, forumChannelId, forumTagId) {
+  constructor(client, forumChannelId, forumTagId, databaseManager = null) {
     this.client = client;
     this.forumChannelId = forumChannelId;
     this.forumTagId = forumTagId;
+    this.databaseManager = databaseManager;
   }
   
   /**
@@ -230,10 +231,17 @@ export class ForumPostManager {
         return false;
       }
       
+      // 이전 참여자 수 메시지들 삭제
+      await this._deleteTrackedMessages(postId, 'participant_count');
+      
       const timeString = TextProcessor.formatKoreanTime();
       const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n**⏰ 업데이트**: ${timeString}`;
       
-      await thread.send(updateMessage);
+      const sentMessage = await thread.send(updateMessage);
+      
+      // 새 메시지 추적 저장
+      await this._trackMessage(postId, 'participant_count', sentMessage.id);
+      
       console.log(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
       return true;
       
@@ -474,17 +482,109 @@ export class ForumPostManager {
         return false;
       }
       
+      // 이전 이모지 반응 메시지들 삭제
+      await this._deleteTrackedMessages(postId, 'emoji_reaction');
+      
       const timeString = TextProcessor.formatKoreanTime();
       const participantListText = formatParticipantList(participants);
       const updateMessage = `# 🎯 ${emojiName} 이모지 반응 현황\n${participantListText}\n**⏰ 업데이트**: ${timeString}`;
       
-      await thread.send(updateMessage);
+      const sentMessage = await thread.send(updateMessage);
+      
+      // 새 메시지 추적 저장
+      await this._trackMessage(postId, 'emoji_reaction', sentMessage.id);
       
       console.log(`[ForumPostManager] 이모지 참가자 현황 업데이트 완료: ${postId} (${participants.length}명)`);
       return true;
       
     } catch (error) {
       console.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, error);
+      return false;
+    }
+  }
+
+  // ======== 프라이빗 메서드: 메시지 추적 및 삭제 ========
+
+  /**
+   * 추적된 메시지들 삭제
+   * @param {string} threadId - 스레드 ID
+   * @param {string} messageType - 메시지 타입
+   * @returns {Promise<boolean>} - 성공 여부
+   * @private
+   */
+  async _deleteTrackedMessages(threadId, messageType) {
+    if (!this.databaseManager) {
+      console.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
+      return false;
+    }
+
+    try {
+      // 데이터베이스에서 추적된 메시지 ID들 가져오기
+      const messageIds = await this.databaseManager.getTrackedMessages(threadId, messageType);
+      
+      if (messageIds.length === 0) {
+        return true; // 삭제할 메시지가 없음
+      }
+
+      // 스레드 가져오기
+      const thread = await this.client.channels.fetch(threadId);
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${threadId}`);
+        return false;
+      }
+
+      let deletedCount = 0;
+      
+      // 각 메시지 삭제 시도
+      for (const messageId of messageIds) {
+        try {
+          const message = await thread.messages.fetch(messageId);
+          if (message) {
+            await message.delete();
+            deletedCount++;
+            console.log(`[ForumPostManager] 메시지 삭제 완료: ${messageId}`);
+          }
+        } catch (deleteError) {
+          if (deleteError.code === 10008) { // Unknown Message
+            console.log(`[ForumPostManager] 메시지가 이미 삭제됨: ${messageId}`);
+          } else {
+            console.warn(`[ForumPostManager] 메시지 삭제 실패: ${messageId}`, deleteError.message);
+          }
+        }
+      }
+
+      // 데이터베이스에서 추적 정보 삭제
+      await this.databaseManager.clearTrackedMessages(threadId, messageType);
+      
+      console.log(`[ForumPostManager] 추적된 메시지 삭제 완료: ${threadId}, ${messageType}, ${deletedCount}/${messageIds.length}개`);
+      return true;
+
+    } catch (error) {
+      console.error(`[ForumPostManager] 추적된 메시지 삭제 오류: ${threadId}, ${messageType}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 메시지 추적 저장
+   * @param {string} threadId - 스레드 ID
+   * @param {string} messageType - 메시지 타입
+   * @param {string} messageId - 메시지 ID
+   * @returns {Promise<boolean>} - 성공 여부
+   * @private
+   */
+  async _trackMessage(threadId, messageType, messageId) {
+    if (!this.databaseManager) {
+      console.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
+      return false;
+    }
+
+    try {
+      await this.databaseManager.trackForumMessage(threadId, messageType, messageId);
+      console.log(`[ForumPostManager] 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
+      return true;
+    } catch (error) {
+      console.error(`[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`, error);
       return false;
     }
   }

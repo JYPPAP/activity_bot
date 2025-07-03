@@ -41,7 +41,8 @@ export class Bot {
     this.voiceForumService = new VoiceChannelForumIntegrationService(
       this.client,
       config.FORUM_CHANNEL_ID,
-      config.VOICE_CATEGORY_ID
+      config.VOICE_CATEGORY_ID,
+      this.dbManager
     );
     this.emojiReactionService = new EmojiReactionService(
       this.client,
