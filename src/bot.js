@@ -83,6 +83,16 @@ export class Bot {
       // 달력 로그 서비스 초기화
       await this.calendarLogService.initialize();
 
+      // VoiceChannelForumIntegrationService 매핑 초기화 (봇이 준비된 후)
+      try {
+        console.log('[Bot] 음성-포럼 매핑 서비스 초기화 시작...');
+        await this.voiceForumService.initializeMappingService();
+        console.log('[Bot] 음성-포럼 매핑 서비스 초기화 완료');
+      } catch (error) {
+        console.error('[Bot] 매핑 서비스 초기화 실패:', error);
+        // 매핑 초기화 실패해도 봇 전체는 계속 실행
+      }
+
       // 여러 역할 출력 일정 설정 추가
       await this.scheduleRoleListings(guild);
     });

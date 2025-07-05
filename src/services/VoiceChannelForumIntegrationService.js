@@ -41,10 +41,7 @@ export class VoiceChannelForumIntegrationService {
     // 서비스 초기화
     this.recruitmentService.initialize();
     
-    // MappingService 초기화 (데이터베이스에서 매핑 복구)
-    this.initializeMappingService();
-    
-    console.log(`[VoiceForumService] 통합 서비스 초기화 완료`);
+    console.log(`[VoiceForumService] 통합 서비스 기본 초기화 완료`);
   }
   
   /**

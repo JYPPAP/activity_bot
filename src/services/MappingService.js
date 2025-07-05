@@ -385,6 +385,29 @@ export class MappingService {
   // ======== 데이터베이스 지속성 관련 메서드 ========
 
   /**
+   * Discord 클라이언트 준비 상태 확인
+   * @returns {boolean} - 클라이언트가 준비되었는지 여부
+   */
+  isClientReady() {
+    if (!this.client) {
+      console.warn('[MappingService] Discord 클라이언트가 없습니다.');
+      return false;
+    }
+
+    if (!this.client.isReady()) {
+      console.warn('[MappingService] Discord 클라이언트가 아직 준비되지 않았습니다.');
+      return false;
+    }
+
+    if (!this.client.token) {
+      console.warn('[MappingService] Discord 토큰이 없습니다.');
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * 데이터베이스에서 매핑 정보 로드 (봇 시작 시 복구)
    * @returns {Promise<Object>} - 로드 결과 { success: boolean, loaded: number, validated: number, removed: number }
    */
@@ -392,6 +415,12 @@ export class MappingService {
     if (!this.databaseManager) {
       console.warn('[MappingService] DatabaseManager가 없어 매핑 로드를 건너뜁니다.');
       return { success: false, loaded: 0, validated: 0, removed: 0 };
+    }
+
+    // Discord 클라이언트 준비 상태 확인
+    if (!this.isClientReady()) {
+      console.warn('[MappingService] Discord 클라이언트가 준비되지 않아 매핑 로드를 연기합니다.');
+      return { success: false, loaded: 0, validated: 0, removed: 0, error: '클라이언트 준비되지 않음' };
     }
 
     try {
@@ -419,12 +448,42 @@ export class MappingService {
         
         try {
           // 음성 채널과 포럼 포스트가 여전히 존재하는지 확인
-          const [voiceChannelInfo, postInfo] = await Promise.all([
-            this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id),
-            this.forumPostManager.getPostInfo(forum_post_id)
-          ]);
+          let voiceChannelInfo = null;
+          let postInfo = null;
+          let channelCheckFailed = false;
+          let postCheckFailed = false;
 
-          if (voiceChannelInfo && postInfo && !postInfo.archived) {
+          // 개별적으로 API 호출하여 세밀한 오류 처리
+          try {
+            voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id);
+          } catch (channelError) {
+            channelCheckFailed = true;
+            console.warn(`[MappingService] 채널 정보 확인 실패: ${voice_channel_id}`, channelError.message);
+            
+            // 토큰 관련 오류인 경우 더 이상 진행하지 않음
+            if (channelError.message?.includes('token') || channelError.message?.includes('Token')) {
+              console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
+              throw new Error('Discord API 토큰 오류');
+            }
+          }
+
+          try {
+            postInfo = await this.forumPostManager.getPostInfo(forum_post_id);
+          } catch (postError) {
+            postCheckFailed = true;
+            console.warn(`[MappingService] 포스트 정보 확인 실패: ${forum_post_id}`, postError.message);
+            
+            // 토큰 관련 오류인 경우 더 이상 진행하지 않음
+            if (postError.message?.includes('token') || postError.message?.includes('Token')) {
+              console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
+              throw new Error('Discord API 토큰 오류');
+            }
+          }
+
+          // 매핑 유효성 판단
+          const isValidMapping = voiceChannelInfo && postInfo && !postInfo.archived && !channelCheckFailed && !postCheckFailed;
+
+          if (isValidMapping) {
             // 유효한 매핑인 경우 메모리에 로드
             this.channelPostMap.set(voice_channel_id, forum_post_id);
             if (last_participant_count !== undefined) {
@@ -434,17 +493,31 @@ export class MappingService {
             console.log(`[MappingService] 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
           } else {
             // 유효하지 않은 매핑인 경우 데이터베이스에서 제거
-            await this.databaseManager.removeChannelMapping(voice_channel_id);
-            removedCount++;
-            console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (채널 존재: ${!!voiceChannelInfo}, 포스트 존재: ${!!postInfo}, 포스트 아카이브됨: ${postInfo?.archived})`);
+            try {
+              await this.databaseManager.removeChannelMapping(voice_channel_id);
+              removedCount++;
+              console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (채널체크실패: ${channelCheckFailed}, 포스트체크실패: ${postCheckFailed}, 채널존재: ${!!voiceChannelInfo}, 포스트존재: ${!!postInfo}, 아카이브됨: ${postInfo?.archived})`);
+            } catch (removeError) {
+              console.error(`[MappingService] 매핑 제거 실패: ${voice_channel_id}`, removeError);
+            }
           }
           
           loadedCount++;
         } catch (error) {
-          console.error(`[MappingService] 매핑 검증 오류: ${voice_channel_id} -> ${forum_post_id}`, error);
-          // 검증 중 오류가 발생한 매핑도 제거
-          await this.databaseManager.removeChannelMapping(voice_channel_id);
-          removedCount++;
+          // 전체 매핑 로드 프로세스를 중단해야 하는 심각한 오류
+          if (error.message === 'Discord API 토큰 오류') {
+            throw error; // 상위로 전파
+          }
+          
+          console.error(`[MappingService] 매핑 검증 중 예상치 못한 오류: ${voice_channel_id} -> ${forum_post_id}`, error);
+          
+          // 일반적인 오류의 경우 해당 매핑만 제거하고 계속 진행
+          try {
+            await this.databaseManager.removeChannelMapping(voice_channel_id);
+            removedCount++;
+          } catch (removeError) {
+            console.error(`[MappingService] 오류 발생 매핑 제거 실패: ${voice_channel_id}`, removeError);
+          }
         }
       }
 
