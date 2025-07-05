@@ -91,18 +91,20 @@ export class ParticipantTracker {
   /**
    * 제목에서 최대 인원 수 추출
    * @param {string} title - 포스트 제목
-   * @returns {number} - 최대 인원 수 (기본값: 4)
+   * @returns {number|string} - 최대 인원 수 (기본값: N) 또는 'N'/'n'
    */
   extractMaxParticipants(title) {
-    if (!title) return 4;
+    if (!title) return 'N';
     
-    // "1/4", "2/5" 같은 패턴에서 최대값 추출
-    const match = title.match(/(\d+)\/(\d+)/);
+    // "1/4", "2/5", "1/N", "1/n" 같은 패턴에서 최대값 추출
+    const match = title.match(/(\d+)\/(\d+|[Nn])/);
     if (match) {
-      return parseInt(match[2], 10);
+      const maxValue = match[2];
+      // N 또는 n인 경우 그대로 반환, 숫자인 경우 parseInt
+      return /^[Nn]$/.test(maxValue) ? maxValue : parseInt(maxValue, 10);
     }
     
-    return 4; // 기본값
+    return 'N'; // 기본값
   }
   
   /**

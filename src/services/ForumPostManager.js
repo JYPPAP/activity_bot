@@ -222,7 +222,7 @@ export class ForumPostManager {
    * 포럼 포스트에 참여자 수 업데이트 메시지 전송
    * @param {string} postId - 포스트 ID
    * @param {number} currentCount - 현재 참여자 수
-   * @param {number} maxCount - 최대 참여자 수
+   * @param {number|string} maxCount - 최대 참여자 수 (숫자 또는 'N'/'n')
    * @param {string} voiceChannelName - 음성 채널 이름
    * @returns {Promise<boolean>} - 성공 여부
    */
