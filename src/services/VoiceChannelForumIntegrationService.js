@@ -22,7 +22,7 @@ export class VoiceChannelForumIntegrationService {
     this.voiceChannelManager = new VoiceChannelManager(client, voiceCategoryId);
     this.forumPostManager = new ForumPostManager(client, forumChannelId, config.FORUM_TAG_ID, databaseManager);
     this.participantTracker = new ParticipantTracker(client);
-    this.mappingService = new MappingService(client, this.voiceChannelManager, this.forumPostManager);
+    this.mappingService = new MappingService(client, this.voiceChannelManager, this.forumPostManager, databaseManager);
     
     // Business Logic Services 초기화
     this.recruitmentService = new RecruitmentService(
@@ -40,6 +40,9 @@ export class VoiceChannelForumIntegrationService {
     
     // 서비스 초기화
     this.recruitmentService.initialize();
+    
+    // MappingService 초기화 (데이터베이스에서 매핑 복구)
+    this.initializeMappingService();
     
     console.log(`[VoiceForumService] 통합 서비스 초기화 완료`);
   }
@@ -239,6 +242,29 @@ export class VoiceChannelForumIntegrationService {
    */
   logMappingStatus() {
     this.mappingService.logCurrentMappings();
+  }
+
+  /**
+   * MappingService 초기화 (비동기)
+   */
+  async initializeMappingService() {
+    try {
+      console.log('[VoiceForumService] MappingService 초기화 시작...');
+      
+      if (this.mappingService && typeof this.mappingService.initialize === 'function') {
+        const initResult = await this.mappingService.initialize();
+        
+        if (initResult) {
+          console.log('[VoiceForumService] MappingService 초기화 성공');
+        } else {
+          console.warn('[VoiceForumService] MappingService 초기화 실패');
+        }
+      } else {
+        console.warn('[VoiceForumService] MappingService 또는 initialize 메서드가 없습니다.');
+      }
+    } catch (error) {
+      console.error('[VoiceForumService] MappingService 초기화 오류:', error);
+    }
   }
   
   /**

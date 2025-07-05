@@ -22,7 +22,8 @@ export class DatabaseManager {
       reset_history: [],
       log_members: {},
       afk_status: {}, // 잠수 상태를 별도 테이블로 분리
-      forum_messages: {} // 포럼 메시지 추적 테이블
+      forum_messages: {}, // 포럼 메시지 추적 테이블
+      voice_channel_mappings: {} // 음성 채널 - 포럼 포스트 매핑 테이블
     }).write();
   }
 
@@ -780,6 +781,184 @@ export class DatabaseManager {
     } catch (error) {
       console.error('[DB] 스레드 메시지 추적 정보 삭제 오류:', error);
       return {};
+    }
+  }
+
+  // ======== 음성 채널 매핑 관련 메서드 ========
+
+  /**
+   * 음성 채널-포럼 포스트 매핑 저장
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @param {number} lastParticipantCount - 마지막 참여자 수 (선택적)
+   * @returns {Promise<boolean>} - 저장 성공 여부
+   */
+  async saveChannelMapping(voiceChannelId, forumPostId, lastParticipantCount = 0) {
+    try {
+      this.invalidateCache();
+      
+      const now = Date.now();
+      const mappingData = {
+        voice_channel_id: voiceChannelId,
+        forum_post_id: forumPostId,
+        created_at: now,
+        last_updated: now,
+        last_participant_count: lastParticipantCount
+      };
+      
+      this.db.get('voice_channel_mappings')
+          .set(voiceChannelId, mappingData)
+          .write();
+      
+      console.log(`[DB] 채널 매핑 저장: ${voiceChannelId} -> ${forumPostId}`);
+      return true;
+    } catch (error) {
+      console.error('[DB] 채널 매핑 저장 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 음성 채널 매핑 정보 가져오기
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @returns {Promise<Object|null>} - 매핑 정보 또는 null
+   */
+  async getChannelMapping(voiceChannelId) {
+    try {
+      this.smartReload();
+      
+      const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
+      return mappingData || null;
+    } catch (error) {
+      console.error('[DB] 채널 매핑 조회 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 모든 음성 채널 매핑 가져오기
+   * @returns {Promise<Array>} - 모든 매핑 배열
+   */
+  async getAllChannelMappings() {
+    try {
+      this.smartReload();
+      
+      const mappings = this.db.get('voice_channel_mappings').value();
+      return Object.values(mappings);
+    } catch (error) {
+      console.error('[DB] 모든 채널 매핑 조회 오류:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 음성 채널 매핑 제거
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @returns {Promise<boolean>} - 제거 성공 여부
+   */
+  async removeChannelMapping(voiceChannelId) {
+    try {
+      this.invalidateCache();
+      
+      const existed = this.db.get('voice_channel_mappings').has(voiceChannelId).value();
+      if (!existed) {
+        return false;
+      }
+      
+      this.db.get('voice_channel_mappings').unset(voiceChannelId).write();
+      
+      console.log(`[DB] 채널 매핑 제거: ${voiceChannelId}`);
+      return true;
+    } catch (error) {
+      console.error('[DB] 채널 매핑 제거 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 마지막 참여자 수 업데이트
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {number} participantCount - 참여자 수
+   * @returns {Promise<boolean>} - 업데이트 성공 여부
+   */
+  async updateLastParticipantCount(voiceChannelId, participantCount) {
+    try {
+      this.invalidateCache();
+      
+      const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
+      if (!mappingData) {
+        console.log(`[DB] 매핑을 찾을 수 없음: ${voiceChannelId}`);
+        return false;
+      }
+      
+      mappingData.last_participant_count = participantCount;
+      mappingData.last_updated = Date.now();
+      
+      this.db.get('voice_channel_mappings')
+          .set(voiceChannelId, mappingData)
+          .write();
+      
+      console.log(`[DB] 참여자 수 업데이트: ${voiceChannelId} -> ${participantCount}`);
+      return true;
+    } catch (error) {
+      console.error('[DB] 참여자 수 업데이트 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 포럼 포스트 ID로 음성 채널 ID 찾기
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @returns {Promise<string|null>} - 음성 채널 ID 또는 null
+   */
+  async getVoiceChannelIdByPostId(forumPostId) {
+    try {
+      this.smartReload();
+      
+      const mappings = this.db.get('voice_channel_mappings').value();
+      
+      for (const [channelId, data] of Object.entries(mappings)) {
+        if (data.forum_post_id === forumPostId) {
+          return channelId;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[DB] 포스트 ID로 채널 ID 조회 오류:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 만료된 매핑 정리 (오래된 매핑들 제거)
+   * @param {number} maxAge - 최대 보관 기간 (밀리초, 기본값: 7일)
+   * @returns {Promise<number>} - 제거된 매핑 개수
+   */
+  async cleanupExpiredMappings(maxAge = 7 * 24 * 60 * 60 * 1000) {
+    try {
+      this.invalidateCache();
+      
+      const now = Date.now();
+      const mappings = this.db.get('voice_channel_mappings').value();
+      let cleanedCount = 0;
+      
+      for (const [channelId, data] of Object.entries(mappings)) {
+        if (data.last_updated && (now - data.last_updated) > maxAge) {
+          this.db.get('voice_channel_mappings').unset(channelId).write();
+          cleanedCount++;
+          console.log(`[DB] 만료된 매핑 제거: ${channelId} (${Math.round((now - data.last_updated) / (24 * 60 * 60 * 1000))}일 경과)`);
+        }
+      }
+      
+      if (cleanedCount > 0) {
+        console.log(`[DB] 만료된 매핑 정리 완료: ${cleanedCount}개 제거`);
+      }
+      
+      return cleanedCount;
+    } catch (error) {
+      console.error('[DB] 만료된 매핑 정리 오류:', error);
+      return 0;
     }
   }
 }

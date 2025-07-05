@@ -1,9 +1,10 @@
 // src/services/MappingService.js - 채널-포스트 매핑 관리
 export class MappingService {
-  constructor(client, voiceChannelManager, forumPostManager) {
+  constructor(client, voiceChannelManager, forumPostManager, databaseManager) {
     this.client = client;
     this.voiceChannelManager = voiceChannelManager;
     this.forumPostManager = forumPostManager;
+    this.databaseManager = databaseManager;
     this.channelPostMap = new Map(); // 음성채널 ID -> 포럼 포스트 ID 매핑
     this.updateQueue = new Map(); // 업데이트 큐 (중복 방지)
     this.lastParticipantCounts = new Map(); // 음성채널 ID -> 마지막 전송된 참여자 수
@@ -13,28 +14,63 @@ export class MappingService {
    * 채널-포스트 매핑 추가
    * @param {string} voiceChannelId - 음성 채널 ID
    * @param {string} postId - 포럼 포스트 ID
-   * @returns {void}
+   * @returns {Promise<boolean>} - 추가 성공 여부
    */
-  addMapping(voiceChannelId, postId) {
-    this.channelPostMap.set(voiceChannelId, postId);
-    console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
-    this.logCurrentMappings();
+  async addMapping(voiceChannelId, postId) {
+    try {
+      // 메모리에 추가
+      this.channelPostMap.set(voiceChannelId, postId);
+      
+      // 데이터베이스에 저장
+      if (this.databaseManager) {
+        const saved = await this.databaseManager.saveChannelMapping(voiceChannelId, postId, 0);
+        if (!saved) {
+          console.error(`[MappingService] 데이터베이스 저장 실패: ${voiceChannelId} -> ${postId}`);
+          // 메모리에서도 제거
+          this.channelPostMap.delete(voiceChannelId);
+          return false;
+        }
+      }
+      
+      console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
+      this.logCurrentMappings();
+      return true;
+    } catch (error) {
+      console.error(`[MappingService] 매핑 추가 오류: ${voiceChannelId} -> ${postId}`, error);
+      return false;
+    }
   }
   
   /**
    * 채널-포스트 매핑 제거
    * @param {string} voiceChannelId - 음성 채널 ID
-   * @returns {boolean} - 제거 성공 여부
+   * @returns {Promise<boolean>} - 제거 성공 여부
    */
-  removeMapping(voiceChannelId) {
-    const existed = this.channelPostMap.delete(voiceChannelId);
-    if (existed) {
-      // 참여자 수 기록도 함께 제거
-      this.lastParticipantCounts.delete(voiceChannelId);
-      console.log(`[MappingService] 매핑 제거: ${voiceChannelId}`);
-      this.logCurrentMappings();
+  async removeMapping(voiceChannelId) {
+    try {
+      const existed = this.channelPostMap.delete(voiceChannelId);
+      
+      if (existed) {
+        // 참여자 수 기록도 함께 제거
+        this.lastParticipantCounts.delete(voiceChannelId);
+        
+        // 데이터베이스에서도 제거
+        if (this.databaseManager) {
+          const removed = await this.databaseManager.removeChannelMapping(voiceChannelId);
+          if (!removed) {
+            console.warn(`[MappingService] 데이터베이스에서 매핑 제거 실패: ${voiceChannelId}`);
+          }
+        }
+        
+        console.log(`[MappingService] 매핑 제거: ${voiceChannelId}`);
+        this.logCurrentMappings();
+      }
+      
+      return existed;
+    } catch (error) {
+      console.error(`[MappingService] 매핑 제거 오류: ${voiceChannelId}`, error);
+      return false;
     }
-    return existed;
   }
   
   /**
@@ -182,6 +218,15 @@ export class MappingService {
       if (updateResult) {
         // 성공적으로 전송된 경우에만 마지막 참여자 수 저장
         this.lastParticipantCounts.set(voiceChannelId, currentCount);
+        
+        // 데이터베이스에도 참여자 수 업데이트
+        if (this.databaseManager) {
+          const dbUpdated = await this.databaseManager.updateLastParticipantCount(voiceChannelId, currentCount);
+          if (!dbUpdated) {
+            console.warn(`[MappingService] 데이터베이스 참여자 수 업데이트 실패: ${voiceChannelId}`);
+          }
+        }
+        
         console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
       } else {
         console.log(`[MappingService] 참여자 수 업데이트 실패: ${voiceChannelId} -> ${postId}`);
@@ -210,7 +255,7 @@ export class MappingService {
       }
       
       // 매핑 제거
-      this.removeMapping(deletedChannelId);
+      await this.removeMapping(deletedChannelId);
       cleanedCount++;
     }
     
@@ -232,7 +277,7 @@ export class MappingService {
       const postExists = await this.forumPostManager.postExists(postId);
       
       if (!postExists) {
-        this.removeMapping(channelId);
+        await this.removeMapping(channelId);
         cleanedCount++;
         console.log(`[MappingService] 삭제된 포스트로 인한 매핑 제거: ${channelId} -> ${postId}`);
       }
@@ -334,6 +379,139 @@ export class MappingService {
     } catch (error) {
       console.error(`[MappingService] 매핑 상세 정보 가져오기 실패: ${voiceChannelId}`, error);
       return null;
+    }
+  }
+
+  // ======== 데이터베이스 지속성 관련 메서드 ========
+
+  /**
+   * 데이터베이스에서 매핑 정보 로드 (봇 시작 시 복구)
+   * @returns {Promise<Object>} - 로드 결과 { success: boolean, loaded: number, validated: number, removed: number }
+   */
+  async loadMappingsFromDatabase() {
+    if (!this.databaseManager) {
+      console.warn('[MappingService] DatabaseManager가 없어 매핑 로드를 건너뜁니다.');
+      return { success: false, loaded: 0, validated: 0, removed: 0 };
+    }
+
+    try {
+      console.log('[MappingService] 데이터베이스에서 매핑 로드 시작...');
+      
+      const savedMappings = await this.databaseManager.getAllChannelMappings();
+      
+      if (!Array.isArray(savedMappings)) {
+        console.warn('[MappingService] 데이터베이스에서 유효하지 않은 매핑 데이터를 받았습니다.');
+        return { success: false, loaded: 0, validated: 0, removed: 0, error: '유효하지 않은 데이터 형식' };
+      }
+      
+      let loadedCount = 0;
+      let validatedCount = 0;
+      let removedCount = 0;
+
+      for (const mapping of savedMappings) {
+        const { voice_channel_id, forum_post_id, last_participant_count } = mapping;
+        
+        // 필수 필드 검증
+        if (!voice_channel_id || !forum_post_id) {
+          console.warn(`[MappingService] 유효하지 않은 매핑 데이터 건너뛰기:`, mapping);
+          continue;
+        }
+        
+        try {
+          // 음성 채널과 포럼 포스트가 여전히 존재하는지 확인
+          const [voiceChannelInfo, postInfo] = await Promise.all([
+            this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id),
+            this.forumPostManager.getPostInfo(forum_post_id)
+          ]);
+
+          if (voiceChannelInfo && postInfo && !postInfo.archived) {
+            // 유효한 매핑인 경우 메모리에 로드
+            this.channelPostMap.set(voice_channel_id, forum_post_id);
+            if (last_participant_count !== undefined) {
+              this.lastParticipantCounts.set(voice_channel_id, last_participant_count);
+            }
+            validatedCount++;
+            console.log(`[MappingService] 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
+          } else {
+            // 유효하지 않은 매핑인 경우 데이터베이스에서 제거
+            await this.databaseManager.removeChannelMapping(voice_channel_id);
+            removedCount++;
+            console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (채널 존재: ${!!voiceChannelInfo}, 포스트 존재: ${!!postInfo}, 포스트 아카이브됨: ${postInfo?.archived})`);
+          }
+          
+          loadedCount++;
+        } catch (error) {
+          console.error(`[MappingService] 매핑 검증 오류: ${voice_channel_id} -> ${forum_post_id}`, error);
+          // 검증 중 오류가 발생한 매핑도 제거
+          await this.databaseManager.removeChannelMapping(voice_channel_id);
+          removedCount++;
+        }
+      }
+
+      const result = {
+        success: true,
+        loaded: loadedCount,
+        validated: validatedCount,
+        removed: removedCount
+      };
+
+      console.log(`[MappingService] 매핑 로드 완료:`, result);
+      this.logCurrentMappings();
+      
+      return result;
+    } catch (error) {
+      console.error('[MappingService] 매핑 로드 오류:', error);
+      return { success: false, loaded: 0, validated: 0, removed: 0, error: error.message };
+    }
+  }
+
+  /**
+   * 데이터베이스와 메모리 매핑 동기화
+   * @returns {Promise<boolean>} - 동기화 성공 여부
+   */
+  async syncWithDatabase() {
+    if (!this.databaseManager) {
+      return false;
+    }
+
+    try {
+      console.log('[MappingService] 데이터베이스 동기화 시작...');
+      
+      // 현재 메모리의 모든 매핑을 데이터베이스에 저장
+      for (const [voiceChannelId, postId] of this.channelPostMap.entries()) {
+        const lastCount = this.lastParticipantCounts.get(voiceChannelId) || 0;
+        await this.databaseManager.saveChannelMapping(voiceChannelId, postId, lastCount);
+      }
+
+      console.log(`[MappingService] 데이터베이스 동기화 완료: ${this.channelPostMap.size}개 매핑`);
+      return true;
+    } catch (error) {
+      console.error('[MappingService] 데이터베이스 동기화 오류:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 초기화 메서드 (서비스 시작 시 호출)
+   * @returns {Promise<boolean>} - 초기화 성공 여부
+   */
+  async initialize() {
+    try {
+      console.log('[MappingService] 서비스 초기화 시작...');
+      
+      // 데이터베이스에서 기존 매핑 로드
+      const loadResult = await this.loadMappingsFromDatabase();
+      
+      if (loadResult.success) {
+        console.log(`[MappingService] 초기화 완료: ${loadResult.validated}개 매핑 복구, ${loadResult.removed}개 매핑 정리`);
+        return true;
+      } else {
+        console.error('[MappingService] 초기화 실패');
+        return false;
+      }
+    } catch (error) {
+      console.error('[MappingService] 초기화 오류:', error);
+      return false;
     }
   }
 }
