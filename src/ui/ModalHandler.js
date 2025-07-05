@@ -272,7 +272,7 @@ export class ModalHandler {
     }
     
     // 인원 수 패턴 검증
-    if (recruitmentData.title && !recruitmentData.title.match(/\d+\/\d+/)) {
+    if (recruitmentData.title && !recruitmentData.title.match(/\d+\/(\d+|[Nn])/)) {
       errors.push('제목에 "현재인원/최대인원" 형식을 포함해주세요. (예: 1/5)');
     }
     
