@@ -11,6 +11,7 @@ import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumI
 import {EmojiReactionService} from './services/EmojiReactionService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
+import {logger} from './config/logger.js';
 import fs from 'fs';
 
 export class Bot {
@@ -72,24 +73,35 @@ export class Bot {
 
     // 클라이언트 ready 이벤트 처리
     this.client.once(Events.ClientReady, async () => {
-      console.log(`Logged in as ${this.client.user.tag}!`);
+      logger.botActivity(`Discord Bot 로그인 성공: ${this.client.user.tag}`, {
+        botTag: this.client.user.tag,
+        botId: this.client.user.id,
+        guildCount: this.client.guilds.cache.size
+      });
 
       // 활동 추적 초기화
       const guild = this.client.guilds.cache.get(config.GUILDID);
       if (guild) {
+        logger.info('활동 추적 초기화 시작', { guildId: guild.id, guildName: guild.name });
         await this.activityTracker.initializeActivityData(guild);
+        logger.info('활동 추적 초기화 완료');
       }
 
       // 달력 로그 서비스 초기화
+      logger.info('달력 로그 서비스 초기화 시작');
       await this.calendarLogService.initialize();
+      logger.info('달력 로그 서비스 초기화 완료');
 
       // VoiceChannelForumIntegrationService 매핑 초기화 (봇이 준비된 후)
       try {
-        console.log('[Bot] 음성-포럼 매핑 서비스 초기화 시작...');
+        logger.info('음성-포럼 매핑 서비스 초기화 시작');
         await this.voiceForumService.initializeMappingService();
-        console.log('[Bot] 음성-포럼 매핑 서비스 초기화 완료');
+        logger.info('음성-포럼 매핑 서비스 초기화 완료');
       } catch (error) {
-        console.error('[Bot] 매핑 서비스 초기화 실패:', error);
+        logger.error('매핑 서비스 초기화 실패', {
+          error: error.message,
+          stack: error.stack
+        });
         // 매핑 초기화 실패해도 봇 전체는 계속 실행
       }
 
@@ -107,14 +119,17 @@ export class Bot {
       // 모든 역할 설정 가져오기
       const roleConfigs = await this.dbManager.getAllRoleConfigs();
       if (!roleConfigs || roleConfigs.length === 0) {
-        console.log('설정된 역할이 없습니다.');
+        logger.warn('설정된 역할이 없습니다.');
         return;
       }
 
       // UserClassificationService 인스턴스 생성
       const userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
 
-      console.log(`${roleConfigs.length}개 역할에 대한 출력 일정을 설정합니다.`);
+      logger.info(`${roleConfigs.length}개 역할에 대한 출력 일정을 설정합니다.`, {
+        roleCount: roleConfigs.length,
+        roles: roleConfigs.map(r => r.roleName)
+      });
 
       for (const roleConfig of roleConfigs) {
         const roleName = roleConfig.roleName;
@@ -135,11 +150,18 @@ export class Bot {
             this.generateRoleReport(guild, roleName, userClassificationService);
           }, interval);
 
-          console.log(`${roleName} 역할의 출력 일정이 설정되었습니다 (주기: ${interval / (24 * 60 * 60 * 1000)}일)`);
+          logger.info(`${roleName} 역할의 출력 일정이 설정되었습니다`, {
+            roleName,
+            intervalDays: interval / (24 * 60 * 60 * 1000),
+            initialDelayHours: initialDelay / (1000 * 60 * 60)
+          });
         }, initialDelay);
       }
     } catch (error) {
-      console.error('역할 출력 일정 설정 오류:', error);
+      logger.error('역할 출력 일정 설정 오류', {
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
 
@@ -152,13 +174,19 @@ export class Bot {
    */
   async generateRoleReport(guild, roleName, userClassificationService = null) {
     try {
-      console.log(`${roleName} 역할에 대한 보고서 생성 시작...`);
+      logger.info(`${roleName} 역할에 대한 보고서 생성 시작`, {
+        roleName,
+        guildId: guild.id
+      });
 
       // 로그 채널 가져오기
       const logChannelId = config.LOG_CHANNEL_ID;
       const logChannel = await this.client.channels.fetch(logChannelId);
       if (!logChannel) {
-        console.error('로그 채널을 찾을 수 없습니다.');
+        logger.error('로그 채널을 찾을 수 없습니다', {
+          logChannelId,
+          roleName
+        });
         return;
       }
 
@@ -187,9 +215,18 @@ export class Bot {
         await logChannel.send({embeds: [embed]});
       }
 
-      console.log(`${roleName} 역할에 대한 보고서가 생성되었습니다.`);
+      logger.info(`${roleName} 역할에 대한 보고서가 생성되었습니다`, {
+        roleName,
+        activeUserCount: activeUsers.length,
+        inactiveUserCount: inactiveUsers.length,
+        afkUserCount: afkUsers.length
+      });
     } catch (error) {
-      console.error(`${roleName} 역할 보고서 생성 오류:`, error);
+      logger.error(`${roleName} 역할 보고서 생성 오류`, {
+        roleName,
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
 
@@ -206,7 +243,10 @@ export class Bot {
         fs.existsSync(PATHS.ACTIVITY_INFO) &&
         fs.existsSync(PATHS.ROLE_CONFIG)) {
 
-        console.log('JSON 데이터를 SQLite 데이터베이스로 마이그레이션합니다...');
+        logger.info('JSON 데이터를 SQLite 데이터베이스로 마이그레이션 시작', {
+          activityInfoPath: PATHS.ACTIVITY_INFO,
+          roleConfigPath: PATHS.ROLE_CONFIG
+        });
 
         // JSON 파일 로드
         const activityData = this.fileManager.loadJSON(PATHS.ACTIVITY_INFO);
@@ -216,22 +256,27 @@ export class Bot {
         const success = await this.dbManager.migrateFromJSON(activityData, roleConfigData);
 
         if (success) {
-          console.log('마이그레이션이 성공적으로 완료되었습니다!');
+          logger.info('마이그레이션이 성공적으로 완료되었습니다');
 
           // 마이그레이션 완료 후 백업 파일 생성
           const timestamp = new Date().toISOString().replace(/:/g, '-');
           fs.copyFileSync(PATHS.ACTIVITY_INFO, `${PATHS.ACTIVITY_INFO}.${timestamp}.bak`);
           fs.copyFileSync(PATHS.ROLE_CONFIG, `${PATHS.ROLE_CONFIG}.${timestamp}.bak`);
 
-          console.log('기존 JSON 파일의 백업이 생성되었습니다.');
+          logger.info('기존 JSON 파일의 백업이 생성되었습니다', {
+            backupTimestamp: timestamp
+          });
         }
       } else if (hasData) {
-        console.log('데이터베이스에 이미 데이터가 있어 마이그레이션을 건너뜁니다.');
+        logger.info('데이터베이스에 이미 데이터가 있어 마이그레이션을 건너뜁니다');
       } else {
-        console.log('마이그레이션할 JSON 파일이 없습니다. 새 데이터베이스로 시작합니다.');
+        logger.info('마이그레이션할 JSON 파일이 없습니다. 새 데이터베이스로 시작합니다');
       }
     } catch (error) {
-      console.error('데이터 마이그레이션 중 오류 발생:', error);
+      logger.error('데이터 마이그레이션 중 오류 발생', {
+        error: error.message,
+        stack: error.stack
+      });
     }
   }
 
@@ -315,19 +360,29 @@ export class Bot {
    * 종료 시 리소스 정리
    */
   async shutdown() {
-    console.log('봇을 종료합니다...');
+    logger.info('봇 종료 프로세스 시작');
 
-    // 남은 활동 데이터 저장
-    await this.activityTracker.saveActivityData();
+    try {
+      // 남은 활동 데이터 저장
+      await this.activityTracker.saveActivityData();
+      logger.info('활동 데이터 저장 완료');
 
-    // 데이터베이스 연결 종료
-    await this.dbManager.close();
+      // 데이터베이스 연결 종료
+      await this.dbManager.close();
+      logger.info('데이터베이스 연결 종료 완료');
 
-    // 클라이언트 연결 종료
-    if (this.client) {
-      this.client.destroy();
+      // 클라이언트 연결 종료
+      if (this.client) {
+        this.client.destroy();
+        logger.info('Discord 클라이언트 연결 종료 완료');
+      }
+
+      logger.info('봇이 안전하게 종료되었습니다');
+    } catch (error) {
+      logger.error('봇 종료 중 오류 발생', {
+        error: error.message,
+        stack: error.stack
+      });
     }
-
-    console.log('봇이 안전하게 종료되었습니다.');
   }
 }

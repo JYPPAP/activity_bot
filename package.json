@@ -1,5 +1,5 @@
 {
-  "name": "discord-activity-tracker",
+  "name": "discord-bot",
   "version": "1.0.0",
   "description": "Discord 음성 채널 활동 추적 봇",
   "main": "src/index.js",
@@ -7,11 +7,27 @@
   "scripts": {
     "start": "node src/index.js",
     "register": "node scripts/registerCommands.js",
+    "dev": "nodemon src/index.js",
+    
+    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop discord-bot",
+    "pm2:restart": "pm2 restart discord-bot",
+    "pm2:delete": "pm2 delete discord-bot",
+    "pm2:logs": "pm2 logs discord-bot",
+    "pm2:status": "pm2 status",
+    "pm2:monit": "pm2 monit",
+    
     "restart": "pm2 restart discord-bot",
     "logs": "pm2 logs discord-bot",
     "restart-logs": "pm2 restart discord-bot && pm2 logs discord-bot",
     "rel": "git pull && pm2 restart discord-bot && pm2 logs discord-bot",
-    "dev": "nodemon src/index.js"
+    
+    "errsole:dashboard": "echo 'Errsole Dashboard: http://localhost:8001'",
+    "errsole:dev": "NODE_ENV=development npm run pm2:start",
+    "errsole:prod": "NODE_ENV=production pm2 start ecosystem.config.js --env production",
+    
+    "deploy": "pm2 start ecosystem.config.js --env production",
+    "undeploy": "pm2 delete discord-bot"
   },
   "keywords": [
     "discord",
@@ -24,6 +40,8 @@
   "dependencies": {
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
+    "errsole": "^2.18.1",
+    "errsole-sqlite": "^3.0.3",
     "express": "^4.21.2",
     "lowdb": "^1.0.0"
   },
