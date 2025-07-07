@@ -1,8 +1,8 @@
 // src/index.js - 애플리케이션 진입점
 
-// ⚠️ 중요: Errsole은 반드시 첫 번째 줄에 임포트해야 함
-import './config/logger.js';
-import { logger } from './config/logger.js';
+// ⚠️ 중요: Termux용 logger를 먼저 임포트
+import './config/logger-termux.js';
+import { logger } from './config/logger-termux.js';
 
 import {Bot} from './bot.js';
 import {config} from './config/env.js';
@@ -13,7 +13,8 @@ import {keepAlive} from '../server.js';
   try {
     logger.info('Discord Bot 시작 프로세스 시작', {
       timestamp: new Date().toISOString(),
-      nodeEnv: process.env.NODE_ENV || 'development'
+      nodeEnv: process.env.NODE_ENV || 'development',
+      platform: 'Termux Android'
     });
 
     // 봇 인스턴스 생성 및 초기화
@@ -30,14 +31,16 @@ import {keepAlive} from '../server.js';
     logger.botActivity(`봇이 켜졌습니다: ${startTime}`, {
       startTime,
       timezone: 'Asia/Seoul',
-      guildId: config.GUILDID
+      guildId: config.GUILDID,
+      platform: 'Termux Android'
     });
 
   } catch (error) {
     logger.error('봇 실행 중 오류 발생:', {
       error: error.message,
       stack: error.stack,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      platform: 'Termux Android'
     });
     
     // 치명적인 에러이므로 프로세스 종료

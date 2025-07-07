@@ -1,17 +1,20 @@
-// src/config/logger-termux.js - Termux 환경용 Errsole 설정 (sqlite3 문제 해결)
+// src/config/logger-termux.js - Termux 환경용 Errsole 설정 (SQLite 사용)
 import errsole from 'errsole';
+import ErrsoleSQLite from 'errsole-sqlite';
 import axios from 'axios';
 import path from 'path';
 
 // 환경별 설정
 const isDevelopment = process.env.NODE_ENV !== 'production';
-const errsoleHost = process.env.ERRSOLE_HOST || 'localhost';
+const errsoleHost = process.env.ERRSOLE_HOST || '0.0.0.0'; // 외부 접근 허용
 const errsolePort = process.env.ERRSOLE_PORT || 8001;
 
-// Termux 환경에서는 메모리 저장소 사용 (sqlite3 컴파일 문제 회피)
 if (isDevelopment) {
-  // 개발 환경: 메모리 저장소 사용
+  // 개발 환경: SQLite를 사용한 로컬 로그 저장
+  const logsFile = path.join(process.cwd(), 'logs', 'discord-bot-dev.log.sqlite');
+  
   errsole.initialize({
+    storage: new ErrsoleSQLite(logsFile),
     appName: 'discord-bot',
     environmentName: process.env.NODE_ENV || 'development',
     
@@ -20,51 +23,50 @@ if (isDevelopment) {
     port: errsolePort,
     
     // 로그 레벨 설정
-    logLevel: 'debug',
+    logLevel: 'debug', // debug, info, warn, error, alert
     
-    // 명시적으로 메모리 저장소 사용 (SQLite 완전 회피)
-    storage: 'memory',
-    enableConsoleOutput: true,
+    // 로그 보관 기간 (6개월 = 180일)
+    retentionDays: 180,
     
     // 에러 알림 설정 (개발 환경에서는 비활성화)
     enableAlerts: false
   });
   
-  console.log(`✅ Errsole 개발 환경 설정 완료 (메모리 저장소)`);
+  console.log(`✅ Errsole 개발 환경 설정 완료 (Termux)`);
   console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
-  
-  if (errsoleHost === '0.0.0.0') {
-    console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
-  }
+  console.log(`💾 로그 파일: ${logsFile}`);
   
 } else {
-  // 운영 환경: 메모리 저장소 + Slack 알림
+  // 운영 환경 설정 - Slack 알림 포함
+  console.log('🚀 Errsole 운영 환경 설정 (Slack 알림 포함)');
+  console.log('Note: Terminal output will be disabled after initial logs.');
+  
+  // SQLite 로그 파일 경로
+  const logsFile = path.join(process.cwd(), 'logs', 'discord-bot-prod.log.sqlite');
+  
   errsole.initialize({
+    storage: new ErrsoleSQLite(logsFile),
     appName: 'discord-bot',
     environmentName: 'production',
-    
-    // 웹 대시보드 설정 (외부 접속 지원)  
-    host: errsoleHost,
+    host: errsoleHost, // 외부 접근 허용
     port: errsolePort,
     logLevel: 'info',
-    
-    // 명시적으로 메모리 저장소 사용 (SQLite 완전 회피)
-    storage: 'memory',
-    enableConsoleOutput: true,
+    retentionDays: 180, // 6개월 보관
     enableAlerts: true
   });
   
-  console.log(`🚀 Errsole 운영 환경 설정 완료 (메모리 저장소)`);
-  console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
-  
-  if (errsoleHost === '0.0.0.0') {
-    console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
-    console.log(`💻 컴퓨터에서 접속하려면: 핸드폰 IP 확인 후 http://핸드폰IP:${errsolePort}`);
-  }
+  console.log(`✅ Errsole 운영 환경 설정 완료`);
+  console.log(`📊 대시보드: http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
+  console.log(`💾 로그 파일: ${logsFile}`);
   
   if (process.env.ENABLE_SLACK_ALERTS === 'true') {
     console.log(`🔔 Slack 알림 활성화: ${process.env.SLACK_CHANNEL}`);
   }
+}
+
+if (errsoleHost === '0.0.0.0') {
+  console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
+  console.log(`💻 컴퓨터에서 접속하려면: 핸드폰 IP 확인 후 http://핸드폰IP:${errsolePort}`);
 }
 
 // 전역 에러 핸들러 설정
@@ -134,7 +136,7 @@ async function sendSlackAlert(level, message, meta = {}) {
             },
             {
               title: 'Dashboard',
-              value: `http://localhost:${process.env.ERRSOLE_PORT || 8001}`,
+              value: `http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`,
               short: true
             }
           ]
