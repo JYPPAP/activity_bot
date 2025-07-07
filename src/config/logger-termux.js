@@ -44,7 +44,7 @@ if (isDevelopment) {
   console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
   console.log(`   - ENABLE_SLACK_ALERTS: ${config.ENABLE_SLACK_ALERTS || 'false'}`);
   console.log(`   - SLACK_WEBHOOK_URL: ${config.SLACK_WEBHOOK_URL ? '설정됨' : '미설정'}`);
-  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alert'}`);
   
 } else {
   // 운영 환경 설정 - Slack 알림 포함
@@ -76,11 +76,11 @@ if (isDevelopment) {
   console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
   console.log(`   - ENABLE_SLACK_ALERTS: ${config.ENABLE_SLACK_ALERTS || 'false'}`);
   console.log(`   - SLACK_WEBHOOK_URL: ${config.SLACK_WEBHOOK_URL ? '설정됨' : '미설정'}`);
-  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alert'}`);
   console.log(`   - SLACK_MIN_LEVEL: ${config.SLACK_MIN_LEVEL || 'error'}`);
   
   if (config.ENABLE_SLACK_ALERTS === 'true') {
-    console.log(`🔔 Slack 알림 활성화: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+    console.log(`🔔 Slack 알림 활성화: ${config.SLACK_CHANNEL || '#discord-bot-alert'}`);
   } else {
     console.log(`🔕 Slack 알림 비활성화`);
   }
@@ -134,7 +134,7 @@ async function sendSlackAlert(level, message, meta = {}) {
     
     // Slack 메시지 구성
     const slackMessage = {
-      channel: config.SLACK_CHANNEL || '#discord-bot-alerts',
+      channel: config.SLACK_CHANNEL || '#discord-bot-alert',
       username: 'Discord Bot Alert (Termux)',
       text: `${levelEmojis[level]} **${level.toUpperCase()}**: ${message}`,
       attachments: [
