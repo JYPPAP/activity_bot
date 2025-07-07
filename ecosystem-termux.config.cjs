@@ -23,7 +23,10 @@ module.exports = {
       
       // 운영 환경 Errsole 설정
       ERRSOLE_PORT: 8002,
-      ERRSOLE_HOST: 'localhost', // 기본값: 로컬 접속만
+      ERRSOLE_HOST: '0.0.0.0', // 외부 접근 허용
+      
+      // Slack 알림 설정
+      ENABLE_SLACK_ALERTS: 'true',
       
       // Termux 환경 표시
       PLATFORM: 'termux',

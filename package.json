@@ -22,7 +22,7 @@
     
     "test": "node -e \"import('./src/config/logger-termux.js').then(m => m.logger.info('로거 테스트'));\"",
     "slack": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger-termux.js').then(m => m.logger.error('Slack 테스트', {test: true}));\"",
-    "update": "git pull && pm2 restart discord-bot && pm2 logs discord-bot"
+    "update": "git pull && pm2 delete discord-bot 2>/dev/null || true && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot"
   },
   "keywords": [
     "discord",
