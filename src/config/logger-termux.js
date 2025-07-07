@@ -5,6 +5,8 @@ import path from 'path';
 
 // 환경별 설정
 const isDevelopment = process.env.NODE_ENV !== 'production';
+const errsoleHost = process.env.ERRSOLE_HOST || 'localhost';
+const errsolePort = process.env.ERRSOLE_PORT || 8001;
 
 // Termux 환경에서는 메모리 저장소 사용 (sqlite3 컴파일 문제 회피)
 if (isDevelopment) {
@@ -13,8 +15,9 @@ if (isDevelopment) {
     appName: 'discord-bot',
     environmentName: process.env.NODE_ENV || 'development',
     
-    // 웹 대시보드 설정
-    port: process.env.ERRSOLE_PORT || 8001,
+    // 웹 대시보드 설정 (외부 접속 지원)
+    host: errsoleHost,
+    port: errsolePort,
     
     // 로그 레벨 설정
     logLevel: 'debug',
@@ -27,14 +30,21 @@ if (isDevelopment) {
   });
   
   console.log(`✅ Errsole 개발 환경 설정 완료 (메모리 저장소)`);
-  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8001}`);
+  console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
+  
+  if (errsoleHost === '0.0.0.0') {
+    console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
+  }
   
 } else {
   // 운영 환경: 메모리 저장소 + 파일 로깅
   errsole.initialize({
     appName: 'discord-bot',
     environmentName: 'production',
-    port: process.env.ERRSOLE_PORT || 8001,
+    
+    // 웹 대시보드 설정 (외부 접속 지원)  
+    host: errsoleHost,
+    port: errsolePort,
     logLevel: 'info',
     
     // 메모리 저장소 사용
@@ -43,7 +53,12 @@ if (isDevelopment) {
   });
   
   console.log(`🚀 Errsole 운영 환경 설정 완료 (메모리 저장소)`);
-  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8001}`);
+  console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
+  
+  if (errsoleHost === '0.0.0.0') {
+    console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
+    console.log(`💻 컴퓨터에서 접속하려면: 핸드폰 IP 확인 후 http://핸드폰IP:${errsolePort}`);
+  }
   
   if (process.env.ENABLE_SLACK_ALERTS === 'true') {
     console.log(`🔔 Slack 알림 활성화: ${process.env.SLACK_CHANNEL}`);
