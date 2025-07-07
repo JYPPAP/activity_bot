@@ -22,7 +22,8 @@ if (isDevelopment) {
     // 로그 레벨 설정
     logLevel: 'debug',
     
-    // 메모리 저장소 사용 (SQLite 문제 회피)
+    // 명시적으로 메모리 저장소 사용 (SQLite 완전 회피)
+    storage: 'memory',
     enableConsoleOutput: true,
     
     // 에러 알림 설정 (개발 환경에서는 비활성화)
@@ -37,7 +38,7 @@ if (isDevelopment) {
   }
   
 } else {
-  // 운영 환경: 메모리 저장소 + 파일 로깅
+  // 운영 환경: 메모리 저장소 + Slack 알림
   errsole.initialize({
     appName: 'discord-bot',
     environmentName: 'production',
@@ -47,7 +48,8 @@ if (isDevelopment) {
     port: errsolePort,
     logLevel: 'info',
     
-    // 메모리 저장소 사용
+    // 명시적으로 메모리 저장소 사용 (SQLite 완전 회피)
+    storage: 'memory',
     enableConsoleOutput: true,
     enableAlerts: true
   });

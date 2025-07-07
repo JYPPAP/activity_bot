@@ -40,6 +40,9 @@
     "switch:prod": "NODE_ENV=production npm run prod:restart",
     
     "termux:install": "pkg install python nodejs npm sqlite sqlite-dev clang make && npm install --no-optional",
+    "termux:install-errsole": "NPM_CONFIG_OPTIONAL=false npm install --ignore-optional --no-audit --no-fund && npm install errsole axios --save --ignore-optional --no-audit --no-fund",
+    "termux:fix-packages": "npm cache clean --force && rm -rf node_modules package-lock.json && NPM_CONFIG_OPTIONAL=false npm install --ignore-optional --no-audit --no-fund && npm install errsole axios --save --ignore-optional --no-audit --no-fund",
+    "termux:force-install": "rm -rf node_modules package-lock.json && echo 'optional=false' > .npmrc && npm install --ignore-optional && npm install errsole axios --save --ignore-optional && rm .npmrc",
     "termux:start": "NODE_ENV=production pm2 start ecosystem-termux.config.cjs --env production",
     "termux:dev": "NODE_ENV=development pm2 start ecosystem-termux.config.cjs",
     "termux:stop": "pm2 stop discord-bot",
@@ -52,8 +55,8 @@
     "termux:slack-test": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger-termux.js').then(m => m.logger.error('Termux Slack 테스트', {termux: true}));\"",
     "termux:dashboard": "echo 'Termux Errsole Dashboard: http://localhost:8001'",
     
-    "termux:start:external": "ERRSOLE_HOST=0.0.0.0 NODE_ENV=production pm2 start ecosystem-termux.config.cjs --env production",
-    "termux:dev:external": "ERRSOLE_HOST=0.0.0.0 NODE_ENV=development pm2 start ecosystem-termux.config.cjs",
+    "termux:start:external": "ERRSOLE_HOST=0.0.0.0 NODE_ENV=production pm2 start ecosystem-termux.config.cjs --env production && echo '🌐 외부 대시보드: http://$(npm run termux:ip --silent):8001' && echo '📊 로그 실시간 확인:' && pm2 logs discord-bot",
+    "termux:dev:external": "ERRSOLE_HOST=0.0.0.0 NODE_ENV=development pm2 start ecosystem-termux.config.cjs && echo '🌐 외부 대시보드: http://$(npm run termux:ip --silent):8001' && echo '📊 로그 실시간 확인:' && pm2 logs discord-bot",
     "termux:ip": "termux-wifi-connectioninfo | grep 'ip_address' || ip route get 1.1.1.1 | grep -oP 'src \\K\\S+' || echo '핸드폰에서 설정 > Wi-Fi에서 IP 확인'",
     "termux:network-info": "echo '📱 핸드폰 네트워크 정보:' && npm run termux:ip && echo '💻 컴퓨터에서 접속 URL:' && echo 'http://$(npm run termux:ip --silent):8001'",
     "termux:dashboard:external": "echo '🌐 외부 접속 대시보드 URL:' && echo 'http://$(npm run termux:ip --silent):8001' && echo '📱 핸드폰 IP를 확인한 후 컴퓨터에서 접속하세요'",
