@@ -39,7 +39,7 @@
     "switch:dev": "NODE_ENV=development npm run pm2:restart",
     "switch:prod": "NODE_ENV=production npm run prod:restart",
     
-    "termux:install": "pkg install python nodejs npm sqlite sqlite-dev clang make && npm install --no-optional",
+    "termux:install": "pkg install python nodejs sqlite libsqlite clang make && npm install --no-optional",
     "termux:install-errsole": "NPM_CONFIG_OPTIONAL=false npm install --ignore-optional --no-audit --no-fund && npm install errsole axios --save --ignore-optional --no-audit --no-fund",
     "termux:fix-packages": "npm cache clean --force && rm -rf node_modules package-lock.json && NPM_CONFIG_OPTIONAL=false npm install --ignore-optional --no-audit --no-fund && npm install errsole axios --save --ignore-optional --no-audit --no-fund",
     "termux:force-install": "rm -rf node_modules package-lock.json && echo 'optional=false' > .npmrc && npm install --ignore-optional && npm install errsole axios --save --ignore-optional && rm .npmrc",
