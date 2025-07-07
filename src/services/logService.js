@@ -2,7 +2,7 @@
 import {ChannelType} from 'discord.js';
 import {TIME, COLORS, MESSAGE_TYPES} from '../config/constants.js';
 import {EmbedFactory} from '../utils/embedBuilder.js';
-import {logger} from '../config/logger.js';
+import {logger} from '../config/logger-termux.js';
 
 export class LogService {
   constructor(client, logChannelId) {

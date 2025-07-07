@@ -11,7 +11,7 @@ import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumI
 import {EmojiReactionService} from './services/EmojiReactionService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
-import {logger} from './config/logger.js';
+import {logger} from './config/logger-termux.js';
 import fs from 'fs';
 
 export class Bot {
