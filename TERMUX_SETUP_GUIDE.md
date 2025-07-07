@@ -218,7 +218,7 @@ tail -f logs/combined.log
 npm run termux:ip
 
 # 브라우저에서 접속
-# http://핸드폰IP:8001
+# http://핸드폰IP:8002
 ```
 
 ### **4. Discord에서 봇 응답 확인**

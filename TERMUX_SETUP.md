@@ -62,7 +62,7 @@ npm run termux:slack-test
 
 - ✅ **SQLite3 컴파일 문제 완전 해결** (메모리 저장소 사용)
 - ✅ **Slack 알림 완전 지원**
-- ✅ **Errsole 웹 대시보드 지원** (http://localhost:8001)
+- ✅ **Errsole 웹 대시보드 지원** (http://localhost:8002)
 - ✅ **6개월 로그 보관**
 - ✅ **PM2 프로세스 관리**
 - ✅ **Android 최적화 설정**
@@ -113,7 +113,7 @@ npm run termux:start
 npm run termux:logs
 
 # 대시보드 접속
-http://localhost:8001
+http://localhost:8002
 ```
 
 ### 포트 충돌 해결

@@ -7,7 +7,7 @@ import path from 'path';
 // 환경별 설정
 const isDevelopment = process.env.NODE_ENV !== 'production';
 const errsoleHost = process.env.ERRSOLE_HOST || '0.0.0.0'; // 외부 접근 허용
-const errsolePort = process.env.ERRSOLE_PORT || 8001;
+const errsolePort = process.env.ERRSOLE_PORT || 8002;
 
 if (isDevelopment) {
   // 개발 환경: SQLite를 사용한 로컬 로그 저장

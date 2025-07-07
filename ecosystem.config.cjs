@@ -9,7 +9,7 @@ module.exports = {
       NODE_ENV: 'development',
       
       // Errsole 웹 대시보드 포트
-      ERRSOLE_PORT: 8001,
+      ERRSOLE_PORT: 8002,
       
       // Discord Bot 환경변수들은 .env 파일에서 로드됨
       // TOKEN, GUILDID, CLIENT_ID, LOG_CHANNEL_ID 등
@@ -19,7 +19,7 @@ module.exports = {
       NODE_ENV: 'production',
       
       // 운영 환경 Errsole 설정
-      ERRSOLE_PORT: 8001,
+      ERRSOLE_PORT: 8002,
       
       // 운영 환경에서는 MongoDB 사용 (Phase 2에서 구현)
       // MONGODB_URL: 'mongodb://localhost:27017/discord-bot-logs'

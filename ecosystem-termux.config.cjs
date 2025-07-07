@@ -9,7 +9,7 @@ module.exports = {
       NODE_ENV: 'development',
       
       // Errsole 웹 대시보드 설정
-      ERRSOLE_PORT: 8001,
+      ERRSOLE_PORT: 8002,
       ERRSOLE_HOST: 'localhost', // 기본값: 로컬 접속만
       
       // Termux 환경 표시
@@ -22,7 +22,7 @@ module.exports = {
       NODE_ENV: 'production',
       
       // 운영 환경 Errsole 설정
-      ERRSOLE_PORT: 8001,
+      ERRSOLE_PORT: 8002,
       ERRSOLE_HOST: 'localhost', // 기본값: 로컬 접속만
       
       // Termux 환경 표시

@@ -18,7 +18,7 @@ if (isDevelopment) {
     environmentName: process.env.NODE_ENV || 'development',
     
     // 웹 대시보드 설정
-    port: process.env.ERRSOLE_PORT || 8001,
+    port: process.env.ERRSOLE_PORT || 8002,
     
     // 로그 레벨 설정
     logLevel: 'debug', // debug, info, warn, error, alert
@@ -31,7 +31,7 @@ if (isDevelopment) {
   });
   
   console.log(`✅ Errsole 개발 환경 설정 완료`);
-  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8001}`);
+  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8002}`);
   console.log(`💾 로그 파일: ${logsFile}`);
   
 } else {
@@ -45,14 +45,14 @@ if (isDevelopment) {
     storage: new ErrsoleSQLite(logsFile),
     appName: 'discord-bot',
     environmentName: 'production',
-    port: process.env.ERRSOLE_PORT || 8001,
+    port: process.env.ERRSOLE_PORT || 8002,
     logLevel: 'info',
     retentionDays: 180,
     enableAlerts: true
   });
   
   console.log(`✅ Errsole 운영 환경 설정 완료`);
-  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8001}`);
+  console.log(`📊 대시보드: http://localhost:${process.env.ERRSOLE_PORT || 8002}`);
   console.log(`💾 로그 파일: ${logsFile}`);
   
   if (process.env.ENABLE_SLACK_ALERTS === 'true') {
@@ -127,7 +127,7 @@ async function sendSlackAlert(level, message, meta = {}) {
             },
             {
               title: 'Dashboard',
-              value: `http://localhost:${process.env.ERRSOLE_PORT || 8001}`,
+              value: `http://localhost:${process.env.ERRSOLE_PORT || 8002}`,
               short: true
             }
           ]
