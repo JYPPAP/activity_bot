@@ -88,7 +88,7 @@ async function sendSlackAlert(level, message, meta = {}) {
   try {
     const webhookUrl = process.env.SLACK_WEBHOOK_URL;
     if (!webhookUrl) {
-      console.error('SLACK_WEBHOOK_URL이 설정되지 않았습니다.');
+      console.error('SLACK_WEBHOOK_URL이 설정되지 않았습니다.[logger.js]');
       return;
     }
     

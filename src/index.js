@@ -1,11 +1,11 @@
 // src/index.js - 애플리케이션 진입점
 
-// ⚠️ 중요: Termux용 logger를 먼저 임포트
+// ⚠️ 중요: 환경변수를 먼저 로드 후 logger 임포트
+import {config} from './config/env.js';
 import './config/logger-termux.js';
 import { logger } from './config/logger-termux.js';
 
 import {Bot} from './bot.js';
-import {config} from './config/env.js';
 import {keepAlive} from '../server.js';
 
 // 비동기 즉시 실행 함수 (IIFE)로 애플리케이션 시작

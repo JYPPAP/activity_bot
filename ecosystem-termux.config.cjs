@@ -2,7 +2,7 @@
 module.exports = {
   apps: [{
     name: 'discord-bot',
-    script: 'src/index-termux.js', // Termux 전용 진입점 사용
+    script: 'src/index.js',
     
     // 환경 변수
     env: {

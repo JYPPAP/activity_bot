@@ -36,6 +36,15 @@ if (isDevelopment) {
   console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
   console.log(`💾 로그 파일: ${logsFile}`);
   
+  // 환경변수 검증 로그
+  console.log(`🔍 환경변수 검증:`);
+  console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   - ERRSOLE_HOST: ${errsoleHost}`);
+  console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
+  console.log(`   - ENABLE_SLACK_ALERTS: ${process.env.ENABLE_SLACK_ALERTS || 'false'}`);
+  console.log(`   - SLACK_WEBHOOK_URL: ${process.env.SLACK_WEBHOOK_URL ? '설정됨' : '기본값 사용'}`);
+  console.log(`   - SLACK_CHANNEL: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  
 } else {
   // 운영 환경 설정 - Slack 알림 포함
   console.log('🚀 Errsole 운영 환경 설정 (Slack 알림 포함)');
@@ -59,8 +68,20 @@ if (isDevelopment) {
   console.log(`📊 대시보드: http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
   console.log(`💾 로그 파일: ${logsFile}`);
   
+  // 환경변수 검증 로그
+  console.log(`🔍 환경변수 검증:`);
+  console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'production'}`);
+  console.log(`   - ERRSOLE_HOST: ${errsoleHost}`);
+  console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
+  console.log(`   - ENABLE_SLACK_ALERTS: ${process.env.ENABLE_SLACK_ALERTS || 'false'}`);
+  console.log(`   - SLACK_WEBHOOK_URL: ${process.env.SLACK_WEBHOOK_URL ? '설정됨' : '기본값 사용'}`);
+  console.log(`   - SLACK_CHANNEL: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  console.log(`   - SLACK_MIN_LEVEL: ${process.env.SLACK_MIN_LEVEL || 'error'}`);
+  
   if (process.env.ENABLE_SLACK_ALERTS === 'true') {
-    console.log(`🔔 Slack 알림 활성화: ${process.env.SLACK_CHANNEL}`);
+    console.log(`🔔 Slack 알림 활성화: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  } else {
+    console.log(`🔕 Slack 알림 비활성화`);
   }
 }
 
@@ -97,7 +118,7 @@ async function sendSlackAlert(level, message, meta = {}) {
   try {
     const webhookUrl = process.env.SLACK_WEBHOOK_URL;
     if (!webhookUrl) {
-      console.error('SLACK_WEBHOOK_URL이 설정되지 않았습니다.');
+      console.error('SLACK_WEBHOOK_URL이 설정되지 않았습니다.[logger-termux.js]');
       return;
     }
     
