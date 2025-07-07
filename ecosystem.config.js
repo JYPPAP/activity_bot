@@ -76,12 +76,34 @@ module.exports = {
   
   deploy: {
     production: {
-      user: 'deploy',
-      host: 'your-server.com',
-      ref: 'origin/master',
-      repo: 'git@github.com:your-username/discord-activity-bot.git',
-      path: '/var/www/discord-activity-bot',
-      'post-deploy': 'npm install && pm2 reload ecosystem.config.js --env production'
+      // Termux 환경 설정
+      user: process.env.USER || 'u0_a383', // Termux 기본 사용자
+      host: 'localhost', // 로컬 배포
+      ref: 'origin/add_errsole_service',
+      repo: 'https://github.com/JYPPAP/activity_bot.git',
+      path: '/data/data/com.termux/files/home/discord_bot',
+      
+      // 배포 후 실행할 명령어들
+      'pre-setup': 'ls -la', // 배포 전 디렉토리 확인
+      'post-setup': 'ls -la && pwd', // 배포 후 디렉토리 확인  
+      'pre-deploy': 'git fetch --all', // 배포 전 최신 코드 가져오기
+      'post-deploy': 'npm install && npm run pm2:stop; npm run pm2:start --env production && npm run pm2:logs',
+      
+      // 배포 관련 설정
+      ssh_options: 'ForwardAgent=yes', // SSH 에이전트 포워딩
+      
+      // Termux 환경에서는 SSH 없이 로컬 배포이므로 실제로는 사용하지 않을 수 있음
+      // 대신 수동으로 git pull && npm run pm2:restart 사용 권장
+    },
+    
+    // 개발 환경용 배포 설정 (선택사항)
+    development: {
+      user: process.env.USER || 'u0_a383',
+      host: 'localhost', 
+      ref: 'origin/add_errsole_service',
+      repo: 'https://github.com/JYPPAP/activity_bot.git',
+      path: '/data/data/com.termux/files/home/discord_bot',
+      'post-deploy': 'npm install && npm run pm2:start',
     }
   }
 };

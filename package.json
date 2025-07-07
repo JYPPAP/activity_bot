@@ -8,7 +8,6 @@
     "start": "node src/index.js",
     "register": "node scripts/registerCommands.js",
     "dev": "nodemon src/index.js",
-    
     "pm2:start": "pm2 start ecosystem.config.js",
     "pm2:stop": "pm2 stop discord-bot",
     "pm2:restart": "pm2 restart discord-bot",
@@ -16,18 +15,29 @@
     "pm2:logs": "pm2 logs discord-bot",
     "pm2:status": "pm2 status",
     "pm2:monit": "pm2 monit",
-    
     "restart": "pm2 restart discord-bot",
     "logs": "pm2 logs discord-bot",
     "restart-logs": "pm2 restart discord-bot && pm2 logs discord-bot",
     "rel": "git pull && pm2 restart discord-bot && pm2 logs discord-bot",
-    
     "errsole:dashboard": "echo 'Errsole Dashboard: http://localhost:8001'",
     "errsole:dev": "NODE_ENV=development npm run pm2:start",
     "errsole:prod": "NODE_ENV=production pm2 start ecosystem.config.js --env production",
     
+    "prod:start": "NODE_ENV=production pm2 start ecosystem.config.js --env production",
+    "prod:stop": "pm2 stop discord-bot",
+    "prod:restart": "NODE_ENV=production pm2 restart discord-bot --env production",
+    "prod:reload": "NODE_ENV=production pm2 reload discord-bot --env production",
+    "prod:logs": "pm2 logs discord-bot --lines 50",
+    "prod:status": "pm2 status discord-bot",
+    "prod:monit": "pm2 monit",
+    
+    "slack:test": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger.js').then(m => m.logger.error('Slack 알림 테스트 메시지', {test: true}));\"",
+    
     "deploy": "pm2 start ecosystem.config.js --env production",
-    "undeploy": "pm2 delete discord-bot"
+    "undeploy": "pm2 delete discord-bot",
+    
+    "switch:dev": "NODE_ENV=development npm run pm2:restart",
+    "switch:prod": "NODE_ENV=production npm run prod:restart"
   },
   "keywords": [
     "discord",
@@ -38,6 +48,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.10.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
     "errsole": "^2.18.1",
