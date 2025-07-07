@@ -3,11 +3,12 @@ import errsole from 'errsole';
 import ErrsoleSQLite from 'errsole-sqlite';
 import axios from 'axios';
 import path from 'path';
+import { config } from './env.js';
 
 // 환경별 설정
-const isDevelopment = process.env.NODE_ENV !== 'production';
-const errsoleHost = process.env.ERRSOLE_HOST || '0.0.0.0'; // 외부 접근 허용
-const errsolePort = process.env.ERRSOLE_PORT || 8002;
+const isDevelopment = config.NODE_ENV !== 'production';
+const errsoleHost = config.ERRSOLE_HOST || '0.0.0.0'; // 외부 접근 허용
+const errsolePort = config.ERRSOLE_PORT || 8002;
 
 if (isDevelopment) {
   // 개발 환경: SQLite를 사용한 로컬 로그 저장
@@ -16,7 +17,7 @@ if (isDevelopment) {
   errsole.initialize({
     storage: new ErrsoleSQLite(logsFile),
     appName: 'discord-bot',
-    environmentName: process.env.NODE_ENV || 'development',
+    environmentName: config.NODE_ENV || 'development',
     
     // 웹 대시보드 설정 (외부 접속 지원)
     host: errsoleHost,
@@ -38,12 +39,12 @@ if (isDevelopment) {
   
   // 환경변수 검증 로그
   console.log(`🔍 환경변수 검증:`);
-  console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`   - NODE_ENV: ${config.NODE_ENV || 'development'}`);
   console.log(`   - ERRSOLE_HOST: ${errsoleHost}`);
   console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
-  console.log(`   - ENABLE_SLACK_ALERTS: ${process.env.ENABLE_SLACK_ALERTS || 'false'}`);
-  console.log(`   - SLACK_WEBHOOK_URL: ${process.env.SLACK_WEBHOOK_URL ? '설정됨' : '기본값 사용'}`);
-  console.log(`   - SLACK_CHANNEL: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  console.log(`   - ENABLE_SLACK_ALERTS: ${config.ENABLE_SLACK_ALERTS || 'false'}`);
+  console.log(`   - SLACK_WEBHOOK_URL: ${config.SLACK_WEBHOOK_URL ? '설정됨' : '미설정'}`);
+  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
   
 } else {
   // 운영 환경 설정 - Slack 알림 포함
@@ -70,16 +71,16 @@ if (isDevelopment) {
   
   // 환경변수 검증 로그
   console.log(`🔍 환경변수 검증:`);
-  console.log(`   - NODE_ENV: ${process.env.NODE_ENV || 'production'}`);
+  console.log(`   - NODE_ENV: ${config.NODE_ENV || 'production'}`);
   console.log(`   - ERRSOLE_HOST: ${errsoleHost}`);
   console.log(`   - ERRSOLE_PORT: ${errsolePort}`);
-  console.log(`   - ENABLE_SLACK_ALERTS: ${process.env.ENABLE_SLACK_ALERTS || 'false'}`);
-  console.log(`   - SLACK_WEBHOOK_URL: ${process.env.SLACK_WEBHOOK_URL ? '설정됨' : '기본값 사용'}`);
-  console.log(`   - SLACK_CHANNEL: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
-  console.log(`   - SLACK_MIN_LEVEL: ${process.env.SLACK_MIN_LEVEL || 'error'}`);
+  console.log(`   - ENABLE_SLACK_ALERTS: ${config.ENABLE_SLACK_ALERTS || 'false'}`);
+  console.log(`   - SLACK_WEBHOOK_URL: ${config.SLACK_WEBHOOK_URL ? '설정됨' : '미설정'}`);
+  console.log(`   - SLACK_CHANNEL: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  console.log(`   - SLACK_MIN_LEVEL: ${config.SLACK_MIN_LEVEL || 'error'}`);
   
-  if (process.env.ENABLE_SLACK_ALERTS === 'true') {
-    console.log(`🔔 Slack 알림 활성화: ${process.env.SLACK_CHANNEL || '#discord-bot-alerts'}`);
+  if (config.ENABLE_SLACK_ALERTS === 'true') {
+    console.log(`🔔 Slack 알림 활성화: ${config.SLACK_CHANNEL || '#discord-bot-alerts'}`);
   } else {
     console.log(`🔕 Slack 알림 비활성화`);
   }
@@ -103,12 +104,12 @@ process.on('unhandledRejection', (reason, promise) => {
 // Slack 알림 함수
 async function sendSlackAlert(level, message, meta = {}) {
   // 개발 환경이거나 Slack 알림이 비활성화된 경우 건너뛰기
-  if (isDevelopment || process.env.ENABLE_SLACK_ALERTS !== 'true') {
+  if (isDevelopment || config.ENABLE_SLACK_ALERTS !== 'true') {
     return;
   }
   
   // 최소 알림 레벨 체크
-  const minLevel = process.env.SLACK_MIN_LEVEL || 'error';
+  const minLevel = config.SLACK_MIN_LEVEL || 'error';
   const levelPriority = { debug: 0, info: 1, warn: 2, error: 3, alert: 4 };
   
   if (levelPriority[level] < levelPriority[minLevel]) {
@@ -116,9 +117,9 @@ async function sendSlackAlert(level, message, meta = {}) {
   }
   
   try {
-    const webhookUrl = process.env.SLACK_WEBHOOK_URL;
+    const webhookUrl = config.SLACK_WEBHOOK_URL;
     if (!webhookUrl) {
-      console.error('SLACK_WEBHOOK_URL이 설정되지 않았습니다.[logger-termux.js]');
+      console.info('Slack 알림 비활성화: SLACK_WEBHOOK_URL이 설정되지 않았습니다.');
       return;
     }
     
@@ -133,7 +134,7 @@ async function sendSlackAlert(level, message, meta = {}) {
     
     // Slack 메시지 구성
     const slackMessage = {
-      channel: process.env.SLACK_CHANNEL || '#discord-bot-alerts',
+      channel: config.SLACK_CHANNEL || '#discord-bot-alerts',
       username: 'Discord Bot Alert (Termux)',
       text: `${levelEmojis[level]} **${level.toUpperCase()}**: ${message}`,
       attachments: [

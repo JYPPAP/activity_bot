@@ -45,7 +45,18 @@ export const config = {
   // 구인구직 포럼 관련
   FORUM_CHANNEL_ID: process.env.FORUM_CHANNEL_ID,
   VOICE_CATEGORY_ID: process.env.VOICE_CATEGORY_ID,
-  FORUM_TAG_ID: process.env.FORUM_TAG_ID
+  FORUM_TAG_ID: process.env.FORUM_TAG_ID,
+
+  // Errsole 설정
+  NODE_ENV: process.env.NODE_ENV,
+  ERRSOLE_HOST: process.env.ERRSOLE_HOST,
+  ERRSOLE_PORT: process.env.ERRSOLE_PORT,
+
+  // Slack 알림 설정
+  ENABLE_SLACK_ALERTS: process.env.ENABLE_SLACK_ALERTS,
+  SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL,
+  SLACK_CHANNEL: process.env.SLACK_CHANNEL,
+  SLACK_MIN_LEVEL: process.env.SLACK_MIN_LEVEL
 };
 
 // 필수 환경변수 확인
