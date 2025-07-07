@@ -8,7 +8,7 @@
     "start": "node src/index.js",
     "register": "node scripts/registerCommands.js",
     "dev": "nodemon src/index.js",
-    "pm2:start": "pm2 start ecosystem.config.js",
+    "pm2:start": "pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop discord-bot",
     "pm2:restart": "pm2 restart discord-bot",
     "pm2:delete": "pm2 delete discord-bot",
@@ -21,9 +21,9 @@
     "rel": "git pull && pm2 restart discord-bot && pm2 logs discord-bot",
     "errsole:dashboard": "echo 'Errsole Dashboard: http://localhost:8001'",
     "errsole:dev": "NODE_ENV=development npm run pm2:start",
-    "errsole:prod": "NODE_ENV=production pm2 start ecosystem.config.js --env production",
+    "errsole:prod": "NODE_ENV=production pm2 start ecosystem.config.cjs --env production",
     
-    "prod:start": "NODE_ENV=production pm2 start ecosystem.config.js --env production",
+    "prod:start": "NODE_ENV=production pm2 start ecosystem.config.cjs --env production",
     "prod:stop": "pm2 stop discord-bot",
     "prod:restart": "NODE_ENV=production pm2 restart discord-bot --env production",
     "prod:reload": "NODE_ENV=production pm2 reload discord-bot --env production",
@@ -33,11 +33,24 @@
     
     "slack:test": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger.js').then(m => m.logger.error('Slack 알림 테스트 메시지', {test: true}));\"",
     
-    "deploy": "pm2 start ecosystem.config.js --env production",
+    "deploy": "pm2 start ecosystem.config.cjs --env production",
     "undeploy": "pm2 delete discord-bot",
     
     "switch:dev": "NODE_ENV=development npm run pm2:restart",
-    "switch:prod": "NODE_ENV=production npm run prod:restart"
+    "switch:prod": "NODE_ENV=production npm run prod:restart",
+    
+    "termux:install": "pkg install python nodejs npm sqlite sqlite-dev clang make && npm install --no-optional",
+    "termux:start": "NODE_ENV=production pm2 start ecosystem-termux.config.cjs --env production",
+    "termux:dev": "NODE_ENV=development pm2 start ecosystem-termux.config.cjs",
+    "termux:stop": "pm2 stop discord-bot",
+    "termux:restart": "pm2 restart discord-bot",
+    "termux:logs": "pm2 logs discord-bot",
+    "termux:status": "pm2 status discord-bot", 
+    "termux:monit": "pm2 monit",
+    "termux:delete": "pm2 delete discord-bot",
+    "termux:test": "node -e \"import('./src/config/logger-termux.js').then(m => m.logger.info('Termux 로거 테스트'));\"",
+    "termux:slack-test": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger-termux.js').then(m => m.logger.error('Termux Slack 테스트', {termux: true}));\"",
+    "termux:dashboard": "echo 'Termux Errsole Dashboard: http://localhost:8001'"
   },
   "keywords": [
     "discord",
