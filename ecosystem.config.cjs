@@ -79,7 +79,7 @@ module.exports = {
       // Termux 환경 설정
       user: process.env.USER || 'u0_a383', // Termux 기본 사용자
       host: 'localhost', // 로컬 배포
-      ref: 'origin/add_errsole_service',
+      ref: 'origin/master',
       repo: 'https://github.com/JYPPAP/activity_bot.git',
       path: '/data/data/com.termux/files/home/discord_bot',
       
@@ -100,7 +100,7 @@ module.exports = {
     development: {
       user: process.env.USER || 'u0_a383',
       host: 'localhost', 
-      ref: 'origin/add_errsole_service',
+      ref: 'origin/master',
       repo: 'https://github.com/JYPPAP/activity_bot.git',
       path: '/data/data/com.termux/files/home/discord_bot',
       'post-deploy': 'npm install && npm run pm2:start',
