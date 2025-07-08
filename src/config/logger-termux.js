@@ -158,7 +158,7 @@ async function sendSlackAlert(level, message, meta = {}) {
             },
             {
               title: 'Dashboard',
-              value: `http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`,
+              value: `http://${errsoleHost === '0.0.0.0' ? (config.PHONE_IP) : errsoleHost}:${errsolePort}`,
               short: true
             }
           ]

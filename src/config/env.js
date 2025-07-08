@@ -56,7 +56,8 @@ export const config = {
   ENABLE_SLACK_ALERTS: process.env.ENABLE_SLACK_ALERTS,
   SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
-  SLACK_MIN_LEVEL: process.env.SLACK_MIN_LEVEL
+  SLACK_MIN_LEVEL: process.env.SLACK_MIN_LEVEL,
+  PHONE_IP: process.env.PHONE_IP // 네트워크 설정
 };
 
 // 필수 환경변수 확인
