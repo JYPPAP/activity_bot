@@ -36,10 +36,10 @@ module.exports = {
     instances: 1, // Discord Bot은 단일 인스턴스 권장
     exec_mode: 'fork',
     
-    // 자동 재시작 설정
+    // 자동 재시작 설정 (메모리 누수 대응 강화)
     autorestart: true,
     watch: false,
-    max_memory_restart: '512M', // Termux는 메모리가 제한적이므로 낮게 설정
+    max_memory_restart: '256M', // 더 빈번한 재시작으로 메모리 누수 방지
     
     // 로그 설정
     log_file: './logs/combined.log',
@@ -50,15 +50,15 @@ module.exports = {
     
     merge_logs: true,
     
-    // 크래시 시 재시작 지연 (Termux에서는 조금 더 길게)
-    restart_delay: 6000,
+    // 크래시 시 재시작 지연 (더 빠른 복구를 위해 단축)
+    restart_delay: 3000,
     
-    // 최대 재시작 횟수 (무한 재시작 방지)
-    max_restarts: 5,
-    min_uptime: '30s', // Termux에서는 시작 시간이 더 오래 걸릴 수 있음
+    // 최대 재시작 횟수 (SQLite 잠금 문제 대응을 위해 증가)
+    max_restarts: 10,
+    min_uptime: '15s', // 더 빠른 재시작 판단
     
-    // Node.js 메모리 설정 (Termux 최적화)
-    node_args: '--max-old-space-size=512',
+    // Node.js 메모리 설정 (PM2 메모리 제한과 일치)
+    node_args: '--max-old-space-size=256 --expose-gc',
     
     // 정상 종료 설정
     kill_timeout: 10000, // Termux에서는 종료 시간이 더 오래 걸릴 수 있음

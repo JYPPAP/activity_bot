@@ -4,11 +4,70 @@ import ErrsoleSQLite from 'errsole-sqlite';
 import axios from 'axios';
 import path from 'path';
 import { config } from './env.js';
+import sqlite3 from 'sqlite3';
 
 // 환경별 설정
 const isDevelopment = config.NODE_ENV !== 'production';
 const errsoleHost = config.ERRSOLE_HOST || '0.0.0.0'; // 외부 접근 허용
 const errsolePort = config.ERRSOLE_PORT || 8002;
+
+// SQLite 데이터베이스 최적화 함수
+async function optimizeSQLiteDatabase(dbPath) {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(dbPath, (err) => {
+      if (err) {
+        console.error('❌ SQLite 데이터베이스 연결 실패:', err.message);
+        reject(err);
+        return;
+      }
+
+      console.log('🔧 SQLite 데이터베이스 최적화 시작...');
+      
+      // WAL 모드 활성화 및 최적화 설정
+      db.serialize(() => {
+        // WAL 모드 활성화 (동시 읽기/쓰기 성능 향상)
+        db.run('PRAGMA journal_mode = WAL;', (err) => {
+          if (err) console.error('❌ WAL 모드 설정 실패:', err.message);
+          else console.log('✅ WAL 모드 활성화 완료');
+        });
+
+        // Synchronous 모드 최적화 (WAL과 함께 사용할 때 NORMAL이 최적)
+        db.run('PRAGMA synchronous = NORMAL;', (err) => {
+          if (err) console.error('❌ Synchronous 모드 설정 실패:', err.message);
+          else console.log('✅ Synchronous 모드 NORMAL 설정 완료');
+        });
+
+        // 타임아웃 설정 (10초)
+        db.run('PRAGMA busy_timeout = 10000;', (err) => {
+          if (err) console.error('❌ Timeout 설정 실패:', err.message);
+          else console.log('✅ Busy timeout 10초 설정 완료');
+        });
+
+        // 캐시 크기 최적화 (Termux 환경에 맞게 조정)
+        db.run('PRAGMA cache_size = -64000;', (err) => {
+          if (err) console.error('❌ Cache 크기 설정 실패:', err.message);
+          else console.log('✅ Cache 크기 64MB 설정 완료');
+        });
+
+        // WAL 자동 체크포인트 설정 (1000 페이지마다)
+        db.run('PRAGMA wal_autocheckpoint = 1000;', (err) => {
+          if (err) console.error('❌ WAL 체크포인트 설정 실패:', err.message);
+          else console.log('✅ WAL 자동 체크포인트 설정 완료');
+        });
+      });
+
+      db.close((err) => {
+        if (err) {
+          console.error('❌ SQLite 데이터베이스 닫기 실패:', err.message);
+          reject(err);
+        } else {
+          console.log('✅ SQLite 데이터베이스 최적화 완료');
+          resolve();
+        }
+      });
+    });
+  });
+}
 
 if (isDevelopment) {
   // 개발 환경: SQLite를 사용한 로컬 로그 저장
@@ -36,6 +95,11 @@ if (isDevelopment) {
   console.log(`✅ Errsole 개발 환경 설정 완료 (Termux)`);
   console.log(`📊 대시보드 (${errsoleHost}): http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
   console.log(`💾 로그 파일: ${logsFile}`);
+  
+  // SQLite 최적화 실행
+  optimizeSQLiteDatabase(logsFile).catch(err => {
+    console.error('⚠️ SQLite 최적화 중 오류 발생:', err.message);
+  });
   
   // 환경변수 검증 로그
   console.log(`🔍 환경변수 검증:`);
@@ -69,6 +133,11 @@ if (isDevelopment) {
   console.log(`📊 대시보드: http://${errsoleHost === '0.0.0.0' ? '핸드폰IP' : errsoleHost}:${errsolePort}`);
   console.log(`💾 로그 파일: ${logsFile}`);
   
+  // SQLite 최적화 실행
+  optimizeSQLiteDatabase(logsFile).catch(err => {
+    console.error('⚠️ SQLite 최적화 중 오류 발생:', err.message);
+  });
+  
   // 환경변수 검증 로그
   console.log(`🔍 환경변수 검증:`);
   console.log(`   - NODE_ENV: ${config.NODE_ENV || 'production'}`);
@@ -91,14 +160,71 @@ if (errsoleHost === '0.0.0.0') {
   console.log(`💻 컴퓨터에서 접속하려면: 핸드폰 IP 확인 후 http://핸드폰IP:${errsolePort}`);
 }
 
-// 전역 에러 핸들러 설정
+// 강화된 전역 에러 핸들러 설정
 process.on('uncaughtException', (error) => {
-  errsole.error('Uncaught Exception:', error);
-  process.exit(1);
+  console.error('💥 치명적 오류 발생:', error.message);
+  
+  // SQLite 관련 에러 특별 처리
+  if (error.message && (
+    error.message.includes('database is locked') ||
+    error.message.includes('SQLITE_BUSY') ||
+    error.message.includes('SQLITE_LOCKED')
+  )) {
+    console.error('🔒 SQLite 데이터베이스 잠금 에러 감지 - 프로세스 재시작 권장');
+    errsole.error('SQLite Database Lock Error - Process Restart Required', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString(),
+      restartRecommended: true
+    });
+  } else {
+    errsole.error('Uncaught Exception:', error);
+  }
+  
+  // 강제 가비지 컬렉션 (메모리 정리)
+  if (global.gc) {
+    console.log('🗑️ 강제 가비지 컬렉션 실행');
+    global.gc();
+  }
+  
+  // 1초 후 프로세스 종료 (로그 저장 시간 확보)
+  setTimeout(() => {
+    process.exit(1);
+  }, 1000);
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  errsole.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  console.error('❌ 처리되지 않은 Promise 거부:', reason);
+  
+  // SQLite 관련 Promise 거부 특별 처리
+  if (reason && reason.message && (
+    reason.message.includes('database is locked') ||
+    reason.message.includes('SQLITE_BUSY') ||
+    reason.message.includes('SQLITE_LOCKED')
+  )) {
+    console.error('🔒 SQLite Promise 거부 - 데이터베이스 접근 재시도 필요');
+    errsole.error('SQLite Promise Rejection - Database Access Retry Needed', {
+      reason: reason.message,
+      stack: reason.stack,
+      timestamp: new Date().toISOString(),
+      retryNeeded: true
+    });
+  } else {
+    errsole.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  }
+});
+
+// 메모리 사용량 모니터링
+process.on('warning', (warning) => {
+  console.warn('⚠️ Node.js 경고:', warning.name, warning.message);
+  
+  if (warning.name === 'MaxListenersExceededWarning') {
+    errsole.warn('Memory Leak Warning - Too Many Listeners', {
+      warning: warning.message,
+      stack: warning.stack,
+      timestamp: new Date().toISOString()
+    });
+  }
 });
 
 // Slack 알림 함수
@@ -237,5 +363,93 @@ export const logger = {
     alert: (message) => errsole.meta(meta).alert(message)
   })
 };
+
+// 헬스체크 및 모니터링 시스템
+let healthCheckInterval;
+let lastMemoryUsage = process.memoryUsage();
+
+function startHealthMonitoring() {
+  console.log('🏥 헬스체크 모니터링 시작 (5분 간격)');
+  
+  healthCheckInterval = setInterval(async () => {
+    try {
+      const currentMemory = process.memoryUsage();
+      const uptime = process.uptime();
+      
+      // 메모리 사용량 변화 계산
+      const memoryDiff = {
+        rss: currentMemory.rss - lastMemoryUsage.rss,
+        heapUsed: currentMemory.heapUsed - lastMemoryUsage.heapUsed,
+        heapTotal: currentMemory.heapTotal - lastMemoryUsage.heapTotal
+      };
+      
+      // MB 단위로 변환
+      const memoryMB = {
+        rss: Math.round(currentMemory.rss / 1024 / 1024),
+        heapUsed: Math.round(currentMemory.heapUsed / 1024 / 1024),
+        heapTotal: Math.round(currentMemory.heapTotal / 1024 / 1024),
+        external: Math.round(currentMemory.external / 1024 / 1024)
+      };
+      
+      // 헬스체크 로그
+      logger.info(`[HealthCheck] 시스템 상태 체크`, {
+        uptime: `${Math.round(uptime / 60)}분`,
+        memory: memoryMB,
+        memoryDiff: {
+          rss: Math.round(memoryDiff.rss / 1024 / 1024),
+          heapUsed: Math.round(memoryDiff.heapUsed / 1024 / 1024)
+        },
+        timestamp: new Date().toISOString()
+      });
+      
+      // 메모리 누수 경고 (RSS가 200MB 이상 증가했을 때)
+      if (memoryDiff.rss > 200 * 1024 * 1024) {
+        logger.warn(`[HealthCheck] 메모리 사용량 급증 감지`, {
+          memoryIncrease: `${Math.round(memoryDiff.rss / 1024 / 1024)}MB`,
+          currentMemory: memoryMB,
+          recommendation: 'PM2 재시작 권장'
+        });
+      }
+      
+      // 강제 가비지 컬렉션 (필요시)
+      if (global.gc && memoryMB.heapUsed > 150) {
+        console.log('🗑️ 예방적 가비지 컬렉션 실행');
+        global.gc();
+      }
+      
+      lastMemoryUsage = currentMemory;
+      
+    } catch (error) {
+      logger.error('[HealthCheck] 헬스체크 실행 중 오류', {
+        error: error.message,
+        stack: error.stack
+      });
+    }
+  }, 5 * 60 * 1000); // 5분마다 실행
+}
+
+// 애플리케이션 시작 시 헬스체크 시작
+setTimeout(() => {
+  startHealthMonitoring();
+}, 10000); // 10초 후 시작
+
+// 프로세스 종료 시 정리
+process.on('SIGINT', () => {
+  console.log('🔄 프로세스 종료 시그널 감지 - 정리 작업 시작');
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    console.log('✅ 헬스체크 모니터링 중지');
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('🔄 프로세스 종료 시그널 감지 - 정리 작업 시작');
+  if (healthCheckInterval) {
+    clearInterval(healthCheckInterval);
+    console.log('✅ 헬스체크 모니터링 중지');
+  }
+  process.exit(0);
+});
 
 export default errsole;
