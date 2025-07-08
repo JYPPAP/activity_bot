@@ -4,6 +4,7 @@ import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
+import { config } from '../config/env.js';
 
 export class ButtonHandler {
   constructor(voiceChannelManager, recruitmentService, modalHandler) {
@@ -486,6 +487,10 @@ export class ButtonHandler {
     else if (this.isVoiceChannelButton(customId)) {
       await this.handleVoiceChannelButtons(interaction);
     }
+    // recruitment_options 버튼 처리 (제외 채널 확인)
+    else if (this.isRecruitmentOptionsButton(customId)) {
+      await this.handleRecruitmentOptionsButton(interaction);
+    }
     else {
       console.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
     }
@@ -518,5 +523,35 @@ export class ButtonHandler {
            customId === 'general_spectate' ||
            customId === 'general_reset' ||
            customId === 'general_close';
+  }
+  
+  /**
+   * recruitment_options 버튼인지 확인
+   * @param {string} customId - 커스텀 ID
+   * @returns {boolean} - recruitment_options 버튼 여부
+   */
+  isRecruitmentOptionsButton(customId) {
+    return customId.startsWith('recruitment_options_');
+  }
+  
+  /**
+   * recruitment_options 버튼 처리 (제외 채널 확인)
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleRecruitmentOptionsButton(interaction) {
+    const customId = interaction.customId;
+    
+    // 버튼 customId에서 채널 ID 추출 (recruitment_options_${channelId} 형식)
+    const channelId = customId.split('_')[2];
+    
+    // 제외 채널 확인
+    if (config.EXCLUDED_CHANNELS.includes(channelId)) {
+      // 제외 채널에서 오는 버튼은 조용히 무시
+      return;
+    }
+    
+    // 제외 채널이 아닌 경우 처리되지 않은 버튼으로 분류
+    console.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
   }
 }
