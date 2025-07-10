@@ -116,6 +116,7 @@ export class VoiceChannelManager {
       const channel = await this.client.channels.fetch(channelId);
       
       if (!channel || channel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_VOICE) {
+        console.warn(`[VoiceChannelManager] 채널을 찾을 수 없거나 음성 채널이 아님: ${channelId}`);
         return null;
       }
       
@@ -130,6 +131,12 @@ export class VoiceChannelManager {
         guild: channel.guild
       };
     } catch (error) {
+      // 10003 에러 (Unknown Channel)는 채널이 삭제되었음을 의미
+      if (error.code === 10003) {
+        console.warn(`[VoiceChannelManager] 채널이 삭제되었거나 존재하지 않음: ${channelId}`);
+        return { deleted: true, channelId };
+      }
+      
       console.error(`[VoiceChannelManager] 채널 정보 가져오기 실패: ${channelId}`, error);
       return null;
     }

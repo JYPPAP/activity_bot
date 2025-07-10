@@ -197,19 +197,28 @@ export class ModalHandler {
       const postId = await this.forumPostManager.createForumPost(recruitmentData);
       
       if (postId) {
-        await interaction.editReply({
-          content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>`
+        await SafeInteraction.safeReply(interaction, {
+          content: `✅ 구인구직 포럼이 성공적으로 생성되었습니다!\n🔗 포럼: <#${postId}>`,
+          flags: MessageFlags.Ephemeral
         });
         
         console.log(`[ModalHandler] 독립 구인구직 생성 완료: ${recruitmentData.title} (ID: ${postId})`);
       } else {
-        await interaction.editReply({
-          content: RecruitmentConfig.MESSAGES.LINK_FAILED
+        await SafeInteraction.safeReply(interaction, {
+          content: RecruitmentConfig.MESSAGES.LINK_FAILED,
+          flags: MessageFlags.Ephemeral
         });
       }
       
     } catch (error) {
       console.error('[ModalHandler] 독립 구인구직 처리 오류:', error);
+      
+      // 10008 에러는 메시지가 삭제되었음을 의미하므로 추가 응답을 시도하지 않음
+      if (error.code === 10008) {
+        console.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
+        return;
+      }
+      
       await SafeInteraction.safeReply(interaction, 
         SafeInteraction.createErrorResponse('독립 구인구직 생성', error)
       );
@@ -235,19 +244,28 @@ export class ModalHandler {
       );
       
       if (result.success) {
-        await interaction.editReply({
-          content: `✅ 구인구직 포럼이 성공적으로 생성되고 음성 채널과 연동되었습니다!\n🔗 포럼: <#${result.postId}>`
+        await SafeInteraction.safeReply(interaction, {
+          content: `✅ 구인구직 포럼이 성공적으로 생성되고 음성 채널과 연동되었습니다!\n🔗 포럼: <#${result.postId}>`,
+          flags: MessageFlags.Ephemeral
         });
         
         console.log(`[ModalHandler] 음성 채널 연동 구인구직 생성 완료: ${recruitmentData.title} (ID: ${result.postId})`);
       } else {
-        await interaction.editReply({
-          content: result.message || RecruitmentConfig.MESSAGES.LINK_FAILED
+        await SafeInteraction.safeReply(interaction, {
+          content: result.message || RecruitmentConfig.MESSAGES.LINK_FAILED,
+          flags: MessageFlags.Ephemeral
         });
       }
       
     } catch (error) {
       console.error('[ModalHandler] 음성 채널 연동 구인구직 처리 오류:', error);
+      
+      // 10008 에러는 메시지가 삭제되었음을 의미하므로 추가 응답을 시도하지 않음
+      if (error.code === 10008) {
+        console.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
+        return;
+      }
+      
       await SafeInteraction.safeReply(interaction, 
         SafeInteraction.createErrorResponse('음성 채널 연동 구인구직 생성', error)
       );

@@ -103,6 +103,12 @@ export class SafeInteraction {
         return;
       }
       
+      // 10008 에러 (Unknown Message)는 원본 메시지가 삭제되었음을 의미
+      if (error.code === 10008) {
+        console.warn('[SafeInteraction] 원본 메시지가 삭제되었음 - 재시도하지 않음');
+        return;
+      }
+      
       // 마지막 시도: 에러 메시지 전송
       try {
         const validation = this.validateInteraction(interaction);
@@ -140,6 +146,12 @@ export class SafeInteraction {
       // 10062 에러는 재시도하지 않음
       if (error.code === 10062) {
         console.warn('[SafeInteraction] 만료된 인터랙션 - 업데이트 재시도하지 않음');
+        return;
+      }
+      
+      // 10008 에러는 원본 메시지가 삭제되었음을 의미
+      if (error.code === 10008) {
+        console.warn('[SafeInteraction] 원본 메시지가 삭제되었음 - 업데이트 재시도하지 않음');
         return;
       }
       

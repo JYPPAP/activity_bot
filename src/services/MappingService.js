@@ -165,7 +165,14 @@ export class MappingService {
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
       if (!voiceChannelInfo) {
         console.log(`[MappingService] 음성 채널을 찾을 수 없음: ${voiceChannelId}`);
-        this.removeMapping(voiceChannelId);
+        await this.removeMapping(voiceChannelId);
+        return;
+      }
+      
+      // 채널이 삭제된 경우 매핑 정리
+      if (voiceChannelInfo.deleted) {
+        console.log(`[MappingService] 삭제된 채널 매핑 정리: ${voiceChannelId}`);
+        await this.removeMapping(voiceChannelId);
         return;
       }
       
