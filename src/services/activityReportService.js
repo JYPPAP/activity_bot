@@ -12,20 +12,6 @@ export class ActivityReportService {
     this.db = dbManager;
   }
 
-  /**
-   * 역할별 보고서 주기 결정
-   * @param {string} roleName - 역할 이름
-   * @returns {number} - 주 단위 간격 (1 또는 2)
-   */
-  getRoleReportInterval(roleName) {
-    const lowerRole = roleName.toLowerCase();
-
-    // 인턴/사원은 매주, 그 외는 2주에 한 번
-    if (lowerRole.includes('인턴') || lowerRole.includes('사원')) {
-      return 1;
-    }
-    return 2;
-  }
 
   /**
    * 역할별 활동 보고서 생성 및 전송
