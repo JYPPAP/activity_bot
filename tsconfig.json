@@ -1,0 +1,48 @@
+{
+  "compilerOptions": {
+    // 컴파일 타겟
+    "target": "ES2022",
+    "module": "ES2022",
+    "lib": ["ES2022"],
+    
+    // 모듈 해석
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    
+    // 출력 설정
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "sourceMap": true,
+    
+    // 타입 체크
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    
+    // 기타 옵션
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
+    
+    // 추가 설정
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": true
+  },
+  "include": [
+    "src/**/*",
+    "src/types/**/*.d.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.test.ts"
+  ]
+}

@@ -1,0 +1,53 @@
+// src/types/database.ts - 데이터베이스 관련 타입 정의
+
+import { UserActivity, RoleConfig, ActivityLogEntry, AfkStatus, ForumMessageData, VoiceChannelMapping } from './index.js';
+
+// ====================
+// 데이터베이스 스키마 타입
+// ====================
+
+export interface DatabaseSchema {
+  user_activity: Record<string, UserActivity>;
+  role_config: Record<string, RoleConfig>;
+  activity_logs: ActivityLogEntry[];
+  reset_history: ResetHistoryEntry[];
+  log_members: Record<string, any>; // 실제 사용 방식에 맞춰 any로 임시 설정
+  afk_status: Record<string, AfkStatus>;
+  forum_messages: Record<string, ForumMessageData>;
+  voice_channel_mappings: Record<string, VoiceChannelMapping>;
+  metadata: {
+    version: string;
+    created_at: number;
+    last_updated: number;
+  };
+}
+
+export interface ResetHistoryEntry {
+  id: number;
+  roleName: string;
+  resetTime: number;
+  reason: string;
+}
+
+// ====================
+// 데이터베이스 설정 타입
+// ====================
+
+export interface DatabaseConfig {
+  path?: string;
+  backup?: boolean;
+  backupInterval?: number;
+  maxBackups?: number;
+  cacheTimeout?: number;
+  autoBackup?: boolean;
+  validation?: boolean;
+}
+
+export interface CacheConfig {
+    maxSize?: number;
+    maxAge?: number;
+    checkInterval?: number;
+    evictionPolicy?: 'lru' | 'lfu' | 'fifo' | 'random';
+    serialize?: boolean;
+    compress?: boolean;
+}
