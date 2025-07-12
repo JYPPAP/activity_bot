@@ -14,9 +14,9 @@ interface ConfigValidation {
 interface RoleConfig {
   role: string;
   hours: number;
-  resetTime?: number;
-  reportCycle?: string;
-  enabled?: boolean;
+  resetTime: number | undefined;
+  reportCycle: string | undefined;
+  enabled: boolean | undefined;
 }
 
 export class GapConfigCommand extends CommandBase {
@@ -91,7 +91,7 @@ export class GapConfigCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
       const roleOption = interaction.options.getString("role");
@@ -272,10 +272,15 @@ export class GapConfigCommand extends CommandBase {
       warnings.push('리셋 시간이 과거로 설정되었습니다.');
     }
 
-    return {
-      isValid: true,
-      warnings: warnings.length > 0 ? warnings : undefined
+    const result: ConfigValidation = {
+      isValid: true
     };
+    
+    if (warnings.length > 0) {
+      result.warnings = warnings;
+    }
+    
+    return result;
   }
 
   /**

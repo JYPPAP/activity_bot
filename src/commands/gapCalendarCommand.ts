@@ -110,7 +110,7 @@ export class GapCalendarCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
       const startDateStr = interaction.options.getString("start_date");

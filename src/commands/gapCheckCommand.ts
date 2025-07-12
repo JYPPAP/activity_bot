@@ -15,7 +15,7 @@ interface DateRange {
 interface ActivityCheckResult {
   user: User;
   totalTime: number;
-  dateRange?: DateRange;
+  dateRange: DateRange | undefined;
   formattedTime: string;
   additionalInfo?: {
     averageDaily?: number;
@@ -88,7 +88,7 @@ export class GapCheckCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
       const user = interaction.options.getUser("user");
@@ -164,7 +164,10 @@ export class GapCheckCommand extends CommandBase {
 
       // 상세 정보 생성
       if (detailed && dateRange) {
-        result.additionalInfo = await this.generateDetailedInfo(userId, dateRange);
+        const detailedInfo = await this.generateDetailedInfo(userId, dateRange);
+        if (detailedInfo) {
+          result.additionalInfo = detailedInfo;
+        }
       }
 
       // 캐시 저장

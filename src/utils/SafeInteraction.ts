@@ -1,13 +1,12 @@
 // src/utils/SafeInteraction.ts - 안전한 Discord 인터랙션 래퍼
 import { 
-  Interaction, 
+  RepliableInteraction, 
   MessageFlags, 
   ModalBuilder, 
   InteractionType,
   CommandInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
-  ModalSubmitInteraction,
   InteractionResponse,
   Message,
   DiscordAPIError
@@ -117,7 +116,7 @@ export class SafeInteraction {
    * @param interaction - Discord 인터랙션
    * @returns 처리 가능 여부
    */
-  static startProcessing(interaction: Interaction): boolean {
+  static startProcessing(interaction: RepliableInteraction): boolean {
     if (!interaction?.id) {
       console.warn('[SafeInteraction] 인터랙션 ID가 없습니다.');
       return false;
@@ -144,7 +143,7 @@ export class SafeInteraction {
    * 인터랙션 처리 완료
    * @param interaction - Discord 인터랙션
    */
-  static finishProcessing(interaction: Interaction): void {
+  static finishProcessing(interaction: RepliableInteraction): void {
     if (!interaction?.id) return;
 
     const startTime = this.processingStartTimes.get(interaction.id);
@@ -162,7 +161,7 @@ export class SafeInteraction {
    * @param interaction - Discord 인터랙션
    * @returns 처리 중 여부
    */
-  static isProcessing(interaction: Interaction): boolean {
+  static isProcessing(interaction: RepliableInteraction): boolean {
     return interaction?.id ? this.processingInteractions.has(interaction.id) : false;
   }
 
@@ -173,7 +172,7 @@ export class SafeInteraction {
    * @param interaction - Discord 인터랙션
    * @returns 검사 결과
    */
-  static validateInteraction(interaction: Interaction): InteractionValidationResult {
+  static validateInteraction(interaction: RepliableInteraction): InteractionValidationResult {
     if (!interaction) {
       return { valid: false, reason: 'Interaction is null', code: 'NULL_INTERACTION' };
     }
@@ -242,7 +241,7 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeReply(
-    interaction: Interaction, 
+    interaction: RepliableInteraction, 
     options: SafeReplyOptions
   ): Promise<InteractionResponse | Message | null> {
     const startTime = Date.now();
@@ -375,7 +374,7 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeDeferReply(
-    interaction: Interaction, 
+    interaction: RepliableInteraction, 
     options: { ephemeral?: boolean } = {}
   ): Promise<InteractionResponse | null> {
     try {

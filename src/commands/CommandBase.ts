@@ -11,7 +11,8 @@ export interface CommandServices {
   dbManager: DatabaseManager;
   calendarLogService: CalendarLogService;
   client: Client;
-  logService?: LogService;
+  logService: LogService | undefined;
+  voiceForumService?: any;
 }
 
 // 명령어 메타데이터 인터페이스
@@ -75,7 +76,7 @@ export abstract class CommandBase {
   protected dbManager: DatabaseManager;
   protected calendarLogService: CalendarLogService;
   protected client: Client;
-  protected logService?: LogService;
+  protected logService: LogService | undefined;
   
   // 명령어 메타데이터
   public abstract readonly metadata: CommandMetadata;

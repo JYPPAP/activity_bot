@@ -1,5 +1,5 @@
 // src/commands/gapListCommand.ts - gap_list 명령어 (잠수 기능 개선)
-import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, Collection, GuildMember } from 'discord.js';
+import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { cleanRoleName } from '../utils/formatters.js';
 import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
@@ -54,7 +54,7 @@ export class GapListCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 서비스 의존성 확인
       if (!this.userClassificationService) {
@@ -112,19 +112,20 @@ export class GapListCommand extends CommandBase {
       const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours, statistics } = classificationResult;
 
       // 임베드 생성
-      const embeds = EmbedFactory.createActivityEmbeds(
-        roles[0], 
-        activeUsers, 
-        inactiveUsers, 
-        afkUsers, 
-        resetTime, 
-        minHours, 
-        '활동 목록'
-      );
+      const embeds = EmbedFactory.createActivityEmbeds({
+        role: roles[0],
+        activeUsers,
+        inactiveUsers,
+        afkUsers,
+        startDate: resetTime,
+        endDate: new Date(),
+        minHours,
+        title: '활동 목록'
+      });
 
       // 통계 정보 추가 (옵션)
       if (statistics && this.config.enableDetailedStats) {
-        const statsEmbed = EmbedFactory.createStatisticsEmbed(statistics);
+        const statsEmbed = EmbedFactory.createStatsEmbed(statistics);
         embeds.push(statsEmbed);
       }
 

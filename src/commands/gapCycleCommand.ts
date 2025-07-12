@@ -13,7 +13,7 @@ interface CycleSetResult {
   cycleText: string;
   nextReportTime: number;
   nextReportDate: Date;
-  previousCycle?: number;
+  previousCycle: number | undefined;
 }
 
 // 주기 옵션 인터페이스
@@ -102,7 +102,7 @@ export class GapCycleCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 역할 옵션 가져오기
       const roleOption = interaction.options.getString("role");
@@ -155,8 +155,8 @@ export class GapCycleCommand extends CommandBase {
         };
       }
 
-      // 이전 주기 저장
-      const previousCycle = roleConfig.reportCycle;
+      // 이전 주기 저장 (문자열을 숫자로 변환)
+      const previousCycle = roleConfig.reportCycle ? parseInt(roleConfig.reportCycle, 10) : undefined;
 
       // 역할 보고서 주기 업데이트
       const updateResult = await this.dbManager.updateRoleReportCycle(role, cycle);

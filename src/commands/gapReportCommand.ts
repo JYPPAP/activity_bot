@@ -1,5 +1,5 @@
 // src/commands/gapReportCommand.ts - gap_report 명령어
-import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, Collection, GuildMember, TextChannel, Channel } from 'discord.js';
+import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, Collection, GuildMember, TextChannel } from 'discord.js';
 import { cleanRoleName } from '../utils/formatters.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
@@ -153,7 +153,7 @@ export class GapReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     const startTime = Date.now();
     
     try {
@@ -356,7 +356,7 @@ export class GapReportCommand extends CommandBase {
    * @param roleConfig - 역할 설정
    * @param interaction - 상호작용 객체
    */
-  private async parseDateRange(options: ReportCommandOptions, roleConfig: any, interaction: ChatInputCommandInteraction): Promise<DateValidationResult> {
+  private async parseDateRange(options: ReportCommandOptions, roleConfig: any, _interaction: ChatInputCommandInteraction): Promise<DateValidationResult> {
     const { startDateStr, endDateStr } = options;
 
     // 날짜 옵션이 제공된 경우
@@ -506,9 +506,17 @@ export class GapReportCommand extends CommandBase {
     const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } = classificationResult;
 
     // 보고서 임베드 생성
-    return EmbedFactory.createActivityEmbeds(
-      role, activeUsers, inactiveUsers, afkUsers, startDate, endDate, minHours, reportCycle, '활동 보고서'
-    );
+    return EmbedFactory.createActivityEmbeds({
+      role,
+      activeUsers,
+      inactiveUsers,
+      afkUsers,
+      startDate,
+      endDate,
+      minHours,
+      reportCycle,
+      title: '활동 보고서'
+    });
   }
 
   /**
@@ -516,7 +524,7 @@ export class GapReportCommand extends CommandBase {
    * @param roleMembers - 역할 멤버
    * @param dateRange - 날짜 범위
    */
-  private async generateStatistics(roleMembers: Collection<string, GuildMember>, dateRange: DateRange): Promise<ReportGenerationResult['statistics']> {
+  private async generateStatistics(roleMembers: Collection<string, GuildMember>, _dateRange: DateRange): Promise<ReportGenerationResult['statistics']> {
     // 간단한 통계 생성 (실제 구현에서는 더 상세한 통계 생성)
     const totalMembers = roleMembers.size;
     

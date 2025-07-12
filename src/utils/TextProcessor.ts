@@ -112,8 +112,8 @@ export class TextProcessor {
     OFFLINE: '[오프라인]'
   };
 
-  // 특수 태그 정규식
-  private static readonly SPECIAL_TAG_REGEX = /^\[([^\]]+)\]\s*/;
+  // 특수 태그 정규식 (주석처리: 현재 미사용)
+  // private static readonly SPECIAL_TAG_REGEX = /^\[([^\]]+)\]\s*/;
 
   /**
    * 별명에서 특수 태그들을 제거합니다.

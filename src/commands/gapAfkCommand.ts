@@ -13,14 +13,6 @@ interface AfkSetResult {
   isNewRole: boolean;
 }
 
-// AFK 설정 옵션
-interface AfkSetOptions {
-  user: User;
-  untilDate: Date;
-  reason?: string;
-  notifyUser?: boolean;
-  duration?: number;
-}
 
 export class GapAfkCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
@@ -89,7 +81,7 @@ export class GapAfkCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 사용자 옵션 가져오기
       const targetUser = interaction.options.getUser("user");
@@ -249,21 +241,9 @@ export class GapAfkCommand extends CommandBase {
       }
 
       // DB에 잠수 정보 저장
-      const saveResult = await this.dbManager.setUserAfkStatus(
-        targetUser.id, 
-        member.displayName, 
-        untilDate.getTime(),
-        reason || undefined
-      );
+      const untilTimestamp = Date.now() + (30 * 24 * 60 * 60 * 1000); // 30일 후
+      await this.dbManager.setUserAfkStatus(targetUser.id, targetUser.username, untilTimestamp);
 
-      if (!saveResult) {
-        // 역할 부여를 되돌림
-        await member.roles.remove(afkRole, "잠수 정보 저장 실패");
-        return {
-          success: false,
-          message: "잠수 정보를 저장할 수 없습니다. 다시 시도해주세요."
-        };
-      }
 
       // 저장 확인 (디버깅용)
       const savedStatus = await this.dbManager.getUserAfkStatus(targetUser.id);
@@ -405,7 +385,7 @@ export class GapAfkCommand extends CommandBase {
       await member.roles.remove(afkRole, "수동 잠수 해제");
 
       // DB에서 잠수 상태 제거
-      await this.dbManager.removeUserAfkStatus(targetUser.id);
+      await this.dbManager.clearUserAfkStatus(targetUser.id);
 
       await interaction.followUp({
         content: `✅ **${targetUser.username}님의 잠수 상태를 해제했습니다.**`,

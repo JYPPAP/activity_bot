@@ -63,7 +63,7 @@ export class GapSaveCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     const startTime = Date.now();
     
     try {
@@ -100,8 +100,8 @@ export class GapSaveCommand extends CommandBase {
         await this.performForceSync();
       }
 
-      // 활동 데이터 초기화 및 재초기화
-      await this.activityTracker.clearAndReinitializeActivityData();
+      // 활동 데이터 초기화 및 재초기화 (모든 역할 대상)
+      await this.activityTracker.clearAndReinitializeActivityData('all');
 
       // 캐시 정리
       if (clearCache) {

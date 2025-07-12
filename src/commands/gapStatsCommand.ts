@@ -1,7 +1,7 @@
 // src/commands/gapStatsCommand.ts - 상세 통계 명령어
 import { ChatInputCommandInteraction, MessageFlags, EmbedBuilder, SlashCommandBuilder, User } from 'discord.js';
 import { COLORS } from '../config/constants.js';
-import { formatTime, formatKoreanDate } from '../utils/formatters.js';
+import { formatKoreanDate } from '../utils/formatters.js';
 import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
 
 // 활동 로그 인터페이스
@@ -130,7 +130,7 @@ export class GapStatsCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
     try {
       // 기간 옵션 가져오기 (기본: 7일)
       const days = interaction.options.getInteger("days") || 7;
@@ -246,10 +246,10 @@ export class GapStatsCommand extends CommandBase {
     startTime: number,
     endTime: number,
     type: string,
-    includeCharts: boolean
+    _includeCharts: boolean
   ): Promise<any> {
     // 사용자 활동 시간 조회
-    const userActivity = await this.dbManager.getUserActivity(user.id);
+    const _userActivity = await this.dbManager.getUserActivity(user.id);
 
     // 사용자 활동 로그 조회
     const logs = await this.dbManager.getUserActivityLogs(user.id, 1000);
@@ -291,7 +291,7 @@ export class GapStatsCommand extends CommandBase {
     endTime: number,
     days: number,
     type: string,
-    includeCharts: boolean
+    _includeCharts: boolean
   ): Promise<any> {
     // 일별 활동 통계 조회
     const dailyStats = await this.dbManager.getDailyActivityStats(startTime, endTime);
@@ -505,7 +505,7 @@ export class GapStatsCommand extends CommandBase {
    * @param endTime - 종료 시간
    * @param type - 통계 유형
    */
-  private createUserStatsEmbed(user: User, stats: UserActivityStats, startTime: number, endTime: number, type: string): EmbedBuilder {
+  private createUserStatsEmbed(user: User, stats: UserActivityStats, startTime: number, endTime: number, _type: string): EmbedBuilder {
     // 자주 사용한 채널 TOP 5
     const topChannels = Array.from(stats.channelUsage.entries())
       .sort((a, b) => b[1] - a[1])
@@ -567,7 +567,7 @@ export class GapStatsCommand extends CommandBase {
    * @param days - 일수
    * @param type - 통계 유형
    */
-  private createServerStatsEmbed(stats: ServerStats, startTime: number, endTime: number, days: number, type: string): EmbedBuilder {
+  private createServerStatsEmbed(stats: ServerStats, startTime: number, endTime: number, days: number, _type: string): EmbedBuilder {
     const embed = new EmbedBuilder()
       .setColor(COLORS.LOG)
       .setTitle(`📊 서버 활동 통계 (최근 ${days}일)`)

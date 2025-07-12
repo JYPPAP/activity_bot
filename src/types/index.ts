@@ -57,19 +57,22 @@ export interface DatabaseManager {
   getUserActivity(userId: string): Promise<UserActivity | null>;
   getAllUserActivity(): Promise<UserActivity[]>;
   setUserActivity(userId: string, data: UserActivityData): Promise<void>;
+  resetUserActivity(userId: string): Promise<void>;
   
   // 역할 설정 관련
   getRoleConfig(roleName: string): Promise<RoleConfig | null>;
   getAllRoleConfigs(): Promise<RoleConfig[]>;
   setRoleConfig(roleName: string, minHours: number): Promise<void>;
+  updateRoleReportCycle(roleName: string, cycle: number): Promise<boolean>;
   
   // 활동 로그 관련
   addActivityLog(logEntry: ActivityLogEntry): Promise<void>;
   getActivityLogs(options?: LogQueryOptions): Promise<ActivityLogEntry[]>;
   
   // 잠수 상태 관리
-  getAfkStatus(userId: string): Promise<AfkStatus | null>;
-  setAfkStatus(userId: string, status: AfkStatusData): Promise<void>;
+  getUserAfkStatus(userId: string): Promise<AfkStatus | null>;
+  setUserAfkStatus(userId: string, displayName: string, untilTimestamp: number): Promise<boolean>;
+  clearUserAfkStatus(userId: string): Promise<boolean>;
   
   // 포럼 관련
   getForumMessage(channelId: string): Promise<ForumMessage | null>;
@@ -78,11 +81,28 @@ export interface DatabaseManager {
   // 음성 채널 매핑
   getVoiceChannelMapping(channelId: string): Promise<VoiceChannelMapping | null>;
   setVoiceChannelMapping(channelId: string, mapping: VoiceChannelMappingData): Promise<void>;
+  
+  // 백업 관련
+  saveBackup(filename: string, data: any): Promise<void>;
+  listBackups(): Promise<string[]>;
+  loadBackup(backupId: string): Promise<any>;
+  
+  // 리셋 기록 관련
+  addResetHistory(entry: ResetHistoryEntry): Promise<void>;
+  getResetHistory(): Promise<ResetHistoryEntry[]>;
+  
+  // 유틸리티 메서드
+  hasAnyData(): Promise<boolean>;
+  migrateFromJSON(activityData: any, roleConfigData: any): Promise<boolean>;
+  close(): Promise<void>;
 }
 
 export interface LogService {
   log(message: string, data?: any): void;
   error(message: string, error: Error | any): void;
+  logActivity(message: string, members: string[], action: string, data?: any): void;
+  handleChannelUpdate(oldChannel: any, newChannel: any): Promise<void>;
+  handleChannelCreate(channel: any): Promise<void>;
 }
 
 export interface ActivityTracker {
@@ -90,11 +110,18 @@ export interface ActivityTracker {
   loadRoleActivityConfig(): Promise<void>;
   getUserActivityTime(userId: string): Promise<number>;
   getRoleActivityConfig(roleName: string): number;
+  saveActivityData(): Promise<{ savedUsers: number; dataSize: number }>;
+  clearAndReinitializeActivityData(role: string): Promise<void>;
+  initializeActivityData(guild: any): Promise<void>;
+  getAllActivityData(): Promise<any>;
+  handleVoiceStateUpdate(oldState: any, newState: any): Promise<void>;
+  handleGuildMemberUpdate(oldMember: any, newMember: any): Promise<void>;
 }
 
 export interface CalendarLogService {
   getActivityLogs(startDate: Date, endDate: Date): Promise<ActivityLogEntry[]>;
   formatLogEntry(entry: ActivityLogEntry): string;
+  initialize(): Promise<void>;
 }
 
 // ====================
@@ -106,6 +133,13 @@ export interface UserActivity {
   totalTime: number;
   startTime: number | null;
   lastUpdate: number;
+  lastActivity?: number;
+  displayName?: string;
+  currentChannelId?: string;
+  sessionStartTime?: number;
+  dailyTime?: number;
+  weeklyTime?: number;
+  monthlyTime?: number;
 }
 
 export interface UserActivityData {
@@ -135,6 +169,15 @@ export interface ActivityLogEntry {
   timestamp: number;
   duration?: number;
   additionalData?: Record<string, any>;
+}
+
+export interface ResetHistoryEntry {
+  id: string;
+  timestamp: number;
+  reason: string;
+  data: any;
+  resetType?: 'partial' | 'full';
+  affectedUsers?: string[];
 }
 
 export interface LogQueryOptions {

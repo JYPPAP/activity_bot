@@ -4,11 +4,8 @@ import {
   Interaction, 
   ChatInputCommandInteraction, 
   PermissionsBitField, 
-  MessageFlags, 
-  ApplicationCommandOptionType,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction
+  MessageFlags,
+  GuildMember
 } from 'discord.js';
 import { GapListCommand } from './gapListCommand.js';
 import { GapConfigCommand } from './gapConfigCommand.js';
@@ -74,7 +71,7 @@ export class CommandHandler {
   private dbManager: DatabaseManager;
   private calendarLogService: CalendarLogService;
   private voiceForumService: VoiceChannelForumIntegrationService;
-  private logService?: LogService;
+  private logService: LogService | undefined;
   private userClassificationService: UserClassificationService;
   private config: CommandHandlerConfig;
   
@@ -245,7 +242,7 @@ export class CommandHandler {
   async handleInteraction(interaction: Interaction): Promise<void> {
     try {
       // 명령어 상호작용인 경우 명령어 처리
-      if (interaction.isCommand()) {
+      if (interaction.isChatInputCommand()) {
         await this.handleCommandInteraction(interaction);
         return;
       }
@@ -264,7 +261,7 @@ export class CommandHandler {
           '인터랙션 처리 오류',
           [],
           'interaction_error',
-          { error: error.message, interaction: interaction.type }
+          { error: error instanceof Error ? error.message : String(error), interaction: interaction.type }
         );
       }
     }
@@ -301,6 +298,23 @@ export class CommandHandler {
       const resolvedCommandName = this.commandAliases.get(commandName) || commandName;
       
       // 권한 확인
+      if (!interaction.member || !interaction.inGuild()) {
+        await interaction.reply({
+          content: '이 명령어는 서버에서만 사용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      // 타입 가드: APIInteractionGuildMember를 GuildMember로 변환
+      if (!(interaction.member instanceof GuildMember)) {
+        await interaction.reply({
+          content: '멤버 정보를 불러올 수 없습니다.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
       if (!hasCommandPermission(interaction.member, resolvedCommandName)) {
         await interaction.reply({
           content: getPermissionDeniedMessage(resolvedCommandName),
