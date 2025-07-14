@@ -15,7 +15,7 @@ import {
   ActivityLogQueryOptions,
 } from '../types/sqlite.js';
 
-import { UserActivity, ActivityLogEntry, AfkStatus } from '../types/index.js';
+import { UserActivity, ActivityLogEntry, AfkStatus, RoleConfig, VoiceChannelMapping } from '../types/index.js';
 
 export class SQLiteManager {
   private connection: DatabaseConnection | null = null;
@@ -147,7 +147,14 @@ export class SQLiteManager {
   }
 
   /**
-   * 모든 사용자 활동 데이터 조회
+   * 모든 사용자 활동 데이터 조회 (DatabaseManager 호환성)
+   */
+  async getAllUserActivity(): Promise<UserActivity[]> {
+    return await this.getAllUserActivities();
+  }
+
+  /**
+   * 모든 사용자 활동 데이터 조회 (옵션 포함)
    */
   async getAllUserActivities(options: UserActivityQueryOptions = {}): Promise<UserActivity[]> {
     try {
@@ -183,9 +190,26 @@ export class SQLiteManager {
   }
 
   /**
-   * 사용자 활동 업데이트
+   * 사용자 활동 업데이트 (호환성 메서드)
    */
-  async updateUserActivity(userId: string, activity: Partial<UserActivity>): Promise<boolean> {
+  async updateUserActivity(userId: string, totalTimeOrActivity: number | Partial<UserActivity>, startTime?: number | null, displayName?: string | null): Promise<boolean> {
+    // 호환성을 위해 여러 시그니처 지원
+    if (typeof totalTimeOrActivity === 'number') {
+      const activity: Partial<UserActivity> = {
+        totalTime: totalTimeOrActivity,
+        startTime: startTime !== undefined ? startTime : null,
+        ...(displayName !== undefined && displayName !== null && { displayName })
+      };
+      return await this.updateUserActivityInternal(userId, activity);
+    } else {
+      return await this.updateUserActivityInternal(userId, totalTimeOrActivity);
+    }
+  }
+
+  /**
+   * 사용자 활동 업데이트 (내부 메서드)
+   */
+  private async updateUserActivityInternal(userId: string, activity: Partial<UserActivity>): Promise<boolean> {
     try {
       const currentData = await this.getUserActivity(userId);
       const updatedData: UserActivityRow = {
@@ -302,6 +326,8 @@ export class SQLiteManager {
         channelId,
         timestampAfter,
         timestampBefore,
+        startDate,
+        endDate,
         limit = 100,
         offset = 0,
         orderBy = 'timestamp',
@@ -341,6 +367,16 @@ export class SQLiteManager {
         params.push(timestampBefore);
       }
 
+      if (startDate) {
+        sql += ' AND timestamp >= ?';
+        params.push(startDate.getTime());
+      }
+
+      if (endDate) {
+        sql += ' AND timestamp <= ?';
+        params.push(endDate.getTime());
+      }
+
       sql += ` ORDER BY ${orderBy} ${orderDirection}`;
       sql += ` LIMIT ? OFFSET ?`;
       params.push(limit, offset);
@@ -359,6 +395,13 @@ export class SQLiteManager {
   // ===========================================
   // AFK 상태 관련 메서드들
   // ===========================================
+
+  /**
+   * AFK 상태 조회 (호환성 메서드)
+   */
+  async getUserAfkStatus(userId: string): Promise<AfkStatus | null> {
+    return await this.getAfkStatus(userId);
+  }
 
   /**
    * AFK 상태 조회
@@ -452,6 +495,807 @@ export class SQLiteManager {
     } catch (error) {
       console.error('[SQLite] 데이터베이스 통계 조회 실패:', error);
       return null;
+    }
+  }
+
+  // ===========================================
+  // DatabaseManager 호환성 메서드들
+  // ===========================================
+
+  /**
+   * 사용자 활동 삭제
+   */
+  async deleteUserActivity(userId: string): Promise<boolean> {
+    try {
+      const startTime = Date.now();
+      await this.run('DELETE FROM user_activities WHERE user_id = ?', [userId]);
+      this.updateMetrics(Date.now() - startTime);
+      
+      this.invalidateCache(`user_activity_${userId}`);
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 사용자 활동 삭제 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 특정 기간 사용자 활동 시간 조회
+   */
+  async getUserActivityByDateRange(userId: string, startTime: number, endTime: number): Promise<number> {
+    try {
+      const sql = `
+        SELECT SUM(session_duration) as total_time
+        FROM activity_logs 
+        WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
+          AND session_duration IS NOT NULL
+      `;
+      
+      const result = await this.get(sql, [userId, startTime, endTime]);
+      return result?.total_time || 0;
+    } catch (error) {
+      console.error('[SQLite] 특정 기간 활동 시간 조회 실패:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 사용자 활동 로그 조회
+   */
+  async getUserActivityLogs(userId: string, limit: number = 100): Promise<ActivityLogEntry[]> {
+    return await this.getActivityLogs({
+      userId,
+      limit,
+      orderBy: 'timestamp',
+      orderDirection: 'DESC'
+    });
+  }
+
+  /**
+   * 역할 설정 조회
+   */
+  async getRoleConfig(roleName: string): Promise<RoleConfig | null> {
+    try {
+      const startTime = Date.now();
+      const row = await this.get('SELECT * FROM role_configs WHERE role_name = ?', [roleName]);
+      this.updateMetrics(Date.now() - startTime);
+
+      if (!row) return null;
+
+      const config: RoleConfig = {
+        roleName: row.role_name,
+        minHours: row.min_hours || 0,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        resetTime: row.reset_time,
+        reportCycle: row.report_cycle || '1',
+        enabled: true
+      };
+
+      return config;
+    } catch (error) {
+      console.error('[SQLite] 역할 설정 조회 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 모든 역할 설정 조회
+   */
+  async getAllRoleConfigs(): Promise<RoleConfig[]> {
+    try {
+      const startTime = Date.now();
+      const rows = await this.all('SELECT * FROM role_configs ORDER BY role_name');
+      this.updateMetrics(Date.now() - startTime);
+
+      return rows.map(row => ({
+        roleName: row.role_name,
+        minHours: row.min_hours || 0,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+        resetTime: row.reset_time,
+        reportCycle: row.report_cycle || '1',
+        enabled: true
+      }));
+    } catch (error) {
+      console.error('[SQLite] 모든 역할 설정 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 역할 설정 업데이트
+   */
+  async updateRoleConfig(roleName: string, minHours: number, resetTime?: number | null, reportCycle: number = 1): Promise<boolean> {
+    try {
+      const sql = `
+        INSERT OR REPLACE INTO role_configs 
+        (role_name, min_hours, reset_time, report_cycle, updated_at, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      
+      const now = Date.now();
+      await this.run(sql, [roleName, minHours, resetTime, reportCycle.toString(), now, now]);
+      
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 역할 설정 업데이트 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 역할 보고서 주기 업데이트
+   */
+  async updateRoleReportCycle(roleName: string, cycle: number): Promise<boolean> {
+    try {
+      const sql = `
+        UPDATE role_configs 
+        SET report_cycle = ?, updated_at = ? 
+        WHERE role_name = ?
+      `;
+      
+      await this.run(sql, [cycle.toString(), Date.now(), roleName]);
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 역할 보고서 주기 업데이트 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 역할 리셋 시간 업데이트
+   */
+  async updateRoleResetTime(roleName: string, resetTime: number, reason: string = '관리자에 의한 리셋'): Promise<boolean> {
+    try {
+      const sql = `
+        UPDATE role_configs 
+        SET reset_time = ?, updated_at = ? 
+        WHERE role_name = ?
+      `;
+      
+      await this.run(sql, [resetTime, Date.now(), roleName]);
+      
+      // 리셋 히스토리 추가
+      const historySQL = `
+        INSERT INTO reset_history 
+        (reset_type, reset_timestamp, admin_user_id, affected_users_count, backup_data, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      
+      await this.run(historySQL, [
+        'manual',
+        resetTime,
+        null,
+        null,
+        JSON.stringify({ roleName, reason }),
+        Date.now()
+      ]);
+      
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 역할 리셋 시간 업데이트 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 다음 보고서 시간 조회
+   */
+  async getNextReportTime(roleName: string): Promise<number | null> {
+    try {
+      const roleConfig = await this.getRoleConfig(roleName);
+      if (!roleConfig) return null;
+
+      const reportCycle = parseInt(roleConfig.reportCycle || '1');
+      const lastResetTime = roleConfig.resetTime || Date.now();
+
+      return lastResetTime + reportCycle * 7 * 24 * 60 * 60 * 1000; // 주 단위
+    } catch (error) {
+      console.error('[SQLite] 다음 보고서 시간 조회 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 활동 로그 기록
+   */
+  async logActivity(userId: string, eventType: string, channelId: string, channelName: string, members: string[] = []): Promise<string> {
+    try {
+      const logEntry: ActivityLogEntry = {
+        userId,
+        userName: 'Unknown',
+        channelId,
+        channelName,
+        action: eventType as any,
+        timestamp: Date.now()
+      };
+
+      const success = await this.addActivityLog(logEntry);
+      if (success) {
+        const logId = `${logEntry.timestamp}-${userId.slice(0, 6)}`;
+        
+        // 멤버 정보 저장 (필요시)
+        if (members.length > 0) {
+          const memberSQL = `
+            INSERT INTO log_members (user_id, log_data, created_at, updated_at) 
+            VALUES (?, ?, ?, ?)
+          `;
+          await this.run(memberSQL, [logId, JSON.stringify(members), Date.now(), Date.now()]);
+        }
+        
+        return logId;
+      }
+      
+      throw new Error('Failed to add activity log');
+    } catch (error) {
+      console.error('[SQLite] 활동 로그 기록 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 일일 활동 통계 조회
+   */
+  async getDailyActivityStats(startTime: number, endTime: number, _options: any = {}): Promise<any[]> {
+    try {
+      const sql = `
+        SELECT 
+          DATE(timestamp/1000, 'unixepoch') as date,
+          COUNT(*) as totalEvents,
+          SUM(CASE WHEN event_type = 'join' THEN 1 ELSE 0 END) as joins,
+          SUM(CASE WHEN event_type = 'leave' THEN 1 ELSE 0 END) as leaves,
+          COUNT(DISTINCT user_id) as uniqueUsers
+        FROM activity_logs 
+        WHERE timestamp >= ? AND timestamp <= ?
+        GROUP BY DATE(timestamp/1000, 'unixepoch')
+        ORDER BY date
+      `;
+      
+      const rows = await this.all(sql, [startTime, endTime]);
+      return rows.map(row => ({
+        date: row.date,
+        totalEvents: row.totalEvents,
+        joins: row.joins,
+        leaves: row.leaves,
+        uniqueUsers: row.uniqueUsers
+      }));
+    } catch (error) {
+      console.error('[SQLite] 일일 활동 통계 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 특정 기간 활성 멤버 조회
+   */
+  async getActiveMembersForTimeRange(startTime: number, endTime: number): Promise<any[]> {
+    try {
+      const sql = `
+        SELECT 
+          ua.user_id as userId,
+          ua.display_name as displayName,
+          ua.total_time as totalTime
+        FROM user_activities ua
+        JOIN activity_logs al ON ua.user_id = al.user_id
+        WHERE al.timestamp >= ? AND al.timestamp <= ?
+        GROUP BY ua.user_id
+        ORDER BY ua.total_time DESC
+      `;
+      
+      const rows = await this.all(sql, [startTime, endTime]);
+      return rows.map(row => ({
+        userId: row.userId,
+        displayName: row.displayName || row.userId,
+        totalTime: row.totalTime
+      }));
+    } catch (error) {
+      console.error('[SQLite] 활성 멤버 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 가장 활성화된 채널 조회
+   */
+  async getMostActiveChannels(startTime: number, endTime: number, limit: number = 5): Promise<any[]> {
+    try {
+      const sql = `
+        SELECT 
+          channel_name as name,
+          COUNT(*) as count
+        FROM activity_logs
+        WHERE timestamp >= ? AND timestamp <= ?
+          AND channel_name IS NOT NULL
+        GROUP BY channel_name
+        ORDER BY count DESC
+        LIMIT ?
+      `;
+      
+      const rows = await this.all(sql, [startTime, endTime, limit]);
+      return rows;
+    } catch (error) {
+      console.error('[SQLite] 활성 채널 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 모든 AFK 사용자 조회
+   */
+  async getAllAfkUsers(): Promise<AfkStatus[]> {
+    try {
+      const startTime = Date.now();
+      const rows = await this.all('SELECT * FROM afk_status WHERE is_afk = 1');
+      this.updateMetrics(Date.now() - startTime);
+
+      return rows.map(row => this.convertToAfkStatus(row));
+    } catch (error) {
+      console.error('[SQLite] AFK 사용자 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 만료된 AFK 상태 정리
+   */
+  async clearExpiredAfkStatus(): Promise<string[]> {
+    try {
+      const now = Date.now();
+      
+      // 만료된 사용자 찾기
+      const expiredRows = await this.all(
+        'SELECT user_id FROM afk_status WHERE afk_since IS NOT NULL AND afk_since < ?',
+        [now]
+      );
+      
+      const expiredUsers = expiredRows.map(row => row.user_id);
+      
+      if (expiredUsers.length > 0) {
+        // 만료된 사용자들 삭제
+        await this.run(
+          'DELETE FROM afk_status WHERE afk_since IS NOT NULL AND afk_since < ?',
+          [now]
+        );
+        
+        console.log(`[SQLite] ${expiredUsers.length}명의 만료된 AFK 상태 정리 완료`);
+      }
+      
+      return expiredUsers;
+    } catch (error) {
+      console.error('[SQLite] 만료된 AFK 상태 정리 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * AFK 상태 설정
+   */
+  async setUserAfkStatus(userId: string, _displayName: string, untilTimestamp: number): Promise<boolean> {
+    try {
+      const afkStatus: Partial<AfkStatus> = {
+        isAfk: true,
+        afkStartTime: Date.now(),
+        afkUntil: untilTimestamp
+      };
+      
+      return await this.updateAfkStatus(userId, afkStatus);
+    } catch (error) {
+      console.error('[SQLite] AFK 상태 설정 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * AFK 상태 해제
+   */
+  async clearUserAfkStatus(userId: string): Promise<boolean> {
+    try {
+      const startTime = Date.now();
+      await this.run('DELETE FROM afk_status WHERE user_id = ?', [userId]);
+      this.updateMetrics(Date.now() - startTime);
+      
+      return true;
+    } catch (error) {
+      console.error('[SQLite] AFK 상태 해제 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 포럼 메시지 추적
+   */
+  async trackForumMessage(threadId: string, messageType: string, messageId: string): Promise<boolean> {
+    try {
+      const sql = `
+        INSERT OR REPLACE INTO forum_messages 
+        (message_id, channel_id, user_id, content, message_data, created_at) 
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
+      
+      await this.run(sql, [
+        messageId,
+        threadId,
+        'system',
+        messageType,
+        JSON.stringify({ messageType, threadId }),
+        Date.now()
+      ]);
+      
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 포럼 메시지 추적 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 추적된 메시지 조회
+   */
+  async getTrackedMessages(threadId: string, messageType: string): Promise<string[]> {
+    try {
+      const sql = `
+        SELECT message_id FROM forum_messages 
+        WHERE channel_id = ? AND content = ?
+      `;
+      
+      const rows = await this.all(sql, [threadId, messageType]);
+      return rows.map(row => row.message_id);
+    } catch (error) {
+      console.error('[SQLite] 추적된 메시지 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 추적된 메시지 삭제
+   */
+  async clearTrackedMessages(threadId: string, messageType: string): Promise<string[]> {
+    try {
+      const messages = await this.getTrackedMessages(threadId, messageType);
+      
+      await this.run(
+        'DELETE FROM forum_messages WHERE channel_id = ? AND content = ?',
+        [threadId, messageType]
+      );
+      
+      return messages;
+    } catch (error) {
+      console.error('[SQLite] 추적된 메시지 삭제 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 스레드의 모든 추적 메시지 삭제
+   */
+  async clearAllTrackedMessagesForThread(threadId: string): Promise<any> {
+    try {
+      const allMessages = await this.all(
+        'SELECT * FROM forum_messages WHERE channel_id = ?',
+        [threadId]
+      );
+      
+      await this.run('DELETE FROM forum_messages WHERE channel_id = ?', [threadId]);
+      
+      return allMessages.reduce((acc, msg) => {
+        if (!acc[msg.content]) acc[msg.content] = [];
+        acc[msg.content].push(msg.message_id);
+        return acc;
+      }, {});
+    } catch (error) {
+      console.error('[SQLite] 스레드 메시지 삭제 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 음성 채널 매핑 저장
+   */
+  async saveChannelMapping(voiceChannelId: string, forumPostId: string, lastParticipantCount: number = 0): Promise<boolean> {
+    try {
+      const sql = `
+        INSERT OR REPLACE INTO voice_channel_mappings 
+        (voice_channel_id, forum_channel_id, mapping_data, created_at, updated_at) 
+        VALUES (?, ?, ?, ?, ?)
+      `;
+      
+      const mappingData = {
+        forumPostId,
+        lastParticipantCount,
+        isActive: true
+      };
+      
+      await this.run(sql, [
+        voiceChannelId,
+        forumPostId,
+        JSON.stringify(mappingData),
+        Date.now(),
+        Date.now()
+      ]);
+      
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 채널 매핑 저장 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 채널 매핑 조회
+   */
+  async getChannelMapping(voiceChannelId: string): Promise<VoiceChannelMapping | null> {
+    try {
+      const row = await this.get(
+        'SELECT * FROM voice_channel_mappings WHERE voice_channel_id = ?',
+        [voiceChannelId]
+      );
+      
+      if (!row) return null;
+      
+      const mappingData = JSON.parse(row.mapping_data || '{}');
+      
+      return {
+        channelId: voiceChannelId,
+        forumPostId: mappingData.forumPostId || row.forum_channel_id,
+        threadId: mappingData.forumPostId || row.forum_channel_id,
+        createdAt: row.created_at,
+        isActive: mappingData.isActive ?? true
+      };
+    } catch (error) {
+      console.error('[SQLite] 채널 매핑 조회 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 모든 채널 매핑 조회
+   */
+  async getAllChannelMappings(): Promise<VoiceChannelMapping[]> {
+    try {
+      const rows = await this.all('SELECT * FROM voice_channel_mappings');
+      
+      return rows.map(row => {
+        const mappingData = JSON.parse(row.mapping_data || '{}');
+        return {
+          channelId: row.voice_channel_id,
+          forumPostId: mappingData.forumPostId || row.forum_channel_id,
+          threadId: mappingData.forumPostId || row.forum_channel_id,
+          createdAt: row.created_at,
+          isActive: mappingData.isActive ?? true
+        };
+      });
+    } catch (error) {
+      console.error('[SQLite] 모든 채널 매핑 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 채널 매핑 제거
+   */
+  async removeChannelMapping(voiceChannelId: string): Promise<boolean> {
+    try {
+      await this.run('DELETE FROM voice_channel_mappings WHERE voice_channel_id = ?', [voiceChannelId]);
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 채널 매핑 제거 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 참여자 수 업데이트
+   */
+  async updateLastParticipantCount(voiceChannelId: string, participantCount: number): Promise<boolean> {
+    try {
+      const sql = `
+        UPDATE voice_channel_mappings 
+        SET mapping_data = json_set(mapping_data, '$.lastParticipantCount', ?),
+            updated_at = ?
+        WHERE voice_channel_id = ?
+      `;
+      
+      await this.run(sql, [participantCount, Date.now(), voiceChannelId]);
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 참여자 수 업데이트 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 포럼 포스트 ID로 음성 채널 ID 찾기
+   */
+  async getVoiceChannelIdByPostId(forumPostId: string): Promise<string | null> {
+    try {
+      const row = await this.get(
+        'SELECT voice_channel_id FROM voice_channel_mappings WHERE forum_channel_id = ?',
+        [forumPostId]
+      );
+      
+      return row?.voice_channel_id || null;
+    } catch (error) {
+      console.error('[SQLite] 포스트 ID로 채널 ID 조회 실패:', error);
+      return null;
+    }
+  }
+
+  /**
+   * 만료된 매핑 정리
+   */
+  async cleanupExpiredMappings(options: any = {}): Promise<number> {
+    try {
+      const maxAge = options.maxAge || 7 * 24 * 60 * 60 * 1000; // 7일
+      const now = Date.now();
+      
+      const result = await this.run(
+        'DELETE FROM voice_channel_mappings WHERE updated_at < ?',
+        [now - maxAge]
+      );
+      
+      return result.changes || 0;
+    } catch (error) {
+      console.error('[SQLite] 만료된 매핑 정리 실패:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 백업 생성
+   */
+  async createBackup(): Promise<string> {
+    try {
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupPath = `${this.config.database}.backup.${timestamp}`;
+      
+      if (this.connection?.db) {
+        await this.initializer.createBackup(this.connection.db, backupPath);
+      }
+      
+      return backupPath;
+    } catch (error) {
+      console.error('[SQLite] 백업 생성 실패:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 데이터 존재 여부 확인
+   */
+  async hasAnyData(): Promise<boolean> {
+    try {
+      const result = await this.get('SELECT COUNT(*) as count FROM user_activities');
+      return (result?.count || 0) > 0;
+    } catch (error) {
+      console.error('[SQLite] 데이터 존재 확인 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * JSON 데이터 마이그레이션
+   */
+  async migrateFromJSON(_activityData: any, _roleConfigData: any, _options: any = {}): Promise<boolean> {
+    try {
+      // 기존 마이그레이션 로직 호출
+      const { DatabaseMigrator } = await import('../database/migrator.js');
+      const migrator = new DatabaseMigrator();
+      
+      return await migrator.migrate();
+    } catch (error) {
+      console.error('[SQLite] JSON 마이그레이션 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 통계 조회
+   */
+  async getStats(): Promise<any> {
+    try {
+      const userCount = await this.get('SELECT COUNT(*) as count FROM user_activities');
+      const roleCount = await this.get('SELECT COUNT(*) as count FROM role_configs');
+      const logCount = await this.get('SELECT COUNT(*) as count FROM activity_logs');
+      const afkCount = await this.get('SELECT COUNT(*) as count FROM afk_status WHERE is_afk = 1');
+      const mappingCount = await this.get('SELECT COUNT(*) as count FROM voice_channel_mappings');
+      
+      return {
+        totalUsers: userCount?.count || 0,
+        totalRoles: roleCount?.count || 0,
+        totalLogs: logCount?.count || 0,
+        totalAfkUsers: afkCount?.count || 0,
+        totalMappings: mappingCount?.count || 0,
+        lastUpdate: new Date()
+      };
+    } catch (error) {
+      console.error('[SQLite] 통계 조회 실패:', error);
+      return {
+        totalUsers: 0,
+        totalRoles: 0,
+        totalLogs: 0,
+        totalAfkUsers: 0,
+        totalMappings: 0,
+        lastUpdate: new Date()
+      };
+    }
+  }
+
+  /**
+   * 역할 리셋 히스토리 조회
+   */
+  async getRoleResetHistory(roleName: string, limit: number = 5): Promise<any[]> {
+    try {
+      const sql = `
+        SELECT * FROM reset_history 
+        WHERE json_extract(backup_data, '$.roleName') = ?
+        ORDER BY reset_timestamp DESC
+        LIMIT ?
+      `;
+      
+      const rows = await this.all(sql, [roleName, limit]);
+      return rows.map(row => ({
+        id: row.id,
+        timestamp: row.reset_timestamp,
+        reason: JSON.parse(row.backup_data || '{}').reason || 'Unknown',
+        data: JSON.parse(row.backup_data || '{}')
+      }));
+    } catch (error) {
+      console.error('[SQLite] 역할 리셋 히스토리 조회 실패:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 호환성을 위한 더미 메서드들
+   */
+  smartReload(forceReload?: boolean): void {
+    // SQLite는 항상 최신 데이터를 반환하므로 별도 구현 불필요
+    if (forceReload) {
+      this.cache.clear();
+    }
+  }
+
+  forceReload(): void {
+    this.cache.clear();
+  }
+
+  /**
+   * 트랜잭션 시작 (호환성 메서드)
+   */
+  async beginTransaction(): Promise<boolean> {
+    try {
+      await this.run('BEGIN TRANSACTION');
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 트랜잭션 시작 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 트랜잭션 커밋 (호환성 메서드)
+   */
+  async commitTransaction(): Promise<boolean> {
+    try {
+      await this.run('COMMIT');
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 트랜잭션 커밋 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 트랜잭션 롤백 (호환성 메서드)
+   */
+  async rollbackTransaction(): Promise<boolean> {
+    try {
+      await this.run('ROLLBACK');
+      return true;
+    } catch (error) {
+      console.error('[SQLite] 트랜잭션 롤백 실패:', error);
+      return false;
     }
   }
 

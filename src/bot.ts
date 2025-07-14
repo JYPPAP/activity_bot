@@ -10,7 +10,7 @@ import { ActivityTracker } from './services/activityTracker.js';
 import { LogService } from './services/logService.js';
 import { CalendarLogService } from './services/calendarLogService.js';
 import { CommandHandler } from './commands/commandHandler.js';
-import { DatabaseManager } from './services/DatabaseManager.js';
+import { SQLiteManager } from './services/SQLiteManager.js';
 import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
 import { EmojiReactionService } from './services/EmojiReactionService.js';
 
@@ -21,7 +21,7 @@ import { logger } from './config/logger-termux.js';
 
 // 타입 정의
 interface BotServices {
-  dbManager: DatabaseManager;
+  dbManager: SQLiteManager;
   logService: LogService;
   calendarLogService: CalendarLogService;
   activityTracker: ActivityTracker;
@@ -150,7 +150,7 @@ export class Bot {
     logger.info('서비스 초기화 시작');
 
     // 데이터베이스 관리자
-    const dbManager = new DatabaseManager();
+    const dbManager = new SQLiteManager();
 
     // 로그 서비스
     const logService = new LogService(this.client as unknown as ExtendedClient, {

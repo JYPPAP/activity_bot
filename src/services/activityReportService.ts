@@ -15,7 +15,7 @@ import { UserActivity } from '../types/index.js';
 import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder.js';
 import { formatKoreanDate, formatTime } from '../utils/formatters.js';
 
-import { DatabaseManager } from './DatabaseManager.js';
+import { SQLiteManager } from './SQLiteManager.js';
 import { UserClassificationService } from './UserClassificationService.js';
 
 // ====================
@@ -109,10 +109,10 @@ export interface ReportTrends {
 
 export class ActivityReportService {
   private readonly client: EnhancedClient;
-  private readonly db: DatabaseManager;
+  private readonly db: SQLiteManager;
   private userClassificationService?: UserClassificationService;
 
-  constructor(client: EnhancedClient, dbManager: DatabaseManager) {
+  constructor(client: EnhancedClient, dbManager: SQLiteManager) {
     this.client = client;
     this.db = dbManager;
   }

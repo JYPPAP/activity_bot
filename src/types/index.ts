@@ -51,49 +51,66 @@ export interface ServiceDependencies {
 
 export interface DatabaseManager {
   initialize(): Promise<boolean>;
-  smartReload(forceReload?: boolean): void;
+  smartReload?(forceReload?: boolean): void;
+  forceReload?(): void;
 
   // 사용자 활동 관련
   getUserActivity(userId: string): Promise<UserActivity | null>;
   getAllUserActivity(): Promise<UserActivity[]>;
-  setUserActivity(userId: string, data: UserActivityData): Promise<void>;
-  resetUserActivity(userId: string): Promise<void>;
+  updateUserActivity(userId: string, totalTime: number, startTime?: number | null, displayName?: string | null): Promise<boolean>;
+  deleteUserActivity(userId: string): Promise<boolean>;
+  getUserActivityByDateRange(userId: string, startTime: number, endTime: number): Promise<number>;
+  getUserActivityLogs(userId: string, limit?: number): Promise<ActivityLogEntry[]>;
 
   // 역할 설정 관련
   getRoleConfig(roleName: string): Promise<RoleConfig | null>;
   getAllRoleConfigs(): Promise<RoleConfig[]>;
-  setRoleConfig(roleName: string, minHours: number): Promise<void>;
+  updateRoleConfig(roleName: string, minHours: number, resetTime?: number | null, reportCycle?: number): Promise<boolean>;
   updateRoleReportCycle(roleName: string, cycle: number): Promise<boolean>;
+  updateRoleResetTime(roleName: string, resetTime: number, reason?: string): Promise<boolean>;
+  getNextReportTime(roleName: string): Promise<number | null>;
 
   // 활동 로그 관련
-  addActivityLog(logEntry: ActivityLogEntry): Promise<void>;
+  logActivity(userId: string, eventType: string, channelId: string, channelName: string, members?: string[]): Promise<string>;
   getActivityLogs(options?: LogQueryOptions): Promise<ActivityLogEntry[]>;
+  getDailyActivityStats(startTime: number, endTime: number, options?: any): Promise<any[]>;
+  getActiveMembersForTimeRange(startTime: number, endTime: number): Promise<any[]>;
+  getMostActiveChannels(startTime: number, endTime: number, limit?: number): Promise<any[]>;
 
   // 잠수 상태 관리
   getUserAfkStatus(userId: string): Promise<AfkStatus | null>;
   setUserAfkStatus(userId: string, displayName: string, untilTimestamp: number): Promise<boolean>;
   clearUserAfkStatus(userId: string): Promise<boolean>;
+  getAllAfkUsers(): Promise<AfkStatus[]>;
+  clearExpiredAfkStatus(): Promise<string[]>;
 
-  // 포럼 관련
-  getForumMessage(channelId: string): Promise<ForumMessage | null>;
-  setForumMessage(channelId: string, data: ForumMessageData): Promise<void>;
+  // 포럼 메시지 추적
+  trackForumMessage(threadId: string, messageType: string, messageId: string): Promise<boolean>;
+  getTrackedMessages(threadId: string, messageType: string): Promise<string[]>;
+  clearTrackedMessages(threadId: string, messageType: string): Promise<string[]>;
+  clearAllTrackedMessagesForThread(threadId: string): Promise<any>;
 
   // 음성 채널 매핑
-  getVoiceChannelMapping(channelId: string): Promise<VoiceChannelMapping | null>;
-  setVoiceChannelMapping(channelId: string, mapping: VoiceChannelMappingData): Promise<void>;
+  saveChannelMapping(voiceChannelId: string, forumPostId: string, lastParticipantCount?: number): Promise<boolean>;
+  getChannelMapping(voiceChannelId: string): Promise<VoiceChannelMapping | null>;
+  getAllChannelMappings(): Promise<VoiceChannelMapping[]>;
+  removeChannelMapping(voiceChannelId: string): Promise<boolean>;
+  updateLastParticipantCount(voiceChannelId: string, participantCount: number): Promise<boolean>;
+  getVoiceChannelIdByPostId(forumPostId: string): Promise<string | null>;
+  cleanupExpiredMappings(options?: any): Promise<number>;
 
-  // 백업 관련
-  saveBackup(filename: string, data: any): Promise<void>;
-  listBackups(): Promise<string[]>;
-  loadBackup(backupId: string): Promise<any>;
-
-  // 리셋 기록 관련
-  addResetHistory(entry: ResetHistoryEntry): Promise<void>;
-  getResetHistory(): Promise<ResetHistoryEntry[]>;
+  // 백업 및 마이그레이션 관련
+  createBackup(): Promise<string>;
+  hasAnyData(): Promise<boolean>;
+  migrateFromJSON(activityData: any, roleConfigData: any, options?: any): Promise<boolean>;
+  
+  // 통계 관련
+  getStats(): Promise<any>;
+  
+  // 리셋 히스토리 관련
+  getRoleResetHistory(roleName: string, limit?: number): Promise<any[]>;
 
   // 유틸리티 메서드
-  hasAnyData(): Promise<boolean>;
-  migrateFromJSON(activityData: any, roleConfigData: any): Promise<boolean>;
   close(): Promise<void>;
 }
 

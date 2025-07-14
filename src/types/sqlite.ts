@@ -151,6 +151,8 @@ export interface ActivityLogQueryOptions extends QueryOptions {
   timestampAfter?: number;
   timestampBefore?: number;
   includeDuration?: boolean;
+  startDate?: Date;
+  endDate?: Date;
 }
 
 // 트랜잭션 타입

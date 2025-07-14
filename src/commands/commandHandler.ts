@@ -12,8 +12,8 @@ import { hasCommandPermission, getPermissionDeniedMessage } from '../config/comm
 import { config } from '../config/env.js';
 import { ActivityTracker } from '../services/activityTracker.js';
 import { CalendarLogService } from '../services/calendarLogService.js';
-import { DatabaseManager } from '../services/DatabaseManager.js';
 import { LogService } from '../services/logService.js';
+import { SQLiteManager } from '../services/SQLiteManager.js';
 import { UserClassificationService } from '../services/UserClassificationService.js';
 import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
 
@@ -69,7 +69,7 @@ interface ExtendedCommand extends CommandBase {
 export class CommandHandler {
   private client: Client;
   private activityTracker: ActivityTracker;
-  private dbManager: DatabaseManager;
+  private dbManager: SQLiteManager;
   private calendarLogService: CalendarLogService;
   private voiceForumService: VoiceChannelForumIntegrationService;
   private logService: LogService | undefined;
@@ -89,7 +89,7 @@ export class CommandHandler {
   constructor(
     client: Client,
     activityTracker: ActivityTracker,
-    dbManager: DatabaseManager,
+    dbManager: SQLiteManager,
     calendarLogService: CalendarLogService,
     voiceForumService: VoiceChannelForumIntegrationService,
     logService?: LogService,

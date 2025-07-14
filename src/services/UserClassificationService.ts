@@ -4,7 +4,7 @@ import { Collection, GuildMember } from 'discord.js';
 import { calculateNextSunday } from '../utils/dateUtils.js';
 
 import { ActivityTracker } from './activityTracker.js';
-import { DatabaseManager } from './DatabaseManager.js';
+import { SQLiteManager } from './SQLiteManager.js';
 
 // 사용자 데이터 인터페이스
 interface UserData {
@@ -77,13 +77,13 @@ interface UserClassificationConfig {
 }
 
 export class UserClassificationService {
-  private db: DatabaseManager;
+  private db: SQLiteManager;
   // private _activityTracker: ActivityTracker; // Unused
   private config: UserClassificationConfig;
   private classificationCache: Map<string, { result: UserClassificationResult; timestamp: number }>;
 
   constructor(
-    dbManager: DatabaseManager,
+    dbManager: SQLiteManager,
     _activityTracker: ActivityTracker,
     config: Partial<UserClassificationConfig> = {}
   ) {

@@ -5,7 +5,7 @@ import { TIME, FILTERS, MESSAGE_TYPES } from '../config/constants.js';
 import { config } from '../config/env.js';
 import { EnhancedClient } from '../types/discord.js';
 
-import { DatabaseManager } from './DatabaseManager.js';
+import { SQLiteManager } from './SQLiteManager.js';
 import { LogService } from './logService.js';
 // import { UserActivity } from '../types/index.js'; // 미사용
 
@@ -68,7 +68,7 @@ export interface VoiceStateChange {
 
 export class ActivityTracker {
   private readonly client: EnhancedClient;
-  private readonly db: DatabaseManager;
+  private readonly db: SQLiteManager;
   private readonly logService: LogService;
   private readonly options: Required<ActivityTrackerOptions>;
 
@@ -95,7 +95,7 @@ export class ActivityTracker {
 
   constructor(
     client: EnhancedClient,
-    dbManager: DatabaseManager,
+    dbManager: SQLiteManager,
     logService: LogService,
     options: ActivityTrackerOptions = {}
   ) {

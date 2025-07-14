@@ -8,7 +8,7 @@ import { UserActivity } from '../types/index.js';
 import { formatKoreanDate } from '../utils/formatters.js';
 
 import { ActivityReportService, ReportOptions } from './activityReportService.js';
-import { DatabaseManager } from './DatabaseManager.js';
+import { SQLiteManager } from './SQLiteManager.js';
 
 // ====================
 // 달력 로그 관련 타입
@@ -83,7 +83,7 @@ export interface DateRangeQuery {
 
 export class CalendarLogService {
   private readonly client: EnhancedClient;
-  private readonly db: DatabaseManager;
+  private readonly db: SQLiteManager;
   private readonly reportService: ActivityReportService;
   private readonly options: Required<CalendarLogOptions>;
 
@@ -92,7 +92,7 @@ export class CalendarLogService {
 
   constructor(
     client: EnhancedClient,
-    dbManager: DatabaseManager,
+    dbManager: SQLiteManager,
     options: CalendarLogOptions = {}
   ) {
     this.client = client;

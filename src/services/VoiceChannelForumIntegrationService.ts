@@ -16,7 +16,7 @@ import { InteractionRouter } from '../ui/InteractionRouter.js';
 import { ModalHandler } from '../ui/ModalHandler.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 
-import { DatabaseManager } from './DatabaseManager.js';
+import { SQLiteManager } from './SQLiteManager.js';
 import { ForumPostManager } from './ForumPostManager.js';
 import { MappingService } from './MappingService.js';
 import { ParticipantTracker } from './ParticipantTracker.js';
@@ -117,7 +117,7 @@ export class VoiceChannelForumIntegrationService {
   // private readonly _client: Client; // Unused
   // private readonly _forumChannelId: string; // Unused
   // private readonly _voiceCategoryId: string; // Unused
-  // private readonly _databaseManager: DatabaseManager | null; // Unused
+  // private readonly _databaseManager: SQLiteManager | null; // Unused
 
   // Core Services
   private readonly voiceChannelManager: VoiceChannelManager;
@@ -145,7 +145,7 @@ export class VoiceChannelForumIntegrationService {
     _client: Client,
     _forumChannelId: string,
     _voiceCategoryId: string,
-    _databaseManager: DatabaseManager | null = null
+    _databaseManager: SQLiteManager | null = null
   ) {
     // this._client = _client; // Unused
     // this._forumChannelId = _forumChannelId; // Unused

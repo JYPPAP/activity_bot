@@ -3,13 +3,13 @@ import { Client, ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder 
 
 import { ActivityTracker } from '../services/activityTracker.js';
 import { CalendarLogService } from '../services/calendarLogService.js';
-import { DatabaseManager } from '../services/DatabaseManager.js';
 import { LogService } from '../services/logService.js';
+import { SQLiteManager } from '../services/SQLiteManager.js';
 
 // 서비스 컨테이너 인터페이스
 export interface CommandServices {
   activityTracker: ActivityTracker;
-  dbManager: DatabaseManager;
+  dbManager: SQLiteManager;
   calendarLogService: CalendarLogService;
   client: Client;
   logService: LogService | undefined;
@@ -74,7 +74,7 @@ export interface CommandConfig {
 
 export abstract class CommandBase {
   protected activityTracker: ActivityTracker;
-  protected dbManager: DatabaseManager;
+  protected dbManager: SQLiteManager;
   protected calendarLogService: CalendarLogService;
   protected client: Client;
   protected logService: LogService | undefined;
