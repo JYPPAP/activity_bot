@@ -13,6 +13,11 @@
 # Legacy config files
 /config.json
 
+# Activity bot runtime data files
+activity_bot.json
+activity_info.json
+role_activity_config.json
+
 # Claude Code settings
 /.claude/settings.local.json
 
