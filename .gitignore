@@ -17,6 +17,8 @@
 activity_bot.json
 activity_info.json
 role_activity_config.json
+activity_bot.sqlite
+*.backup.*
 
 # Claude Code settings
 /.claude/settings.local.json
