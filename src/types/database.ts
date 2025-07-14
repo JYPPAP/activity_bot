@@ -1,6 +1,13 @@
 // src/types/database.ts - 데이터베이스 관련 타입 정의
 
-import { UserActivity, RoleConfig, ActivityLogEntry, AfkStatus, ForumMessageData, VoiceChannelMapping } from './index.js';
+import {
+  UserActivity,
+  RoleConfig,
+  ActivityLogEntry,
+  AfkStatus,
+  ForumMessageData,
+  VoiceChannelMapping,
+} from './index.js';
 
 // ====================
 // 데이터베이스 스키마 타입
@@ -44,10 +51,10 @@ export interface DatabaseConfig {
 }
 
 export interface CacheConfig {
-    maxSize?: number;
-    maxAge?: number;
-    checkInterval?: number;
-    evictionPolicy?: 'lru' | 'lfu' | 'fifo' | 'random';
-    serialize?: boolean;
-    compress?: boolean;
+  maxSize?: number;
+  maxAge?: number;
+  checkInterval?: number;
+  evictionPolicy?: 'lru' | 'lfu' | 'fifo' | 'random';
+  serialize?: boolean;
+  compress?: boolean;
 }

@@ -1,7 +1,15 @@
 // src/commands/gapCheckCommand.ts - 시간체크 명령어 (수정)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, User } from 'discord.js';
+
 import { formatTime } from '../utils/formatters.js';
-import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
+
+import {
+  CommandBase,
+  CommandServices,
+  CommandResult,
+  CommandExecutionOptions,
+  CommandMetadata,
+} from './CommandBase.js';
 
 // 날짜 범위 인터페이스
 interface DateRange {
@@ -35,9 +43,9 @@ export class GapCheckCommand extends CommandBase {
     usage: '/시간체크 user:<사용자> [start_date:<시작날짜>] [end_date:<종료날짜>]',
     examples: [
       '/시간체크 user:@사용자',
-      '/시간체크 user:@사용자 start_date:241201 end_date:241231'
+      '/시간체크 user:@사용자 start_date:241201 end_date:241231',
     ],
-    aliases: ['활동시간', 'checktime', 'time']
+    aliases: ['활동시간', 'checktime', 'time'],
   };
 
   constructor(services: CommandServices) {
@@ -51,31 +59,25 @@ export class GapCheckCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addUserOption(option =>
-        option
-          .setName('user')
-          .setDescription('조회할 사용자')
-          .setRequired(true)
+      .addUserOption((option) =>
+        option.setName('user').setDescription('조회할 사용자').setRequired(true)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('start_date')
           .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
           .setRequired(false)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('end_date')
           .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231)')
           .setRequired(false)
       )
-      .addBooleanOption(option =>
-        option
-          .setName('detailed')
-          .setDescription('상세 정보 표시 여부')
-          .setRequired(false)
+      .addBooleanOption((option) =>
+        option.setName('detailed').setDescription('상세 정보 표시 여부').setRequired(false)
       )
-      .addBooleanOption(option =>
+      .addBooleanOption((option) =>
         option
           .setName('public')
           .setDescription('공개 응답 여부 (기본값: 비공개)')
@@ -88,14 +90,17 @@ export class GapCheckCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(
+    interaction: ChatInputCommandInteraction,
+    _options: CommandExecutionOptions
+  ): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
-      const user = interaction.options.getUser("user");
-      const startDateStr = interaction.options.getString("start_date")?.trim();
-      const endDateStr = interaction.options.getString("end_date")?.trim();
-      const detailed = interaction.options.getBoolean("detailed") || false;
-      const isPublic = interaction.options.getBoolean("public") || false;
+      const user = interaction.options.getUser('user');
+      const startDateStr = interaction.options.getString('start_date')?.trim();
+      const endDateStr = interaction.options.getString('end_date')?.trim();
+      const detailed = interaction.options.getBoolean('detailed') || false;
+      const isPublic = interaction.options.getBoolean('public') || false;
 
       if (!user) {
         throw new Error('사용자를 선택해야 합니다.');
@@ -106,13 +111,13 @@ export class GapCheckCommand extends CommandBase {
       // 캐시 확인
       const cacheKey = `activity_check_${userId}_${startDateStr || 'all'}_${endDateStr || 'all'}`;
       const cached = this.getCached<ActivityCheckResult>(cacheKey);
-      
+
       if (cached) {
         await this.sendActivityResult(interaction, cached, isPublic);
         return {
           success: true,
           message: '캐시된 활동 데이터를 전송했습니다.',
-          data: cached
+          data: cached,
         };
       }
 
@@ -129,24 +134,24 @@ export class GapCheckCommand extends CommandBase {
         if (!dateValidation.isValid) {
           return {
             success: false,
-            message: dateValidation.error || '날짜 형식이 올바르지 않습니다.'
+            message: dateValidation.error || '날짜 형식이 올바르지 않습니다.',
           };
         }
 
         dateRange = this.parseYYMMDDDates(startDateStr, endDateStr);
-        
-        // 특정 기간의 활동 시간 조회
-        totalTime = await this.dbManager.getUserActivityByDateRange(
-          userId,
-          dateRange.startDate.getTime(),
-          dateRange.endDate.getTime()
-        ) || 0;
 
+        // 특정 기간의 활동 시간 조회
+        totalTime =
+          (await this.dbManager.getUserActivityByDateRange(
+            userId,
+            dateRange.startDate.getTime(),
+            dateRange.endDate.getTime()
+          )) || 0;
       } else if (startDateStr || endDateStr) {
         // 시작 날짜 또는 종료 날짜만 제공된 경우
         return {
           success: false,
-          message: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.'
+          message: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.',
         };
       } else {
         // 전체 활동 시간 조회
@@ -159,7 +164,7 @@ export class GapCheckCommand extends CommandBase {
         user,
         totalTime,
         dateRange,
-        formattedTime: formatTime(totalTime)
+        formattedTime: formatTime(totalTime),
       };
 
       // 상세 정보 생성
@@ -186,7 +191,7 @@ export class GapCheckCommand extends CommandBase {
             target: userId,
             totalTime,
             dateRange: dateRange ? `${dateRange.startDateStr} ~ ${dateRange.endDateStr}` : 'all',
-            detailed
+            detailed,
           }
         );
       }
@@ -194,14 +199,14 @@ export class GapCheckCommand extends CommandBase {
       return {
         success: true,
         message: '활동 시간 조회가 완료되었습니다.',
-        data: result
+        data: result,
       };
-
     } catch (error) {
       console.error('시간체크 명령어 실행 오류:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : '활동 시간 확인 중 오류가 발생했습니다.';
-      
+
+      const errorMessage =
+        error instanceof Error ? error.message : '활동 시간 확인 중 오류가 발생했습니다.';
+
       await interaction.followUp({
         content: `❌ ${errorMessage}`,
         flags: MessageFlags.Ephemeral,
@@ -210,7 +215,7 @@ export class GapCheckCommand extends CommandBase {
       return {
         success: false,
         message: errorMessage,
-        error: error as Error
+        error: error as Error,
       };
     }
   }
@@ -220,30 +225,33 @@ export class GapCheckCommand extends CommandBase {
    * @param startDateStr - 시작 날짜 문자열
    * @param endDateStr - 종료 날짜 문자열
    */
-  private validateDateRange(startDateStr: string, endDateStr: string): { isValid: boolean; error?: string } {
+  private validateDateRange(
+    startDateStr: string,
+    endDateStr: string
+  ): { isValid: boolean; error?: string } {
     // 형식 검증
     if (!/^\d{6}$/.test(startDateStr)) {
       return {
         isValid: false,
-        error: `시작 날짜 형식이 올바르지 않습니다. '${startDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 241201)`
+        error: `시작 날짜 형식이 올바르지 않습니다. '${startDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 241201)`,
       };
     }
 
     if (!/^\d{6}$/.test(endDateStr)) {
       return {
         isValid: false,
-        error: `종료 날짜 형식이 올바르지 않습니다. '${endDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 241231)`
+        error: `종료 날짜 형식이 올바르지 않습니다. '${endDateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 241231)`,
       };
     }
 
     try {
       const { startDate, endDate } = this.parseYYMMDDDates(startDateStr, endDateStr);
-      
+
       // 날짜 순서 확인
       if (startDate > endDate) {
         return {
           isValid: false,
-          error: '시작 날짜가 종료 날짜보다 늦습니다.'
+          error: '시작 날짜가 종료 날짜보다 늦습니다.',
         };
       }
 
@@ -252,16 +260,15 @@ export class GapCheckCommand extends CommandBase {
       if (endDate.getTime() - startDate.getTime() > maxRange) {
         return {
           isValid: false,
-          error: '날짜 범위는 최대 1년까지 가능합니다.'
+          error: '날짜 범위는 최대 1년까지 가능합니다.',
         };
       }
 
       return { isValid: true };
-
     } catch (error) {
       return {
         isValid: false,
-        error: error instanceof Error ? error.message : '날짜 파싱 중 오류가 발생했습니다.'
+        error: error instanceof Error ? error.message : '날짜 파싱 중 오류가 발생했습니다.',
       };
     }
   }
@@ -298,7 +305,7 @@ export class GapCheckCommand extends CommandBase {
       startDate,
       endDate,
       startDateStr,
-      endDateStr
+      endDateStr,
     };
   }
 
@@ -307,29 +314,35 @@ export class GapCheckCommand extends CommandBase {
    * @param userId - 사용자 ID
    * @param dateRange - 날짜 범위
    */
-  private async generateDetailedInfo(userId: string, dateRange: DateRange): Promise<ActivityCheckResult['additionalInfo']> {
+  private async generateDetailedInfo(
+    userId: string,
+    dateRange: DateRange
+  ): Promise<ActivityCheckResult['additionalInfo']> {
     try {
       const { startDate, endDate } = dateRange;
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000));
-      
+      const totalDays = Math.ceil(
+        (endDate.getTime() - startDate.getTime()) / (24 * 60 * 60 * 1000)
+      );
+
       // 일별 활동 데이터 수집
       const dailyActivities: number[] = [];
       for (let i = 0; i < totalDays; i++) {
         const dayStart = new Date(startDate.getTime() + i * 24 * 60 * 60 * 1000);
         const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
-        
-        const dayActivity = await this.dbManager.getUserActivityByDateRange(
-          userId,
-          dayStart.getTime(),
-          dayEnd.getTime()
-        ) || 0;
-        
+
+        const dayActivity =
+          (await this.dbManager.getUserActivityByDateRange(
+            userId,
+            dayStart.getTime(),
+            dayEnd.getTime()
+          )) || 0;
+
         dailyActivities.push(dayActivity);
       }
 
       // 통계 계산
       const totalActivity = dailyActivities.reduce((sum, activity) => sum + activity, 0);
-      const activeDays = dailyActivities.filter(activity => activity > 0).length;
+      const activeDays = dailyActivities.filter((activity) => activity > 0).length;
       const averageDaily = totalActivity / totalDays;
       const weeklyAverage = averageDaily * 7;
       const peakActivity = Math.max(...dailyActivities);
@@ -338,9 +351,8 @@ export class GapCheckCommand extends CommandBase {
         averageDaily,
         weeklyAverage,
         peakActivity,
-        activeDays
+        activeDays,
       };
-
     } catch (error) {
       console.error('상세 정보 생성 오류:', error);
       return undefined;
@@ -354,8 +366,8 @@ export class GapCheckCommand extends CommandBase {
    * @param isPublic - 공개 응답 여부
    */
   private async sendActivityResult(
-    interaction: ChatInputCommandInteraction, 
-    result: ActivityCheckResult, 
+    interaction: ChatInputCommandInteraction,
+    result: ActivityCheckResult,
     isPublic: boolean
   ): Promise<void> {
     let message = `🕐 **${result.user.username}님의 활동 시간**\n\n`;
@@ -400,11 +412,13 @@ export class GapCheckCommand extends CommandBase {
    */
   private getActivityEvaluation(totalTime: number, dateRange?: DateRange): string {
     const hours = totalTime / (60 * 60 * 1000);
-    
+
     if (dateRange) {
-      const days = Math.ceil((dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (24 * 60 * 60 * 1000));
+      const days = Math.ceil(
+        (dateRange.endDate.getTime() - dateRange.startDate.getTime()) / (24 * 60 * 60 * 1000)
+      );
       const dailyAverage = hours / days;
-      
+
       if (dailyAverage >= 5) {
         return '매우 활발한 활동을 보이고 있습니다! 🔥';
       } else if (dailyAverage >= 2) {
@@ -449,7 +463,7 @@ export class GapCheckCommand extends CommandBase {
 • \`public\`: 공개 응답 여부 (선택사항, 기본값: 비공개)
 
 **예시:**
-${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
+${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
 
 **쿨다운:** ${this.metadata.cooldown}초
 **권한:** 서버 전용`;

@@ -1,12 +1,14 @@
 // src/services/calendarLogService.ts - 달력 형태의 로그 서비스 (TypeScript)
 import { EmbedBuilder, Guild, GuildMember, TextChannel, ThreadChannel } from 'discord.js';
+
 import { COLORS } from '../config/constants.js';
 import { config } from '../config/env.js';
+import { EnhancedClient } from '../types/discord.js';
+import { UserActivity } from '../types/index.js';
 import { formatKoreanDate } from '../utils/formatters.js';
+
 import { ActivityReportService, ReportOptions } from './activityReportService.js';
 import { DatabaseManager } from './DatabaseManager.js';
-import { EnhancedClient } from '../types/discord.js';
-import { ActivityLogEntry, UserActivity } from '../types/index.js';
 
 // ====================
 // 달력 로그 관련 타입
@@ -84,9 +86,9 @@ export class CalendarLogService {
   private readonly db: DatabaseManager;
   private readonly reportService: ActivityReportService;
   private readonly options: Required<CalendarLogOptions>;
-  
+
   private calendarChannel: TextChannel | ThreadChannel | null = null;
-  private isInitialized = false;
+  // private _isInitialized = false; // Unused
 
   constructor(
     client: EnhancedClient,
@@ -102,7 +104,7 @@ export class CalendarLogService {
       maxMembersPerDay: 20,
       archiveDays: 90,
       enableAutoReports: true,
-      ...options
+      ...options,
     };
   }
 
@@ -113,16 +115,20 @@ export class CalendarLogService {
     try {
       if (config.CALENDAR_LOG_CHANNEL_ID) {
         const channel = await this.client.channels.fetch(config.CALENDAR_LOG_CHANNEL_ID);
-        
+
         if (channel?.isTextBased()) {
           this.calendarChannel = channel as TextChannel | ThreadChannel;
-          this.isInitialized = true;
-          console.log(`[CalendarLogService] 달력 로그 채널이 초기화되었습니다: ${channel.name || 'DM'}`);
+          // this._isInitialized = true; // Unused
+          console.log(
+            `[CalendarLogService] 달력 로그 채널이 초기화되었습니다: ${'name' in channel ? channel.name : 'DM'}`
+          );
         } else {
           console.error('[CalendarLogService] 달력 로그 채널이 텍스트 채널이 아닙니다.');
         }
       } else {
-        console.warn('[CalendarLogService] CALENDAR_LOG_CHANNEL_ID가 설정되지 않았습니다. 자동 보고서 기능이 비활성화됩니다.');
+        console.warn(
+          '[CalendarLogService] CALENDAR_LOG_CHANNEL_ID가 설정되지 않았습니다. 자동 보고서 기능이 비활성화됩니다.'
+        );
       }
     } catch (error) {
       console.error('[CalendarLogService] 달력 로그 채널 초기화 오류:', error);
@@ -148,7 +154,7 @@ export class CalendarLogService {
     const firstThursday = target.valueOf();
     target.setMonth(0, 1);
     if (target.getDay() !== 4) {
-      target.setMonth(0, 1 + ((4 - target.getDay()) + 7) % 7);
+      target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
     }
     const weekNumber = 1 + Math.ceil((firstThursday - target.valueOf()) / 604800000);
     return { year: target.getFullYear(), week: weekNumber };
@@ -158,7 +164,7 @@ export class CalendarLogService {
    * 활동 로그를 DB에 기록
    */
   async archiveActivity(
-    message: string,
+    _message: string,
     members: string[],
     type: string,
     channelId: string,
@@ -230,7 +236,10 @@ export class CalendarLogService {
       await channel.send({ embeds: [rangeEmbed] });
     } catch (error) {
       console.error('[CalendarLogService] 날짜 범위 로그 전송 오류:', error);
-      await this.sendErrorMessage(channel, '요청한 날짜 범위의 로그를 처리하는 중 오류가 발생했습니다.');
+      await this.sendErrorMessage(
+        channel,
+        '요청한 날짜 범위의 로그를 처리하는 중 오류가 발생했습니다.'
+      );
     }
   }
 
@@ -255,7 +264,7 @@ export class CalendarLogService {
         startDate,
         endDate,
         dailySummaries,
-        totalStatistics: this.calculateWeeklyStatistics(dailySummaries)
+        totalStatistics: this.calculateWeeklyStatistics(dailySummaries),
       };
 
       if (targetChannel) {
@@ -302,7 +311,7 @@ export class CalendarLogService {
           totalJoins: day.joins,
           totalLeaves: day.leaves,
           channelChanges: day.totalEvents - day.joins - day.leaves,
-          activeMembers: activeMembers.slice(0, this.options.maxMembersPerDay)
+          activeMembers: activeMembers.slice(0, this.options.maxMembersPerDay),
         };
 
         // 추가 옵션 처리
@@ -335,12 +344,15 @@ export class CalendarLogService {
    */
   async getActiveMembersForDay(startTime: number, endTime: number): Promise<string[]> {
     try {
-      const logs = await this.db.getActivityLogs(startTime, endTime);
-      const userIds = [...new Set(logs.map(log => log.userId))];
+      const logs = await this.db.getActivityLogs({
+        startDate: new Date(startTime),
+        endDate: new Date(endTime),
+      });
+      const userIds = [...new Set(logs.map((log) => log.userId))];
       const guild = this.client.guilds.cache.get(config.GUILDID);
 
       const activeMembers = await Promise.all(
-        userIds.map(userId => this.getMemberDisplayName(userId, guild))
+        userIds.map((userId) => this.getMemberDisplayName(userId, guild))
       );
 
       return activeMembers.filter((name): name is string => name !== null);
@@ -353,9 +365,15 @@ export class CalendarLogService {
   /**
    * 특정 날짜의 채널별 통계
    */
-  private async getChannelStatsForDay(startTime: number, endTime: number): Promise<ChannelSummary[]> {
+  private async getChannelStatsForDay(
+    startTime: number,
+    endTime: number
+  ): Promise<ChannelSummary[]> {
     try {
-      const logs = await this.db.getActivityLogs(startTime, endTime);
+      const logs = await this.db.getActivityLogs({
+        startDate: new Date(startTime),
+        endDate: new Date(endTime),
+      });
       const channelStats: { [key: string]: ChannelSummary } = {};
 
       for (const log of logs) {
@@ -364,14 +382,14 @@ export class CalendarLogService {
             name: log.channelName,
             joinCount: 0,
             leaveCount: 0,
-            totalActivity: 0
+            totalActivity: 0,
           };
         }
 
         const stat = channelStats[log.channelName];
-        if (log.eventType === 'JOIN') {
+        if (log.action === 'join') {
           stat.joinCount++;
-        } else if (log.eventType === 'LEAVE') {
+        } else if (log.action === 'leave') {
           stat.leaveCount++;
         }
         stat.totalActivity++;
@@ -391,18 +409,23 @@ export class CalendarLogService {
    */
   private async getHourlyBreakdown(startTime: number, endTime: number): Promise<HourlyActivity[]> {
     try {
-      const logs = await this.db.getActivityLogs(startTime, endTime);
-      const hourlyStats: HourlyActivity[] = Array(24).fill(null).map((_, hour) => ({
-        hour,
-        joinCount: 0,
-        leaveCount: 0
-      }));
+      const logs = await this.db.getActivityLogs({
+        startDate: new Date(startTime),
+        endDate: new Date(endTime),
+      });
+      const hourlyStats: HourlyActivity[] = Array(24)
+        .fill(null)
+        .map((_, hour) => ({
+          hour,
+          joinCount: 0,
+          leaveCount: 0,
+        }));
 
       for (const log of logs) {
         const hour = new Date(log.timestamp).getHours();
-        if (log.eventType === 'JOIN') {
+        if (log.action === 'join') {
           hourlyStats[hour].joinCount++;
-        } else if (log.eventType === 'LEAVE') {
+        } else if (log.action === 'leave') {
           hourlyStats[hour].leaveCount++;
         }
       }
@@ -421,7 +444,7 @@ export class CalendarLogService {
     try {
       // 데이터베이스에서 표시 이름 확인
       const activity = await this.db.getUserActivity(userId);
-      
+
       if (activity?.displayName) {
         return activity.displayName;
       }
@@ -481,18 +504,21 @@ export class CalendarLogService {
   private calculateWeeklyStatistics(dailySummaries: DailySummary[]): WeeklyStatistics {
     const totalJoins = dailySummaries.reduce((sum, day) => sum + day.totalJoins, 0);
     const totalLeaves = dailySummaries.reduce((sum, day) => sum + day.totalLeaves, 0);
-    const activeDays = dailySummaries.filter(day => this.hasActivity(day)).length;
-    
+    const activeDays = dailySummaries.filter((day) => this.hasActivity(day)).length;
+
     // 가장 활동적인 날 찾기
-    const peakDay = dailySummaries.reduce((peak, day) => {
-      const dayActivity = day.totalJoins + day.totalLeaves + day.channelChanges;
-      const peakActivity = peak.totalJoins + peak.totalLeaves + peak.channelChanges;
-      return dayActivity > peakActivity ? day : peak;
-    }, dailySummaries[0] || { totalJoins: 0, totalLeaves: 0, channelChanges: 0, date: '' });
+    const peakDay = dailySummaries.reduce(
+      (peak, day) => {
+        const dayActivity = day.totalJoins + day.totalLeaves + day.channelChanges;
+        const peakActivity = peak.totalJoins + peak.totalLeaves + peak.channelChanges;
+        return dayActivity > peakActivity ? day : peak;
+      },
+      dailySummaries[0] || { totalJoins: 0, totalLeaves: 0, channelChanges: 0, date: '' }
+    );
 
     // 가장 활동적인 멤버 집계
     const memberActivityMap = new Map<string, MemberActivity>();
-    
+
     for (const day of dailySummaries) {
       for (const memberName of day.activeMembers) {
         const existing = memberActivityMap.get(memberName);
@@ -504,7 +530,7 @@ export class CalendarLogService {
             name: memberName,
             userId: '', // 실제 구현에서는 userId도 추적 필요
             activeDays: 1,
-            totalActivities: 1
+            totalActivities: 1,
           });
         }
       }
@@ -522,7 +548,7 @@ export class CalendarLogService {
       activeDays,
       peakDay: peakDay.date,
       mostActiveMembers,
-      averageDailyActivity: Math.round(averageDailyActivity * 100) / 100
+      averageDailyActivity: Math.round(averageDailyActivity * 100) / 100,
     };
   }
 
@@ -551,26 +577,25 @@ export class CalendarLogService {
       .addFields({
         name: '📊 활동 통계',
         value: `입장: ${summary.totalJoins}회\n퇴장: ${summary.totalLeaves}회\n채널 변경: ${summary.channelChanges}회`,
-        inline: false
+        inline: false,
       });
 
     // 활동 멤버 정보
     if (summary.activeMembers.length > 0) {
       const membersList = summary.activeMembers.slice(0, 10).join(', ');
-      const extraCount = summary.activeMembers.length > 10 
-        ? ` 외 ${summary.activeMembers.length - 10}명` 
-        : '';
+      const extraCount =
+        summary.activeMembers.length > 10 ? ` 외 ${summary.activeMembers.length - 10}명` : '';
 
       embed.addFields({
         name: '👥 활동 멤버',
         value: membersList + extraCount,
-        inline: false
+        inline: false,
       });
     } else {
       embed.addFields({
         name: '👥 활동 멤버',
         value: '활동 멤버 없음',
-        inline: false
+        inline: false,
       });
     }
 
@@ -578,13 +603,13 @@ export class CalendarLogService {
     if (summary.topChannels && summary.topChannels.length > 0) {
       const channelStats = summary.topChannels
         .slice(0, 3)
-        .map(ch => `${ch.name}: ${ch.totalActivity}회`)
+        .map((ch) => `${ch.name}: ${ch.totalActivity}회`)
         .join('\n');
-      
+
       embed.addFields({
         name: '🔊 활동적인 채널',
         value: channelStats,
-        inline: true
+        inline: true,
       });
     }
 
@@ -600,7 +625,7 @@ export class CalendarLogService {
         embed.addFields({
           name: '⏰ 최고 활동 시간',
           value: `${peakHour.hour}시: ${peakHour.joinCount + peakHour.leaveCount}회`,
-          inline: true
+          inline: true,
         });
       }
     }
@@ -624,25 +649,25 @@ export class CalendarLogService {
         {
           name: '📊 주간 통계',
           value: `총 입장: ${stats.totalJoins}회\n총 퇴장: ${stats.totalLeaves}회\n활동 일수: ${stats.activeDays}일\n일평균 활동: ${stats.averageDailyActivity}회`,
-          inline: false
+          inline: false,
         },
         {
           name: '📈 최고 활동일',
           value: stats.peakDay || '데이터 없음',
-          inline: true
+          inline: true,
         }
       );
 
     // 가장 활동적인 멤버
     if (stats.mostActiveMembers.length > 0) {
       const memberList = stats.mostActiveMembers
-        .map(member => `${member.name}: ${member.activeDays}일`)
+        .map((member) => `${member.name}: ${member.activeDays}일`)
         .join('\n');
-      
+
       embed.addFields({
         name: '👥 가장 활동적인 멤버',
         value: memberList,
-        inline: false
+        inline: false,
       });
     }
 
@@ -664,7 +689,7 @@ export class CalendarLogService {
     // 전체 통계 집계
     const totalJoins = summaries.reduce((sum, day) => sum + day.totalJoins, 0);
     const totalLeaves = summaries.reduce((sum, day) => sum + day.totalLeaves, 0);
-    const activeDays = summaries.filter(day => this.hasActivity(day)).length;
+    const activeDays = summaries.filter((day) => this.hasActivity(day)).length;
 
     // 활동 멤버 집계
     const allActiveMembers = new Map<string, number>();
@@ -687,7 +712,7 @@ export class CalendarLogService {
       .addFields({
         name: '📊 총 활동 통계',
         value: `입장: ${totalJoins}회\n퇴장: ${totalLeaves}회\n활동 일수: ${activeDays}일`,
-        inline: false
+        inline: false,
       });
 
     // 활동적인 멤버가 있는 경우 추가
@@ -695,13 +720,13 @@ export class CalendarLogService {
       embed.addFields({
         name: '👥 가장 활동적인 멤버',
         value: mostActiveMembers.map(([member, days]) => `${member}: ${days}일`).join('\n'),
-        inline: false
+        inline: false,
       });
     } else {
       embed.addFields({
         name: '👥 가장 활동적인 멤버',
         value: '데이터 없음',
-        inline: false
+        inline: false,
       });
     }
 
@@ -720,14 +745,14 @@ export class CalendarLogService {
     try {
       const startDate = new Date(year, month - 1, 1);
       const endDate = new Date(year, month, 0, 23, 59, 59, 999);
-      
+
       const summaries = await this.getDailyActivitySummaries(
         startDate.getTime(),
         endDate.getTime()
       );
 
       const embed = this.createMonthlySummaryEmbed(summaries, year, month);
-      
+
       const targetChannel = channel || this.calendarChannel;
       if (targetChannel) {
         await targetChannel.send({ embeds: [embed] });
@@ -740,14 +765,18 @@ export class CalendarLogService {
   /**
    * 월간 요약 임베드 생성
    */
-  private createMonthlySummaryEmbed(summaries: DailySummary[], year: number, month: number): EmbedBuilder {
+  private createMonthlySummaryEmbed(
+    summaries: DailySummary[],
+    year: number,
+    month: number
+  ): EmbedBuilder {
     const totalJoins = summaries.reduce((sum, day) => sum + day.totalJoins, 0);
     const totalLeaves = summaries.reduce((sum, day) => sum + day.totalLeaves, 0);
-    const activeDays = summaries.filter(day => this.hasActivity(day)).length;
-    
+    const activeDays = summaries.filter((day) => this.hasActivity(day)).length;
+
     // 주별 통계
     const weeklyData: { [key: number]: number } = {};
-    summaries.forEach(day => {
+    summaries.forEach((day) => {
       const weekNum = this.getWeekNumber(new Date(day.date));
       weeklyData[weekNum] = (weeklyData[weekNum] || 0) + day.totalJoins + day.totalLeaves;
     });
@@ -755,24 +784,22 @@ export class CalendarLogService {
     const embed = new EmbedBuilder()
       .setColor(COLORS.INFO)
       .setTitle(`📅 ${year}년 ${month}월 월간 활동 요약`)
-      .addFields(
-        {
-          name: '📊 월간 통계',
-          value: `총 입장: ${totalJoins}회\n총 퇴장: ${totalLeaves}회\n활동 일수: ${activeDays}일`,
-          inline: false
-        }
-      );
+      .addFields({
+        name: '📊 월간 통계',
+        value: `총 입장: ${totalJoins}회\n총 퇴장: ${totalLeaves}회\n활동 일수: ${activeDays}일`,
+        inline: false,
+      });
 
     // 주별 분석
     if (Object.keys(weeklyData).length > 0) {
       const weeklyStats = Object.entries(weeklyData)
         .map(([week, activity]) => `${week}주차: ${activity}회`)
         .join('\n');
-      
+
       embed.addFields({
         name: '📈 주별 활동',
         value: weeklyStats,
-        inline: false
+        inline: false,
       });
     }
 
@@ -793,7 +820,7 @@ export class CalendarLogService {
         .setTitle('❌ 오류 발생')
         .setDescription(message)
         .setTimestamp();
-      
+
       await channel.send({ embeds: [embed] });
     } catch (error) {
       console.error('[CalendarLogService] 오류 메시지 전송 실패:', error);
@@ -809,12 +836,11 @@ export class CalendarLogService {
 
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.options.archiveDays);
-      
+
       // 오래된 로그 정리 (실제 구현에서는 DB 정리 메서드 필요)
       console.log(`[CalendarLogService] ${cutoffDate.toISOString()} 이전 로그 정리 시작`);
-      
+
       // TODO: 실제 DB 정리 로직 구현
-      
     } catch (error) {
       console.error('[CalendarLogService] 정리 작업 오류:', error);
     }
@@ -844,9 +870,9 @@ export function validateDateRange(startDate: Date, endDate: Date): boolean {
  */
 export function summarizeActivityData(summaries: DailySummary[]): string {
   const totalDays = summaries.length;
-  const activeDays = summaries.filter(s => s.totalJoins > 0 || s.totalLeaves > 0).length;
+  const activeDays = summaries.filter((s) => s.totalJoins > 0 || s.totalLeaves > 0).length;
   const totalActivity = summaries.reduce((sum, s) => sum + s.totalJoins + s.totalLeaves, 0);
-  
+
   return `${totalDays}일 중 ${activeDays}일 활동, 총 ${totalActivity}회 이벤트`;
 }
 
@@ -867,12 +893,12 @@ export function analyzeTimePatterns(hourlyData: HourlyActivity[]): {
   hourlyData.forEach((data, hour) => {
     const activity = data.joinCount + data.leaveCount;
     totalActivity += activity;
-    
+
     if (activity > maxActivity) {
       maxActivity = activity;
       peakHour = hour;
     }
-    
+
     if (activity < minActivity) {
       minActivity = activity;
       quietHour = hour;

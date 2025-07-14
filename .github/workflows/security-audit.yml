@@ -1,0 +1,106 @@
+name: 🔒 Weekly Security Audit
+
+on:
+  schedule:
+    # 매주 월요일 오전 9시 (KST 기준)
+    - cron: '0 0 * * 1'
+  workflow_dispatch: # 수동 실행 가능
+
+concurrency:
+  group: security-audit
+  cancel-in-progress: true
+
+jobs:
+  security-audit:
+    name: 🔍 Security Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+        
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          
+      - name: 📦 Install dependencies
+        run: npm ci
+        
+      - name: 🔍 Run comprehensive security audit
+        run: |
+          echo "=== NPM Security Audit ==="
+          npm audit --audit-level=low
+          
+          echo "=== Outdated Packages Check ==="
+          npm outdated || true
+          
+          echo "=== License Check ==="
+          npx license-checker --summary || true
+        
+      - name: 🔐 Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+        continue-on-error: true
+        
+      - name: 📋 Create security report
+        if: failure()
+        run: |
+          echo "## 🚨 Security Issues Detected" >> security-report.md
+          echo "Date: $(date)" >> security-report.md
+          echo "" >> security-report.md
+          echo "### NPM Audit Results" >> security-report.md
+          npm audit --audit-level=low --json > audit-report.json || true
+          echo "" >> security-report.md
+          echo "### Outdated Packages" >> security-report.md
+          npm outdated >> security-report.md || true
+          
+      - name: 📤 Upload security report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-report-${{ github.run_number }}
+          path: |
+            security-report.md
+            audit-report.json
+          retention-days: 30
+
+  notify:
+    name: 📢 Security Notification
+    needs: security-audit
+    runs-on: ubuntu-latest
+    if: failure()
+    
+    steps:
+      - name: 📬 Create Issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🚨 Weekly Security Audit Failed',
+              body: `
+              ## Security Audit Alert
+              
+              The weekly security audit has detected issues that require attention.
+              
+              **Date**: ${new Date().toISOString()}
+              **Workflow**: ${context.workflow}
+              **Run**: ${context.runNumber}
+              
+              Please check the security report artifact for detailed information.
+              
+              ### Recommended Actions:
+              1. Review npm audit output
+              2. Update outdated packages
+              3. Fix any detected vulnerabilities
+              4. Run \`npm audit fix\` if applicable
+              
+              *This issue was automatically created by the security audit workflow.*
+              `,
+              labels: ['security', 'dependencies', 'automated']
+            })

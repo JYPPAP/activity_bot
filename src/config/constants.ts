@@ -24,7 +24,7 @@ export const PATHS = {
 
 // 파일 경로 타입
 export type PathKey = keyof typeof PATHS;
-export type PathValue = typeof PATHS[PathKey];
+export type PathValue = (typeof PATHS)[PathKey];
 
 // ====================
 // 시간 관련 상수 (밀리초 단위)
@@ -37,19 +37,20 @@ export const TIME = {
   DAY: 24 * 60 * 60 * 1000,
   WEEK: 7 * 24 * 60 * 60 * 1000,
   MONTH: 30 * 24 * 60 * 60 * 1000,
-  
+  YEAR: 365 * 24 * 60 * 60 * 1000,
+
   // 봇 동작 관련 시간
   LOG_DELAY: 30 * 1000, // 30초
   SAVE_ACTIVITY_DELAY: 60 * 1000, // 1분
   CACHE_TIMEOUT: 5 * 60 * 1000, // 5분
   BACKUP_INTERVAL: 24 * 60 * 60 * 1000, // 24시간
   CLEANUP_INTERVAL: 7 * 24 * 60 * 60 * 1000, // 7일
-  
+
   // 타임아웃 관련
   COMMAND_TIMEOUT: 30 * 1000, // 30초
   DATABASE_TIMEOUT: 10 * 1000, // 10초
   API_TIMEOUT: 5 * 1000, // 5초
-  
+
   // 재시도 관련
   RETRY_DELAY: 1 * 1000, // 1초
   MAX_RETRY_DELAY: 60 * 1000, // 60초
@@ -57,7 +58,7 @@ export const TIME = {
 
 // 시간 관련 타입
 export type TimeKey = keyof typeof TIME;
-export type TimeValue = typeof TIME[TimeKey];
+export type TimeValue = (typeof TIME)[TimeKey];
 
 // ====================
 // 색상 상수
@@ -65,39 +66,39 @@ export type TimeValue = typeof TIME[TimeKey];
 
 export const COLORS = {
   // 활동 상태 색상
-  ACTIVE: 0x00FF00,        // 초록색
-  INACTIVE: 0xFF0000,      // 빨간색
-  SLEEP: 0xD3D3D3,         // 잠수 상태 색상 (파스텔 톤 라이트 그레이)
-  IDLE: 0xFFFF00,          // 노란색
-  
+  ACTIVE: 0x00ff00, // 초록색
+  INACTIVE: 0xff0000, // 빨간색
+  SLEEP: 0xd3d3d3, // 잠수 상태 색상 (파스텔 톤 라이트 그레이)
+  IDLE: 0xffff00, // 노란색
+
   // 로그 색상
-  LOG: 0x0099FF,           // 기본 로그 색상 (파란색)
-  LOG_JOIN: 0x4A86E8,      // 입장 로그 색상 (파스텔 파란색)
-  LOG_RENAME: 0x4A86E8,    // 이름 변경 로그 색상 (파스텔 파란색)
-  LOG_LEAVE: 0xE67C73,     // 퇴장 로그 색상 (파스텔 빨간색)
-  LOG_CREATE: 0x57BB8A,    // 생성 로그 색상 (파스텔 초록색)
-  
+  LOG: 0x0099ff, // 기본 로그 색상 (파란색)
+  LOG_JOIN: 0x4a86e8, // 입장 로그 색상 (파스텔 파란색)
+  LOG_RENAME: 0x4a86e8, // 이름 변경 로그 색상 (파스텔 파란색)
+  LOG_LEAVE: 0xe67c73, // 퇴장 로그 색상 (파스텔 빨간색)
+  LOG_CREATE: 0x57bb8a, // 생성 로그 색상 (파스텔 초록색)
+
   // 상태 색상
-  SUCCESS: 0x00FF00,       // 성공 색상 (초록색)
-  ERROR: 0xFF0000,         // 오류 색상 (빨간색)
-  WARNING: 0xFFFF00,       // 경고 색상 (노란색)
-  INFO: 0x0099FF,          // 정보 색상 (파란색)
-  
+  SUCCESS: 0x00ff00, // 성공 색상 (초록색)
+  ERROR: 0xff0000, // 오류 색상 (빨간색)
+  WARNING: 0xffff00, // 경고 색상 (노란색)
+  INFO: 0x0099ff, // 정보 색상 (파란색)
+
   // UI 색상
-  PRIMARY: 0x5865F2,       // 디스코드 기본 색상
-  SECONDARY: 0x57F287,     // 디스코드 보조 색상
-  DANGER: 0xED4245,        // 위험 색상
-  BLURPLE: 0x5865F2,       // 디스코드 블러플 색상
-  
+  PRIMARY: 0x5865f2, // 디스코드 기본 색상
+  SECONDARY: 0x57f287, // 디스코드 보조 색상
+  DANGER: 0xed4245, // 위험 색상
+  BLURPLE: 0x5865f2, // 디스코드 블러플 색상
+
   // 투명도 색상
-  TRANSPARENT: 0x000000,   // 투명
-  LIGHT_GREY: 0xF2F3F5,    // 밝은 회색
-  DARK_GREY: 0x36393F,     // 어두운 회색
+  TRANSPARENT: 0x000000, // 투명
+  LIGHT_GREY: 0xf2f3f5, // 밝은 회색
+  DARK_GREY: 0x36393f, // 어두운 회색
 } as const;
 
 // 색상 타입
 export type ColorKey = keyof typeof COLORS;
-export type ColorValue = typeof COLORS[ColorKey];
+export type ColorValue = (typeof COLORS)[ColorKey];
 
 // ====================
 // 메시지 타입 상수
@@ -125,7 +126,7 @@ export const MESSAGE_TYPES = {
 
 // 메시지 타입 타입
 export type MessageTypeKey = keyof typeof MESSAGE_TYPES;
-export type MessageTypeValue = typeof MESSAGE_TYPES[MessageTypeKey];
+export type MessageTypeValue = (typeof MESSAGE_TYPES)[MessageTypeKey];
 
 // ====================
 // 필터 상수
@@ -148,7 +149,7 @@ export const FILTERS = {
 
 // 필터 타입
 export type FilterKey = keyof typeof FILTERS;
-export type FilterValue = typeof FILTERS[FilterKey];
+export type FilterValue = (typeof FILTERS)[FilterKey];
 
 // ====================
 // 활동 상태 상수
@@ -164,7 +165,7 @@ export const ACTIVITY_STATUS = {
 
 // 활동 상태 타입
 export type ActivityStatusKey = keyof typeof ACTIVITY_STATUS;
-export type ActivityStatusValue = typeof ACTIVITY_STATUS[ActivityStatusKey];
+export type ActivityStatusValue = (typeof ACTIVITY_STATUS)[ActivityStatusKey];
 
 // ====================
 // 권한 레벨 상수
@@ -180,7 +181,7 @@ export const PERMISSION_LEVELS = {
 
 // 권한 레벨 타입
 export type PermissionLevelKey = keyof typeof PERMISSION_LEVELS;
-export type PermissionLevelValue = typeof PERMISSION_LEVELS[PermissionLevelKey];
+export type PermissionLevelValue = (typeof PERMISSION_LEVELS)[PermissionLevelKey];
 
 // ====================
 // 명령어 카테고리 상수
@@ -199,7 +200,7 @@ export const COMMAND_CATEGORIES = {
 
 // 명령어 카테고리 타입
 export type CommandCategoryKey = keyof typeof COMMAND_CATEGORIES;
-export type CommandCategoryValue = typeof COMMAND_CATEGORIES[CommandCategoryKey];
+export type CommandCategoryValue = (typeof COMMAND_CATEGORIES)[CommandCategoryKey];
 
 // ====================
 // 이벤트 타입 상수
@@ -226,7 +227,7 @@ export const EVENT_TYPES = {
 
 // 이벤트 타입 타입
 export type EventTypeKey = keyof typeof EVENT_TYPES;
-export type EventTypeValue = typeof EVENT_TYPES[EventTypeKey];
+export type EventTypeValue = (typeof EVENT_TYPES)[EventTypeKey];
 
 // ====================
 // 데이터베이스 테이블 상수
@@ -247,7 +248,7 @@ export const DATABASE_TABLES = {
 
 // 데이터베이스 테이블 타입
 export type DatabaseTableKey = keyof typeof DATABASE_TABLES;
-export type DatabaseTableValue = typeof DATABASE_TABLES[DatabaseTableKey];
+export type DatabaseTableValue = (typeof DATABASE_TABLES)[DatabaseTableKey];
 
 // ====================
 // 로그 레벨 상수
@@ -263,7 +264,7 @@ export const LOG_LEVELS = {
 
 // 로그 레벨 타입
 export type LogLevelKey = keyof typeof LOG_LEVELS;
-export type LogLevelValue = typeof LOG_LEVELS[LogLevelKey];
+export type LogLevelValue = (typeof LOG_LEVELS)[LogLevelKey];
 
 // ====================
 // 제한 상수
@@ -313,7 +314,7 @@ export const LIMITS = {
 
 // 제한 타입
 export type LimitKey = keyof typeof LIMITS;
-export type LimitValue = typeof LIMITS[LimitKey];
+export type LimitValue = (typeof LIMITS)[LimitKey];
 
 // ====================
 // 정규식 상수
@@ -342,14 +343,17 @@ export const REGEX = {
   MAC_ADDRESS: /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/,
   UUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
   HEX_COLOR: /^#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/,
-  SEMANTIC_VERSION: /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/,
-  DISCORD_INVITE: /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discordapp\.com\/invite)\/([a-zA-Z0-9-]+)$/,
-  DISCORD_MESSAGE_LINK: /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/([0-9]{17,19})\/([0-9]{17,19})\/([0-9]{17,19})$/,
+  SEMANTIC_VERSION:
+    /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/,
+  DISCORD_INVITE:
+    /^(?:https?:\/\/)?(?:www\.)?(?:discord\.gg|discordapp\.com\/invite)\/([a-zA-Z0-9-]+)$/,
+  DISCORD_MESSAGE_LINK:
+    /^https:\/\/(?:ptb\.|canary\.)?discord(?:app)?\.com\/channels\/([0-9]{17,19})\/([0-9]{17,19})\/([0-9]{17,19})$/,
 } as const;
 
 // 정규식 타입
 export type RegexKey = keyof typeof REGEX;
-export type RegexValue = typeof REGEX[RegexKey];
+export type RegexValue = (typeof REGEX)[RegexKey];
 
 // ====================
 // 기본값 상수
@@ -382,7 +386,7 @@ export const DEFAULTS = {
 
 // 기본값 타입
 export type DefaultKey = keyof typeof DEFAULTS;
-export type DefaultValue = typeof DEFAULTS[DefaultKey];
+export type DefaultValue = (typeof DEFAULTS)[DefaultKey];
 
 // ====================
 // 유틸리티 함수
@@ -404,7 +408,7 @@ export function formatTime(ms: number): string {
   const minutes = Math.floor(seconds / 60);
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
-  
+
   if (days > 0) return `${days}일 ${hours % 24}시간 ${minutes % 60}분`;
   if (hours > 0) return `${hours}시간 ${minutes % 60}분`;
   if (minutes > 0) return `${minutes}분 ${seconds % 60}초`;
@@ -419,7 +423,7 @@ export function validatePath(pathKey: PathKey): boolean {
 
 // 색상 검증
 export function validateColor(color: unknown): color is ColorValue {
-  return typeof color === 'number' && color >= 0 && color <= 0xFFFFFF;
+  return typeof color === 'number' && color >= 0 && color <= 0xffffff;
 }
 
 // 권한 레벨 비교

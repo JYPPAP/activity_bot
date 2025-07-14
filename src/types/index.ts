@@ -12,23 +12,23 @@ export interface Config {
   GUILDID: string;
   CLIENT_ID: string;
   LOG_CHANNEL_ID: string;
-  
+
   // 선택적 환경변수
   EXCLUDED_CHANNELS: string[];
   EXCLUDED_CHANNELS_FOR_LOGS: string[];
   DEV_ID?: string;
   CALENDAR_LOG_CHANNEL_ID?: string;
-  
+
   // 구인구직 포럼 관련
   FORUM_CHANNEL_ID?: string;
   VOICE_CATEGORY_ID?: string;
   FORUM_TAG_ID?: string;
-  
+
   // Errsole 설정
   NODE_ENV?: string;
   ERRSOLE_HOST?: string;
   ERRSOLE_PORT?: string;
-  
+
   // Slack 알림 설정
   ENABLE_SLACK_ALERTS?: string;
   SLACK_WEBHOOK_URL?: string;
@@ -52,45 +52,45 @@ export interface ServiceDependencies {
 export interface DatabaseManager {
   initialize(): Promise<boolean>;
   smartReload(forceReload?: boolean): void;
-  
+
   // 사용자 활동 관련
   getUserActivity(userId: string): Promise<UserActivity | null>;
   getAllUserActivity(): Promise<UserActivity[]>;
   setUserActivity(userId: string, data: UserActivityData): Promise<void>;
   resetUserActivity(userId: string): Promise<void>;
-  
+
   // 역할 설정 관련
   getRoleConfig(roleName: string): Promise<RoleConfig | null>;
   getAllRoleConfigs(): Promise<RoleConfig[]>;
   setRoleConfig(roleName: string, minHours: number): Promise<void>;
   updateRoleReportCycle(roleName: string, cycle: number): Promise<boolean>;
-  
+
   // 활동 로그 관련
   addActivityLog(logEntry: ActivityLogEntry): Promise<void>;
   getActivityLogs(options?: LogQueryOptions): Promise<ActivityLogEntry[]>;
-  
+
   // 잠수 상태 관리
   getUserAfkStatus(userId: string): Promise<AfkStatus | null>;
   setUserAfkStatus(userId: string, displayName: string, untilTimestamp: number): Promise<boolean>;
   clearUserAfkStatus(userId: string): Promise<boolean>;
-  
+
   // 포럼 관련
   getForumMessage(channelId: string): Promise<ForumMessage | null>;
   setForumMessage(channelId: string, data: ForumMessageData): Promise<void>;
-  
+
   // 음성 채널 매핑
   getVoiceChannelMapping(channelId: string): Promise<VoiceChannelMapping | null>;
   setVoiceChannelMapping(channelId: string, mapping: VoiceChannelMappingData): Promise<void>;
-  
+
   // 백업 관련
   saveBackup(filename: string, data: any): Promise<void>;
   listBackups(): Promise<string[]>;
   loadBackup(backupId: string): Promise<any>;
-  
+
   // 리셋 기록 관련
   addResetHistory(entry: ResetHistoryEntry): Promise<void>;
   getResetHistory(): Promise<ResetHistoryEntry[]>;
-  
+
   // 유틸리티 메서드
   hasAnyData(): Promise<boolean>;
   migrateFromJSON(activityData: any, roleConfigData: any): Promise<boolean>;
@@ -112,6 +112,7 @@ export interface ActivityTracker {
   getRoleActivityConfig(roleName: string): number;
   saveActivityData(): Promise<{ savedUsers: number; dataSize: number }>;
   clearAndReinitializeActivityData(role: string): Promise<void>;
+  clearUserActivityData(userIds: string[]): boolean;
   initializeActivityData(guild: any): Promise<void>;
   getAllActivityData(): Promise<any>;
   handleVoiceStateUpdate(oldState: any, newState: any): Promise<void>;
@@ -157,6 +158,8 @@ export interface RoleConfig {
   reportCycle?: string;
   enabled?: boolean;
   role?: string;
+  warningThreshold?: number;
+  allowedAfkDuration?: number;
 }
 
 export interface ActivityLogEntry {
@@ -198,6 +201,7 @@ export interface AfkStatus {
   userId: string;
   isAfk: boolean;
   afkStartTime: number | null;
+  afkUntil?: number;
   afkReason?: string;
   totalAfkTime: number;
   lastUpdate: number;
@@ -387,7 +391,7 @@ export function isConfig(obj: any): obj is Config {
 // 유니언 타입
 // ====================
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'alert';
 export type ActivityAction = 'join' | 'leave' | 'move' | 'disconnect';
 export type UserStatus = 'online' | 'idle' | 'dnd' | 'offline';
 export type ChannelType = 'voice' | 'text' | 'forum' | 'thread';

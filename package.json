@@ -13,9 +13,17 @@
     "dev:watch": "nodemon --exec tsx src/index.ts",
     "dev:js": "nodemon src/index.js",
     "type-check": "tsc --noEmit",
+    "lint": "eslint src/**/*.ts",
+    "lint:fix": "eslint src/**/*.ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "format:check": "prettier --check src/**/*.ts",
+    "quality": "npm run type-check && npm run lint && npm run format:check",
+    "lint-staged": "lint-staged",
+    "commitlint": "commitlint",
     "register": "node scripts/registerCommands.js",
     "pm2:start": "npm run build && pm2 start dist/index.js --name discord-bot",
-    "pm2:dev": "pm2 start src/index.ts --name discord-bot-dev --interpreter tsx",
+    "pm2:dev": "pm2 start ecosystem.config.cjs:discord-bot-dev",
+    "pm2:prod": "npm run build && pm2 start ecosystem.config.cjs:discord-bot --env production",
     "pm2": "npm run build && pm2 start ecosystem-termux.config.cjs --env production",
     "stop": "pm2 stop discord-bot",
     "restart": "pm2 restart discord-bot",
@@ -24,9 +32,10 @@
     "setup": "pkg install python nodejs sqlite libsqlite clang make && npm install",
     "external": "ERRSOLE_HOST=0.0.0.0 npm run build && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot",
     "ip": "termux-wifi-connectioninfo | grep 'ip_address' || ip route get 1.1.1.1 | grep -oP 'src \\K\\S+' || echo '핸드폰에서 설정 > Wi-Fi에서 IP 확인'",
-    "test": "npm run type-check && node -e \"import('./src/config/logger-termux.js').then(m => m.logger.info('로거 테스트'));\"",
+    "test": "npm run quality && npm run build && node -e \"import('./dist/config/logger-termux.js').then(m => m.logger.info('TypeScript 빌드 테스트 성공'));\"",
     "slack": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger-termux.js').then(m => m.logger.error('Slack 테스트', {test: true}));\"",
-    "update": "git pull && npm run build && pm2 delete discord-bot 2>/dev/null || true && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot"
+    "update": "git pull && npm run build && pm2 delete discord-bot 2>/dev/null || true && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot",
+    "prepare": "husky"
   },
   "keywords": [
     "discord",
@@ -38,19 +47,42 @@
   "license": "ISC",
   "dependencies": {
     "axios": "^1.10.0",
-    "discord.js": "^14.18.0",
-    "dotenv": "^16.4.7",
+    "discord.js": "^14.21.0",
+    "dotenv": "^16.6.1",
     "errsole": "^2.18.1",
     "errsole-sqlite": "^3.0.3",
     "express": "^4.21.2",
     "lowdb": "^1.0.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.8.1",
+    "@commitlint/config-conventional": "^19.8.1",
     "@types/express": "^5.0.3",
+    "@types/jest": "^30.0.0",
     "@types/node": "^24.0.13",
+    "@typescript-eslint/eslint-plugin": "^8.36.0",
+    "@typescript-eslint/parser": "^8.36.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^5.5.1",
+    "eslint-plugin-security": "^3.0.1",
+    "husky": "^9.1.7",
+    "jest": "^30.0.4",
+    "lint-staged": "^16.1.2",
     "nodemon": "^3.1.10",
+    "prettier": "^3.6.2",
+    "ts-jest": "^29.4.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3"
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "bash -c 'npm run type-check'",
+      "prettier --write"
+    ]
   }
 }

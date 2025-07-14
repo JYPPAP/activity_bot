@@ -1,7 +1,9 @@
 // src/config/env.ts - 환경변수 처리
-import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+import dotenv from 'dotenv';
+
 import { Config } from '../types/index.js';
 
 // ES 모듈에서 __dirname 구현
@@ -26,6 +28,21 @@ function getOptionalEnvVar(varName: string): string | undefined {
 }
 
 // 환경변수 설정 확인 및 기본값 제공
+// 선택적 환경변수 임시 변수
+const devId = getOptionalEnvVar('DEV_ID');
+const calendarLogChannelId = getOptionalEnvVar('CALENDAR_LOG_CHANNEL_ID');
+const forumChannelId = getOptionalEnvVar('FORUM_CHANNEL_ID');
+const voiceCategoryId = getOptionalEnvVar('VOICE_CATEGORY_ID');
+const forumTagId = getOptionalEnvVar('FORUM_TAG_ID');
+const nodeEnv = getOptionalEnvVar('NODE_ENV');
+const errsoleHost = getOptionalEnvVar('ERRSOLE_HOST');
+const errsolePort = getOptionalEnvVar('ERRSOLE_PORT');
+const enableSlackAlerts = getOptionalEnvVar('ENABLE_SLACK_ALERTS');
+const slackWebhookUrl = getOptionalEnvVar('SLACK_WEBHOOK_URL');
+const slackChannel = getOptionalEnvVar('SLACK_CHANNEL');
+const slackMinLevel = getOptionalEnvVar('SLACK_MIN_LEVEL');
+const phoneIp = getOptionalEnvVar('PHONE_IP');
+
 export const config: Config = {
   // 필수 환경변수
   TOKEN: validateEnvVar('TOKEN', process.env.TOKEN),
@@ -41,35 +58,29 @@ export const config: Config = {
     process.env.EXCLUDE_CHANNELID_4,
     process.env.EXCLUDE_CHANNELID_5,
     process.env.EXCLUDE_CHANNELID_6,
-  ].filter((id): id is string => Boolean(id)), // 타입 가드로 필터링
+  ].filter((id): id is string => Boolean(id)),
 
   // 제외할 채널 ID 배열 (로그 출력용)
   EXCLUDED_CHANNELS_FOR_LOGS: [
     process.env.EXCLUDE_CHANNELID_1,
     process.env.EXCLUDE_CHANNELID_2,
     process.env.EXCLUDE_CHANNELID_3,
-  ].filter((id): id is string => Boolean(id)), // 타입 가드로 필터링
+  ].filter((id): id is string => Boolean(id)),
 
-  // 선택적 환경변수
-  DEV_ID: getOptionalEnvVar('DEV_ID'),
-  CALENDAR_LOG_CHANNEL_ID: getOptionalEnvVar('CALENDAR_LOG_CHANNEL_ID'),
-
-  // 구인구직 포럼 관련
-  FORUM_CHANNEL_ID: getOptionalEnvVar('FORUM_CHANNEL_ID'),
-  VOICE_CATEGORY_ID: getOptionalEnvVar('VOICE_CATEGORY_ID'),
-  FORUM_TAG_ID: getOptionalEnvVar('FORUM_TAG_ID'),
-
-  // Errsole 설정
-  NODE_ENV: getOptionalEnvVar('NODE_ENV'),
-  ERRSOLE_HOST: getOptionalEnvVar('ERRSOLE_HOST'),
-  ERRSOLE_PORT: getOptionalEnvVar('ERRSOLE_PORT'),
-
-  // Slack 알림 설정
-  ENABLE_SLACK_ALERTS: getOptionalEnvVar('ENABLE_SLACK_ALERTS'),
-  SLACK_WEBHOOK_URL: getOptionalEnvVar('SLACK_WEBHOOK_URL'),
-  SLACK_CHANNEL: getOptionalEnvVar('SLACK_CHANNEL'),
-  SLACK_MIN_LEVEL: getOptionalEnvVar('SLACK_MIN_LEVEL'),
-  PHONE_IP: getOptionalEnvVar('PHONE_IP'), // 네트워크 설정
+  // 선택적 환경변수 (조건부 할당)
+  ...(devId && { DEV_ID: devId }),
+  ...(calendarLogChannelId && { CALENDAR_LOG_CHANNEL_ID: calendarLogChannelId }),
+  ...(forumChannelId && { FORUM_CHANNEL_ID: forumChannelId }),
+  ...(voiceCategoryId && { VOICE_CATEGORY_ID: voiceCategoryId }),
+  ...(forumTagId && { FORUM_TAG_ID: forumTagId }),
+  ...(nodeEnv && { NODE_ENV: nodeEnv }),
+  ...(errsoleHost && { ERRSOLE_HOST: errsoleHost }),
+  ...(errsolePort && { ERRSOLE_PORT: errsolePort }),
+  ...(enableSlackAlerts && { ENABLE_SLACK_ALERTS: enableSlackAlerts }),
+  ...(slackWebhookUrl && { SLACK_WEBHOOK_URL: slackWebhookUrl }),
+  ...(slackChannel && { SLACK_CHANNEL: slackChannel }),
+  ...(slackMinLevel && { SLACK_MIN_LEVEL: slackMinLevel }),
+  ...(phoneIp && { PHONE_IP: phoneIp }),
 };
 
 // 환경변수 설정 로깅 (개발 환경에서만)
@@ -99,13 +110,9 @@ if (process.env.NODE_ENV === 'development') {
 
 // 환경변수 검증 함수
 export function validateConfig(): boolean {
-  const requiredEnvVars: Array<keyof Config> = [
-    'TOKEN',
-    'GUILDID',
-    'LOG_CHANNEL_ID'
-  ];
+  const requiredEnvVars: Array<keyof Config> = ['TOKEN', 'GUILDID', 'LOG_CHANNEL_ID'];
 
-  const missingEnvVars = requiredEnvVars.filter(varName => !config[varName]);
+  const missingEnvVars = requiredEnvVars.filter((varName) => !config[varName]);
 
   if (missingEnvVars.length > 0) {
     throw new Error(`필수 환경변수가 설정되지 않았습니다: ${missingEnvVars.join(', ')}`);
@@ -115,14 +122,14 @@ export function validateConfig(): boolean {
 }
 
 // 환경변수 값 가져오기 헬퍼 함수
-export function getEnvVar(key: keyof Config): string | undefined {
+export function getEnvVar(key: keyof Config): string | string[] | undefined {
   return config[key];
 }
 
 // 환경변수 값 안전하게 가져오기 헬퍼 함수
 export function getRequiredEnvVar(key: keyof Config): string {
   const value = config[key];
-  if (!value) {
+  if (!value || typeof value !== 'string') {
     throw new Error(`필수 환경변수가 설정되지 않았습니다: ${key}`);
   }
   return value;

@@ -1,32 +1,33 @@
 // src/commands/commandHandler.ts - 명령어 핸들러 수정
-import { 
-  Client, 
-  Interaction, 
-  ChatInputCommandInteraction, 
-  PermissionsBitField, 
+import {
+  Client,
+  Interaction,
+  ChatInputCommandInteraction,
+  PermissionsBitField,
   MessageFlags,
-  GuildMember
+  GuildMember,
 } from 'discord.js';
-import { GapListCommand } from './gapListCommand.js';
-import { GapConfigCommand } from './gapConfigCommand.js';
-import { GapResetCommand } from './gapResetCommand.js';
-import { GapCheckCommand } from './gapCheckCommand.js';
-import { GapSaveCommand } from './gapSaveCommand.js';
-import { GapCalendarCommand } from './gapCalendarCommand.js';
-import { GapStatsCommand } from './gapStatsCommand.js';
-import { GapReportCommand } from './gapReportCommand.js';
-import { GapCycleCommand } from './gapCycleCommand.js';
-import { GapAfkCommand } from './gapAfkCommand.js';
-import { RecruitmentCommand } from './recruitmentCommand.js';
-import { UserClassificationService } from '../services/UserClassificationService.js';
+
 import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions.js';
 import { config } from '../config/env.js';
 import { ActivityTracker } from '../services/activityTracker.js';
-import { DatabaseManager } from '../services/DatabaseManager.js';
 import { CalendarLogService } from '../services/calendarLogService.js';
-import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
+import { DatabaseManager } from '../services/DatabaseManager.js';
 import { LogService } from '../services/logService.js';
+import { UserClassificationService } from '../services/UserClassificationService.js';
+import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
+
 import { CommandBase, CommandServices } from './CommandBase.js';
+import { GapAfkCommand } from './gapAfkCommand.js';
+import { GapCalendarCommand } from './gapCalendarCommand.js';
+import { GapCheckCommand } from './gapCheckCommand.js';
+import { GapConfigCommand } from './gapConfigCommand.js';
+import { GapListCommand } from './gapListCommand.js';
+import { GapReportCommand } from './gapReportCommand.js';
+import { GapResetCommand } from './gapResetCommand.js';
+import { GapSaveCommand } from './gapSaveCommand.js';
+import { GapStatsCommand } from './gapStatsCommand.js';
+import { RecruitmentCommand } from './recruitmentCommand.js';
 
 // 명령어 핸들러 설정
 interface CommandHandlerConfig {
@@ -74,11 +75,11 @@ export class CommandHandler {
   private logService: LogService | undefined;
   private userClassificationService: UserClassificationService;
   private config: CommandHandlerConfig;
-  
+
   // 명령어 관리
   private commands: Map<string, CommandBase>;
   private commandAliases: Map<string, string>;
-  
+
   // 통계 및 성능 추적
   private statistics: CommandHandlerStatistics;
   private executionQueue: Map<string, Promise<any>>;
@@ -100,7 +101,7 @@ export class CommandHandler {
     this.calendarLogService = calendarLogService;
     this.voiceForumService = voiceForumService;
     this.logService = logService;
-    
+
     // 설정 초기화
     this.config = {
       enableStatistics: true,
@@ -111,19 +112,22 @@ export class CommandHandler {
       globalRateLimit: 100,
       enableMetrics: true,
       logLevel: 'info',
-      ...config
+      ...config,
     };
-    
+
     // UserClassificationService 인스턴스 생성
-    this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
-    
+    this.userClassificationService = new UserClassificationService(
+      this.dbManager,
+      this.activityTracker
+    );
+
     // 맵 초기화
     this.commands = new Map();
     this.commandAliases = new Map();
     this.executionQueue = new Map();
     this.rateLimitMap = new Map();
     this.activeCommands = new Set();
-    
+
     // 통계 초기화
     this.statistics = {
       totalCommands: 0,
@@ -132,12 +136,12 @@ export class CommandHandler {
       averageExecutionTime: 0,
       commandUsage: {},
       errorTypes: {},
-      userCommandCount: {}
+      userCommandCount: {},
     };
-    
+
     // 명령어 초기화
     this.initializeCommands();
-    
+
     // 정리 타이머
     setInterval(() => this.cleanup(), 60000); // 1분마다 정리
   }
@@ -153,7 +157,7 @@ export class CommandHandler {
         activityTracker: this.activityTracker,
         dbManager: this.dbManager,
         calendarLogService: this.calendarLogService,
-        logService: this.logService
+        logService: this.logService,
       };
 
       // 명령어 인스턴스 생성
@@ -165,11 +169,10 @@ export class CommandHandler {
       const gapCalendarCommand = new GapCalendarCommand(services);
       const gapStatsCommand = new GapStatsCommand(services);
       const gapReportCommand = new GapReportCommand(services) as ExtendedCommand;
-      const gapCycleCommand = new GapCycleCommand(services);
       const gapAfkCommand = new GapAfkCommand(services);
       const recruitmentCommand = new RecruitmentCommand({
         ...services,
-        voiceForumService: this.voiceForumService
+        voiceForumService: this.voiceForumService,
       });
 
       // UserClassificationService 의존성 주입
@@ -190,7 +193,6 @@ export class CommandHandler {
       this.registerCommand('gap_calendar', gapCalendarCommand);
       this.registerCommand('gap_stats', gapStatsCommand);
       this.registerCommand('gap_report', gapReportCommand);
-      this.registerCommand('gap_cycle', gapCycleCommand);
       this.registerCommand('gap_afk', gapAfkCommand);
       this.registerCommand('구직', recruitmentCommand);
 
@@ -208,12 +210,12 @@ export class CommandHandler {
    */
   private registerCommand(name: string, command: CommandBase, aliases: string[] = []): void {
     this.commands.set(name, command);
-    
+
     // 별칭 등록
     for (const alias of aliases) {
       this.commandAliases.set(alias, name);
     }
-    
+
     // 메타데이터에서 별칭 가져와서 등록
     if (command.metadata?.aliases) {
       for (const alias of command.metadata.aliases) {
@@ -230,7 +232,9 @@ export class CommandHandler {
   hasAdminPermission(interaction: ChatInputCommandInteraction): boolean {
     const permissions = interaction.member?.permissions;
     return (
-      (permissions && typeof permissions !== 'string' && permissions.has(PermissionsBitField.Flags.Administrator)) ||
+      (permissions &&
+        typeof permissions !== 'string' &&
+        permissions.has(PermissionsBitField.Flags.Administrator)) ||
       interaction.user.id === config.DEV_ID
     );
   }
@@ -246,27 +250,29 @@ export class CommandHandler {
         await this.handleCommandInteraction(interaction);
         return;
       }
-      
+
       // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
-      if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+      if (
+        interaction.isButton() ||
+        interaction.isStringSelectMenu() ||
+        interaction.isModalSubmit()
+      ) {
         await this.voiceForumService.handleInteraction(interaction);
         return;
       }
     } catch (error) {
       console.error('인터랙션 처리 오류:', error);
-      
+
       // 에러 로깅
       if (this.logService) {
-        this.logService.logActivity(
-          '인터랙션 처리 오류',
-          [],
-          'interaction_error',
-          { error: error instanceof Error ? error.message : String(error), interaction: interaction.type }
-        );
+        this.logService.logActivity('인터랙션 처리 오류', [], 'interaction_error', {
+          error: error instanceof Error ? error.message : String(error),
+          interaction: interaction.type,
+        });
       }
     }
   }
-  
+
   /**
    * 명령어 인터랙션 처리
    * @param interaction - 명령어 인터랙션 객체
@@ -274,7 +280,7 @@ export class CommandHandler {
   async handleCommandInteraction(interaction: ChatInputCommandInteraction): Promise<void> {
     const startTime = Date.now();
     const { commandName } = interaction;
-    
+
     try {
       // 레이트 리미트 확인
       if (this.config.enableRateLimit && !this.checkRateLimit(interaction)) {
@@ -284,7 +290,7 @@ export class CommandHandler {
         });
         return;
       }
-      
+
       // 동시 실행 제한 확인
       if (this.activeCommands.size >= this.config.maxConcurrentCommands) {
         await interaction.reply({
@@ -293,10 +299,10 @@ export class CommandHandler {
         });
         return;
       }
-      
+
       // 명령어 이름 해결 (별칭 포함)
       const resolvedCommandName = this.commandAliases.get(commandName) || commandName;
-      
+
       // 권한 확인
       if (!interaction.member || !interaction.inGuild()) {
         await interaction.reply({
@@ -322,7 +328,7 @@ export class CommandHandler {
         });
         return;
       }
-      
+
       // 명령어 실행
       const command = this.commands.get(resolvedCommandName);
       if (!command) {
@@ -332,52 +338,48 @@ export class CommandHandler {
         });
         return;
       }
-      
+
       // 실행 추적
       const executionId = `${interaction.user.id}-${Date.now()}`;
       this.activeCommands.add(executionId);
-      
+
       try {
         // 타임아웃 설정
         const timeoutPromise = new Promise<never>((_, reject) => {
           setTimeout(() => reject(new Error('Command timeout')), this.config.commandTimeout);
         });
-        
+
         // 명령어 실행
-        await Promise.race([
-          command.execute(interaction),
-          timeoutPromise
-        ]);
-        
+        await Promise.race([command.execute(interaction), timeoutPromise]);
+
         // 성공 통계 업데이트
         this.updateStatistics({
           success: true,
           commandName: resolvedCommandName,
           userId: interaction.user.id,
-          executionTime: Date.now() - startTime
+          executionTime: Date.now() - startTime,
         });
-        
       } finally {
         this.activeCommands.delete(executionId);
       }
-      
     } catch (error) {
-      console.error("명령어 처리 오류:", error);
-      
+      console.error('명령어 처리 오류:', error);
+
       // 실패 통계 업데이트
       this.updateStatistics({
         success: false,
-        commandName: commandName,
+        commandName,
         userId: interaction.user.id,
         executionTime: Date.now() - startTime,
-        error: error as Error
+        error: error as Error,
       });
-      
+
       // 에러 응답
-      const errorMessage = error instanceof Error && error.message === 'Command timeout' 
-        ? '명령어 실행 시간이 초과되었습니다.'
-        : '요청 수행 중 오류가 발생했습니다!';
-      
+      const errorMessage =
+        error instanceof Error && error.message === 'Command timeout'
+          ? '명령어 실행 시간이 초과되었습니다.'
+          : '요청 수행 중 오류가 발생했습니다!';
+
       try {
         if (!interaction.replied && !interaction.deferred) {
           await interaction.reply({
@@ -404,23 +406,23 @@ export class CommandHandler {
     const userId = interaction.user.id;
     const now = Date.now();
     const minute = 60 * 1000;
-    
+
     if (!this.rateLimitMap.has(userId)) {
       this.rateLimitMap.set(userId, []);
     }
-    
+
     const userRequests = this.rateLimitMap.get(userId)!;
-    
+
     // 1분 이내의 요청만 유지
-    const recentRequests = userRequests.filter(time => now - time < minute);
-    
+    const recentRequests = userRequests.filter((time) => now - time < minute);
+
     if (recentRequests.length >= this.config.globalRateLimit) {
       return false;
     }
-    
+
     recentRequests.push(now);
     this.rateLimitMap.set(userId, recentRequests);
-    
+
     return true;
   }
 
@@ -430,36 +432,40 @@ export class CommandHandler {
    */
   private updateStatistics(result: CommandExecutionResult): void {
     if (!this.config.enableStatistics) return;
-    
+
     this.statistics.totalCommands++;
-    
+
     if (result.success) {
       this.statistics.successfulCommands++;
     } else {
       this.statistics.failedCommands++;
-      
+
       if (result.error) {
         const errorType = result.error.name || 'Unknown';
         this.statistics.errorTypes[errorType] = (this.statistics.errorTypes[errorType] || 0) + 1;
       }
     }
-    
+
     // 명령어 사용 통계
-    this.statistics.commandUsage[result.commandName] = (this.statistics.commandUsage[result.commandName] || 0) + 1;
-    
+    this.statistics.commandUsage[result.commandName] =
+      (this.statistics.commandUsage[result.commandName] || 0) + 1;
+
     // 사용자별 명령어 사용 통계
-    this.statistics.userCommandCount[result.userId] = (this.statistics.userCommandCount[result.userId] || 0) + 1;
-    
+    this.statistics.userCommandCount[result.userId] =
+      (this.statistics.userCommandCount[result.userId] || 0) + 1;
+
     // 평균 실행 시간 계산
-    const totalTime = this.statistics.averageExecutionTime * (this.statistics.totalCommands - 1) + result.executionTime;
+    const totalTime =
+      this.statistics.averageExecutionTime * (this.statistics.totalCommands - 1) +
+      result.executionTime;
     this.statistics.averageExecutionTime = totalTime / this.statistics.totalCommands;
-    
+
     // 상세 로깅
     if (this.config.logLevel === 'debug') {
       console.log(`[CommandHandler] ${result.commandName} 실행 완료:`, {
         success: result.success,
         executionTime: result.executionTime,
-        user: result.userId
+        user: result.userId,
       });
     }
   }
@@ -470,25 +476,27 @@ export class CommandHandler {
   private cleanup(): void {
     const now = Date.now();
     const hour = 60 * 60 * 1000;
-    
+
     // 오래된 레이트 리미트 데이터 정리
     for (const [userId, requests] of this.rateLimitMap.entries()) {
-      const recentRequests = requests.filter(time => now - time < hour);
+      const recentRequests = requests.filter((time) => now - time < hour);
       if (recentRequests.length === 0) {
         this.rateLimitMap.delete(userId);
       } else {
         this.rateLimitMap.set(userId, recentRequests);
       }
     }
-    
+
     // 실행 큐 정리
     for (const [key, promise] of this.executionQueue.entries()) {
       // 완료된 프로미스 제거
-      promise.then(() => {
-        this.executionQueue.delete(key);
-      }).catch(() => {
-        this.executionQueue.delete(key);
-      });
+      promise
+        .then(() => {
+          this.executionQueue.delete(key);
+        })
+        .catch(() => {
+          this.executionQueue.delete(key);
+        });
     }
   }
 
@@ -523,7 +531,7 @@ export class CommandHandler {
   setCommandEnabled(commandName: string, enabled: boolean): boolean {
     const command = this.commands.get(commandName);
     if (!command) return false;
-    
+
     command.setEnabled(enabled);
     return true;
   }
@@ -546,13 +554,13 @@ export class CommandHandler {
       if (!command) return '존재하지 않는 명령어입니다.';
       return command.getHelp();
     }
-    
+
     let help = '**사용 가능한 명령어 목록:**\n\n';
-    
+
     for (const [name, command] of this.commands.entries()) {
       help += `**${name}:** ${command.metadata.description}\n`;
     }
-    
+
     return help;
   }
 
@@ -569,7 +577,7 @@ export class CommandHandler {
       commandCount: this.commands.size,
       activeCommands: this.activeCommands.size,
       statistics: this.getStatistics(),
-      rateLimitEntries: this.rateLimitMap.size
+      rateLimitEntries: this.rateLimitMap.size,
     };
   }
 }

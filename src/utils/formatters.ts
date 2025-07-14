@@ -51,7 +51,7 @@ export function formatTime(totalTime: number, options: TimeFormatOptions = {}): 
     includeSeconds = false,
     includeMilliseconds = false,
     compact = false,
-    korean = true
+    korean = true,
   } = options;
 
   if (totalTime < 0) {
@@ -199,13 +199,13 @@ export function formatNumber(num: number, options: NumberFormatOptions = {}): st
     currency,
     minimumFractionDigits = 0,
     maximumFractionDigits = 2,
-    useGrouping = true
+    useGrouping = true,
   } = options;
 
   const formatOptions: Intl.NumberFormatOptions = {
     minimumFractionDigits,
     maximumFractionDigits,
-    useGrouping
+    useGrouping,
   };
 
   if (currency) {
@@ -260,22 +260,18 @@ export function formatMembersList(members: string[] = [], options: MemberListOpt
     showEmpty = true,
     emptyText = '없음',
     maxLength = 2000,
-    truncateText = '...'
+    truncateText = '...',
   } = options;
 
   const count = members?.length || 0;
-  
+
   if (count === 0 && !showEmpty) {
     return '';
   }
 
-  const list = count > 0 
-    ? members.map(member => `\` ${member} \``).join(' ') 
-    : emptyText;
+  const list = count > 0 ? members.map((member) => `\` ${member} \``).join(' ') : emptyText;
 
-  let result = showCount 
-    ? `**현재 멤버: (${count}명)**\n${list}`
-    : list;
+  let result = showCount ? `**현재 멤버: (${count}명)**\n${list}` : list;
 
   // 최대 길이 제한
   if (result.length > maxLength) {
@@ -315,32 +311,33 @@ export function formatParticipantName(nickname: string): string {
  * @param options - 포맷팅 옵션
  * @returns 포맷팅된 참가자 목록 문자열
  */
-export function formatParticipantList(participants: string[] = [], options: ParticipantListOptions = {}): string {
+export function formatParticipantList(
+  participants: string[] = [],
+  options: ParticipantListOptions = {}
+): string {
   const {
     showCount = true,
     showHeader = true,
     emptyText = '없음',
     separator = ',',
-    wrapInBackticks = true
+    wrapInBackticks = true,
   } = options;
 
   const count = participants?.length || 0;
-  
+
   if (count === 0) {
-    return showHeader 
-      ? `## 👥 **참가자(0명)**: ${emptyText}`
-      : emptyText;
+    return showHeader ? `## 👥 **참가자(0명)**: ${emptyText}` : emptyText;
   }
-  
-  const formattedNames = participants.map(name => 
-    wrapInBackticks ? ` \` ${name} \` ` : name
-  ).join(separator);
+
+  const formattedNames = participants
+    .map((name) => (wrapInBackticks ? ` \` ${name} \` ` : name))
+    .join(separator);
 
   if (!showHeader) {
     return formattedNames;
   }
 
-  return showCount 
+  return showCount
     ? `## 👥 **참가자(${count}명)**: ${formattedNames}`
     : `## 👥 **참가자**: ${formattedNames}`;
 }
@@ -465,7 +462,7 @@ export function formatSpoiler(text: string): string {
 export function formatActivityStats(totalTime: number, sessions: number, avgTime: number): string {
   const total = formatTime(totalTime);
   const average = formatTime(avgTime);
-  
+
   return `**총 활동 시간**: ${total}\n**세션 수**: ${sessions}회\n**평균 시간**: ${average}`;
 }
 
@@ -477,13 +474,18 @@ export function formatActivityStats(totalTime: number, sessions: number, avgTime
  * @param percentage - 퍼센트 (선택사항)
  * @returns 포맷팅된 순위 문자열
  */
-export function formatActivityRank(rank: number, name: string, time: number, percentage?: number): string {
+export function formatActivityRank(
+  rank: number,
+  name: string,
+  time: number,
+  percentage?: number
+): string {
   const timeStr = formatTime(time);
   const percentStr = percentage ? ` (${formatPercent(percentage)})` : '';
-  
+
   // 순위별 이모지
   const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : '📊';
-  
+
   return `${rankEmoji} **${rank}위**: ${name} - ${timeStr}${percentStr}`;
 }
 
@@ -497,7 +499,7 @@ export function formatActivityStatus(isActive: boolean, time: number): string {
   const timeStr = formatTime(time);
   const statusEmoji = isActive ? '🟢' : '🔴';
   const statusText = isActive ? '활동 중' : '비활성';
-  
+
   return `${statusEmoji} **${statusText}** (${timeStr})`;
 }
 
@@ -512,7 +514,7 @@ export function formatActivityStatus(isActive: boolean, time: number): string {
  * @returns 포맷팅된 리스트 문자열
  */
 export function formatList(items: string[], bullet: string = '•'): string {
-  return items.map(item => `${bullet} ${item}`).join('\n');
+  return items.map((item) => `${bullet} ${item}`).join('\n');
 }
 
 /**
@@ -550,8 +552,8 @@ export function formatKeyValuePairs(pairs: Record<string, any>, separator: strin
 export function formatTable(headers: string[], rows: string[][]): string {
   const headerRow = '| ' + headers.join(' | ') + ' |';
   const separatorRow = '| ' + headers.map(() => '---').join(' | ') + ' |';
-  const dataRows = rows.map(row => '| ' + row.join(' | ') + ' |');
-  
+  const dataRows = rows.map((row) => '| ' + row.join(' | ') + ' |');
+
   return [headerRow, separatorRow, ...dataRows].join('\n');
 }
 
@@ -570,10 +572,10 @@ export function formatProgressBar(current: number, total: number, length: number
   const percentage = Math.min(current / total, 1);
   const filled = Math.round(percentage * length);
   const empty = length - filled;
-  
+
   const bar = '█'.repeat(filled) + '░'.repeat(empty);
   const percent = formatPercent(percentage);
-  
+
   return `${bar} ${percent}`;
 }
 
@@ -592,7 +594,7 @@ export function truncateText(text: string, maxLength: number, suffix: string = '
   if (text.length <= maxLength) {
     return text;
   }
-  
+
   return text.substring(0, maxLength - suffix.length) + suffix;
 }
 
@@ -655,6 +657,6 @@ export function safeString(value: any, defaultValue: string = ''): string {
   if (value === null || value === undefined) {
     return defaultValue;
   }
-  
+
   return String(value);
 }

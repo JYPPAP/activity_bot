@@ -153,27 +153,6 @@ commands.push(
     )
 );
 
-// gap_cycle 명령어
-commands.push(
-  new SlashCommandBuilder()
-    .setName('gap_cycle')
-    .setDescription('역할별 보고서 출력 주기를 설정합니다.')
-    .addStringOption(option =>
-      option.setName('role')
-            .setDescription('주기를 설정할 역할')
-            .setRequired(true)
-    )
-    .addIntegerOption(option =>
-      option.setName('cycle')
-            .setDescription('출력 주기 (주 단위, 1: 매주, 2: 격주, 4: 월간)')
-            .setRequired(true)
-            .addChoices(
-              { name: '매주', value: 1 },
-              { name: '격주', value: 2 },
-              { name: '월간', value: 4 }
-            )
-    )
-);
 
 // gap_afk 명령어
 commands.push(

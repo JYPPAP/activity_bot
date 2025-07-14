@@ -27,14 +27,14 @@ interface RecruitmentMessages {
 
 // 색상 설정 인터페이스
 interface RecruitmentColors {
-  readonly SUCCESS: 0x00FF00;
-  readonly ERROR: 0xFF0000;
-  readonly WARNING: 0xFFB800;
-  readonly INFO: 0x0099FF;
-  readonly STANDALONE_POST: 0xFFB800;
-  readonly ACTIVE: 0x00FF7F;
+  readonly SUCCESS: 0x00ff00;
+  readonly ERROR: 0xff0000;
+  readonly WARNING: 0xffb800;
+  readonly INFO: 0x0099ff;
+  readonly STANDALONE_POST: 0xffb800;
+  readonly ACTIVE: 0x00ff7f;
   readonly INACTIVE: 0x808080;
-  readonly PREMIUM: 0xFFD700;
+  readonly PREMIUM: 0xffd700;
 }
 
 // 역할 태그 카테고리 인터페이스
@@ -85,18 +85,29 @@ interface ValidationRules {
 export class RecruitmentConfig {
   // ========== 구인구직 기능 권한 설정 ==========
   static RECRUITMENT_ENABLED: boolean = true; // 구인구직 기능 활성화 여부
-  
+
   // 구인구직 기능 접근 허용 사용자 ID 목록
   static ALLOWED_USER_IDS: string[] = [
-    '592666673627004939' // 특정 사용자 ID
+    '592666673627004939', // 특정 사용자 ID
   ];
-  
+
   // ========== 역할 태그 설정 ==========
   static readonly ROLE_TAG_VALUES: readonly string[] = [
-    '@롤', '@롤체', '@배그', '@발로',
-    '@옵치', '@에펙', '@마크', '@스팀',
-    '@넥슨', '@RPG', '@보드게임', '@기타',
-    '@공포', '@생존', '@퍼즐'
+    '@롤',
+    '@롤체',
+    '@배그',
+    '@발로',
+    '@옵치',
+    '@에펙',
+    '@마크',
+    '@스팀',
+    '@넥슨',
+    '@RPG',
+    '@보드게임',
+    '@기타',
+    '@공포',
+    '@생존',
+    '@퍼즐',
   ] as const;
 
   // 역할 태그 카테고리별 분류
@@ -108,12 +119,12 @@ export class RecruitmentConfig {
     CASUAL: ['@보드게임', '@퍼즐'],
     HORROR: ['@공포'],
     PUZZLE: ['@퍼즐'],
-    OTHER: ['@스팀', '@기타']
+    OTHER: ['@스팀', '@기타'],
   } as const;
-  
+
   // 최대 선택 가능한 태그 수
   static readonly MAX_SELECTED_TAGS: number = 5;
-  
+
   // 버튼 그리드 설정
   static readonly BUTTON_GRID_ROWS: number = 4;
   static readonly BUTTON_GRID_COLS: number = 4;
@@ -121,16 +132,16 @@ export class RecruitmentConfig {
     rows: 4,
     cols: 4,
     maxButtons: 16,
-    style: 'standard'
+    style: 'standard',
   } as const;
-  
+
   // ========== 타이밍 설정 ==========
   static readonly CLEANUP_INTERVAL: number = 30000; // 30초마다 정리 작업
   static readonly EMBED_SEND_DELAY: number = 5000; // 5초 후 임베드 전송
   static readonly AUTO_ARCHIVE_DELAY: number = 3600000; // 1시간 후 자동 아카이브
   static readonly NOTIFICATION_COOLDOWN: number = 300000; // 5분 알림 쿨다운
   static readonly MAX_RECRUITMENT_DURATION: number = 86400000; // 24시간 최대 지속 시간
-  
+
   // ========== 메시지 설정 ==========
   static readonly MESSAGES: RecruitmentMessages = {
     RECRUITMENT_DISABLED: '❌ 구인구직 기능이 비활성화되어 있습니다.',
@@ -153,19 +164,19 @@ export class RecruitmentConfig {
     ALREADY_NORMAL: '✅ 이미 정상 모드입니다.',
     PARTICIPANT_UPDATE_FAILED: '❌ 참여자 정보 업데이트에 실패했습니다.',
     POST_ARCHIVED: '📦 포스트가 아카이브되었습니다.',
-    POST_ARCHIVE_FAILED: '❌ 포스트 아카이브에 실패했습니다.'
+    POST_ARCHIVE_FAILED: '❌ 포스트 아카이브에 실패했습니다.',
   } as const;
-  
+
   // ========== 색상 설정 ==========
   static readonly COLORS: RecruitmentColors = {
-    SUCCESS: 0x00FF00,
-    ERROR: 0xFF0000,
-    WARNING: 0xFFB800,
-    INFO: 0x0099FF,
-    STANDALONE_POST: 0xFFB800,
-    ACTIVE: 0x00FF7F,
+    SUCCESS: 0x00ff00,
+    ERROR: 0xff0000,
+    WARNING: 0xffb800,
+    INFO: 0x0099ff,
+    STANDALONE_POST: 0xffb800,
+    ACTIVE: 0x00ff7f,
     INACTIVE: 0x808080,
-    PREMIUM: 0xFFD700
+    PREMIUM: 0xffd700,
   } as const;
 
   // ========== 검증 규칙 ==========
@@ -176,7 +187,7 @@ export class RecruitmentConfig {
     maxDescriptionLength: 1000,
     allowedTagPattern: /^@[가-힣a-zA-Z0-9]+$/,
     participantPattern: /\d+\/(\d+|[Nn])/,
-    forbiddenWords: ['spam', 'hack', 'cheat', '해킹', '치트', '스팸']
+    forbiddenWords: ['spam', 'hack', 'cheat', '해킹', '치트', '스팸'],
   } as const;
 
   // ========== 기능 설정 ==========
@@ -188,7 +199,7 @@ export class RecruitmentConfig {
     ENABLE_REACTION_TRACKING: true,
     ENABLE_VOICE_CHANNEL_MONITORING: true,
     ENABLE_ADVANCED_STATISTICS: true,
-    ENABLE_BACKUP_CREATION: true
+    ENABLE_BACKUP_CREATION: true,
   } as const;
 
   // ========== 제한 설정 ==========
@@ -200,7 +211,7 @@ export class RecruitmentConfig {
     MAX_NOTIFICATION_RECIPIENTS: 100,
     MAX_TAG_LENGTH: 20,
     MAX_USERNAME_DISPLAY_LENGTH: 32,
-    MAX_RECRUITMENT_TITLE_DISPLAY: 80
+    MAX_RECRUITMENT_TITLE_DISPLAY: 80,
   } as const;
 
   // ========== 유틸리티 메서드 ==========
@@ -265,14 +276,14 @@ export class RecruitmentConfig {
       errors.push(`최대 ${this.MAX_SELECTED_TAGS}개까지만 선택할 수 있습니다.`);
     }
 
-    const invalidTags = selectedTags.filter(tag => !this.isValidRoleTag(tag));
+    const invalidTags = selectedTags.filter((tag) => !this.isValidRoleTag(tag));
     if (invalidTags.length > 0) {
       errors.push(`유효하지 않은 태그: ${invalidTags.join(', ')}`);
     }
 
     return {
       valid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -302,7 +313,7 @@ export class RecruitmentConfig {
     }
 
     // 금지된 단어 검사
-    const forbiddenFound = this.VALIDATION_RULES.forbiddenWords.find(word => 
+    const forbiddenFound = this.VALIDATION_RULES.forbiddenWords.find((word) =>
       title.toLowerCase().includes(word.toLowerCase())
     );
     if (forbiddenFound) {
@@ -317,7 +328,7 @@ export class RecruitmentConfig {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -358,15 +369,16 @@ export class RecruitmentConfig {
           errors.push(`Invalid limit value for ${key}: ${value}`);
         }
       });
-
     } catch (error) {
-      errors.push(`Config validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      errors.push(
+        `Config validation error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
 
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 
@@ -405,10 +417,10 @@ export class RecruitmentConfig {
       intervals: {
         cleanup: this.CLEANUP_INTERVAL,
         embedDelay: this.EMBED_SEND_DELAY,
-        autoArchive: this.AUTO_ARCHIVE_DELAY
+        autoArchive: this.AUTO_ARCHIVE_DELAY,
       },
       limits: this.LIMITS,
-      features: this.FEATURE_FLAGS
+      features: this.FEATURE_FLAGS,
     };
   }
 }
@@ -420,11 +432,11 @@ export type {
   RoleTagCategories,
   RecruitmentSettings,
   ButtonGridConfig,
-  ValidationRules
+  ValidationRules,
 };
 
 // 상수 값 타입 유틸리티
-export type RoleTagValue = typeof RecruitmentConfig.ROLE_TAG_VALUES[number];
+export type RoleTagValue = (typeof RecruitmentConfig.ROLE_TAG_VALUES)[number];
 export type ColorKey = keyof typeof RecruitmentConfig.COLORS;
 export type MessageKey = keyof typeof RecruitmentConfig.MESSAGES;
 export type FeatureFlag = keyof typeof RecruitmentConfig.FEATURE_FLAGS;

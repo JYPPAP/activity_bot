@@ -44,7 +44,7 @@ export interface DateFormatOptions {
  */
 export function parseYYMMDD(dateStr: string): Date {
   if (!dateStr || !/^\d{6}$/.test(dateStr)) {
-    throw new Error("날짜는 YYMMDD 형식이어야 합니다. (예: 250510)");
+    throw new Error('날짜는 YYMMDD 형식이어야 합니다. (예: 250510)');
   }
 
   const year = 2000 + parseInt(dateStr.substring(0, 2), 10);
@@ -55,7 +55,7 @@ export function parseYYMMDD(dateStr: string): Date {
 
   // 유효한 날짜인지 검증
   if (isNaN(date.getTime())) {
-    throw new Error("유효하지 않은 날짜입니다.");
+    throw new Error('유효하지 않은 날짜입니다.');
   }
 
   return date;
@@ -70,7 +70,7 @@ export function parseYYMMDD(dateStr: string): Date {
  */
 export function parseDate(dateStr: string, format?: DateFormat): Date {
   if (!dateStr || typeof dateStr !== 'string') {
-    throw new Error("유효한 날짜 문자열을 입력해주세요.");
+    throw new Error('유효한 날짜 문자열을 입력해주세요.');
   }
 
   let date: Date;
@@ -148,7 +148,7 @@ export function calculateNextSunday(date: Date): Date {
 export function calculatePreviousSunday(date: Date): Date {
   const prevDate = new Date(date);
   const daysSinceSunday = prevDate.getDay();
-  
+
   if (daysSinceSunday === 0) {
     // 이미 일요일인 경우 이전 주 일요일로 설정
     prevDate.setDate(prevDate.getDate() - 7);
@@ -219,7 +219,7 @@ export function getTimeDifference(date1: Date, date2: Date): number {
  */
 export function getDetailedTimeDifference(date1: Date, date2: Date): TimeSpan {
   const diff = getTimeDifference(date1, date2);
-  
+
   const years = Math.floor(diff / TIME.YEAR);
   const months = Math.floor((diff % TIME.YEAR) / TIME.MONTH);
   const days = Math.floor((diff % TIME.MONTH) / TIME.DAY);
@@ -235,7 +235,7 @@ export function getDetailedTimeDifference(date1: Date, date2: Date): TimeSpan {
     hours,
     minutes,
     seconds,
-    milliseconds
+    milliseconds,
   };
 }
 
@@ -270,9 +270,11 @@ export function isBeforeDate(targetDate: Date): boolean {
  * @returns 같은 날이면 true
  */
 export function isSameDay(date1: Date, date2: Date): boolean {
-  return date1.getFullYear() === date2.getFullYear() &&
-         date1.getMonth() === date2.getMonth() &&
-         date1.getDate() === date2.getDate();
+  return (
+    date1.getFullYear() === date2.getFullYear() &&
+    date1.getMonth() === date2.getMonth() &&
+    date1.getDate() === date2.getDate()
+  );
 }
 
 /**
@@ -344,7 +346,7 @@ export function formatKoreanDateString(date: Date): string {
  */
 export function formatKoreanDateTime(date: Date, includeSeconds: boolean = false): string {
   const dateStr = formatKoreanDateString(date);
-  const timeStr = includeSeconds 
+  const timeStr = includeSeconds
     ? `${date.getHours()}시 ${date.getMinutes()}분 ${date.getSeconds()}초`
     : `${date.getHours()}시 ${date.getMinutes()}분`;
   return `${dateStr} ${timeStr}`;
@@ -357,11 +359,15 @@ export function formatKoreanDateTime(date: Date, includeSeconds: boolean = false
  * @param options - 추가 옵션
  * @returns 형식화된 날짜 문자열
  */
-export function formatDate(date: Date, format: DateFormat, options: DateFormatOptions = {}): string {
+export function formatDate(
+  date: Date,
+  format: DateFormat,
+  _options: DateFormatOptions = {}
+): string {
   const year = date.getFullYear();
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
   const day = date.getDate().toString().padStart(2, '0');
-  
+
   switch (format) {
     case 'YYMMDD':
       return `${year.toString().slice(-2)}${month}${day}`;
@@ -389,7 +395,7 @@ export function formatTime(date: Date, format: TimeFormat): string {
   const minutes = date.getMinutes().toString().padStart(2, '0');
   const seconds = date.getSeconds().toString().padStart(2, '0');
   const ms = date.getMilliseconds().toString().padStart(3, '0');
-  
+
   switch (format) {
     case 'HH:MM':
       return `${hours}:${minutes}`;
@@ -414,7 +420,7 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
   const diff = now.getTime() - date.getTime();
   const absDiff = Math.abs(diff);
   const isFuture = diff < 0;
-  
+
   if (absDiff < TIME.MINUTE) {
     return isFuture ? '곧' : '방금 전';
   } else if (absDiff < TIME.HOUR) {
@@ -446,14 +452,14 @@ export function formatRelativeTime(date: Date, now: Date = new Date()): string {
 export function formatDuration(milliseconds: number): string {
   const timeSpan = getDetailedTimeDifference(new Date(0), new Date(milliseconds));
   const parts: string[] = [];
-  
+
   if (timeSpan.years > 0) parts.push(`${timeSpan.years}년`);
   if (timeSpan.months > 0) parts.push(`${timeSpan.months}달`);
   if (timeSpan.days > 0) parts.push(`${timeSpan.days}일`);
   if (timeSpan.hours > 0) parts.push(`${timeSpan.hours}시간`);
   if (timeSpan.minutes > 0) parts.push(`${timeSpan.minutes}분`);
   if (timeSpan.seconds > 0 || parts.length === 0) parts.push(`${timeSpan.seconds}초`);
-  
+
   return parts.join(' ');
 }
 
@@ -478,10 +484,10 @@ export function createDateRange(start: Date, end: Date): DateRange {
 export function getTodayRange(): DateRange {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
-  
+
   const end = new Date();
   end.setHours(23, 59, 59, 999);
-  
+
   return { start, end };
 }
 
@@ -493,10 +499,10 @@ export function getThisWeekRange(): DateRange {
   const now = new Date();
   const start = calculatePreviousSunday(now);
   start.setHours(0, 0, 0, 0);
-  
+
   const end = calculateNextSunday(now);
   end.setHours(23, 59, 59, 999);
-  
+
   return { start, end };
 }
 
@@ -508,10 +514,10 @@ export function getThisMonthRange(): DateRange {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
   start.setHours(0, 0, 0, 0);
-  
+
   const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   end.setHours(23, 59, 59, 999);
-  
+
   return { start, end };
 }
 
@@ -582,9 +588,7 @@ export function isValidDateString(dateStr: string, format?: DateFormat): boolean
  * @returns 유효한 범위이면 true
  */
 export function isValidDateRange(range: DateRange): boolean {
-  return isValidDate(range.start) && 
-         isValidDate(range.end) && 
-         range.start <= range.end;
+  return isValidDate(range.start) && isValidDate(range.end) && range.start <= range.end;
 }
 
 // ====================

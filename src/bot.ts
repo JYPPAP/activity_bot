@@ -2,6 +2,8 @@
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import fs from 'fs';
 
+import { ExtendedClient } from './types/discord.js';
+
 // 서비스 임포트
 import { EventManager } from './services/eventManager.js';
 import { ActivityTracker } from './services/activityTracker.js';
@@ -63,19 +65,19 @@ interface InitializationResult {
 
 export class Bot {
   private static instance: Bot | null = null;
-  
+
   // 기본 속성
   private readonly token!: string;
   public readonly client!: Client;
-  
+
   // 서비스 인스턴스들
   public readonly services!: BotServices;
-  
+
   // 통계 및 상태 관리
   private stats!: BotStats;
   private isInitialized: boolean = false;
   private isShuttingDown: boolean = false;
-  
+
   // 상수
   private static readonly CLIENT_OPTIONS = {
     intents: [
@@ -111,7 +113,7 @@ export class Bot {
       userCount: 0,
       channelCount: 0,
       commandsExecuted: 0,
-      eventsProcessed: 0
+      eventsProcessed: 0,
     };
 
     // 서비스 인스턴스 생성
@@ -121,7 +123,7 @@ export class Bot {
     } catch (error) {
       logger.error('서비스 초기화 중 오류 발생:', {
         error: error instanceof Error ? error.message : String(error),
-        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
       });
       throw error;
     }
@@ -151,17 +153,26 @@ export class Bot {
     const dbManager = new DatabaseManager();
 
     // 로그 서비스
-    const logService = new LogService(this.client, { logChannelId: config.LOG_CHANNEL_ID });
+    const logService = new LogService(this.client as unknown as ExtendedClient, {
+      logChannelId: config.LOG_CHANNEL_ID,
+    });
 
     // 달력 로그 서비스
-    const calendarLogService = new CalendarLogService(this.client, dbManager);
+    const calendarLogService = new CalendarLogService(
+      this.client as unknown as ExtendedClient,
+      dbManager
+    );
 
     // 활동 추적 서비스
-    const activityTracker = new ActivityTracker(this.client, dbManager, logService);
+    const activityTracker = new ActivityTracker(
+      this.client as unknown as ExtendedClient,
+      dbManager,
+      logService
+    );
 
     // 음성-포럼 연동 서비스
     const voiceForumService = new VoiceChannelForumIntegrationService(
-      this.client,
+      this.client as unknown as ExtendedClient,
       config.FORUM_CHANNEL_ID || '',
       config.VOICE_CATEGORY_ID || '',
       dbManager
@@ -183,7 +194,7 @@ export class Bot {
     );
 
     // 이벤트 관리자
-    const eventManager = new EventManager(this.client);
+    const eventManager = new EventManager(this.client as unknown as ExtendedClient);
 
     return {
       dbManager,
@@ -193,7 +204,7 @@ export class Bot {
       voiceForumService,
       emojiReactionService,
       commandHandler,
-      eventManager
+      eventManager,
     };
   }
 
@@ -210,10 +221,10 @@ export class Bot {
         eventManager: false,
         activityTracker: false,
         calendarLog: false,
-        voiceForumMapping: false
+        voiceForumMapping: false,
       },
       errors: [],
-      initializationTime: 0
+      initializationTime: 0,
     };
 
     try {
@@ -263,19 +274,18 @@ export class Bot {
       logger.info('봇 초기화 프로세스 완료', {
         success: result.success,
         initializationTime: `${result.initializationTime}ms`,
-        errorsCount: result.errors.length
+        errorsCount: result.errors.length,
       });
 
       return result;
-
     } catch (error) {
       const errorMsg = `초기화 중 예상치 못한 오류: ${error instanceof Error ? error.message : String(error)}`;
       result.errors.push(errorMsg);
       result.initializationTime = Date.now() - startTime;
       logger.error(errorMsg, {
-        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
       });
-      
+
       return result;
     }
   }
@@ -290,7 +300,7 @@ export class Bot {
         logger.botActivity(`Discord Bot 로그인 성공: ${readyClient.user.tag}`, {
           botTag: readyClient.user.tag,
           botId: readyClient.user.id,
-          guildCount: readyClient.guilds.cache.size
+          guildCount: readyClient.guilds.cache.size,
         });
 
         // 통계 업데이트
@@ -300,12 +310,12 @@ export class Bot {
         const guild = readyClient.guilds.cache.get(config.GUILDID);
         if (guild) {
           try {
-            logger.info('활동 추적 초기화 시작', { 
-              guildId: guild.id, 
+            logger.info('활동 추적 초기화 시작', {
+              guildId: guild.id,
               guildName: guild.name,
-              memberCount: guild.memberCount
+              memberCount: guild.memberCount,
             });
-            
+
             await this.services.activityTracker.initializeActivityData(guild);
             initResult.services.activityTracker = true;
             logger.info('✅ 활동 추적 초기화 완료');
@@ -348,21 +358,22 @@ export class Bot {
         // 최종 상태 로깅
         const successfulServices = Object.values(initResult.services).filter(Boolean).length;
         const totalServices = Object.keys(initResult.services).length;
-        
+
         logger.info('🎉 봇이 완전히 준비되었습니다!', {
           successfulServices: `${successfulServices}/${totalServices}`,
-          guild: guild ? {
-            id: guild.id,
-            name: guild.name,
-            memberCount: guild.memberCount
-          } : null,
-          stats: this.getBasicStats()
+          guild: guild
+            ? {
+                id: guild.id,
+                name: guild.name,
+                memberCount: guild.memberCount,
+              }
+            : null,
+          stats: this.getBasicStats(),
         });
-
       } catch (error) {
         logger.error('Ready 이벤트 처리 중 오류:', {
           error: error instanceof Error ? error.message : String(error),
-          ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+          ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
         });
       }
     });
@@ -377,7 +388,7 @@ export class Bot {
       success: false,
       migratedRecords: 0,
       errors: [],
-      backupCreated: false
+      backupCreated: false,
     };
 
     try {
@@ -385,13 +396,10 @@ export class Bot {
       const hasData = await this.services.dbManager.hasAnyData();
 
       // 데이터가 없고 JSON 파일이 존재하는 경우에만 마이그레이션
-      if (!hasData && 
-          fs.existsSync(PATHS.ACTIVITY_INFO) && 
-          fs.existsSync(PATHS.ROLE_CONFIG)) {
-
+      if (!hasData && fs.existsSync(PATHS.ACTIVITY_INFO) && fs.existsSync(PATHS.ROLE_CONFIG)) {
         logger.info('JSON 데이터를 SQLite 데이터베이스로 마이그레이션 시작', {
           activityInfoPath: PATHS.ACTIVITY_INFO,
-          roleConfigPath: PATHS.ROLE_CONFIG
+          roleConfigPath: PATHS.ROLE_CONFIG,
         });
 
         // JSON 파일 로드 (FileManager 없이 직접 로드)
@@ -403,11 +411,12 @@ export class Bot {
 
         if (success) {
           result.success = true;
-          result.migratedRecords = Object.keys(activityData?.participants || {}).length +
-                                   Object.keys(roleConfigData?.roles || {}).length;
+          result.migratedRecords =
+            Object.keys(activityData?.participants || {}).length +
+            Object.keys(roleConfigData?.roles || {}).length;
 
           logger.info('마이그레이션이 성공적으로 완료되었습니다', {
-            migratedRecords: result.migratedRecords
+            migratedRecords: result.migratedRecords,
           });
 
           // 마이그레이션 완료 후 백업 파일 생성
@@ -418,7 +427,7 @@ export class Bot {
             result.backupCreated = true;
 
             logger.info('기존 JSON 파일의 백업이 생성되었습니다', {
-              backupTimestamp: timestamp
+              backupTimestamp: timestamp,
             });
           } catch (backupError) {
             const errorMsg = `백업 생성 실패: ${backupError instanceof Error ? backupError.message : String(backupError)}`;
@@ -428,7 +437,6 @@ export class Bot {
         } else {
           result.errors.push('마이그레이션 실행 실패');
         }
-
       } else if (hasData) {
         logger.info('데이터베이스에 이미 데이터가 있어 마이그레이션을 건너뜁니다');
         result.success = true; // 마이그레이션이 불필요한 경우도 성공으로 간주
@@ -436,12 +444,11 @@ export class Bot {
         logger.info('마이그레이션할 JSON 파일이 없습니다. 새 데이터베이스로 시작합니다');
         result.success = true; // 새 시작도 성공으로 간주
       }
-
     } catch (error) {
       const errorMsg = `데이터 마이그레이션 중 오류: ${error instanceof Error ? error.message : String(error)}`;
       result.errors.push(errorMsg);
       logger.error(errorMsg, {
-        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
       });
     }
 
@@ -455,7 +462,7 @@ export class Bot {
     logger.info('이벤트 핸들러 등록 시작');
 
     // 개별 이벤트 핸들러 등록 (타입 안전성을 위해)
-    
+
     // 음성 채널 상태 변경 이벤트
     this.services.eventManager.registerHandler(
       Events.VoiceStateUpdate,
@@ -503,11 +510,15 @@ export class Bot {
     // 이모지 반응 이벤트
     this.services.eventManager.registerHandler(
       Events.MessageReactionAdd,
-      this.services.emojiReactionService.handleMessageReactionAdd.bind(this.services.emojiReactionService)
+      this.services.emojiReactionService.handleMessageReactionAdd.bind(
+        this.services.emojiReactionService
+      )
     );
     this.services.eventManager.registerHandler(
       Events.MessageReactionRemove,
-      this.services.emojiReactionService.handleMessageReactionRemove.bind(this.services.emojiReactionService)
+      this.services.emojiReactionService.handleMessageReactionRemove.bind(
+        this.services.emojiReactionService
+      )
     );
 
     // 이벤트 핸들러 초기화
@@ -526,7 +537,7 @@ export class Bot {
     }
 
     logger.info('Discord 로그인 시도 중...');
-    
+
     try {
       const result = await this.client.login(this.token);
       logger.info('Discord 로그인 성공');
@@ -534,7 +545,7 @@ export class Bot {
     } catch (error) {
       logger.error('Discord 로그인 실패:', {
         error: error instanceof Error ? error.message : String(error),
-        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
       });
       throw error;
     }
@@ -562,7 +573,7 @@ export class Bot {
     this.stats.lastHeartbeat = new Date();
     this.stats.uptime = Date.now() - this.stats.startTime.getTime();
     this.stats.memoryUsage = process.memoryUsage();
-    
+
     if (this.client.readyAt) {
       this.stats.guildCount = this.client.guilds.cache.size;
       this.stats.userCount = this.client.users.cache.size;
@@ -580,7 +591,7 @@ export class Bot {
       guildCount: this.stats.guildCount,
       userCount: this.stats.userCount,
       channelCount: this.stats.channelCount,
-      memoryUsage: this.stats.memoryUsage
+      memoryUsage: this.stats.memoryUsage,
     };
   }
 
@@ -592,7 +603,7 @@ export class Bot {
       rss: Math.round(this.stats.memoryUsage.rss / 1024 / 1024),
       heapTotal: Math.round(this.stats.memoryUsage.heapTotal / 1024 / 1024),
       heapUsed: Math.round(this.stats.memoryUsage.heapUsed / 1024 / 1024),
-      external: Math.round(this.stats.memoryUsage.external / 1024 / 1024)
+      external: Math.round(this.stats.memoryUsage.external / 1024 / 1024),
     };
 
     logger.info('봇 상태 리포트', {
@@ -603,7 +614,7 @@ export class Bot {
       memoryUsage: `${memUsageMB.heapUsed}MB`,
       memoryDetails: memUsageMB,
       lastHeartbeat: this.stats.lastHeartbeat.toISOString(),
-      websocketPing: this.client.ws.ping
+      websocketPing: this.client.ws.ping,
     });
   }
 
@@ -639,11 +650,11 @@ export class Bot {
     const shutdownTasks = [
       {
         name: '활동 데이터 저장',
-        task: () => this.services.activityTracker.saveActivityData()
+        task: () => this.services.activityTracker.saveActivityData(),
       },
       {
         name: '데이터베이스 연결 종료',
-        task: () => this.services.dbManager.close()
+        task: () => this.services.dbManager.close(),
       },
       {
         name: 'Discord 클라이언트 연결 종료',
@@ -651,8 +662,8 @@ export class Bot {
           if (this.client) {
             this.client.destroy();
           }
-        }
-      }
+        },
+      },
     ];
 
     for (const { name, task } of shutdownTasks) {
@@ -662,7 +673,7 @@ export class Bot {
       } catch (error) {
         logger.error(`❌ ${name} 실패:`, {
           error: error instanceof Error ? error.message : String(error),
-          ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
+          ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
         });
       }
     }
@@ -672,15 +683,10 @@ export class Bot {
 
     logger.info('봇이 안전하게 종료되었습니다', {
       totalUptime: `${Math.round(this.stats.uptime / 1000)}초`,
-      shutdownTime: new Date().toISOString()
+      shutdownTime: new Date().toISOString(),
     });
   }
 }
 
 // 타입 내보내기
-export type {
-  BotServices,
-  BotStats,
-  MigrationResult,
-  InitializationResult
-};
+export type { BotServices, BotStats, MigrationResult, InitializationResult };

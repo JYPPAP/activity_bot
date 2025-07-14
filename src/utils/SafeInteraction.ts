@@ -1,15 +1,16 @@
 // src/utils/SafeInteraction.ts - 안전한 Discord 인터랙션 래퍼
-import { 
-  RepliableInteraction, 
-  MessageFlags, 
-  ModalBuilder, 
+import {
+  Interaction,
+  RepliableInteraction,
+  MessageFlags,
+  ModalBuilder,
   InteractionType,
   CommandInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
   InteractionResponse,
   Message,
-  DiscordAPIError
+  DiscordAPIError,
 } from 'discord.js';
 
 // 인터랙션 검증 결과 인터페이스
@@ -83,7 +84,7 @@ export class SafeInteraction {
   // ========== 처리 상태 관리 ==========
   private static processingInteractions = new Set<string>();
   private static processingStartTimes = new Map<string, number>();
-  
+
   // ========== 통계 관리 ==========
   private static statistics: ProcessingStatistics = {
     totalProcessed: 0,
@@ -97,7 +98,7 @@ export class SafeInteraction {
     errorsByCode: {},
     lastProcessedTime: new Date(),
     averageResponseTime: 0,
-    responseTimeHistory: []
+    responseTimeHistory: [],
   };
 
   // ========== 설정 상수 ==========
@@ -106,7 +107,7 @@ export class SafeInteraction {
     PROCESSING_TIMEOUT: 30000, // 30초
     MAX_RESPONSE_TIME_HISTORY: 100,
     RETRY_DELAY: 1000, // 1초
-    MAX_RETRIES: 3
+    MAX_RETRIES: 3,
   };
 
   // ========== 중복 처리 방지 ==========
@@ -121,21 +122,21 @@ export class SafeInteraction {
       console.warn('[SafeInteraction] 인터랙션 ID가 없습니다.');
       return false;
     }
-    
+
     if (this.processingInteractions.has(interaction.id)) {
       this.statistics.duplicateInteractions++;
       console.warn(`[SafeInteraction] 중복 처리 방지: ${interaction.id}`);
       return false;
     }
-    
+
     this.processingInteractions.add(interaction.id);
     this.processingStartTimes.set(interaction.id, Date.now());
-    
+
     // 자동 정리 설정
     setTimeout(() => {
       this.finishProcessing(interaction);
     }, this.CONFIG.PROCESSING_TIMEOUT);
-    
+
     return true;
   }
 
@@ -213,22 +214,24 @@ export class SafeInteraction {
         type: InteractionType.Ping,
         customId: null,
         age: 0,
-        expired: true
+        expired: true,
       };
     }
 
     const age = Date.now() - interaction.createdTimestamp;
     const expired = age > this.CONFIG.MAX_INTERACTION_AGE;
-    
+
     return {
       valid: true,
-      replied: interaction.replied,
-      deferred: interaction.deferred,
+      replied: interaction.isRepliable() ? interaction.replied : false,
+      deferred: interaction.isRepliable() ? interaction.deferred : false,
       type: interaction.type,
-      customId: interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit() 
-        ? interaction.customId : null,
+      customId:
+        interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()
+          ? interaction.customId
+          : null,
       age,
-      expired
+      expired,
     };
   }
 
@@ -241,11 +244,11 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeReply(
-    interaction: RepliableInteraction, 
+    interaction: RepliableInteraction,
     options: SafeReplyOptions
   ): Promise<InteractionResponse | Message | null> {
     const startTime = Date.now();
-    
+
     try {
       // 통계 업데이트
       this.statistics.totalProcessed++;
@@ -263,9 +266,11 @@ export class SafeInteraction {
 
       // 현재 상태 확인
       const state = this.getInteractionState(interaction);
-      console.log(`[SafeInteraction] 인터랙션 상태: replied=${state.replied}, deferred=${state.deferred}`);
+      console.log(
+        `[SafeInteraction] 인터랙션 상태: replied=${state.replied}, deferred=${state.deferred}`
+      );
 
-      let result: InteractionResponse | Message;
+      let result: any;
 
       if (interaction.replied) {
         // 이미 응답한 경우 followUp 사용
@@ -280,15 +285,17 @@ export class SafeInteraction {
 
       this.statistics.successfulReplies++;
       return result;
-
     } catch (error) {
       this.statistics.failedReplies++;
       this.handleInteractionError(error as DiscordAPIError, 'reply');
-      
-      // 에러 처리 및 복구 시도
-      const recovery = await this.attemptErrorRecovery(interaction, error as DiscordAPIError, options);
-      return recovery;
 
+      // 에러 처리 및 복구 시도
+      const recovery = await this.attemptErrorRecovery(
+        interaction,
+        error as DiscordAPIError,
+        options
+      );
+      return recovery;
     } finally {
       // 응답 시간 통계 업데이트
       const responseTime = Date.now() - startTime;
@@ -303,9 +310,9 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeUpdate(
-    interaction: ButtonInteraction | StringSelectMenuInteraction, 
+    interaction: ButtonInteraction | StringSelectMenuInteraction,
     options: SafeReplyOptions
-  ): Promise<InteractionResponse | null> {
+  ): Promise<any> {
     try {
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
@@ -316,17 +323,16 @@ export class SafeInteraction {
 
       const normalizedOptions = this.normalizeReplyOptions(options);
       const result = await interaction.update(normalizedOptions);
-      
+
       this.statistics.updates++;
       return result;
-
     } catch (error) {
       this.handleInteractionError(error as DiscordAPIError, 'update');
-      
+
       // 업데이트 실패 시 응답으로 대체
       return await this.safeReply(interaction, {
         content: '❌ 업데이트 중 오류가 발생했습니다.',
-        ephemeral: true
+        ephemeral: true,
       });
     }
   }
@@ -338,7 +344,7 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeShowModal(
-    interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction, 
+    interaction: CommandInteraction | ButtonInteraction | StringSelectMenuInteraction,
     modal: ModalBuilder
   ): Promise<void> {
     try {
@@ -348,7 +354,7 @@ export class SafeInteraction {
       }
 
       // 인터랙션 유효성 검사
-      const validation = this.validateInteraction(interaction);
+      const validation = this.validateInteraction(interaction as RepliableInteraction);
       if (!validation.valid) {
         console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
         return;
@@ -356,13 +362,12 @@ export class SafeInteraction {
 
       await interaction.showModal(modal);
       this.statistics.modalShows++;
-
     } catch (error) {
       this.handleInteractionError(error as DiscordAPIError, 'showModal');
-      
-      await this.safeReply(interaction, {
+
+      await this.safeReply(interaction as RepliableInteraction, {
         content: '❌ 모달 표시 중 오류가 발생했습니다.',
-        ephemeral: true
+        ephemeral: true,
       });
     }
   }
@@ -374,7 +379,7 @@ export class SafeInteraction {
    * @returns 처리 결과
    */
   static async safeDeferReply(
-    interaction: RepliableInteraction, 
+    interaction: RepliableInteraction,
     options: { ephemeral?: boolean } = {}
   ): Promise<InteractionResponse | null> {
     try {
@@ -392,7 +397,6 @@ export class SafeInteraction {
       }
 
       return null;
-
     } catch (error) {
       this.handleInteractionError(error as DiscordAPIError, 'deferReply');
       return null;
@@ -420,7 +424,6 @@ export class SafeInteraction {
       }
 
       return null;
-
     } catch (error) {
       this.handleInteractionError(error as DiscordAPIError, 'deferUpdate');
       return null;
@@ -436,9 +439,11 @@ export class SafeInteraction {
    */
   private static handleInteractionError(error: DiscordAPIError, context: string): void {
     const errorCode = error.code || 0;
-    
+
     // 에러 코드별 통계 업데이트
-    this.statistics.errorsByCode[errorCode] = (this.statistics.errorsByCode[errorCode] || 0) + 1;
+    const numericErrorCode = Number(errorCode);
+    this.statistics.errorsByCode[numericErrorCode] =
+      (this.statistics.errorsByCode[numericErrorCode] || 0) + 1;
 
     console.error(`[SafeInteraction] ${context} 오류:`, {
       message: error.message,
@@ -446,7 +451,7 @@ export class SafeInteraction {
       status: error.status,
       method: error.method,
       url: error.url,
-      requestBody: error.requestBody
+      requestBody: error.requestBody,
     });
 
     // 특정 에러 코드별 추가 처리
@@ -480,9 +485,9 @@ export class SafeInteraction {
   private static async attemptErrorRecovery(
     interaction: Interaction,
     error: DiscordAPIError,
-    originalOptions: SafeReplyOptions
+    _originalOptions: SafeReplyOptions
   ): Promise<InteractionResponse | Message | null> {
-    const errorCode = error.code || 0;
+    const errorCode = Number(error.code) || 0;
 
     // 복구 불가능한 에러들
     const unrecoverableErrors = [10062, 10008, 40060];
@@ -492,12 +497,14 @@ export class SafeInteraction {
 
     try {
       // 마지막 시도: 간단한 에러 메시지
-      const validation = this.validateInteraction(interaction);
-      if (validation.valid && !interaction.replied && !interaction.deferred) {
-        return await interaction.reply({
-          content: this.getErrorMessage(errorCode),
-          flags: MessageFlags.Ephemeral
-        });
+      if (interaction.isRepliable()) {
+        const validation = this.validateInteraction(interaction);
+        if (validation.valid && !interaction.replied && !interaction.deferred) {
+          return await interaction.reply({
+            content: this.getErrorMessage(errorCode),
+            flags: MessageFlags.Ephemeral,
+          });
+        }
       }
     } catch (finalError) {
       console.error('[SafeInteraction] 최종 에러 복구 실패:', finalError);
@@ -517,7 +524,7 @@ export class SafeInteraction {
       40060: '❌ 이미 처리된 요청입니다.',
       50013: '❌ 권한이 부족합니다.',
       50035: '❌ 잘못된 입력 데이터입니다.',
-      0: '❌ 처리 중 오류가 발생했습니다.'
+      0: '❌ 처리 중 오류가 발생했습니다.',
     };
 
     return errorMessages[errorCode] || errorMessages[0];
@@ -531,11 +538,11 @@ export class SafeInteraction {
    */
   static createErrorResponse(context: string, error: DiscordAPIError): ErrorResponseOptions {
     this.handleInteractionError(error, context);
-    
+
     return {
-      content: this.getErrorMessage(error.code || 0),
+      content: this.getErrorMessage(Number(error.code) || 0),
       flags: MessageFlags.Ephemeral,
-      ephemeral: true
+      ephemeral: true,
     };
   }
 
@@ -586,19 +593,19 @@ export class SafeInteraction {
     if (!interaction) return null;
 
     const state = this.getInteractionState(interaction);
-    
+
     return {
       id: interaction.id,
       customId: state.customId,
       type: interaction.type,
-      replied: interaction.replied,
-      deferred: interaction.deferred,
+      replied: interaction.isRepliable() ? interaction.replied : false,
+      deferred: interaction.isRepliable() ? interaction.deferred : false,
       user: interaction.user?.username || null,
       channel: 'channel' in interaction ? interaction.channel?.id || null : null,
       guild: interaction.guild?.name || null,
       createdAt: new Date(interaction.createdTimestamp).toISOString(),
       age: state.age,
-      expired: state.expired
+      expired: state.expired,
     };
   }
 
@@ -640,7 +647,7 @@ export class SafeInteraction {
       errorsByCode: {},
       lastProcessedTime: new Date(),
       averageResponseTime: 0,
-      responseTimeHistory: []
+      responseTimeHistory: [],
     };
   }
 
@@ -686,7 +693,7 @@ export class SafeInteraction {
     totalProcessed: number;
     successRate: number;
     averageResponseTime: number;
-    commonErrors: Array<{ code: number; count: number; }>;
+    commonErrors: Array<{ code: number; count: number }>;
   } {
     const commonErrors = Object.entries(this.statistics.errorsByCode)
       .map(([code, count]) => ({ code: parseInt(code), count }))
@@ -698,7 +705,7 @@ export class SafeInteraction {
       totalProcessed: this.statistics.totalProcessed,
       successRate: this.getSuccessRate(),
       averageResponseTime: this.statistics.averageResponseTime,
-      commonErrors
+      commonErrors,
     };
   }
 }
@@ -710,5 +717,5 @@ export type {
   ErrorResponseOptions,
   ProcessingStatistics,
   DebugInfo,
-  SafeReplyOptions
+  SafeReplyOptions,
 };

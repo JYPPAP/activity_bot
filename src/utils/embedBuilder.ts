@@ -1,9 +1,11 @@
 // src/utils/embedBuilder.ts - 임베드 생성 유틸리티
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
+
 import { COLORS } from '../config/constants.js';
-import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters.js';
-import { formatSimpleDate } from './dateUtils.js';
 import { EmbedConfig, EmbedFieldData } from '../types/discord.js';
+
+import { formatSimpleDate } from './dateUtils.js';
+import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters.js';
 
 // ====================
 // 임베드 데이터 타입
@@ -117,7 +119,7 @@ export class EmbedFactory {
     includeFooter: true,
     maxFieldLength: 1024,
     maxDescriptionLength: 4096,
-    truncateText: '...'
+    truncateText: '...',
   };
 
   /**
@@ -143,7 +145,7 @@ export class EmbedFactory {
     const endDateStr = formatSimpleDate(now);
 
     // 사용자 목록 정렬
-    const sortedUsers = opts.sortByTime 
+    const sortedUsers = opts.sortByTime
       ? [...users].sort((a, b) => b.totalTime - a.totalTime)
       : users;
 
@@ -156,21 +158,29 @@ export class EmbedFactory {
     // 상태별 헤더 추가
     const statusEmoji = type === 'active' ? '✅' : '❌';
     const statusText = type === 'active' ? '활동 기준 달성 멤버' : '활동 기준 미달성 멤버';
-    
+
     embed.addFields({
       name: `${statusEmoji} ${statusText} (${sortedUsers.length}명)`,
-      value: '\u200B'
+      value: '\u200B',
     });
 
     // 데이터 표시
     if (sortedUsers.length > 0) {
-      const names = sortedUsers.map(user => user.nickname || user.userId);
-      const times = sortedUsers.map(user => formatTime(user.totalTime));
-      
+      const names = sortedUsers.map((user) => user.nickname || user.userId);
+      const times = sortedUsers.map((user) => formatTime(user.totalTime));
+
       // 필드 길이 제한 적용
-      const nameField = this.limitFieldLength(names.join('\n'), opts.maxFieldLength!, opts.truncateText!);
-      const timeField = this.limitFieldLength(times.join('\n'), opts.maxFieldLength!, opts.truncateText!);
-      
+      const nameField = this.limitFieldLength(
+        names.join('\n'),
+        opts.maxFieldLength!,
+        opts.truncateText!
+      );
+      const timeField = this.limitFieldLength(
+        times.join('\n'),
+        opts.maxFieldLength!,
+        opts.truncateText!
+      );
+
       embed.addFields(
         { name: '이름', value: nameField, inline: true },
         { name: '총 활동 시간', value: timeField, inline: true }
@@ -179,7 +189,7 @@ export class EmbedFactory {
       embed.addFields({
         name: '\u200B',
         value: '기록된 멤버가 없습니다.',
-        inline: false
+        inline: false,
       });
     }
 
@@ -210,7 +220,7 @@ export class EmbedFactory {
       endDate,
       minHours,
       reportCycle = null,
-      title = '활동 목록'
+      title = '활동 목록',
     } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
@@ -238,7 +248,7 @@ export class EmbedFactory {
       statusEmoji: '✅',
       statusText: '활동 기준 달성 멤버',
       emptyMessage: '기준 달성 멤버가 없습니다.',
-      options: opts
+      options: opts,
     });
 
     // 비활성 사용자 임베드
@@ -250,7 +260,7 @@ export class EmbedFactory {
       statusEmoji: '❌',
       statusText: '활동 기준 미달성 멤버',
       emptyMessage: '기준 미달성 멤버가 없습니다.',
-      options: opts
+      options: opts,
     });
 
     const embeds = [activeEmbed, inactiveEmbed];
@@ -261,7 +271,7 @@ export class EmbedFactory {
         title: `📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`,
         description,
         users: afkUsers,
-        options: opts
+        options: opts,
       });
 
       embeds.push(afkEmbed);
@@ -276,24 +286,19 @@ export class EmbedFactory {
    * @param options - 임베드 옵션
    * @returns 생성된 임베드
    */
-  static createLogEmbed(
-    data: LogEmbedData,
-    options: LogEmbedOptions = {}
-  ): EmbedBuilder {
+  static createLogEmbed(data: LogEmbedData, options: LogEmbedOptions = {}): EmbedBuilder {
     const {
       message,
       members,
       colorCode = COLORS.LOG,
       timestamp = new Date(),
       channelName,
-      action
+      action,
     } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    const embed = new EmbedBuilder()
-      .setColor(colorCode)
-      .setDescription(`**${message}**`);
+    const embed = new EmbedBuilder().setColor(colorCode).setDescription(`**${message}**`);
 
     // 추가 정보 필드
     if (channelName) {
@@ -306,18 +311,16 @@ export class EmbedFactory {
 
     // 현재 음성 채널의 인원 목록
     if (opts.includeMembers !== false) {
-      const membersToShow = opts.maxMembersShown 
-        ? members.slice(0, opts.maxMembersShown)
-        : members;
+      const membersToShow = opts.maxMembersShown ? members.slice(0, opts.maxMembersShown) : members;
 
       const membersText = formatMembersList(membersToShow, {
         showCount: opts.showMemberCount !== false,
-        maxLength: opts.maxFieldLength
+        ...(opts.maxFieldLength !== undefined && { maxLength: opts.maxFieldLength }),
       });
 
       embed.addFields({
         name: '👥 현재 남아있는 멤버',
-        value: membersText
+        value: membersText,
       });
 
       // 더 많은 멤버가 있는 경우 알림
@@ -325,7 +328,7 @@ export class EmbedFactory {
         embed.addFields({
           name: '\u200B',
           value: `외 ${members.length - opts.maxMembersShown}명 더...`,
-          inline: false
+          inline: false,
         });
       }
     }
@@ -333,7 +336,7 @@ export class EmbedFactory {
     // 푸터 추가
     if (opts.includeFooter) {
       embed.setFooter({
-        text: `로그 기록 시간: ${formatKoreanDate(timestamp)}`
+        text: `로그 기록 시간: ${formatKoreanDate(timestamp)}`,
       });
     }
 
@@ -363,14 +366,12 @@ export class EmbedFactory {
       fields = [],
       footer,
       thumbnail,
-      image
+      image,
     } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(title);
+    const embed = new EmbedBuilder().setColor(color).setTitle(title);
 
     // 설명 길이 제한
     const limitedDescription = this.limitFieldLength(
@@ -382,9 +383,9 @@ export class EmbedFactory {
 
     // 필드 추가
     if (fields.length > 0) {
-      const limitedFields = fields.map(field => ({
+      const limitedFields = fields.map((field) => ({
         ...field,
-        value: this.limitFieldLength(field.value, opts.maxFieldLength!, opts.truncateText!)
+        value: this.limitFieldLength(field.value, opts.maxFieldLength!, opts.truncateText!),
       }));
       embed.addFields(limitedFields);
     }
@@ -417,32 +418,21 @@ export class EmbedFactory {
    * @param options - 임베드 옵션
    * @returns 생성된 임베드
    */
-  static createStatsEmbed(
-    data: StatsEmbedData,
-    options: EmbedOptions = {}
-  ): EmbedBuilder {
-    const {
-      title,
-      description,
-      stats,
-      color = COLORS.INFO,
-      timestamp = new Date()
-    } = data;
+  static createStatsEmbed(data: StatsEmbedData, options: EmbedOptions = {}): EmbedBuilder {
+    const { title, description, stats, color = COLORS.INFO, timestamp = new Date() } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(title);
+    const embed = new EmbedBuilder().setColor(color).setTitle(title);
 
     if (description) {
       embed.setDescription(description);
     }
 
     // 통계 필드 추가
-    const limitedStats = stats.map(stat => ({
+    const limitedStats = stats.map((stat) => ({
       ...stat,
-      value: this.limitFieldLength(stat.value, opts.maxFieldLength!, opts.truncateText!)
+      value: this.limitFieldLength(stat.value, opts.maxFieldLength!, opts.truncateText!),
     }));
 
     embed.addFields(limitedStats);
@@ -460,17 +450,8 @@ export class EmbedFactory {
    * @param options - 임베드 옵션
    * @returns 생성된 임베드
    */
-  static createErrorEmbed(
-    data: ErrorEmbedData,
-    options: EmbedOptions = {}
-  ): EmbedBuilder {
-    const {
-      error,
-      details,
-      timestamp = new Date(),
-      command,
-      userId
-    } = data;
+  static createErrorEmbed(data: ErrorEmbedData, options: EmbedOptions = {}): EmbedBuilder {
+    const { error, details, timestamp = new Date(), command, userId } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
@@ -483,7 +464,7 @@ export class EmbedFactory {
     if (details) {
       embed.addFields({
         name: '세부 정보',
-        value: this.limitFieldLength(details, opts.maxFieldLength!, opts.truncateText!)
+        value: this.limitFieldLength(details, opts.maxFieldLength!, opts.truncateText!),
       });
     }
 
@@ -599,44 +580,50 @@ export class EmbedFactory {
     emptyMessage: string;
     options: ActivityEmbedOptions;
   }): EmbedBuilder {
-    const { title, description, users, color, statusEmoji, statusText, emptyMessage, options } = params;
+    const { title, description, users, color, statusEmoji, statusText, emptyMessage, options } =
+      params;
 
-    const embed = new EmbedBuilder()
-      .setColor(color)
-      .setTitle(title)
-      .setDescription(description);
+    const embed = new EmbedBuilder().setColor(color).setTitle(title).setDescription(description);
 
     // 사용자 정렬
-    const sortedUsers = options.sortByTime 
+    const sortedUsers = options.sortByTime
       ? [...users].sort((a, b) => b.totalTime - a.totalTime)
       : users;
 
     embed.addFields({
       name: `${statusEmoji} ${statusText} (${sortedUsers.length}명)`,
-      value: '\u200B'
+      value: '\u200B',
     });
 
     if (sortedUsers.length > 0) {
-      const names = sortedUsers.map(user => user.nickname || user.userId);
-      const times = sortedUsers.map(user => formatTime(user.totalTime));
-      
+      const names = sortedUsers.map((user) => user.nickname || user.userId);
+      const times = sortedUsers.map((user) => formatTime(user.totalTime));
+
       embed.addFields(
-        { 
-          name: '이름', 
-          value: this.limitFieldLength(names.join('\n'), options.maxFieldLength!, options.truncateText!), 
-          inline: true 
+        {
+          name: '이름',
+          value: this.limitFieldLength(
+            names.join('\n'),
+            options.maxFieldLength!,
+            options.truncateText!
+          ),
+          inline: true,
         },
-        { 
-          name: '총 활동 시간', 
-          value: this.limitFieldLength(times.join('\n'), options.maxFieldLength!, options.truncateText!), 
-          inline: true 
+        {
+          name: '총 활동 시간',
+          value: this.limitFieldLength(
+            times.join('\n'),
+            options.maxFieldLength!,
+            options.truncateText!
+          ),
+          inline: true,
         }
       );
     } else if (options.showEmptyMessage !== false) {
       embed.addFields({
         name: '\u200B',
         value: emptyMessage,
-        inline: false
+        inline: false,
       });
     }
 
@@ -667,31 +654,43 @@ export class EmbedFactory {
 
     embed.addFields({
       name: `💤 잠수 중인 멤버 (${users.length}명)`,
-      value: '\u200B'
+      value: '\u200B',
     });
 
     if (users.length > 0) {
-      const names = users.map(user => user.nickname || user.userId);
-      const times = users.map(user => formatTime(user.totalTime));
-      const afkUntilDates = users.map(user => 
+      const names = users.map((user) => user.nickname || user.userId);
+      const times = users.map((user) => formatTime(user.totalTime));
+      const afkUntilDates = users.map((user) =>
         formatSimpleDate(new Date(user.afkUntil || Date.now()))
       );
-      
+
       embed.addFields(
-        { 
-          name: '이름', 
-          value: this.limitFieldLength(names.join('\n'), options.maxFieldLength!, options.truncateText!), 
-          inline: true 
+        {
+          name: '이름',
+          value: this.limitFieldLength(
+            names.join('\n'),
+            options.maxFieldLength!,
+            options.truncateText!
+          ),
+          inline: true,
         },
-        { 
-          name: '총 활동 시간', 
-          value: this.limitFieldLength(times.join('\n'), options.maxFieldLength!, options.truncateText!), 
-          inline: true 
+        {
+          name: '총 활동 시간',
+          value: this.limitFieldLength(
+            times.join('\n'),
+            options.maxFieldLength!,
+            options.truncateText!
+          ),
+          inline: true,
         },
         {
           name: '잠수 해제 예정일',
-          value: this.limitFieldLength(afkUntilDates.join('\n'), options.maxFieldLength!, options.truncateText!),
-          inline: true
+          value: this.limitFieldLength(
+            afkUntilDates.join('\n'),
+            options.maxFieldLength!,
+            options.truncateText!
+          ),
+          inline: true,
         }
       );
     }
@@ -772,11 +771,11 @@ export class EmbedFactory {
  */
 export function chunkEmbeds(embeds: EmbedBuilder[], chunkSize: number = 10): EmbedBuilder[][] {
   const chunks: EmbedBuilder[][] = [];
-  
+
   for (let i = 0; i < embeds.length; i += chunkSize) {
     chunks.push(embeds.slice(i, i + chunkSize));
   }
-  
+
   return chunks;
 }
 
@@ -788,18 +787,18 @@ export function chunkEmbeds(embeds: EmbedBuilder[], chunkSize: number = 10): Emb
 export function calculateEmbedLength(embed: EmbedBuilder): number {
   const data = embed.toJSON();
   let length = 0;
-  
+
   if (data.title) length += data.title.length;
   if (data.description) length += data.description.length;
   if (data.footer?.text) length += data.footer.text.length;
   if (data.author?.name) length += data.author.name.length;
-  
+
   if (data.fields) {
     for (const field of data.fields) {
       length += field.name.length + field.value.length;
     }
   }
-  
+
   return length;
 }
 
@@ -811,21 +810,21 @@ export function calculateEmbedLength(embed: EmbedBuilder): number {
 export function isEmbedOverLimit(embed: EmbedBuilder): boolean {
   const data = embed.toJSON();
   const totalLength = calculateEmbedLength(embed);
-  
+
   if (totalLength > 6000) return true;
   if (data.title && data.title.length > 256) return true;
   if (data.description && data.description.length > 4096) return true;
   if (data.fields && data.fields.length > 25) return true;
   if (data.footer?.text && data.footer.text.length > 2048) return true;
   if (data.author?.name && data.author.name.length > 256) return true;
-  
+
   if (data.fields) {
     for (const field of data.fields) {
       if (field.name.length > 256) return true;
       if (field.value.length > 1024) return true;
     }
   }
-  
+
   return false;
 }
 
@@ -837,19 +836,19 @@ export function isEmbedOverLimit(embed: EmbedBuilder): boolean {
 export function safeEmbedCreate(createFn: () => EmbedBuilder): EmbedBuilder {
   try {
     const embed = createFn();
-    
+
     if (isEmbedOverLimit(embed)) {
       return EmbedFactory.createErrorEmbed({
         error: '임베드 생성 오류',
-        details: '임베드가 Discord 제한을 초과했습니다.'
+        details: '임베드가 Discord 제한을 초과했습니다.',
       });
     }
-    
+
     return embed;
   } catch (error) {
     return EmbedFactory.createErrorEmbed({
       error: '임베드 생성 오류',
-      details: error instanceof Error ? error.message : String(error)
+      details: error instanceof Error ? error.message : String(error),
     });
   }
 }

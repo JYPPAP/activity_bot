@@ -1,11 +1,13 @@
 // src/services/activityTracker.ts - 활동 추적 서비스 (TypeScript)
-import { VoiceState, GuildMember, Collection, Guild } from 'discord.js';
+import { VoiceState, GuildMember, Collection, Guild, VoiceChannel } from 'discord.js';
+
 import { TIME, FILTERS, MESSAGE_TYPES } from '../config/constants.js';
 import { config } from '../config/env.js';
+import { EnhancedClient } from '../types/discord.js';
+
 import { DatabaseManager } from './DatabaseManager.js';
 import { LogService } from './logService.js';
-import { EnhancedClient } from '../types/discord.js';
-import { UserActivity } from '../types/index.js';
+// import { UserActivity } from '../types/index.js'; // 미사용
 
 // ====================
 // 활동 추적 관련 타입
@@ -69,16 +71,16 @@ export class ActivityTracker {
   private readonly db: DatabaseManager;
   private readonly logService: LogService;
   private readonly options: Required<ActivityTrackerOptions>;
-  
+
   // 활동 데이터 저장소
   private readonly channelActivityTime: Map<string, ActivityData> = new Map();
   private roleActivityConfig: Record<string, number> = {};
-  
+
   // 제어 변수
   private saveActivityTimeout: NodeJS.Timeout | null = null;
   private isInitialized = false;
   private readonly startTime = Date.now();
-  
+
   // 통계 데이터
   private readonly stats: ActivityStats = {
     totalActiveUsers: 0,
@@ -88,7 +90,7 @@ export class ActivityTracker {
     totalJoins: 0,
     totalLeaves: 0,
     lastActivityTime: new Date(),
-    uptime: 0
+    uptime: 0,
   };
 
   constructor(
@@ -107,7 +109,7 @@ export class ActivityTracker {
       enableStatistics: true,
       trackingInterval: 60000, // 1분
       maxRetries: 3,
-      ...options
+      ...options,
     };
 
     // 주기적 통계 업데이트
@@ -128,12 +130,14 @@ export class ActivityTracker {
         this.channelActivityTime.set(activity.userId, {
           startTime: activity.startTime,
           totalTime: activity.totalTime,
-          displayName: activity.displayName || undefined
+          ...(activity.displayName && { displayName: activity.displayName }),
         });
       }
 
       if (this.options.enableLogging) {
-        console.log(`[ActivityTracker] ${activities.length}명의 사용자 활동 데이터를 로드했습니다.`);
+        console.log(
+          `[ActivityTracker] ${activities.length}명의 사용자 활동 데이터를 로드했습니다.`
+        );
       }
     } catch (error) {
       console.error('[ActivityTracker] 활동 데이터 로드 오류:', error);
@@ -167,11 +171,14 @@ export class ActivityTracker {
    */
   async saveActivityData(): Promise<void> {
     const now = Date.now();
-    const activeUsers = Array.from(this.channelActivityTime.entries())
-      .filter(([_, activity]) => activity.startTime !== null);
-    
+    const activeUsers = Array.from(this.channelActivityTime.entries()).filter(
+      ([_, activity]) => activity.startTime !== null
+    );
+
     if (activeUsers.length > 0 && this.options.enableLogging) {
-      console.log(`[ActivityTracker] 활동 데이터 저장 시작 - ${activeUsers.length}명의 활성 사용자`);
+      console.log(
+        `[ActivityTracker] 활동 데이터 저장 시작 - ${activeUsers.length}명의 활성 사용자`
+      );
     }
 
     try {
@@ -188,7 +195,7 @@ export class ActivityTracker {
       }
 
       await this.db.commitTransaction();
-      
+
       if (this.options.enableLogging) {
         console.log('[ActivityTracker] 활동 데이터가 성공적으로 저장되었습니다.');
       }
@@ -202,10 +209,7 @@ export class ActivityTracker {
   /**
    * 배치 처리
    */
-  private async processBatch(
-    batch: [string, ActivityData][],
-    now: number
-  ): Promise<void> {
+  private async processBatch(batch: [string, ActivityData][], now: number): Promise<void> {
     for (const [userId, userActivity] of batch) {
       try {
         if (userActivity.startTime !== null) {
@@ -273,7 +277,7 @@ export class ActivityTracker {
 
       const now = Date.now();
       const guild = this.client.guilds.cache.get(config.GUILDID);
-      
+
       if (!guild) {
         throw new Error('길드를 찾을 수 없습니다.');
       }
@@ -282,14 +286,14 @@ export class ActivityTracker {
       const members = await guild.members.fetch();
 
       for (const [_, member] of members) {
-        const hasRole = member.roles.cache.some(r => r.name === role);
+        const hasRole = member.roles.cache.some((r) => r.name === role);
 
         if (hasRole) {
           const userId = member.id;
           if (this.channelActivityTime.has(userId)) {
             const userActivity = this.channelActivityTime.get(userId)!;
-            const isInVoiceChannel = member.voice?.channelId && 
-              !config.EXCLUDED_CHANNELS.includes(member.voice.channelId);
+            const isInVoiceChannel =
+              member.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId);
 
             if (isInVoiceChannel) {
               userActivity.startTime = now;
@@ -299,12 +303,7 @@ export class ActivityTracker {
               userActivity.totalTime = 0;
             }
 
-            await this.db.updateUserActivity(
-              userId,
-              0,
-              userActivity.startTime,
-              member.displayName
-            );
+            await this.db.updateUserActivity(userId, 0, userActivity.startTime, member.displayName);
           }
         }
       }
@@ -328,17 +327,17 @@ export class ActivityTracker {
 
       const members = await guild.members.fetch();
       const roleConfigs = await this.db.getAllRoleConfigs();
-      const trackedRoles = roleConfigs.map(config => config.roleName);
+      const trackedRoles = roleConfigs.map((config) => config.roleName);
 
       for (const [userId, member] of members) {
-        const userRoles = member.roles.cache.map(role => role.name);
-        const hasTrackedRole = userRoles.some(role => trackedRoles.includes(role));
+        const userRoles = member.roles.cache.map((role) => role.name);
+        const hasTrackedRole = userRoles.some((role) => trackedRoles.includes(role));
 
         if (hasTrackedRole && !this.channelActivityTime.has(userId)) {
           this.channelActivityTime.set(userId, {
             startTime: null,
             totalTime: 0,
-            displayName: member.displayName
+            displayName: member.displayName,
           });
 
           await this.db.updateUserActivity(userId, 0, null, member.displayName);
@@ -346,12 +345,12 @@ export class ActivityTracker {
       }
 
       this.isInitialized = true;
-      
+
       if (this.options.enableLogging) {
-        console.log("[ActivityTracker] ✔ 활동 정보가 초기화되었습니다.");
+        console.log('[ActivityTracker] ✔ 활동 정보가 초기화되었습니다.');
       }
     } catch (error) {
-      console.error("[ActivityTracker] 활동 데이터 초기화 오류:", error);
+      console.error('[ActivityTracker] 활동 데이터 초기화 오류:', error);
       throw error;
     }
   }
@@ -429,7 +428,7 @@ export class ActivityTracker {
     member: GuildMember,
     now: number
   ): void {
-    const isExcluded = (channelId: string | null) => 
+    const isExcluded = (channelId: string | null) =>
       channelId && config.EXCLUDED_CHANNELS.includes(channelId);
 
     if (change.type === 'join' && !isExcluded(change.newChannelId)) {
@@ -453,7 +452,7 @@ export class ActivityTracker {
       this.channelActivityTime.set(userId, {
         startTime: now,
         totalTime: 0,
-        displayName: member.displayName
+        displayName: member.displayName,
       });
     } else {
       const userActivity = this.channelActivityTime.get(userId)!;
@@ -486,8 +485,10 @@ export class ActivityTracker {
    * 관전 또는 대기 상태 확인
    */
   private isObservationOrWaiting(member: GuildMember): boolean {
-    return member.displayName.includes(FILTERS.OBSERVATION) ||
-           member.displayName.includes(FILTERS.WAITING);
+    return (
+      member.displayName.includes(FILTERS.OBSERVATION) ||
+      member.displayName.includes(FILTERS.WAITING)
+    );
   }
 
   /**
@@ -499,12 +500,14 @@ export class ActivityTracker {
     }
 
     try {
-      const membersInChannel = await this.logService.getVoiceChannelMembers(newState.channel);
+      const membersInChannel = await this.logService.getVoiceChannelMembers(
+        newState.channel as VoiceChannel
+      );
       const channelName = newState.channel.name;
       const logMessage = `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${channelName} \`에 입장했습니다.`;
 
       this.logService.logActivity(logMessage, membersInChannel, 'JOIN');
-      
+
       await this.db.logActivity(
         newState.id,
         'JOIN',
@@ -526,12 +529,14 @@ export class ActivityTracker {
     }
 
     try {
-      const membersInChannel = await this.logService.getVoiceChannelMembers(oldState.channel);
+      const membersInChannel = await this.logService.getVoiceChannelMembers(
+        oldState.channel as VoiceChannel
+      );
       const channelName = oldState.channel.name;
       const logMessage = `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${channelName} \`에서 퇴장했습니다.`;
 
       this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
-      
+
       await this.db.logActivity(
         oldState.id,
         'LEAVE',
@@ -552,9 +557,11 @@ export class ActivityTracker {
 
     const userId = newMember.id;
     const now = Date.now();
-    
+
     if (oldMember.displayName !== newMember.displayName && this.options.enableLogging) {
-      console.log(`[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`);
+      console.log(
+        `[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`
+      );
     }
 
     // 관전/대기 상태 변경 감지
@@ -587,7 +594,7 @@ export class ActivityTracker {
   ): Promise<void> {
     try {
       const userActivity = this.channelActivityTime.get(userId);
-      
+
       if (isEnteringObservation) {
         // 관전/대기 상태 진입 - 활동 시간 기록 중단
         if (userActivity && userActivity.startTime !== null) {
@@ -609,19 +616,14 @@ export class ActivityTracker {
             this.channelActivityTime.set(userId, {
               startTime: now,
               totalTime: 0,
-              displayName: member.displayName
+              displayName: member.displayName,
             });
           } else if (userActivity.startTime === null) {
             userActivity.startTime = now;
           }
 
           const activity = this.channelActivityTime.get(userId)!;
-          await this.db.updateUserActivity(
-            userId,
-            activity.totalTime,
-            now,
-            member.displayName
-          );
+          await this.db.updateUserActivity(userId, activity.totalTime, now, member.displayName);
 
           this.debounceSaveActivityData();
         }
@@ -642,7 +644,7 @@ export class ActivityTracker {
       const roleConfig = await this.db.getRoleConfig(roleName);
       const minActivityHours = roleConfig ? roleConfig.minHours : 0;
       const minActivityTime = minActivityHours * 60 * 60 * 1000;
-      const resetTime = roleConfig ? roleConfig.resetTime : null;
+      const resetTime: number | null = roleConfig ? (roleConfig.resetTime ?? null) : null;
 
       const activeUsers: ClassifiedUser[] = [];
       const inactiveUsers: ClassifiedUser[] = [];
@@ -655,10 +657,10 @@ export class ActivityTracker {
         const userData: ClassifiedUser = {
           userId,
           nickname: member.displayName,
-          totalTime
+          totalTime,
         };
 
-        if (member.roles.cache.some(r => r.name.includes('잠수'))) {
+        if (member.roles.cache.some((r) => r.name.includes('잠수'))) {
           afkUsers.push(userData);
         } else if (totalTime >= minActivityTime) {
           activeUsers.push(userData);
@@ -678,7 +680,7 @@ export class ActivityTracker {
         inactiveUsers,
         afkUsers,
         resetTime,
-        minHours: minActivityHours
+        minHours: minActivityHours,
       };
     } catch (error) {
       console.error('[ActivityTracker] 사용자 분류 오류:', error);
@@ -687,7 +689,7 @@ export class ActivityTracker {
         inactiveUsers: [],
         afkUsers: [],
         resetTime: null,
-        minHours: 0
+        minHours: 0,
       };
     }
   }
@@ -712,7 +714,7 @@ export class ActivityTracker {
             const member = await guild.members.fetch(activity.userId);
             if (member) {
               displayName = member.displayName;
-              
+
               // DB에 표시 이름 업데이트
               await this.db.updateUserActivity(
                 activity.userId,
@@ -730,7 +732,7 @@ export class ActivityTracker {
         activeMembers.push({
           userId: activity.userId,
           nickname: displayName,
-          totalTime: activity.totalTime
+          totalTime: activity.totalTime,
         });
       }
 
@@ -756,16 +758,19 @@ export class ActivityTracker {
     }
 
     // 현재 활성 사용자 수 계산
-    const activeUsers = Array.from(this.channelActivityTime.values())
-      .filter(activity => activity.startTime !== null).length;
-    
+    const activeUsers = Array.from(this.channelActivityTime.values()).filter(
+      (activity) => activity.startTime !== null
+    ).length;
+
     this.stats.totalActiveUsers = activeUsers;
     this.stats.peakConcurrentUsers = Math.max(this.stats.peakConcurrentUsers, activeUsers);
 
     // 평균 세션 시간 계산
-    const totalSessionTime = Array.from(this.channelActivityTime.values())
-      .reduce((sum, activity) => sum + activity.totalTime, 0);
-    
+    const totalSessionTime = Array.from(this.channelActivityTime.values()).reduce(
+      (sum, activity) => sum + activity.totalTime,
+      0
+    );
+
     this.stats.totalSessionTime = totalSessionTime;
     this.stats.averageSessionTime = activeUsers > 0 ? totalSessionTime / activeUsers : 0;
   }
@@ -776,10 +781,11 @@ export class ActivityTracker {
   private scheduleStatisticsUpdate(): void {
     setInterval(() => {
       this.stats.uptime = Date.now() - this.startTime;
-      
-      const activeUsers = Array.from(this.channelActivityTime.values())
-        .filter(activity => activity.startTime !== null).length;
-      
+
+      const activeUsers = Array.from(this.channelActivityTime.values()).filter(
+        (activity) => activity.startTime !== null
+      ).length;
+
       this.stats.totalActiveUsers = activeUsers;
     }, this.options.trackingInterval);
   }
@@ -795,8 +801,9 @@ export class ActivityTracker {
    * 현재 활성 사용자 수 조회
    */
   getActiveUserCount(): number {
-    return Array.from(this.channelActivityTime.values())
-      .filter(activity => activity.startTime !== null).length;
+    return Array.from(this.channelActivityTime.values()).filter(
+      (activity) => activity.startTime !== null
+    ).length;
   }
 
   /**
@@ -829,7 +836,7 @@ export class ActivityTracker {
       clearTimeout(this.saveActivityTimeout);
       this.saveActivityTimeout = null;
     }
-    
+
     await this.saveActivityData();
   }
 
@@ -841,9 +848,9 @@ export class ActivityTracker {
       if (this.saveActivityTimeout) {
         clearTimeout(this.saveActivityTimeout);
       }
-      
+
       await this.saveActivityData();
-      
+
       if (this.options.enableLogging) {
         console.log('[ActivityTracker] 정리 작업 완료');
       }
@@ -923,7 +930,7 @@ export function validateUserClassification(classification: UserClassification): 
 export function generateActivitySummary(stats: ActivityStats): string {
   const uptimeHours = Math.floor(stats.uptime / (1000 * 60 * 60));
   const avgSessionHours = Math.floor(stats.averageSessionTime / (1000 * 60 * 60));
-  
+
   return `
 활동 통계 요약:
 - 현재 활성 사용자: ${stats.totalActiveUsers}명

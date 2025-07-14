@@ -1,6 +1,19 @@
 // src/commands/recruitmentCommand.ts - 구인구직 명령어
-import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, User, GuildMember } from 'discord.js';
-import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
+import {
+  ChatInputCommandInteraction,
+  MessageFlags,
+  SlashCommandBuilder,
+  User,
+  GuildMember,
+} from 'discord.js';
+
+import {
+  CommandBase,
+  CommandServices,
+  CommandResult,
+  CommandExecutionOptions,
+  CommandMetadata,
+} from './CommandBase.js';
 
 // 구인구직 통계 인터페이스
 interface RecruitmentStats {
@@ -13,14 +26,14 @@ interface RecruitmentStats {
   mostPopularCategory: string;
 }
 
-// 구인구직 옵션 인터페이스
-interface RecruitmentOptions {
-  category?: string;
-  priority?: 'low' | 'medium' | 'high';
-  duration?: number;
-  maxApplicants?: number;
-  autoClose?: boolean;
-}
+// 구인구직 옵션 인터페이스 (현재 미사용)
+// interface RecruitmentOptions {
+//   category?: string;
+//   priority?: 'low' | 'medium' | 'high';
+//   duration?: number;
+//   maxApplicants?: number;
+//   autoClose?: boolean;
+// }
 
 // 구인구직 필터 인터페이스
 interface RecruitmentFilter {
@@ -57,9 +70,9 @@ export class RecruitmentCommand extends CommandBase {
       '/recruitment action:create',
       '/recruitment action:list',
       '/recruitment action:stats',
-      '/recruitment action:manage'
+      '/recruitment action:manage',
     ],
-    aliases: ['구인구직', 'job', 'hire']
+    aliases: ['구인구직', 'job', 'hire'],
   };
 
   private voiceForumService: any;
@@ -76,7 +89,7 @@ export class RecruitmentCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('action')
           .setDescription('수행할 작업')
@@ -89,7 +102,7 @@ export class RecruitmentCommand extends CommandBase {
             { name: '도움말', value: 'help' }
           )
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('category')
           .setDescription('구인구직 카테고리')
@@ -101,13 +114,10 @@ export class RecruitmentCommand extends CommandBase {
             { name: '기타', value: 'other' }
           )
       )
-      .addUserOption(option =>
-        option
-          .setName('user')
-          .setDescription('특정 사용자의 게시글 조회')
-          .setRequired(false)
+      .addUserOption((option) =>
+        option.setName('user').setDescription('특정 사용자의 게시글 조회').setRequired(false)
       )
-      .addIntegerOption(option =>
+      .addIntegerOption((option) =>
         option
           .setName('limit')
           .setDescription('조회할 게시글 수')
@@ -122,36 +132,42 @@ export class RecruitmentCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(
+    interaction: ChatInputCommandInteraction,
+    _options: CommandExecutionOptions
+  ): Promise<CommandResult> {
     try {
       // 권한 체크
-      if (!this.hasRecruitmentPermission(interaction.user, interaction.member)) {
+      if (
+        !this.hasRecruitmentPermission(interaction.user, interaction.member as GuildMember | null)
+      ) {
         await interaction.followUp({
-          content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
-          flags: MessageFlags.Ephemeral
+          content:
+            '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral,
         });
-        
+
         return {
           success: false,
-          message: '구인구직 기능 접근 권한이 없습니다.'
+          message: '구인구직 기능 접근 권한이 없습니다.',
         };
       }
 
       const action = interaction.options.getString('action') || 'create';
-      const category = interaction.options.getString('category');
-      const targetUser = interaction.options.getUser('user');
+      const category = interaction.options.getString('category') ?? undefined;
+      const targetUser = interaction.options.getUser('user') ?? undefined;
       const limit = interaction.options.getInteger('limit') || 10;
 
       // 캐시 확인
       const cacheKey = `recruitment_${action}_${category || 'all'}_${targetUser?.id || 'global'}_${limit}`;
       const cached = this.getCached<any>(cacheKey);
-      
+
       if (cached && ['list', 'stats'].includes(action)) {
         await this.sendCachedResult(interaction, cached);
         return {
           success: true,
           message: '캐시된 데이터를 전송했습니다.',
-          data: cached
+          data: cached,
         };
       }
 
@@ -170,21 +186,21 @@ export class RecruitmentCommand extends CommandBase {
         default:
           return await this.handleCreateAction(interaction, category);
       }
-
     } catch (error) {
       console.error(`${this.constructor.name} 명령어 실행 오류:`, error);
-      
-      const errorMessage = error instanceof Error ? error.message : '구인구직 명령어 실행 중 오류가 발생했습니다.';
-      
+
+      const errorMessage =
+        error instanceof Error ? error.message : '구인구직 명령어 실행 중 오류가 발생했습니다.';
+
       await interaction.followUp({
         content: `❌ ${errorMessage}`,
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
 
       return {
         success: false,
         message: errorMessage,
-        error: error as Error
+        error: error as Error,
       };
     }
   }
@@ -194,14 +210,17 @@ export class RecruitmentCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param category - 카테고리
    */
-  private async handleCreateAction(interaction: ChatInputCommandInteraction, category?: string): Promise<CommandResult> {
+  private async handleCreateAction(
+    interaction: ChatInputCommandInteraction,
+    category?: string
+  ): Promise<CommandResult> {
     try {
       // 모달 표시를 위해 defer 하지 않고 바로 실행
       await this.voiceForumService.showStandaloneRecruitmentModal(interaction, { category });
-      
+
       return {
         success: true,
-        message: '구인구직 게시글 작성 모달이 표시되었습니다.'
+        message: '구인구직 게시글 작성 모달이 표시되었습니다.',
       };
     } catch (error) {
       console.error('구인구직 게시글 작성 오류:', error);
@@ -224,29 +243,29 @@ export class RecruitmentCommand extends CommandBase {
   ): Promise<CommandResult> {
     try {
       const filter: RecruitmentFilter = {};
-      
+
       if (category) filter.category = category;
       if (targetUser) filter.userId = targetUser.id;
-      
+
       const posts = await this.voiceForumService.getRecruitmentPosts(filter, limit);
-      
+
       if (!posts || posts.length === 0) {
         await interaction.followUp({
           content: '📋 **구인구직 게시글이 없습니다.**\n\n새로운 게시글을 작성해보세요!',
-          flags: MessageFlags.Ephemeral
+          flags: MessageFlags.Ephemeral,
         });
-        
+
         return {
           success: true,
-          message: '구인구직 게시글이 없습니다.'
+          message: '구인구직 게시글이 없습니다.',
         };
       }
 
       const embed = this.createRecruitmentListEmbed(posts, category, targetUser?.username);
-      
+
       await interaction.followUp({
         embeds: [embed],
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
 
       // 캐시 저장
@@ -256,7 +275,7 @@ export class RecruitmentCommand extends CommandBase {
       return {
         success: true,
         message: '구인구직 게시글 목록을 조회했습니다.',
-        data: { posts, totalCount: posts.length }
+        data: { posts, totalCount: posts.length },
       };
     } catch (error) {
       console.error('구인구직 게시글 목록 조회 오류:', error);
@@ -269,15 +288,18 @@ export class RecruitmentCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param category - 카테고리
    */
-  private async handleStatsAction(interaction: ChatInputCommandInteraction, category?: string): Promise<CommandResult> {
+  private async handleStatsAction(
+    interaction: ChatInputCommandInteraction,
+    category?: string
+  ): Promise<CommandResult> {
     try {
       const stats = await this.voiceForumService.getRecruitmentStats(category);
-      
+
       const embed = this.createStatsEmbed(stats, category);
-      
+
       await interaction.followUp({
         embeds: [embed],
-        flags: MessageFlags.Ephemeral
+        flags: MessageFlags.Ephemeral,
       });
 
       // 캐시 저장
@@ -287,7 +309,7 @@ export class RecruitmentCommand extends CommandBase {
       return {
         success: true,
         message: '구인구직 통계를 조회했습니다.',
-        data: stats
+        data: stats,
       };
     } catch (error) {
       console.error('구인구직 통계 조회 오류:', error);
@@ -299,28 +321,33 @@ export class RecruitmentCommand extends CommandBase {
    * 게시글 관리 처리
    * @param interaction - 상호작용 객체
    */
-  private async handleManageAction(interaction: ChatInputCommandInteraction): Promise<CommandResult> {
+  private async handleManageAction(
+    interaction: ChatInputCommandInteraction
+  ): Promise<CommandResult> {
     try {
-      const userPosts = await this.voiceForumService.getUserRecruitmentPosts(interaction.user.id, { status: 'active' });
-      
+      const userPosts = await this.voiceForumService.getUserRecruitmentPosts(interaction.user.id, {
+        status: 'active',
+      });
+
       if (!userPosts || userPosts.length === 0) {
         await interaction.followUp({
-          content: '📋 **관리할 수 있는 구인구직 게시글이 없습니다.**\n\n활성 상태인 게시글만 관리할 수 있습니다.',
-          flags: MessageFlags.Ephemeral
+          content:
+            '📋 **관리할 수 있는 구인구직 게시글이 없습니다.**\n\n활성 상태인 게시글만 관리할 수 있습니다.',
+          flags: MessageFlags.Ephemeral,
         });
-        
+
         return {
           success: true,
-          message: '관리할 수 있는 게시글이 없습니다.'
+          message: '관리할 수 있는 게시글이 없습니다.',
         };
       }
 
       await this.voiceForumService.showRecruitmentManagementInterface(interaction, userPosts);
-      
+
       return {
         success: true,
         message: '구인구직 게시글 관리 인터페이스가 표시되었습니다.',
-        data: { managedPosts: userPosts.length }
+        data: { managedPosts: userPosts.length },
       };
     } catch (error) {
       console.error('구인구직 게시글 관리 오류:', error);
@@ -334,15 +361,15 @@ export class RecruitmentCommand extends CommandBase {
    */
   private async handleHelpAction(interaction: ChatInputCommandInteraction): Promise<CommandResult> {
     const helpMessage = this.getHelp();
-    
+
     await interaction.followUp({
       content: helpMessage,
-      flags: MessageFlags.Ephemeral
+      flags: MessageFlags.Ephemeral,
     });
 
     return {
       success: true,
-      message: '도움말을 표시했습니다.'
+      message: '도움말을 표시했습니다.',
     };
   }
 
@@ -362,15 +389,19 @@ export class RecruitmentCommand extends CommandBase {
    * @param category - 카테고리
    * @param username - 사용자명
    */
-  private createRecruitmentListEmbed(posts: RecruitmentResult[], category?: string, username?: string): any {
+  private createRecruitmentListEmbed(
+    posts: RecruitmentResult[],
+    category?: string,
+    username?: string
+  ): any {
     const embed = {
       color: 0x00ff00,
       title: '📋 구인구직 게시글 목록',
-      fields: [],
+      fields: [] as Array<{ name: string; value: string; inline?: boolean }>,
       footer: {
-        text: `총 ${posts.length}개의 게시글`
+        text: `총 ${posts.length}개의 게시글`,
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     if (category) {
@@ -384,14 +415,15 @@ export class RecruitmentCommand extends CommandBase {
     posts.forEach((post, index) => {
       const statusEmoji = this.getStatusEmoji(post.status);
       const timeAgo = this.getTimeAgo(post.createdAt);
-      
+
       embed.fields.push({
         name: `${index + 1}. ${statusEmoji} ${post.title}`,
-        value: `📂 **카테고리:** ${this.getCategoryDisplayName(post.category)}\n` +
-               `👥 **지원자:** ${post.applicants}명\n` +
-               `📅 **작성일:** ${timeAgo}\n` +
-               `📊 **상태:** ${this.getStatusDisplayName(post.status)}`,
-        inline: true
+        value:
+          `📂 **카테고리:** ${this.getCategoryDisplayName(post.category)}\n` +
+          `👥 **지원자:** ${post.applicants}명\n` +
+          `📅 **작성일:** ${timeAgo}\n` +
+          `📊 **상태:** ${this.getStatusDisplayName(post.status)}`,
+        inline: true,
       });
     });
 
@@ -410,24 +442,26 @@ export class RecruitmentCommand extends CommandBase {
       fields: [
         {
           name: '📈 전체 통계',
-          value: `📝 **총 게시글:** ${stats.totalPosts}개\n` +
-                 `🟢 **활성 게시글:** ${stats.activePosts}개\n` +
-                 `✅ **완료 게시글:** ${stats.completedPosts}개\n` +
-                 `👥 **총 지원자:** ${stats.totalApplicants}명`,
-          inline: true
+          value:
+            `📝 **총 게시글:** ${stats.totalPosts}개\n` +
+            `🟢 **활성 게시글:** ${stats.activePosts}개\n` +
+            `✅ **완료 게시글:** ${stats.completedPosts}개\n` +
+            `👥 **총 지원자:** ${stats.totalApplicants}명`,
+          inline: true,
         },
         {
           name: '📊 평균 통계',
-          value: `📊 **게시글당 평균 지원자:** ${stats.averageApplicationsPerPost.toFixed(1)}명\n` +
-                 `👑 **최고 활동 사용자:** ${stats.mostActiveUser || '없음'}\n` +
-                 `🔥 **인기 카테고리:** ${this.getCategoryDisplayName(stats.mostPopularCategory)}`,
-          inline: true
-        }
+          value:
+            `📊 **게시글당 평균 지원자:** ${stats.averageApplicationsPerPost.toFixed(1)}명\n` +
+            `👑 **최고 활동 사용자:** ${stats.mostActiveUser || '없음'}\n` +
+            `🔥 **인기 카테고리:** ${this.getCategoryDisplayName(stats.mostPopularCategory)}`,
+          inline: true,
+        },
       ],
       footer: {
-        text: category ? `${this.getCategoryDisplayName(category)} 카테고리` : '전체 카테고리'
+        text: category ? `${this.getCategoryDisplayName(category)} 카테고리` : '전체 카테고리',
       },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     };
 
     return embed;
@@ -438,11 +472,14 @@ export class RecruitmentCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param cached - 캐시된 데이터
    */
-  private async sendCachedResult(interaction: ChatInputCommandInteraction, cached: any): Promise<void> {
+  private async sendCachedResult(
+    interaction: ChatInputCommandInteraction,
+    cached: any
+  ): Promise<void> {
     await interaction.followUp({
       content: '📋 **캐시된 데이터를 사용합니다.**',
       embeds: [cached.embed],
-      flags: MessageFlags.Ephemeral
+      flags: MessageFlags.Ephemeral,
     });
   }
 
@@ -455,9 +492,9 @@ export class RecruitmentCommand extends CommandBase {
       game: '게임',
       study: '스터디',
       project: '프로젝트',
-      other: '기타'
+      other: '기타',
     };
-    
+
     return categoryNames[category || 'other'] || '기타';
   }
 
@@ -470,9 +507,9 @@ export class RecruitmentCommand extends CommandBase {
       active: '🟢',
       completed: '✅',
       cancelled: '❌',
-      paused: '⏸️'
+      paused: '⏸️',
     };
-    
+
     return statusEmojis[status] || '⚪';
   }
 
@@ -485,9 +522,9 @@ export class RecruitmentCommand extends CommandBase {
       active: '모집중',
       completed: '완료',
       cancelled: '취소',
-      paused: '일시정지'
+      paused: '일시정지',
     };
-    
+
     return statusNames[status] || '알 수 없음';
   }
 
@@ -541,7 +578,7 @@ export class RecruitmentCommand extends CommandBase {
 • \`limit\`: 조회할 게시글 수 (선택사항)
 
 **예시:**
-${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
+${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
 
 **카테고리:**
 • 게임: 게임 관련 구인구직

@@ -1,7 +1,15 @@
 // src/commands/gapConfigCommand.ts - gap_config 명령어 (수정)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
+
 import { cleanRoleName } from '../utils/formatters.js';
-import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
+
+import {
+  CommandBase,
+  CommandServices,
+  CommandResult,
+  CommandExecutionOptions,
+  CommandMetadata,
+} from './CommandBase.js';
 
 // 설정 유효성 검사 인터페이스
 interface ConfigValidation {
@@ -29,11 +37,8 @@ export class GapConfigCommand extends CommandBase {
     adminOnly: true,
     guildOnly: true,
     usage: '/gap_config role:<역할이름> hours:<시간>',
-    examples: [
-      '/gap_config role:정규 hours:10',
-      '/gap_config role:준회원 hours:5'
-    ],
-    aliases: ['config', '설정']
+    examples: ['/gap_config role:정규 hours:10', '/gap_config role:준회원 hours:5'],
+    aliases: ['config', '설정'],
   };
 
   constructor(services: CommandServices) {
@@ -47,27 +52,25 @@ export class GapConfigCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addStringOption(option =>
-        option
-          .setName('role')
-          .setDescription('설정할 역할 이름')
-          .setRequired(true)
+      .addStringOption((option) =>
+        option.setName('role').setDescription('설정할 역할 이름').setRequired(true)
       )
-      .addIntegerOption(option =>
-        option
-          .setName('hours')
-          .setDescription('최소 활동시간 (시간)')
-          .setRequired(true)
-          .setMinValue(0)
-          .setMaxValue(168) // 7일
+      .addIntegerOption(
+        (option) =>
+          option
+            .setName('hours')
+            .setDescription('최소 활동시간 (시간)')
+            .setRequired(true)
+            .setMinValue(0)
+            .setMaxValue(168) // 7일
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('reset_time')
           .setDescription('리셋 시간 (선택사항, 형식: YYYY-MM-DD HH:MM)')
           .setRequired(false)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('report_cycle')
           .setDescription('보고 주기 (선택사항: daily, weekly, monthly)')
@@ -78,11 +81,8 @@ export class GapConfigCommand extends CommandBase {
             { name: '월간', value: 'monthly' }
           )
       )
-      .addBooleanOption(option =>
-        option
-          .setName('enabled')
-          .setDescription('역할 활성화 여부 (선택사항)')
-          .setRequired(false)
+      .addBooleanOption((option) =>
+        option.setName('enabled').setDescription('역할 활성화 여부 (선택사항)').setRequired(false)
       ) as SlashCommandBuilder;
   }
 
@@ -91,14 +91,17 @@ export class GapConfigCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(
+    interaction: ChatInputCommandInteraction,
+    _options: CommandExecutionOptions
+  ): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
-      const roleOption = interaction.options.getString("role");
-      const hoursOption = interaction.options.getInteger("hours");
-      const resetTimeOption = interaction.options.getString("reset_time");
-      const reportCycleOption = interaction.options.getString("report_cycle");
-      const enabledOption = interaction.options.getBoolean("enabled");
+      const roleOption = interaction.options.getString('role');
+      const hoursOption = interaction.options.getInteger('hours');
+      const resetTimeOption = interaction.options.getString('reset_time');
+      const reportCycleOption = interaction.options.getString('report_cycle');
+      const enabledOption = interaction.options.getBoolean('enabled');
 
       if (!roleOption || hoursOption === null) {
         throw new Error('역할과 시간은 필수 옵션입니다.');
@@ -113,13 +116,13 @@ export class GapConfigCommand extends CommandBase {
         hours,
         resetTime: resetTimeOption ? new Date(resetTimeOption).getTime() : undefined,
         reportCycle: reportCycleOption || undefined,
-        enabled: enabledOption !== null ? enabledOption : undefined
+        enabled: enabledOption !== null ? enabledOption : undefined,
       });
 
       if (!validation.isValid) {
         return {
           success: false,
-          message: validation.error || '설정 유효성 검사 실패'
+          message: validation.error || '설정 유효성 검사 실패',
         };
       }
 
@@ -129,7 +132,7 @@ export class GapConfigCommand extends CommandBase {
 
       // 역할 설정 업데이트
       const updateData: any = { minHours: hours };
-      
+
       if (resetTimeOption) {
         const resetTime = new Date(resetTimeOption);
         if (isNaN(resetTime.getTime())) {
@@ -148,10 +151,10 @@ export class GapConfigCommand extends CommandBase {
 
       // 캐시 키 생성
       const cacheKey = `role_config_${role}`;
-      
+
       // 데이터베이스 업데이트
       const updateResult = await this.dbManager.updateRoleConfig(role, hours, updateData);
-      
+
       if (!updateResult) {
         throw new Error('데이터베이스 업데이트에 실패했습니다.');
       }
@@ -161,29 +164,29 @@ export class GapConfigCommand extends CommandBase {
         role,
         minHours: hours,
         ...updateData,
-        updatedAt: Date.now()
+        updatedAt: Date.now(),
       };
       this.setCached(cacheKey, newConfig);
 
       // 응답 메시지 생성
       let responseMessage = `✅ 역할 **${role}**의 설정이 ${isUpdate ? '업데이트' : '생성'}되었습니다!\n\n`;
       responseMessage += `📊 **최소 활동시간:** ${hours}시간\n`;
-      
+
       if (resetTimeOption) {
         responseMessage += `🔄 **리셋 시간:** ${resetTimeOption}\n`;
       }
-      
+
       if (reportCycleOption) {
         responseMessage += `📅 **보고 주기:** ${this.getReportCycleDisplayName(reportCycleOption)}\n`;
       }
-      
+
       if (enabledOption !== null) {
         responseMessage += `🔧 **활성화:** ${enabledOption ? '예' : '아니오'}\n`;
       }
 
       // 경고 메시지 추가
       if (validation.warnings && validation.warnings.length > 0) {
-        responseMessage += `\n⚠️ **경고:**\n${validation.warnings.map(w => `• ${w}`).join('\n')}`;
+        responseMessage += `\n⚠️ **경고:**\n${validation.warnings.map((w) => `• ${w}`).join('\n')}`;
       }
 
       // 성공 응답
@@ -204,7 +207,7 @@ export class GapConfigCommand extends CommandBase {
             resetTime: resetTimeOption,
             reportCycle: reportCycleOption,
             enabled: enabledOption,
-            isUpdate
+            isUpdate,
           }
         );
       }
@@ -212,14 +215,14 @@ export class GapConfigCommand extends CommandBase {
       return {
         success: true,
         message: `역할 ${role}의 설정이 성공적으로 ${isUpdate ? '업데이트' : '생성'}되었습니다.`,
-        data: newConfig
+        data: newConfig,
       };
-
     } catch (error) {
       console.error('gap_config 명령어 실행 오류:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : '설정 저장 중 알 수 없는 오류가 발생했습니다.';
-      
+
+      const errorMessage =
+        error instanceof Error ? error.message : '설정 저장 중 알 수 없는 오류가 발생했습니다.';
+
       await interaction.followUp({
         content: `❌ ${errorMessage}`,
         flags: MessageFlags.Ephemeral,
@@ -228,7 +231,7 @@ export class GapConfigCommand extends CommandBase {
       return {
         success: false,
         message: errorMessage,
-        error: error as Error
+        error: error as Error,
       };
     }
   }
@@ -273,13 +276,13 @@ export class GapConfigCommand extends CommandBase {
     }
 
     const result: ConfigValidation = {
-      isValid: true
+      isValid: true,
     };
-    
+
     if (warnings.length > 0) {
       result.warnings = warnings;
     }
-    
+
     return result;
   }
 
@@ -289,10 +292,14 @@ export class GapConfigCommand extends CommandBase {
    */
   private getReportCycleDisplayName(cycle: string): string {
     switch (cycle) {
-      case 'daily': return '일간';
-      case 'weekly': return '주간';
-      case 'monthly': return '월간';
-      default: return cycle;
+      case 'daily':
+        return '일간';
+      case 'weekly':
+        return '주간';
+      case 'monthly':
+        return '월간';
+      default:
+        return cycle;
     }
   }
 
@@ -301,10 +308,13 @@ export class GapConfigCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param roleName - 역할 이름
    */
-  async getCurrentConfig(interaction: ChatInputCommandInteraction, roleName: string): Promise<void> {
+  async getCurrentConfig(
+    interaction: ChatInputCommandInteraction,
+    roleName: string
+  ): Promise<void> {
     try {
       const config = await this.dbManager.getRoleConfig(roleName);
-      
+
       if (!config) {
         await interaction.followUp({
           content: `❌ 역할 **${roleName}**의 설정을 찾을 수 없습니다.`,
@@ -315,15 +325,15 @@ export class GapConfigCommand extends CommandBase {
 
       let configMessage = `📋 **역할 ${roleName}의 현재 설정:**\n\n`;
       configMessage += `📊 **최소 활동시간:** ${config.minHours}시간\n`;
-      
+
       if (config.resetTime) {
         configMessage += `🔄 **리셋 시간:** ${new Date(config.resetTime).toLocaleString('ko-KR')}\n`;
       }
-      
+
       if (config.reportCycle) {
         configMessage += `📅 **보고 주기:** ${this.getReportCycleDisplayName(config.reportCycle)}\n`;
       }
-      
+
       if (config.enabled !== undefined) {
         configMessage += `🔧 **활성화:** ${config.enabled ? '예' : '아니오'}\n`;
       }
@@ -332,7 +342,6 @@ export class GapConfigCommand extends CommandBase {
         content: configMessage,
         flags: MessageFlags.Ephemeral,
       });
-
     } catch (error) {
       console.error('설정 조회 오류:', error);
       await interaction.followUp({
@@ -349,7 +358,7 @@ export class GapConfigCommand extends CommandBase {
   async getAllConfigs(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
       const configs = await this.dbManager.getAllRoleConfigs();
-      
+
       if (!configs || configs.length === 0) {
         await interaction.followUp({
           content: '📋 설정된 역할이 없습니다.',
@@ -359,19 +368,19 @@ export class GapConfigCommand extends CommandBase {
       }
 
       let configMessage = '📋 **모든 역할 설정 목록:**\n\n';
-      
+
       configs.forEach((config, index) => {
         configMessage += `${index + 1}. **${config.role}**\n`;
         configMessage += `   📊 최소 활동시간: ${config.minHours}시간\n`;
-        
+
         if (config.resetTime) {
           configMessage += `   🔄 리셋 시간: ${new Date(config.resetTime).toLocaleString('ko-KR')}\n`;
         }
-        
+
         if (config.reportCycle) {
           configMessage += `   📅 보고 주기: ${this.getReportCycleDisplayName(config.reportCycle)}\n`;
         }
-        
+
         configMessage += '\n';
       });
 
@@ -379,7 +388,6 @@ export class GapConfigCommand extends CommandBase {
         content: configMessage,
         flags: MessageFlags.Ephemeral,
       });
-
     } catch (error) {
       console.error('전체 설정 조회 오류:', error);
       await interaction.followUp({
@@ -411,7 +419,7 @@ export class GapConfigCommand extends CommandBase {
 • \`enabled\`: 역할 활성화 여부 (선택사항)
 
 **예시:**
-${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
+${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
 
 **권한:** 관리자 전용
 **쿨다운:** ${this.metadata.cooldown}초`;

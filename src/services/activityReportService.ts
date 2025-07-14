@@ -1,13 +1,22 @@
 // src/services/activityReportService.ts - 활동 보고서 서비스 (TypeScript)
-import { EmbedBuilder, Guild, GuildMember, Collection, TextChannel, ThreadChannel } from 'discord.js';
+import {
+  EmbedBuilder,
+  Guild,
+  GuildMember,
+  Collection,
+  TextChannel,
+  ThreadChannel,
+} from 'discord.js';
+
 import { COLORS } from '../config/constants.js';
 import { config } from '../config/env.js';
-import { formatKoreanDate, formatTime } from '../utils/formatters.js';
+import { EnhancedClient } from '../types/discord.js';
+import { UserActivity } from '../types/index.js';
 import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder.js';
+import { formatKoreanDate, formatTime } from '../utils/formatters.js';
+
 import { DatabaseManager } from './DatabaseManager.js';
 import { UserClassificationService } from './UserClassificationService.js';
-import { EnhancedClient } from '../types/discord.js';
-import { ActivityLogEntry, UserActivity } from '../types/index.js';
 
 // ====================
 // 보고서 관련 타입
@@ -153,16 +162,14 @@ export class ActivityReportService {
   ): Promise<void> {
     try {
       // 역할 객체 찾기
-      const role = guild.roles.cache.find(r => r.name === roleName);
+      const role = guild.roles.cache.find((r) => r.name === roleName);
       if (!role) {
         console.log(`[ActivityReportService] 역할 [${roleName}]을 찾을 수 없습니다.`);
         return;
       }
 
       // 역할을 가진 멤버 찾기
-      const members = guild.members.cache.filter(member =>
-        member.roles.cache.has(role.id)
-      );
+      const members = guild.members.cache.filter((member) => member.roles.cache.has(role.id));
 
       if (members.size === 0) {
         console.log(`[ActivityReportService] 역할 [${roleName}]에 멤버가 없습니다.`);
@@ -171,38 +178,41 @@ export class ActivityReportService {
 
       // 사용자 분류
       const classification = await this.classifyUsersForReport(roleName, members, options);
-      
+
       // 임베드 생성 데이터 준비
       const embedData: ActivityEmbedsData = {
         role: roleName,
-        activeUsers: classification.activeUsers.map(user => ({
-          userId: user.userId,
-          nickname: user.nickname,
-          totalTime: user.totalTime
-        })),
-        inactiveUsers: classification.inactiveUsers.map(user => ({
-          userId: user.userId,
-          nickname: user.nickname,
-          totalTime: user.totalTime
-        })),
-        afkUsers: options.includeAfkUsers ? classification.afkUsers.map(user => ({
+        activeUsers: classification.activeUsers.map((user) => ({
           userId: user.userId,
           nickname: user.nickname,
           totalTime: user.totalTime,
-          afkUntil: Date.now() + (7 * 24 * 60 * 60 * 1000) // 임시값
-        })) : [],
-        startDate: startDate,
+        })),
+        inactiveUsers: classification.inactiveUsers.map((user) => ({
+          userId: user.userId,
+          nickname: user.nickname,
+          totalTime: user.totalTime,
+        })),
+        startDate,
         endDate: new Date(endTime),
         minHours: classification.minHours,
-        reportCycle: classification.reportCycle,
-        title: options.customTitle || '활동 보고서'
+        ...(options.includeAfkUsers &&
+          classification.afkUsers.length > 0 && {
+            afkUsers: classification.afkUsers.map((user) => ({
+              userId: user.userId,
+              nickname: user.nickname,
+              totalTime: user.totalTime,
+              afkUntil: Date.now() + 7 * 24 * 60 * 60 * 1000, // 임시값
+            })),
+          }),
+        ...(classification.reportCycle && { reportCycle: classification.reportCycle }),
+        ...(options.customTitle && { title: options.customTitle }),
       };
 
       // 임베드 생성 및 전송
       const reportEmbeds = EmbedFactory.createActivityEmbeds(embedData, {
         sortByTime: options.sortByTime ?? true,
         includeTimestamp: true,
-        showEmptyMessage: true
+        showEmptyMessage: true,
       });
 
       for (const embed of reportEmbeds) {
@@ -232,28 +242,28 @@ export class ActivityReportService {
     if (this.userClassificationService) {
       // UserClassificationService 사용
       const classification = await this.userClassificationService.classifyUsers(roleName, members);
-      
+
       return {
-        activeUsers: classification.activeUsers.map(user => ({
+        activeUsers: classification.activeUsers.map((user) => ({
           userId: user.userId,
           nickname: user.nickname,
           totalTime: user.totalTime,
-          status: 'active' as const
+          status: 'active' as const,
         })),
-        inactiveUsers: classification.inactiveUsers.map(user => ({
+        inactiveUsers: classification.inactiveUsers.map((user) => ({
           userId: user.userId,
           nickname: user.nickname,
           totalTime: user.totalTime,
-          status: 'inactive' as const
+          status: 'inactive' as const,
         })),
-        afkUsers: classification.afkUsers.map(user => ({
+        afkUsers: classification.afkUsers.map((user) => ({
           userId: user.userId,
           nickname: user.nickname,
           totalTime: user.totalTime,
-          status: 'afk' as const
+          status: 'afk' as const,
         })),
         minHours: classification.minHours,
-        reportCycle: 1
+        reportCycle: 1,
       };
     } else {
       // 직접 분류
@@ -292,10 +302,10 @@ export class ActivityReportService {
           userId,
           nickname: member.displayName,
           totalTime,
-          status: 'inactive'
+          status: 'inactive',
         };
 
-        if (member.roles.cache.some(r => r.name.includes('잠수'))) {
+        if (member.roles.cache.some((r) => r.name.includes('잠수'))) {
           reportUser.status = 'afk';
           afkUsers.push(reportUser);
         } else if (totalTime >= minActivityTime) {
@@ -319,7 +329,7 @@ export class ActivityReportService {
         inactiveUsers,
         afkUsers,
         minHours: minActivityHours,
-        reportCycle: roleConfig?.reportCycle || 1
+        reportCycle: Number(roleConfig?.reportCycle) || 1,
       };
     } catch (error) {
       console.error('[ActivityReportService] 사용자 분류 오류:', error);
@@ -328,7 +338,7 @@ export class ActivityReportService {
         inactiveUsers: [],
         afkUsers: [],
         minHours: 0,
-        reportCycle: 1
+        reportCycle: 1,
       };
     }
   }
@@ -365,7 +375,7 @@ export class ActivityReportService {
   async getWeeklySummaryData(startTime: number, endTime: number): Promise<WeeklySummaryData> {
     try {
       const dailyStats = await this.db.getDailyActivityStats(startTime, endTime);
-      
+
       let totalJoins = 0;
       let totalLeaves = 0;
       let activeDays = 0;
@@ -385,7 +395,7 @@ export class ActivityReportService {
         totalLeaves,
         activeDays,
         mostActiveUsers: topUsers,
-        mostActiveChannels: activeChannelStats
+        mostActiveChannels: activeChannelStats,
       };
     } catch (error) {
       console.error('[ActivityReportService] 주간 요약 데이터 생성 오류:', error);
@@ -394,7 +404,7 @@ export class ActivityReportService {
         totalLeaves: 0,
         activeDays: 0,
         mostActiveUsers: [],
-        mostActiveChannels: []
+        mostActiveChannels: [],
       };
     }
   }
@@ -404,7 +414,7 @@ export class ActivityReportService {
    */
   private async processTopUsers(activeUsers: UserActivity[], limit: number): Promise<TopUser[]> {
     const guild = this.client.guilds.cache.get(config.GUILDID);
-    
+
     if (guild) {
       for (const user of activeUsers) {
         if (!user.displayName || user.displayName === user.userId) {
@@ -424,10 +434,10 @@ export class ActivityReportService {
     return activeUsers
       .sort((a, b) => b.totalTime - a.totalTime)
       .slice(0, limit)
-      .map(user => ({
+      .map((user) => ({
         name: user.displayName || user.userId,
         totalTime: user.totalTime,
-        userId: user.userId
+        userId: user.userId,
       }));
   }
 
@@ -440,7 +450,10 @@ export class ActivityReportService {
     limit: number = 5
   ): Promise<ChannelActivity[]> {
     try {
-      const logs = await this.db.getActivityLogs(startTime, endTime);
+      const logs = await this.db.getActivityLogs({
+        startDate: new Date(startTime),
+        endDate: new Date(endTime),
+      });
       const channelStats: { [key: string]: number } = {};
 
       for (const log of logs) {
@@ -481,7 +494,7 @@ export class ActivityReportService {
     embed.addFields({
       name: '📊 총 활동 통계',
       value: `입장: ${summary.totalJoins}회\n퇴장: ${summary.totalLeaves}회\n활동 일수: ${summary.activeDays}일`,
-      inline: false
+      inline: false,
     });
 
     // 가장 활동적인 사용자
@@ -489,19 +502,19 @@ export class ActivityReportService {
       const maxUsers = options.maxUsersPerReport || 5;
       const userList = summary.mostActiveUsers
         .slice(0, maxUsers)
-        .map(user => `${user.name}: ${formatTime(user.totalTime)}`)
+        .map((user) => `${user.name}: ${formatTime(user.totalTime)}`)
         .join('\n');
-      
+
       embed.addFields({
         name: '👥 가장 활동적인 사용자',
         value: userList,
-        inline: false
+        inline: false,
       });
     } else {
       embed.addFields({
         name: '👥 가장 활동적인 사용자',
         value: '데이터 없음',
-        inline: false
+        inline: false,
       });
     }
 
@@ -510,19 +523,19 @@ export class ActivityReportService {
       const maxChannels = options.maxChannelsPerReport || 5;
       const channelList = summary.mostActiveChannels
         .slice(0, maxChannels)
-        .map(channel => `${channel.name}: ${channel.count}회`)
+        .map((channel) => `${channel.name}: ${channel.count}회`)
         .join('\n');
-      
+
       embed.addFields({
         name: '🔊 가장 활동적인 채널',
         value: channelList,
-        inline: false
+        inline: false,
       });
     } else {
       embed.addFields({
         name: '🔊 가장 활동적인 채널',
         value: '데이터 없음',
-        inline: false
+        inline: false,
       });
     }
 
@@ -542,10 +555,10 @@ export class ActivityReportService {
     try {
       const startTime = startDate.getTime();
       const endTime = endDate.getTime();
-      
+
       const reportData = await this.getDateRangeReportData(startTime, endTime);
       const embed = this.createDateRangeEmbed(reportData, options);
-      
+
       await channel.send({ embeds: [embed] });
       console.log('[ActivityReportService] 날짜 범위 보고서가 성공적으로 전송되었습니다.');
     } catch (error) {
@@ -557,44 +570,47 @@ export class ActivityReportService {
   /**
    * 날짜 범위 보고서 데이터 수집
    */
-  private async getDateRangeReportData(startTime: number, endTime: number): Promise<DateRangeReport> {
+  private async getDateRangeReportData(
+    startTime: number,
+    endTime: number
+  ): Promise<DateRangeReport> {
     try {
       const dailyStats = await this.db.getDailyActivityStats(startTime, endTime);
       const summaries: DailySummary[] = [];
-      
+
       for (const stat of dailyStats) {
-        const dayLogs = await this.db.getActivityLogs(
-          new Date(stat.date).getTime(),
-          new Date(stat.date).getTime() + 24 * 60 * 60 * 1000
-        );
-        
-        const activeMembers = [...new Set(dayLogs.map(log => log.userId))];
+        const dayLogs = await this.db.getActivityLogs({
+          startDate: new Date(new Date(stat.date).getTime()),
+          endDate: new Date(new Date(stat.date).getTime() + 24 * 60 * 60 * 1000),
+        });
+
+        const activeMembers = [...new Set(dayLogs.map((log) => log.userId))];
         const topChannels = await this.getMostActiveChannels(
           new Date(stat.date).getTime(),
           new Date(stat.date).getTime() + 24 * 60 * 60 * 1000,
           3
         );
-        
+
         summaries.push({
           date: stat.date,
           totalJoins: stat.joins,
           totalLeaves: stat.leaves,
           totalEvents: stat.totalEvents,
           uniqueUsers: stat.uniqueUsers,
-          activeMembers: activeMembers,
-          topChannels
+          activeMembers,
+          topChannels,
         });
       }
-      
+
       const totalStatistics = await this.getWeeklySummaryData(startTime, endTime);
       const trends = this.calculateTrends(summaries);
-      
+
       return {
         startDate: new Date(startTime),
         endDate: new Date(endTime),
         summaries,
         totalStatistics,
-        trends
+        trends,
       };
     } catch (error) {
       console.error('[ActivityReportService] 날짜 범위 데이터 수집 오류:', error);
@@ -611,16 +627,17 @@ export class ActivityReportService {
         dailyGrowth: 0,
         weeklyGrowth: 0,
         peakActivityHour: 12,
-        mostActiveWeekday: '월요일'
+        mostActiveWeekday: '월요일',
       };
     }
 
     // 일일 성장률 (단순화)
     const firstDay = summaries[0];
     const lastDay = summaries[summaries.length - 1];
-    const dailyGrowth = firstDay.totalEvents > 0 
-      ? ((lastDay.totalEvents - firstDay.totalEvents) / firstDay.totalEvents) * 100
-      : 0;
+    const dailyGrowth =
+      firstDay.totalEvents > 0
+        ? ((lastDay.totalEvents - firstDay.totalEvents) / firstDay.totalEvents) * 100
+        : 0;
 
     // 주간 성장률 (단순화)
     const weeklyGrowth = dailyGrowth * 7;
@@ -633,14 +650,14 @@ export class ActivityReportService {
       weekdayStats[weekday] = (weekdayStats[weekday] || 0) + summary.totalEvents;
     }
 
-    const mostActiveWeekday = Object.entries(weekdayStats)
-      .sort(([, a], [, b]) => b - a)[0]?.[0] || '월요일';
+    const mostActiveWeekday =
+      Object.entries(weekdayStats).sort(([, a], [, b]) => b - a)[0]?.[0] || '월요일';
 
     return {
       dailyGrowth: Math.round(dailyGrowth * 100) / 100,
       weeklyGrowth: Math.round(weeklyGrowth * 100) / 100,
       peakActivityHour: 12, // 실제 구현에서는 시간별 로그 분석 필요
-      mostActiveWeekday
+      mostActiveWeekday,
     };
   }
 
@@ -661,20 +678,20 @@ export class ActivityReportService {
     embed.addFields({
       name: '📊 총 활동 통계',
       value: `입장: ${totalStatistics.totalJoins}회\n퇴장: ${totalStatistics.totalLeaves}회\n활동 일수: ${totalStatistics.activeDays}일`,
-      inline: false
+      inline: false,
     });
 
     // 가장 활동적인 사용자
     if (totalStatistics.mostActiveUsers.length > 0) {
       const userList = totalStatistics.mostActiveUsers
         .slice(0, 5)
-        .map(user => `${user.name}: ${formatTime(user.totalTime)}`)
+        .map((user) => `${user.name}: ${formatTime(user.totalTime)}`)
         .join('\n');
-      
+
       embed.addFields({
         name: '👥 가장 활동적인 사용자',
         value: userList,
-        inline: false
+        inline: false,
       });
     }
 
@@ -683,7 +700,7 @@ export class ActivityReportService {
       embed.addFields({
         name: '📈 활동 트렌드',
         value: `일일 성장률: ${trends.dailyGrowth > 0 ? '+' : ''}${trends.dailyGrowth}%\n가장 활동적인 요일: ${trends.mostActiveWeekday}`,
-        inline: false
+        inline: false,
       });
     }
 
@@ -711,25 +728,27 @@ export class ActivityReportService {
       .setDescription(`최소 활동 시간: ${minHours}시간`);
 
     // 활성 멤버
-    const activeValue = activeMembers.length > 0
-      ? activeMembers.map(m => `${m.nickname}: ${formatTime(m.totalTime)}`).join('\n')
-      : '없음';
-    
+    const activeValue =
+      activeMembers.length > 0
+        ? activeMembers.map((m) => `${m.nickname}: ${formatTime(m.totalTime)}`).join('\n')
+        : '없음';
+
     embed.addFields({
       name: `✅ 활동 기준 달성 멤버 (${activeMembers.length}명)`,
       value: activeValue.length > 1024 ? activeValue.substring(0, 1020) + '...' : activeValue,
-      inline: false
+      inline: false,
     });
 
     // 비활성 멤버
-    const inactiveValue = inactiveMembers.length > 0
-      ? inactiveMembers.map(m => `${m.nickname}: ${formatTime(m.totalTime)}`).join('\n')
-      : '없음';
-    
+    const inactiveValue =
+      inactiveMembers.length > 0
+        ? inactiveMembers.map((m) => `${m.nickname}: ${formatTime(m.totalTime)}`).join('\n')
+        : '없음';
+
     embed.addFields({
       name: `❌ 활동 기준 미달성 멤버 (${inactiveMembers.length}명)`,
       value: inactiveValue.length > 1024 ? inactiveValue.substring(0, 1020) + '...' : inactiveValue,
-      inline: false
+      inline: false,
     });
 
     embed.setTimestamp();
@@ -746,8 +765,12 @@ export class ActivityReportService {
   ): Promise<void> {
     try {
       const stats = await this.getDetailedStatistics(startTime, endTime);
-      const embed = this.createDetailedStatisticsEmbed(stats, new Date(startTime), new Date(endTime));
-      
+      const embed = this.createDetailedStatisticsEmbed(
+        stats,
+        new Date(startTime),
+        new Date(endTime)
+      );
+
       await channel.send({ embeds: [embed] });
       console.log('[ActivityReportService] 상세 통계 보고서가 성공적으로 전송되었습니다.');
     } catch (error) {
@@ -759,35 +782,41 @@ export class ActivityReportService {
   /**
    * 상세 통계 데이터 수집
    */
-  private async getDetailedStatistics(startTime: number, endTime: number): Promise<ReportStatistics> {
+  private async getDetailedStatistics(
+    startTime: number,
+    endTime: number
+  ): Promise<ReportStatistics> {
     try {
       const allUsers = await this.db.getAllUserActivity();
-      const logs = await this.db.getActivityLogs(startTime, endTime);
-      
+      const logs = await this.db.getActivityLogs({
+        startDate: new Date(startTime),
+        endDate: new Date(endTime),
+      });
+
       const totalUsers = allUsers.length;
-      const activeUsers = allUsers.filter(user => user.totalTime > 0);
+      const activeUsers = allUsers.filter((user) => user.totalTime > 0);
       const activePercentage = totalUsers > 0 ? (activeUsers.length / totalUsers) * 100 : 0;
-      
+
       const totalTime = activeUsers.reduce((sum, user) => sum + user.totalTime, 0);
       const averageActivityTime = activeUsers.length > 0 ? totalTime / activeUsers.length : 0;
-      
+
       // 일별 활동 분석
       const dailyActivity: { [key: string]: number } = {};
       for (const log of logs) {
         const date = new Date(log.timestamp).toISOString().split('T')[0];
         dailyActivity[date] = (dailyActivity[date] || 0) + 1;
       }
-      
+
       const sortedDays = Object.entries(dailyActivity).sort(([, a], [, b]) => b - a);
       const mostActiveDay = sortedDays[0]?.[0] || '';
       const leastActiveDay = sortedDays[sortedDays.length - 1]?.[0] || '';
-      
+
       return {
         totalUsers,
         activePercentage: Math.round(activePercentage * 100) / 100,
         averageActivityTime,
         mostActiveDay,
-        leastActiveDay
+        leastActiveDay,
       };
     } catch (error) {
       console.error('[ActivityReportService] 상세 통계 데이터 수집 오류:', error);
@@ -796,7 +825,7 @@ export class ActivityReportService {
         activePercentage: 0,
         averageActivityTime: 0,
         mostActiveDay: '',
-        leastActiveDay: ''
+        leastActiveDay: '',
       };
     }
   }
@@ -820,17 +849,17 @@ export class ActivityReportService {
         {
           name: '👥 사용자 통계',
           value: `총 사용자: ${stats.totalUsers}명\n활성 사용자 비율: ${stats.activePercentage}%`,
-          inline: true
+          inline: true,
         },
         {
           name: '⏱️ 활동 시간',
           value: `평균 활동 시간: ${formatTime(stats.averageActivityTime)}`,
-          inline: true
+          inline: true,
         },
         {
           name: '📅 활동 패턴',
           value: `가장 활동적인 날: ${stats.mostActiveDay}\n가장 조용한 날: ${stats.leastActiveDay}`,
-          inline: false
+          inline: false,
         }
       )
       .setTimestamp();
@@ -849,7 +878,7 @@ export class ActivityReportService {
         .setTitle('❌ 오류 발생')
         .setDescription(message)
         .setTimestamp();
-      
+
       await channel.send({ embeds: [embed] });
     } catch (error) {
       console.error('[ActivityReportService] 오류 메시지 전송 실패:', error);
@@ -863,10 +892,12 @@ export class ActivityReportService {
     type: 'weekly' | 'monthly' | 'custom',
     schedule: string,
     channelId: string,
-    options: ReportOptions = {}
+    _options: ReportOptions = {}
   ): Promise<void> {
     // 실제 구현에서는 cron job이나 스케줄러 사용
-    console.log(`[ActivityReportService] 보고서 예약: ${type}, 스케줄: ${schedule}, 채널: ${channelId}`);
+    console.log(
+      `[ActivityReportService] 보고서 예약: ${type}, 스케줄: ${schedule}, 채널: ${channelId}`
+    );
   }
 
   /**
@@ -879,7 +910,7 @@ export class ActivityReportService {
   ): Promise<string> {
     try {
       const data = await this.getWeeklySummaryData(startTime, endTime);
-      
+
       if (format === 'json') {
         return JSON.stringify(data, null, 2);
       } else if (format === 'csv') {
@@ -888,7 +919,7 @@ export class ActivityReportService {
         csv += `${new Date(startTime).toISOString()},${data.totalJoins},${data.totalLeaves},${data.activeDays}\n`;
         return csv;
       }
-      
+
       return JSON.stringify(data);
     } catch (error) {
       console.error('[ActivityReportService] 보고서 내보내기 오류:', error);
@@ -917,7 +948,7 @@ export function validateReportData(data: any): boolean {
   }
 
   const requiredFields = ['totalJoins', 'totalLeaves', 'activeDays'];
-  return requiredFields.every(field => typeof data[field] === 'number');
+  return requiredFields.every((field) => typeof data[field] === 'number');
 }
 
 /**
@@ -945,10 +976,10 @@ export function generateReportTitle(
 ): string {
   const start = formatKoreanDate(startDate).split(' ')[0];
   const end = formatKoreanDate(endDate).split(' ')[0];
-  
+
   if (roleName) {
     return `📊 ${roleName} 역할 ${type} (${start} ~ ${end})`;
   }
-  
+
   return `📊 ${type} (${start} ~ ${end})`;
 }

@@ -1,0 +1,118 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "type-enum": [
+      2,
+      "always",
+      [
+        "feat",
+        "fix",
+        "docs",
+        "style",
+        "refactor",
+        "perf",
+        "test",
+        "build",
+        "ci",
+        "chore",
+        "revert"
+      ]
+    ],
+    "subject-case": [2, "never", ["pascal-case", "upper-case"]],
+    "subject-full-stop": [2, "never", "."],
+    "header-max-length": [2, "always", 100],
+    "body-leading-blank": [2, "always"],
+    "footer-leading-blank": [2, "always"]
+  },
+  "prompt": {
+    "questions": {
+      "type": {
+        "description": "변경 사항의 유형을 선택하세요:",
+        "enum": {
+          "feat": {
+            "description": "새로운 기능",
+            "title": "Features",
+            "emoji": "✨"
+          },
+          "fix": {
+            "description": "버그 수정",
+            "title": "Bug Fixes",
+            "emoji": "🐛"
+          },
+          "docs": {
+            "description": "문서 변경",
+            "title": "Documentation",
+            "emoji": "📚"
+          },
+          "style": {
+            "description": "코드 포맷팅, 세미콜론 누락 등 (기능 변경 없음)",
+            "title": "Styles",
+            "emoji": "💎"
+          },
+          "refactor": {
+            "description": "기능 변경 없는 코드 리팩토링",
+            "title": "Code Refactoring",
+            "emoji": "📦"
+          },
+          "perf": {
+            "description": "성능 개선",
+            "title": "Performance Improvements",
+            "emoji": "🚀"
+          },
+          "test": {
+            "description": "테스트 추가 또는 수정",
+            "title": "Tests",
+            "emoji": "🚨"
+          },
+          "build": {
+            "description": "빌드 시스템 또는 외부 의존성 변경",
+            "title": "Builds",
+            "emoji": "🛠"
+          },
+          "ci": {
+            "description": "CI 설정 파일 및 스크립트 변경",
+            "title": "Continuous Integrations",
+            "emoji": "⚙️"
+          },
+          "chore": {
+            "description": "기타 변경사항 (프로덕션 코드 변경 없음)",
+            "title": "Chores",
+            "emoji": "♻️"
+          },
+          "revert": {
+            "description": "커밋 되돌리기",
+            "title": "Reverts",
+            "emoji": "🗑"
+          }
+        }
+      },
+      "scope": {
+        "description": "변경 범위 (선택사항):"
+      },
+      "subject": {
+        "description": "변경사항에 대한 간단한 설명:"
+      },
+      "body": {
+        "description": "상세한 변경사항 설명 (선택사항). '|'를 사용하여 줄바꿈:"
+      },
+      "isBreaking": {
+        "description": "중대한 변경사항이 있나요?"
+      },
+      "breakingBody": {
+        "description": "중대한 변경사항은 커밋에 본문이 필요합니다. 변경사항에 대한 더 긴 설명을 입력하세요:"
+      },
+      "breaking": {
+        "description": "중대한 변경사항을 설명하세요:"
+      },
+      "isIssueAffected": {
+        "description": "이 변경사항이 열려있는 이슈에 영향을 주나요?"
+      },
+      "issuesBody": {
+        "description": "이슈를 닫는 경우 커밋에 본문이 필요합니다. 변경사항에 대한 더 긴 설명을 입력하세요:"
+      },
+      "issues": {
+        "description": "영향받는 이슈를 추가하세요 (예: \"fix #123\", \"re #123\"):"
+      }
+    }
+  }
+}

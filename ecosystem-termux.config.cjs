@@ -2,7 +2,7 @@
 module.exports = {
   apps: [{
     name: 'discord-bot',
-    script: 'src/index.js',
+    script: 'dist/index.js',
     
     // 환경 변수
     env: {
@@ -68,6 +68,44 @@ module.exports = {
     cwd: '/data/data/com.termux/files/home/discord_bot',
     
     // 환경 파일 로드
+    env_file: '.env'
+  }, {
+    // TypeScript 개발용 설정 (Termux 최적화)
+    name: 'discord-bot-dev',
+    script: 'src/index.ts',
+    interpreter: 'tsx',
+    
+    // 개발 환경 변수
+    env: {
+      NODE_ENV: 'development',
+      ERRSOLE_PORT: 8003, // 개발용 포트
+      PLATFORM: 'termux',
+    },
+    
+    // Termux 개발 환경 최적화
+    instances: 1,
+    exec_mode: 'fork',
+    autorestart: true,
+    watch: ['src/**/*.ts', 'src/**/*.js'], // TypeScript 파일 감시
+    ignore_watch: ['node_modules', 'logs', 'dist', 'data'],
+    max_memory_restart: '128M', // Termux 메모리 제약
+    
+    // 빠른 재시작 (Termux 최적화)
+    restart_delay: 2000,
+    max_restarts: 8,
+    min_uptime: '10s',
+    
+    // 메모리 최적화
+    node_args: '--max-old-space-size=128 --expose-gc',
+    
+    // 개발용 로그
+    log_file: './logs/dev-combined.log',
+    out_file: './logs/dev-out.log',
+    error_file: './logs/dev-error.log',
+    
+    // Termux 작업 디렉토리
+    cwd: '/data/data/com.termux/files/home/discord_bot',
+    
     env_file: '.env'
   }]
 };

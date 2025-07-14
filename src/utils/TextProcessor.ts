@@ -1,7 +1,8 @@
 // src/utils/TextProcessor.ts - 텍스트 처리 유틸리티
 import { Guild, Role } from 'discord.js';
-import { DiscordConstants } from '../config/DiscordConstants.js';
+
 import { LIMITS, REGEX } from '../config/constants.js';
+import { DiscordConstants } from '../config/DiscordConstants.js';
 
 // ====================
 // 텍스트 처리 옵션 타입
@@ -109,7 +110,7 @@ export class TextProcessor {
     SLEEPING: '[수면]',
     EATING: '[식사]',
     MEETING: '[회의]',
-    OFFLINE: '[오프라인]'
+    OFFLINE: '[오프라인]',
   };
 
   // 특수 태그 정규식 (주석처리: 현재 미사용)
@@ -130,7 +131,7 @@ export class TextProcessor {
       removeWaitTag = true,
       removeSpectateTag = true,
       removeCustomTags = [],
-      preserveCase = false
+      preserveCase = false,
     } = options;
 
     let cleaned = displayName;
@@ -187,7 +188,7 @@ export class TextProcessor {
         success: false,
         mentions: [],
         notFound: [],
-        errors: ['태그나 길드가 제공되지 않았습니다.']
+        errors: ['태그나 길드가 제공되지 않았습니다.'],
       };
     }
 
@@ -195,20 +196,21 @@ export class TextProcessor {
       fallbackToBold = true,
       caseSensitive = false,
       exactMatch = false,
-      includeRoleColor = false
+      // includeRoleColor = false // 미사용 변수 주석 처리
     } = options;
 
     const result: RoleMentionResult = {
       success: true,
       mentions: [],
       notFound: [],
-      errors: []
+      errors: [],
     };
 
     try {
-      const tagArray = tags.split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0);
+      const tagArray = tags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
 
       for (const tag of tagArray) {
         let role: Role | undefined;
@@ -221,15 +223,13 @@ export class TextProcessor {
 
         // 역할 찾기
         if (exactMatch) {
-          role = guild.roles.cache.find(r => 
-            caseSensitive 
-              ? r.name === cleanTag 
-              : r.name.toLowerCase() === cleanTag.toLowerCase()
+          role = guild.roles.cache.find((r) =>
+            caseSensitive ? r.name === cleanTag : r.name.toLowerCase() === cleanTag.toLowerCase()
           );
         } else {
-          role = guild.roles.cache.find(r => 
-            caseSensitive 
-              ? r.name.includes(cleanTag) 
+          role = guild.roles.cache.find((r) =>
+            caseSensitive
+              ? r.name.includes(cleanTag)
               : r.name.toLowerCase().includes(cleanTag.toLowerCase())
           );
         }
@@ -246,16 +246,15 @@ export class TextProcessor {
 
       result.success = result.errors.length === 0;
       return result;
-
     } catch (error) {
       result.success = false;
       result.errors.push(error instanceof Error ? error.message : String(error));
-      
+
       // 오류 시 원본 반환
       if (fallbackToBold) {
         result.mentions.push(`**${tags}**`);
       }
-      
+
       return result;
     }
   }
@@ -278,17 +277,16 @@ export class TextProcessor {
       includeNumbers = true,
       separator = '\n',
       maxLength = LIMITS.MAX_EMBED_DESCRIPTION,
-      truncateText = '...'
+      truncateText = '...',
     } = options;
 
     const formatted = participants
       .map((participant, index) => {
-        const displayName = participant.displayName || participant.nickname || participant.username || '알 수 없음';
+        const displayName =
+          participant.displayName || participant.nickname || participant.username || '알 수 없음';
         const cleanedName = this.cleanNickname(displayName);
-        
-        return includeNumbers 
-          ? `${index + 1}. ${cleanedName}`
-          : cleanedName;
+
+        return includeNumbers ? `${index + 1}. ${cleanedName}` : cleanedName;
       })
       .join(separator);
 
@@ -307,7 +305,7 @@ export class TextProcessor {
       locale = 'ko-KR',
       includeSeconds = true,
       includeDate = true,
-      format = 'medium'
+      format = 'medium',
     } = options;
 
     const formatOptions: Intl.DateTimeFormatOptions = {
@@ -317,7 +315,7 @@ export class TextProcessor {
       day: includeDate ? '2-digit' : undefined,
       hour: '2-digit',
       minute: '2-digit',
-      second: includeSeconds ? '2-digit' : undefined
+      second: includeSeconds ? '2-digit' : undefined,
     };
 
     // 포맷 스타일 적용
@@ -354,13 +352,9 @@ export class TextProcessor {
       return '';
     }
 
-    const {
-      level = 2,
-      style = 'header',
-      escape = false
-    } = options;
+    const { level = 2, style = 'header', escape = false } = options;
 
-    let processedText = escape ? this.escapeMarkdown(text) : text;
+    const processedText = escape ? this.escapeMarkdown(text) : text;
 
     switch (style) {
       case 'header':
@@ -396,7 +390,7 @@ export class TextProcessor {
    * @returns 제한 초과 여부
    */
   static exceedsLimit(text: string, limit: number): boolean {
-    return text && text.length > limit;
+    return text?.length > limit;
   }
 
   /**
@@ -405,13 +399,16 @@ export class TextProcessor {
    * @param type - 텍스트 타입
    * @returns 검증 결과
    */
-  static validateText(text: string, type: 'message' | 'embed' | 'field' | 'title' = 'message'): TextValidationResult {
+  static validateText(
+    text: string,
+    type: 'message' | 'embed' | 'field' | 'title' = 'message'
+  ): TextValidationResult {
     if (!text || typeof text !== 'string') {
       return {
         isValid: false,
         length: 0,
         exceedsLimit: false,
-        suggestions: ['유효한 텍스트를 입력해주세요.']
+        suggestions: ['유효한 텍스트를 입력해주세요.'],
       };
     }
 
@@ -454,7 +451,7 @@ export class TextProcessor {
       length,
       exceedsLimit,
       limitType,
-      suggestions
+      suggestions,
     };
   }
 
@@ -470,11 +467,7 @@ export class TextProcessor {
       return text;
     }
 
-    const {
-      suffix = '...',
-      preserveWords = false,
-      maxLines
-    } = options;
+    const { suffix = '...', preserveWords = false, maxLines } = options;
 
     let truncated = text;
 
@@ -489,7 +482,7 @@ export class TextProcessor {
     // 길이 제한
     if (truncated.length > maxLength) {
       const targetLength = maxLength - suffix.length;
-      
+
       if (preserveWords) {
         // 단어 경계에서 자르기
         const words = truncated.substring(0, targetLength).split(' ');
@@ -498,7 +491,7 @@ export class TextProcessor {
       } else {
         truncated = truncated.substring(0, targetLength);
       }
-      
+
       truncated += suffix;
     }
 
@@ -517,7 +510,7 @@ export class TextProcessor {
         hasSpectateTag: false,
         hasCustomTags: false,
         foundTags: [],
-        cleanedText: ''
+        cleanedText: '',
       };
     }
 
@@ -536,7 +529,7 @@ export class TextProcessor {
     }
 
     // 추가 특수 태그 확인
-    for (const [key, tag] of Object.entries(this.DEFAULT_SPECIAL_TAGS)) {
+    for (const [_key, tag] of Object.entries(this.DEFAULT_SPECIAL_TAGS)) {
       if (displayName.includes(tag) && !foundTags.includes(tag)) {
         foundTags.push(tag);
       }
@@ -548,9 +541,10 @@ export class TextProcessor {
     return {
       hasWaitTag,
       hasSpectateTag,
-      hasCustomTags: foundTags.length > 2 || (foundTags.length > 0 && !hasWaitTag && !hasSpectateTag),
+      hasCustomTags:
+        foundTags.length > 2 || (foundTags.length > 0 && !hasWaitTag && !hasSpectateTag),
       foundTags,
-      cleanedText
+      cleanedText,
     };
   }
 
@@ -634,13 +628,13 @@ export class TextProcessor {
         roles: [],
         channels: [],
         everyone: false,
-        here: false
+        here: false,
       };
     }
 
-    const users = [...text.matchAll(REGEX.USER_MENTION)].map(match => match[1]);
-    const roles = [...text.matchAll(REGEX.ROLE_MENTION)].map(match => match[1]);
-    const channels = [...text.matchAll(REGEX.CHANNEL_MENTION)].map(match => match[1]);
+    const users = [...text.matchAll(REGEX.USER_MENTION)].map((match) => match[1]);
+    const roles = [...text.matchAll(REGEX.ROLE_MENTION)].map((match) => match[1]);
+    const channels = [...text.matchAll(REGEX.CHANNEL_MENTION)].map((match) => match[1]);
     const everyone = text.includes('@everyone');
     const here = text.includes('@here');
 
@@ -649,7 +643,7 @@ export class TextProcessor {
       roles,
       channels,
       everyone,
-      here
+      here,
     };
   }
 
@@ -712,9 +706,7 @@ export class TextProcessor {
       return '';
     }
 
-    return text
-      .toLowerCase()
-      .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase());
+    return text.toLowerCase().replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase());
   }
 
   /**
@@ -774,7 +766,7 @@ export class TextProcessor {
     let hash = 0;
     for (let i = 0; i < text.length; i++) {
       const char = text.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // 32비트 정수로 변환
     }
 
@@ -805,7 +797,9 @@ export class TextProcessor {
    * @returns 레벤슈타인 거리
    */
   private static levenshteinDistance(str1: string, str2: string): number {
-    const matrix = Array(str2.length + 1).fill(null).map(() => Array(str1.length + 1).fill(null));
+    const matrix = Array(str2.length + 1)
+      .fill(null)
+      .map(() => Array(str1.length + 1).fill(null));
 
     for (let i = 0; i <= str1.length; i++) {
       matrix[0][i] = i;
@@ -819,9 +813,9 @@ export class TextProcessor {
       for (let i = 1; i <= str1.length; i++) {
         const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
         matrix[j][i] = Math.min(
-          matrix[j][i - 1] + 1,     // 삽입
-          matrix[j - 1][i] + 1,     // 삭제
-          matrix[j - 1][i - 1] + indicator  // 교체
+          matrix[j][i - 1] + 1, // 삽입
+          matrix[j - 1][i] + 1, // 삭제
+          matrix[j - 1][i - 1] + indicator // 교체
         );
       }
     }

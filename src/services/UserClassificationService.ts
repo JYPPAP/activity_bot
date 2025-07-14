@@ -1,8 +1,10 @@
 // src/services/UserClassificationService.ts - 잠수 상태 처리 개선
 import { Collection, GuildMember } from 'discord.js';
+
 import { calculateNextSunday } from '../utils/dateUtils.js';
-import { DatabaseManager } from './DatabaseManager.js';
+
 import { ActivityTracker } from './activityTracker.js';
+import { DatabaseManager } from './DatabaseManager.js';
 
 // 사용자 데이터 인터페이스
 interface UserData {
@@ -54,13 +56,13 @@ interface DateRangeResult {
   endOfDay: Date;
 }
 
-// 잠수 상태 정보
-interface AfkStatusInfo {
-  afkUntil: number;
-  setAt: number;
-  reason?: string;
-  previousActivity?: number;
-}
+// 잠수 상태 정보 (currently unused)
+// interface AfkStatusInfo {
+//   afkUntil: number;
+//   setAt: number;
+//   reason?: string;
+//   previousActivity?: number;
+// }
 
 // 서비스 설정
 interface UserClassificationConfig {
@@ -76,17 +78,17 @@ interface UserClassificationConfig {
 
 export class UserClassificationService {
   private db: DatabaseManager;
-  private activityTracker: ActivityTracker;
+  // private _activityTracker: ActivityTracker; // Unused
   private config: UserClassificationConfig;
   private classificationCache: Map<string, { result: UserClassificationResult; timestamp: number }>;
 
   constructor(
-    dbManager: DatabaseManager, 
-    activityTracker: ActivityTracker,
+    dbManager: DatabaseManager,
+    _activityTracker: ActivityTracker,
     config: Partial<UserClassificationConfig> = {}
   ) {
     this.db = dbManager;
-    this.activityTracker = activityTracker;
+    // this._activityTracker = activityTracker; // Unused
     this.config = {
       enableDetailedStats: true,
       trackRiskUsers: true,
@@ -96,11 +98,11 @@ export class UserClassificationService {
       maxAfkDuration: 30 * 24 * 60 * 60 * 1000, // 30일
       enableActivityTrends: true,
       cacheDuration: 300000, // 5분
-      ...config
+      ...config,
     };
-    
+
     this.classificationCache = new Map();
-    
+
     // 캐시 정리 타이머
     if (this.config.cacheDuration > 0) {
       setInterval(() => this.cleanupCache(), this.config.cacheDuration);
@@ -113,9 +115,12 @@ export class UserClassificationService {
    * @param roleMembers - 역할 멤버 컬렉션
    * @returns 분류된 사용자 목록과 설정 정보
    */
-  async classifyUsers(role: string, roleMembers: Collection<string, GuildMember>): Promise<UserClassificationResult> {
+  async classifyUsers(
+    role: string,
+    roleMembers: Collection<string, GuildMember>
+  ): Promise<UserClassificationResult> {
     const cacheKey = `${role}_${roleMembers.size}`;
-    
+
     // 캐시 확인
     if (this.config.cacheDuration > 0) {
       const cached = this.classificationCache.get(cacheKey);
@@ -123,7 +128,7 @@ export class UserClassificationService {
         return cached.result;
       }
     }
-    
+
     try {
       // 역할 설정 가져오기
       const { minActivityTime, resetTime } = await this.getRoleSettings(role);
@@ -154,19 +159,23 @@ export class UserClassificationService {
         inactiveUsers,
         afkUsers,
         resetTime,
-        minHours: minActivityTime / (60 * 60 * 1000)
+        minHours: minActivityTime / (60 * 60 * 1000),
       };
 
       // 상세 통계 생성
       if (this.config.enableDetailedStats) {
-        result.statistics = this.generateClassificationStatistics(activeUsers, inactiveUsers, afkUsers);
+        result.statistics = this.generateClassificationStatistics(
+          activeUsers,
+          inactiveUsers,
+          afkUsers
+        );
       }
 
       // 캐시 저장
       if (this.config.cacheDuration > 0) {
         this.classificationCache.set(cacheKey, {
           result,
-          timestamp: Date.now()
+          timestamp: Date.now(),
         });
       }
 
@@ -186,9 +195,9 @@ export class UserClassificationService {
    * @returns 분류된 사용자 목록과 설정 정보
    */
   async classifyUsersByDateRange(
-    role: string, 
-    roleMembers: Collection<string, GuildMember>, 
-    startDate: Date | number, 
+    role: string,
+    roleMembers: Collection<string, GuildMember>,
+    startDate: Date | number,
     endDate: Date | number
   ): Promise<UserClassificationResult> {
     try {
@@ -225,12 +234,16 @@ export class UserClassificationService {
         afkUsers,
         resetTime: null,
         minHours: minActivityTime / (60 * 60 * 1000),
-        reportCycle
+        reportCycle,
       };
 
       // 상세 통계 생성
       if (this.config.enableDetailedStats) {
-        result.statistics = this.generateClassificationStatistics(activeUsers, inactiveUsers, afkUsers);
+        result.statistics = this.generateClassificationStatistics(
+          activeUsers,
+          inactiveUsers,
+          afkUsers
+        );
       }
 
       return result;
@@ -253,19 +266,19 @@ export class UserClassificationService {
       const resetTime = roleConfig?.resetTime || null;
       const reportCycle = roleConfig?.reportCycle || null;
 
-      return { 
-        minActivityTime, 
-        resetTime, 
+      return {
+        minActivityTime,
+        resetTime,
         reportCycle,
         allowedAfkDuration: roleConfig?.allowedAfkDuration || this.config.maxAfkDuration,
-        warningThreshold: roleConfig?.warningThreshold || (minActivityTime * 0.5)
+        warningThreshold: roleConfig?.warningThreshold || minActivityTime * 0.5,
       };
     } catch (error) {
       console.error(`[UserClassificationService] 역할 설정 조회 실패:`, error);
       return {
         minActivityTime: 0,
         resetTime: null,
-        reportCycle: null
+        reportCycle: null,
       };
     }
   }
@@ -298,18 +311,22 @@ export class UserClassificationService {
   async createBasicUserData(userId: string, member: GuildMember): Promise<UserData> {
     try {
       const userActivity = await this.db.getUserActivity(userId);
-      
+
       const userData: UserData = {
         userId,
         nickname: member.displayName,
-        totalTime: userActivity?.totalTime || 0
+        totalTime: userActivity?.totalTime || 0,
       };
 
       // 추가 정보 수집
       if (this.config.enableActivityTrends) {
-        userData.joinedAt = member.joinedTimestamp || undefined;
-        userData.lastActivity = userActivity?.lastActivity || undefined;
-        userData.roles = member.roles.cache.map(role => role.name);
+        if (member.joinedTimestamp) {
+          userData.joinedAt = member.joinedTimestamp;
+        }
+        if (userActivity?.lastActivity) {
+          userData.lastActivity = userActivity.lastActivity;
+        }
+        userData.roles = member.roles.cache.map((role) => role.name);
       }
 
       return userData;
@@ -318,7 +335,7 @@ export class UserClassificationService {
       return {
         userId,
         nickname: member.displayName,
-        totalTime: 0
+        totalTime: 0,
       };
     }
   }
@@ -332,9 +349,9 @@ export class UserClassificationService {
    * @returns 사용자 데이터 객체
    */
   async createUserDataByDateRange(
-    userId: string, 
-    member: GuildMember, 
-    startOfDay: Date, 
+    userId: string,
+    member: GuildMember,
+    startOfDay: Date,
     endOfDay: Date
   ): Promise<UserData> {
     try {
@@ -347,13 +364,15 @@ export class UserClassificationService {
       const userData: UserData = {
         userId,
         nickname: member.displayName,
-        totalTime: activityTime || 0
+        totalTime: activityTime || 0,
       };
 
       // 추가 정보 수집
       if (this.config.enableActivityTrends) {
-        userData.joinedAt = member.joinedTimestamp || undefined;
-        userData.roles = member.roles.cache.map(role => role.name);
+        if (member.joinedTimestamp) {
+          userData.joinedAt = member.joinedTimestamp;
+        }
+        userData.roles = member.roles.cache.map((role) => role.name);
       }
 
       return userData;
@@ -362,7 +381,7 @@ export class UserClassificationService {
       return {
         userId,
         nickname: member.displayName,
-        totalTime: 0
+        totalTime: 0,
       };
     }
   }
@@ -373,7 +392,7 @@ export class UserClassificationService {
    * @returns 잠수 역할 여부
    */
   hasAfkRole(member: GuildMember): boolean {
-    return member.roles.cache.some(r => r.name === "잠수");
+    return member.roles.cache.some((r) => r.name === '잠수');
   }
 
   /**
@@ -395,9 +414,11 @@ export class UserClassificationService {
       console.log(`[잠수처리] DB 조회 결과:`, afkStatus);
 
       if (afkStatus?.afkUntil) {
-        console.log(`[잠수처리] 기존 잠수 데이터 사용: ${new Date(afkStatus.afkUntil).toISOString()}`);
+        console.log(
+          `[잠수처리] 기존 잠수 데이터 사용: ${new Date(afkStatus.afkUntil).toISOString()}`
+        );
         userData.afkUntil = afkStatus.afkUntil;
-        
+
         // 잠수 기간 검증
         if (this.config.enableAfkWarnings) {
           this.checkAfkDuration(userData, afkStatus.afkUntil);
@@ -411,7 +432,11 @@ export class UserClassificationService {
         console.log(`[잠수처리] 계산된 기한: ${new Date(afkUntilTimestamp).toISOString()}`);
 
         // DB에 저장
-        const saveResult = await this.db.setUserAfkStatus(userId, member.displayName, afkUntilTimestamp);
+        const saveResult = await this.db.setUserAfkStatus(
+          userId,
+          member.displayName,
+          afkUntilTimestamp
+        );
         console.log(`[잠수처리] 저장 결과: ${saveResult}`);
 
         if (saveResult) {
@@ -435,7 +460,9 @@ export class UserClassificationService {
       const fallbackDate = calculateNextSunday(new Date());
       userData.afkUntil = fallbackDate.getTime();
 
-      console.log(`[잠수처리] 오류 복구 - 기본값 설정: ${new Date(userData.afkUntil).toISOString()}`);
+      console.log(
+        `[잠수처리] 오류 복구 - 기본값 설정: ${new Date(userData.afkUntil).toISOString()}`
+      );
       return userData;
     }
   }
@@ -448,9 +475,9 @@ export class UserClassificationService {
    * @param inactiveUsers - 비활성 사용자 배열
    */
   classifyUserByActivityTime(
-    userData: UserData, 
-    minActivityTime: number, 
-    activeUsers: UserData[], 
+    userData: UserData,
+    minActivityTime: number,
+    activeUsers: UserData[],
     inactiveUsers: UserData[]
   ): void {
     if (userData.totalTime >= minActivityTime) {
@@ -466,9 +493,13 @@ export class UserClassificationService {
    * @param inactiveUsers - 비활성 사용자 배열
    * @param afkUsers - 잠수 사용자 배열
    */
-  sortUsersByActivityTime(activeUsers: UserData[], inactiveUsers: UserData[], afkUsers: UserData[]): void {
+  sortUsersByActivityTime(
+    activeUsers: UserData[],
+    inactiveUsers: UserData[],
+    afkUsers: UserData[]
+  ): void {
     const sortFn = (a: UserData, b: UserData) => b.totalTime - a.totalTime;
-    
+
     activeUsers.sort(sortFn);
     inactiveUsers.sort(sortFn);
     afkUsers.sort(sortFn);
@@ -482,31 +513,31 @@ export class UserClassificationService {
    * @returns 분류 통계
    */
   generateClassificationStatistics(
-    activeUsers: UserData[], 
-    inactiveUsers: UserData[], 
+    activeUsers: UserData[],
+    inactiveUsers: UserData[],
     afkUsers: UserData[]
   ): ClassificationStatistics {
     const totalUsers = activeUsers.length + inactiveUsers.length + afkUsers.length;
     const allUsers = [...activeUsers, ...inactiveUsers, ...afkUsers];
-    
+
     // 활동 시간 통계
-    const activityTimes = allUsers.map(u => u.totalTime).filter(t => t > 0);
-    const averageActivityTime = activityTimes.length > 0 
-      ? activityTimes.reduce((sum, time) => sum + time, 0) / activityTimes.length 
-      : 0;
-    
+    const activityTimes = allUsers.map((u) => u.totalTime).filter((t) => t > 0);
+    const averageActivityTime =
+      activityTimes.length > 0
+        ? activityTimes.reduce((sum, time) => sum + time, 0) / activityTimes.length
+        : 0;
+
     // 중앙값 계산
     const sortedTimes = [...activityTimes].sort((a, b) => a - b);
-    const medianActivityTime = sortedTimes.length > 0 
-      ? sortedTimes[Math.floor(sortedTimes.length / 2)] 
-      : 0;
+    const medianActivityTime =
+      sortedTimes.length > 0 ? sortedTimes[Math.floor(sortedTimes.length / 2)] : 0;
 
     // 위험 사용자 식별
     const riskUsers: UserData[] = [];
     if (this.config.trackRiskUsers) {
       const riskThreshold = averageActivityTime * (this.config.riskThresholdPercentage / 100);
       riskUsers.push(
-        ...inactiveUsers.filter(u => u.totalTime > 0 && u.totalTime < riskThreshold)
+        ...inactiveUsers.filter((u) => u.totalTime > 0 && u.totalTime < riskThreshold)
       );
     }
 
@@ -518,7 +549,7 @@ export class UserClassificationService {
       averageActivityTime,
       medianActivityTime,
       topActiveUsers: activeUsers.slice(0, 10),
-      riskUsers
+      riskUsers,
     };
   }
 
@@ -530,15 +561,19 @@ export class UserClassificationService {
   private checkAfkDuration(userData: UserData, afkUntil: number): void {
     const now = Date.now();
     const afkDuration = afkUntil - now;
-    
+
     if (afkDuration > this.config.maxAfkDuration) {
-      console.warn(`[잠수처리] 과도한 잠수 기간: ${userData.nickname} (${Math.floor(afkDuration / (24 * 60 * 60 * 1000))}일)`);
+      console.warn(
+        `[잠수처리] 과도한 잠수 기간: ${userData.nickname} (${Math.floor(afkDuration / (24 * 60 * 60 * 1000))}일)`
+      );
     }
-    
+
     // 잠수 만료 임박 확인
     const warningTime = this.config.afkWarningDays * 24 * 60 * 60 * 1000;
     if (afkDuration > 0 && afkDuration < warningTime) {
-      console.log(`[잠수처리] 잠수 만료 임박: ${userData.nickname} (${Math.floor(afkDuration / (24 * 60 * 60 * 1000))}일 남음)`);
+      console.log(
+        `[잠수처리] 잠수 만료 임박: ${userData.nickname} (${Math.floor(afkDuration / (24 * 60 * 60 * 1000))}일 남음)`
+      );
     }
   }
 
@@ -548,15 +583,15 @@ export class UserClassificationService {
   private cleanupCache(): void {
     const now = Date.now();
     const expired: string[] = [];
-    
+
     for (const [key, value] of this.classificationCache.entries()) {
       if (now - value.timestamp > this.config.cacheDuration) {
         expired.push(key);
       }
     }
-    
-    expired.forEach(key => this.classificationCache.delete(key));
-    
+
+    expired.forEach((key) => this.classificationCache.delete(key));
+
     if (expired.length > 0) {
       console.log(`[UserClassificationService] 캐시 정리: ${expired.length}개 항목 삭제`);
     }
@@ -568,7 +603,10 @@ export class UserClassificationService {
    * @param days - 분석 기간 (일)
    * @returns 활동 동향 정보
    */
-  async getUserActivityTrend(userId: string, days: number = 7): Promise<{
+  async getUserActivityTrend(
+    userId: string,
+    days: number = 7
+  ): Promise<{
     trend: 'increasing' | 'decreasing' | 'stable';
     weeklyAverage: number;
     dailyActivities: number[];
@@ -579,45 +617,49 @@ export class UserClassificationService {
     }
 
     const now = Date.now();
-    const startTime = now - (days * 24 * 60 * 60 * 1000);
-    
+    const startTime = now - days * 24 * 60 * 60 * 1000;
+
     // 일별 활동 데이터 수집
     const dailyActivities: number[] = [];
     for (let i = 0; i < days; i++) {
-      const dayStart = startTime + (i * 24 * 60 * 60 * 1000);
-      const dayEnd = dayStart + (24 * 60 * 60 * 1000);
-      
+      const dayStart = startTime + i * 24 * 60 * 60 * 1000;
+      const dayEnd = dayStart + 24 * 60 * 60 * 1000;
+
       const dayActivity = await this.db.getUserActivityByDateRange(userId, dayStart, dayEnd);
       dailyActivities.push(dayActivity || 0);
     }
-    
+
     // 추세 분석
     const weeklyAverage = dailyActivities.reduce((sum, activity) => sum + activity, 0) / days;
     const firstHalf = dailyActivities.slice(0, Math.floor(days / 2));
     const secondHalf = dailyActivities.slice(Math.floor(days / 2));
-    
+
     const firstHalfAvg = firstHalf.reduce((sum, activity) => sum + activity, 0) / firstHalf.length;
-    const secondHalfAvg = secondHalf.reduce((sum, activity) => sum + activity, 0) / secondHalf.length;
-    
+    const secondHalfAvg =
+      secondHalf.reduce((sum, activity) => sum + activity, 0) / secondHalf.length;
+
     let trend: 'increasing' | 'decreasing' | 'stable' = 'stable';
     const changeThreshold = weeklyAverage * 0.1; // 10% 변화 임계값
-    
+
     if (secondHalfAvg > firstHalfAvg + changeThreshold) {
       trend = 'increasing';
     } else if (secondHalfAvg < firstHalfAvg - changeThreshold) {
       trend = 'decreasing';
     }
-    
+
     // 단순 선형 예측
-    const prediction = trend === 'increasing' ? secondHalfAvg * 1.1 : 
-                     trend === 'decreasing' ? secondHalfAvg * 0.9 : 
-                     weeklyAverage;
-    
+    const prediction =
+      trend === 'increasing'
+        ? secondHalfAvg * 1.1
+        : trend === 'decreasing'
+          ? secondHalfAvg * 0.9
+          : weeklyAverage;
+
     return {
       trend,
       weeklyAverage,
       dailyActivities,
-      prediction
+      prediction,
     };
   }
 
@@ -627,7 +669,7 @@ export class UserClassificationService {
    */
   updateConfig(newConfig: Partial<UserClassificationConfig>): void {
     this.config = { ...this.config, ...newConfig };
-    
+
     // 캐시 정리가 비활성화된 경우 기존 캐시 삭제
     if (newConfig.cacheDuration === 0) {
       this.classificationCache.clear();
@@ -657,7 +699,7 @@ export class UserClassificationService {
       cacheSize: this.classificationCache.size,
       cacheHitRate: 0, // 실제 구현에서는 히트율 계산
       totalClassifications: 0, // 실제 구현에서는 총 분류 횟수
-      averageClassificationTime: 0 // 실제 구현에서는 평균 처리 시간
+      averageClassificationTime: 0, // 실제 구현에서는 평균 처리 시간
     };
   }
 }

@@ -6,10 +6,11 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  APIEmbedField
+  APIEmbedField,
 } from 'discord.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+
 import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 
 // 기존 포스트 정보 인터페이스
 interface ExistingPost {
@@ -94,7 +95,7 @@ export class RecruitmentUIBuilder {
     selectMenusCreated: 0,
     actionRowsCreated: 0,
     lastBuildTime: new Date(),
-    buildHistory: []
+    buildHistory: [],
   };
 
   /**
@@ -104,14 +105,14 @@ export class RecruitmentUIBuilder {
    */
   static createInitialEmbed(voiceChannelName: string): EmbedBuilder {
     this.recordBuild('embed', 'initial');
-    
+
     return new EmbedBuilder()
       .setTitle('🎮 구인구직 포럼 연동')
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
-        '• 👁️ **관전**: 별명에 [관전] 태그 추가\n' +
-        '• ⏳ **대기**: 별명에 [대기] 태그 추가\n' +
-        '• 🔄 **초기화**: 별명의 태그를 제거'
+          '• 👁️ **관전**: 별명에 [관전] 태그 추가\n' +
+          '• ⏳ **대기**: 별명에 [대기] 태그 추가\n' +
+          '• 🔄 **초기화**: 별명의 태그를 제거'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '아래 버튼을 클릭하여 원하는 작업을 선택하세요.' });
@@ -129,28 +130,26 @@ export class RecruitmentUIBuilder {
       {
         customId: `${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT}${voiceChannelId}`,
         label: '🎯 연동하기',
-        style: ButtonStyle.Primary
+        style: ButtonStyle.Primary,
       },
       {
         customId: `${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE}${voiceChannelId}`,
         label: `${DiscordConstants.EMOJIS.SPECTATOR} 관전`,
-        style: ButtonStyle.Secondary
+        style: ButtonStyle.Secondary,
       },
       {
         customId: `${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT}${voiceChannelId}`,
         label: '⏳ 대기',
-        style: ButtonStyle.Success
+        style: ButtonStyle.Success,
       },
       {
         customId: `${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET}${voiceChannelId}`,
         label: `${DiscordConstants.EMOJIS.RESET} 초기화`,
-        style: ButtonStyle.Primary
-      }
+        style: ButtonStyle.Primary,
+      },
     ];
 
-    const buttonComponents = buttons.map(buttonOption => 
-      this.createButton(buttonOption)
-    );
+    const buttonComponents = buttons.map((buttonOption) => this.createButton(buttonOption));
 
     this.recordBuild('actionRow', 'initialButtons');
     return [new ActionRowBuilder<ButtonBuilder>().addComponents(...buttonComponents)];
@@ -163,15 +162,15 @@ export class RecruitmentUIBuilder {
    */
   static createMethodSelectionEmbed(voiceChannelName: string): EmbedBuilder {
     this.recordBuild('embed', 'methodSelection');
-    
+
     return new EmbedBuilder()
       .setTitle('🎮 구인구직 포럼 연동')
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
-        '📌 **연동 방법**\n' +
-        '• 🆕 **새 포럼 생성**: 새로운 구인구직 포럼을 만들어 연동\n' +
-        '• 🔗 **기존 포럼 선택**: 이미 생성된 구인구직에 음성 채널 연결\n\n' +
-        '💡 아래 드롭다운에서 원하는 방법을 선택하세요.'
+          '📌 **연동 방법**\n' +
+          '• 🆕 **새 포럼 생성**: 새로운 구인구직 포럼을 만들어 연동\n' +
+          '• 🔗 **기존 포럼 선택**: 이미 생성된 구인구직에 음성 채널 연결\n\n' +
+          '💡 아래 드롭다운에서 원하는 방법을 선택하세요.'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '연동 방법을 선택한 후 다음 단계로 진행됩니다.' });
@@ -184,7 +183,7 @@ export class RecruitmentUIBuilder {
    * @returns 드롭다운이 포함된 액션 로우
    */
   static createMethodSelectMenu(
-    voiceChannelId: string, 
+    voiceChannelId: string,
     existingPosts: ExistingPost[] = []
   ): ActionRowBuilder<StringSelectMenuBuilder> {
     this.recordBuild('selectMenu', 'methodSelection');
@@ -194,23 +193,24 @@ export class RecruitmentUIBuilder {
         label: '🆕 새 구인구직 포럼 생성하기',
         description: '새로운 구인구직 포럼을 만들어 음성 채널과 연동',
         value: DiscordConstants.METHOD_VALUES.NEW_FORUM,
-        emoji: '🆕'
-      }
+        emoji: '🆕',
+      },
     ];
 
     // 기존 포스트가 있으면 선택 옵션 추가
     existingPosts.forEach((post, index) => {
-      if (index < 8) { // 최대 8개까지만 (새 포럼 생성 + 7개 기존 포스트)
+      if (index < 8) {
+        // 최대 8개까지만 (새 포럼 생성 + 7개 기존 포스트)
         options.push({
           label: `🔗 ${post.name}`,
           description: `기존 구인구직에 연동 (멤버: ${post.memberCount}명)`,
           value: `${DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX}${post.id}`,
-          emoji: '🔗'
+          emoji: '🔗',
         });
       }
     });
 
-    const selectMenuOptions = options.map(option => 
+    const selectMenuOptions = options.map((option) =>
       new StringSelectMenuOptionBuilder()
         .setLabel(option.label)
         .setDescription(option.description)
@@ -235,11 +235,11 @@ export class RecruitmentUIBuilder {
    * @returns 생성된 임베드
    */
   static createRoleTagSelectionEmbed(
-    selectedTags: string[] = [], 
+    selectedTags: string[] = [],
     isStandalone: boolean = false
   ): EmbedBuilder {
     this.recordBuild('embed', 'roleTagSelection');
-    
+
     const selectedTagsText = selectedTags.length > 0 ? selectedTags.join(', ') : '없음';
     const modeText = isStandalone ? '독립 구인구직' : '음성 채널 연동';
 
@@ -247,9 +247,9 @@ export class RecruitmentUIBuilder {
       .setTitle('🏷️ 역할 태그 선택')
       .setDescription(
         `**${modeText}**을 위한 역할 태그를 선택하세요.\n\n` +
-        `선택된 태그: **${selectedTagsText}**\n\n` +
-        `💡 최대 ${RecruitmentConfig.MAX_SELECTED_TAGS}개까지 선택할 수 있습니다.\n` +
-        '✅ 선택이 완료되면 "선택 완료" 버튼을 클릭하세요.'
+          `선택된 태그: **${selectedTagsText}**\n\n` +
+          `💡 최대 ${RecruitmentConfig.MAX_SELECTED_TAGS}개까지 선택할 수 있습니다.\n` +
+          '✅ 선택이 완료되면 "선택 완료" 버튼을 클릭하세요.'
       )
       .setColor(RecruitmentConfig.COLORS.INFO);
   }
@@ -263,9 +263,9 @@ export class RecruitmentUIBuilder {
    * @returns 버튼 그리드 액션 로우 배열
    */
   static createRoleTagButtons(
-    selectedTags: string[] = [], 
-    voiceChannelId: string | null = null, 
-    methodValue: string | null = null, 
+    selectedTags: string[] = [],
+    voiceChannelId: string | null = null,
+    methodValue: string | null = null,
     isStandalone: boolean = false
   ): ActionRowBuilder<ButtonBuilder>[] {
     this.recordBuild('button', 'roleTagGrid');
@@ -295,7 +295,7 @@ export class RecruitmentUIBuilder {
           const button = this.createButton({
             customId: buttonCustomId,
             label: tag,
-            style: isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary
+            style: isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary,
           });
 
           actionRow.addComponents(button);
@@ -323,7 +323,7 @@ export class RecruitmentUIBuilder {
       label: '선택 완료',
       style: ButtonStyle.Primary,
       emoji: '✅',
-      disabled: selectedTags.length === 0
+      disabled: selectedTags.length === 0,
     });
 
     const completeRow = new ActionRowBuilder<ButtonBuilder>().addComponents(completeButton);
@@ -339,16 +339,16 @@ export class RecruitmentUIBuilder {
    */
   static createStandaloneRecruitmentEmbed(): EmbedBuilder {
     this.recordBuild('embed', 'standaloneRecruitment');
-    
+
     return new EmbedBuilder()
       .setTitle('🎮 구인구직 포럼 생성')
       .setDescription(
         '새로운 구인구직 포럼을 생성합니다.\n\n' +
-        '📌 **단계**\n' +
-        '1. 🏷️ **역할 태그 선택** (현재 단계)\n' +
-        '2. 📝 **구인구직 정보 입력**\n' +
-        '3. 🎯 **포럼 포스트 생성**\n\n' +
-        '💡 역할 태그를 선택하면 해당 역할의 멤버들이 알림을 받습니다.'
+          '📌 **단계**\n' +
+          '1. 🏷️ **역할 태그 선택** (현재 단계)\n' +
+          '2. 📝 **구인구직 정보 입력**\n' +
+          '3. 🎯 **포럼 포스트 생성**\n\n' +
+          '💡 역할 태그를 선택하면 해당 역할의 멤버들이 알림을 받습니다.'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '(장기 컨텐츠는 연동X)' });
@@ -362,12 +362,12 @@ export class RecruitmentUIBuilder {
    * @returns 생성된 임베드
    */
   static createSuccessEmbed(
-    title: string, 
-    description: string, 
+    title: string,
+    description: string,
     fields: APIEmbedField[] = []
   ): EmbedBuilder {
     this.recordBuild('embed', 'success');
-    
+
     const embed = new EmbedBuilder()
       .setTitle(`✅ ${title}`)
       .setDescription(description)
@@ -389,7 +389,7 @@ export class RecruitmentUIBuilder {
    */
   static createErrorEmbed(title: string, description: string): EmbedBuilder {
     this.recordBuild('embed', 'error');
-    
+
     return new EmbedBuilder()
       .setTitle(`❌ ${title}`)
       .setDescription(description)
@@ -405,7 +405,7 @@ export class RecruitmentUIBuilder {
    */
   static createWarningEmbed(title: string, description: string): EmbedBuilder {
     this.recordBuild('embed', 'warning');
-    
+
     return new EmbedBuilder()
       .setTitle(`⚠️ ${title}`)
       .setDescription(description)
@@ -420,16 +420,16 @@ export class RecruitmentUIBuilder {
    * @returns 생성된 임베드
    */
   static createParticipantInfoEmbed(
-    voiceChannelName: string, 
+    voiceChannelName: string,
     participantStats: ParticipantStats
   ): EmbedBuilder {
     this.recordBuild('embed', 'participantInfo');
-    
+
     const description = [
       `**전체 참여자**: ${participantStats.total}명`,
       `**활성 참여자**: ${participantStats.active}명`,
       `**대기 중**: ${participantStats.waiting}명`,
-      `**관전 중**: ${participantStats.spectating}명`
+      `**관전 중**: ${participantStats.spectating}명`,
     ];
 
     if (participantStats.idle !== undefined) {
@@ -450,7 +450,7 @@ export class RecruitmentUIBuilder {
    */
   static createInfoEmbed(options: EmbedOptions): EmbedBuilder {
     this.recordBuild('embed', 'info');
-    
+
     const embed = new EmbedBuilder();
 
     if (options.title) embed.setTitle(options.title);
@@ -473,7 +473,7 @@ export class RecruitmentUIBuilder {
    */
   private static createButton(options: ButtonOptions): ButtonBuilder {
     this.buildStats.buttonsCreated++;
-    
+
     const button = new ButtonBuilder()
       .setCustomId(options.customId)
       .setLabel(options.label)
@@ -493,7 +493,7 @@ export class RecruitmentUIBuilder {
    */
   static createLoadingEmbed(message: string = '처리 중...'): EmbedBuilder {
     this.recordBuild('embed', 'loading');
-    
+
     return new EmbedBuilder()
       .setTitle('⏳ 로딩 중')
       .setDescription(message)
@@ -516,10 +516,10 @@ export class RecruitmentUIBuilder {
     description?: string
   ): EmbedBuilder {
     this.recordBuild('embed', 'progress');
-    
+
     const percentage = Math.round((current / total) * 100);
     const progressBar = this.createProgressBar(current, total);
-    
+
     let embedDescription = `${progressBar} ${percentage}% (${current}/${total})`;
     if (description) {
       embedDescription += `\n\n${description}`;
@@ -542,7 +542,7 @@ export class RecruitmentUIBuilder {
   private static createProgressBar(current: number, total: number, length: number = 20): string {
     const filled = Math.round((current / total) * length);
     const empty = length - filled;
-    
+
     return '█'.repeat(filled) + '░'.repeat(empty);
   }
 
@@ -551,9 +551,12 @@ export class RecruitmentUIBuilder {
    * @param type - 빌드 타입
    * @param identifier - 식별자
    */
-  private static recordBuild(type: UIBuildStatistics['buildHistory'][0]['type'], identifier: string): void {
+  private static recordBuild(
+    type: UIBuildStatistics['buildHistory'][0]['type'],
+    identifier: string
+  ): void {
     this.buildStats.lastBuildTime = new Date();
-    
+
     switch (type) {
       case 'embed':
         this.buildStats.embedsCreated++;
@@ -572,7 +575,7 @@ export class RecruitmentUIBuilder {
     this.buildStats.buildHistory.push({
       timestamp: new Date(),
       type,
-      identifier
+      identifier,
     });
 
     // 히스토리 크기 제한
@@ -599,7 +602,7 @@ export class RecruitmentUIBuilder {
       selectMenusCreated: 0,
       actionRowsCreated: 0,
       lastBuildTime: new Date(),
-      buildHistory: []
+      buildHistory: [],
     };
   }
 

@@ -1,16 +1,6 @@
 // src/services/EmojiReactionService.ts - 이모지 반응 처리 서비스
-import { 
-  Client, 
-  MessageReaction, 
-  User, 
-  Channel, 
-  GuildMember, 
-  Message,
-  Collection,
-  ThreadChannel,
-  ForumChannel,
-  ChannelType 
-} from 'discord.js';
+import { Client, MessageReaction, User, Channel, ChannelType } from 'discord.js';
+
 import { TextProcessor } from '../utils/TextProcessor.js';
 
 // 이모지 반응 통계 인터페이스
@@ -82,13 +72,13 @@ export class EmojiReactionService {
   constructor(client: Client, forumPostManager: any) {
     this.client = client;
     this.forumPostManager = forumPostManager;
-    
+
     // 기본 이모지 설정
     this.config = {
       targetEmojiId: '1319891512573689917',
       alternativeEmojis: [],
       enableUnicodeEmojis: false,
-      unicodeEmojis: ['👍', '✅', '🙋‍♂️', '🙋‍♀️']
+      unicodeEmojis: ['👍', '✅', '🙋‍♂️', '🙋‍♀️'],
     };
 
     // 통계 초기화
@@ -117,7 +107,9 @@ export class EmojiReactionService {
         return;
       }
 
-      console.log(`[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${reaction.message.channel.name}`);
+      console.log(
+        `[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'}`
+      );
 
       // 반응 이벤트 기록
       this.recordReactionEvent(reaction, user, 'add');
@@ -133,14 +125,13 @@ export class EmojiReactionService {
 
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       await this.forumPostManager.sendEmojiParticipantUpdate(
-        reaction.message.channel.id, 
-        participants.map(p => p.cleanedName),
+        reaction.message.channel.id,
+        participants.map((p) => p.cleanedName),
         '참가'
       );
 
       // 참가자 알림 처리
       await this.handleParticipantNotification(reaction, user, 'join');
-
     } catch (error) {
       console.error('[EmojiReactionService] 이모지 반응 처리 오류:', error);
     }
@@ -168,7 +159,9 @@ export class EmojiReactionService {
         return;
       }
 
-      console.log(`[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${reaction.message.channel.name}`);
+      console.log(
+        `[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'}`
+      );
 
       // 반응 이벤트 기록
       this.recordReactionEvent(reaction, user, 'remove');
@@ -185,13 +178,12 @@ export class EmojiReactionService {
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       await this.forumPostManager.sendEmojiParticipantUpdate(
         reaction.message.channel.id,
-        participants.map(p => p.cleanedName),
+        participants.map((p) => p.cleanedName),
         '참가'
       );
 
       // 참가자 알림 처리
       await this.handleParticipantNotification(reaction, user, 'leave');
-
     } catch (error) {
       console.error('[EmojiReactionService] 이모지 반응 제거 처리 오류:', error);
     }
@@ -205,15 +197,17 @@ export class EmojiReactionService {
   private isTargetEmoji(reaction: MessageReaction): boolean {
     // 커스텀 이모지인 경우 ID로 확인
     if (reaction.emoji.id) {
-      return reaction.emoji.id === this.config.targetEmojiId || 
-             this.config.alternativeEmojis.includes(reaction.emoji.id);
+      return (
+        reaction.emoji.id === this.config.targetEmojiId ||
+        this.config.alternativeEmojis.includes(reaction.emoji.id)
+      );
     }
-    
+
     // 유니코드 이모지인 경우 이름으로 확인
     if (this.config.enableUnicodeEmojis && reaction.emoji.name) {
       return this.config.unicodeEmojis.includes(reaction.emoji.name);
     }
-    
+
     return false;
   }
 
@@ -222,11 +216,13 @@ export class EmojiReactionService {
    * @param channel - 채널 객체
    * @returns 포럼 스레드 여부
    */
-  private isForumThread(channel: Channel | null): channel is ThreadChannel {
-    return channel !== null && 
-           channel.isThread() && 
-           channel.parent !== null && 
-           channel.parent.type === ChannelType.GuildForum;
+  private isForumThread(channel: Channel | null): boolean {
+    return (
+      channel !== null &&
+      channel.isThread() &&
+      channel.parent !== null &&
+      channel.parent.type === ChannelType.GuildForum
+    );
   }
 
   /**
@@ -243,9 +239,9 @@ export class EmojiReactionService {
 
       // 반응한 사용자들 가져오기
       const users = await reaction.users.fetch();
-      
+
       // 봇 제외하고 사용자들만 필터링
-      const realUsers = users.filter(user => !user.bot);
+      const realUsers = users.filter((user) => !user.bot);
 
       // 길드 멤버 정보를 가져와서 참가자 정보 구성
       const guild = reaction.message.guild;
@@ -263,33 +259,32 @@ export class EmojiReactionService {
           const displayName = member.displayName || user.displayName || user.username;
           // 닉네임 정리 (태그 제거)
           const cleanedName = TextProcessor.cleanNickname(displayName);
-          
+
           participants.push({
             userId: user.id,
             username: user.username,
             displayName,
             cleanedName,
             joinedAt: new Date(),
-            isActive: true
+            isActive: true,
           });
         } catch (error) {
           // 멤버를 가져오지 못한 경우 전역 닉네임 사용
           console.warn(`[EmojiReactionService] 멤버 정보 가져오기 실패: ${user.username}`);
           const cleanedName = TextProcessor.cleanNickname(user.displayName || user.username);
-          
+
           participants.push({
             userId: user.id,
             username: user.username,
             displayName: user.displayName || user.username,
             cleanedName,
             joinedAt: new Date(),
-            isActive: false
+            isActive: false,
           });
         }
       }
 
       return participants;
-
     } catch (error) {
       console.error('[EmojiReactionService] 참가자 목록 가져오기 오류:', error);
       return [];
@@ -310,6 +305,11 @@ export class EmojiReactionService {
         return null;
       }
 
+      if (!('messages' in channel)) {
+        console.warn(`[EmojiReactionService] 채널에 메시지 관리자가 없음: ${channelId}`);
+        return null;
+      }
+
       const message = await channel.messages.fetch(messageId);
       if (!message) {
         console.warn(`[EmojiReactionService] 메시지를 찾을 수 없음: ${messageId}`);
@@ -317,7 +317,7 @@ export class EmojiReactionService {
       }
 
       // 해당 이모지 반응 찾기
-      const targetReaction = message.reactions.cache.find(reaction => 
+      const targetReaction = message.reactions.cache.find((reaction) =>
         this.isTargetEmoji(reaction)
       );
 
@@ -327,8 +327,7 @@ export class EmojiReactionService {
       }
 
       const participants = await this.getReactionParticipants(targetReaction);
-      return participants.map(p => p.cleanedName);
-
+      return participants.map((p) => p.cleanedName);
     } catch (error) {
       console.error('[EmojiReactionService] 메시지에서 참가자 가져오기 오류:', error);
       return null;
@@ -348,7 +347,7 @@ export class EmojiReactionService {
       userId: user.id,
       emojiId: reaction.emoji.id || reaction.emoji.name || 'unknown',
       type,
-      timestamp: new Date()
+      timestamp: new Date(),
     };
 
     this.reactionHistory.push(event);
@@ -375,19 +374,19 @@ export class EmojiReactionService {
    */
   private updateReactionStats(channelId: string, participants: ParticipantInfo[]): void {
     const stats = this.reactionStats.get(channelId) || this.createEmptyStats();
-    
+
     stats.totalReactions = participants.length;
     stats.uniqueUsers = participants.length;
     stats.averageReactionsPerUser = participants.length > 0 ? 1 : 0;
-    
+
     // 시간별 통계 업데이트
     const currentHour = new Date().getHours();
     stats.reactionsByHour[currentHour]++;
-    
+
     // 일별 통계 업데이트
     const currentDay = new Date().getDay();
     stats.reactionsByDay[currentDay]++;
-    
+
     this.reactionStats.set(channelId, stats);
   }
 
@@ -398,8 +397,8 @@ export class EmojiReactionService {
    * @param action - 액션
    */
   private async handleParticipantNotification(
-    reaction: MessageReaction, 
-    user: User, 
+    reaction: MessageReaction,
+    user: User,
     action: 'join' | 'leave'
   ): Promise<void> {
     try {
@@ -409,9 +408,9 @@ export class EmojiReactionService {
 
       const actionText = action === 'join' ? '참가했습니다' : '참가를 취소했습니다';
       const emoji = action === 'join' ? '✅' : '❌';
-      
+
       const notificationMessage = `${emoji} **${user.displayName || user.username}**님이 ${actionText}!`;
-      
+
       await this.forumPostManager.sendNotification(
         reaction.message.channel.id,
         notificationMessage,
@@ -443,7 +442,7 @@ export class EmojiReactionService {
       averageReactionsPerUser: 0,
       topReactors: [],
       reactionsByHour: Array(24).fill(0),
-      reactionsByDay: Array(7).fill(0)
+      reactionsByDay: Array(7).fill(0),
     };
   }
 
@@ -477,20 +476,25 @@ export class EmojiReactionService {
     mostActiveChannels: string[];
   } {
     const channels = Array.from(this.reactionStats.keys());
-    const totalReactions = Array.from(this.reactionStats.values())
-      .reduce((sum, stats) => sum + stats.totalReactions, 0);
-    
+    const totalReactions = Array.from(this.reactionStats.values()).reduce(
+      (sum, stats) => sum + stats.totalReactions,
+      0
+    );
+
     const uniqueUsers = new Set<string>();
-    this.participantCache.forEach(participants => {
-      participants.forEach(p => uniqueUsers.add(p.userId));
+    this.participantCache.forEach((participants) => {
+      participants.forEach((p) => uniqueUsers.add(p.userId));
     });
 
-    const averageParticipantsPerChannel = channels.length > 0 
-      ? totalReactions / channels.length 
-      : 0;
+    const averageParticipantsPerChannel =
+      channels.length > 0 ? totalReactions / channels.length : 0;
 
     const mostActiveChannels = channels
-      .sort((a, b) => (this.reactionStats.get(b)?.totalReactions || 0) - (this.reactionStats.get(a)?.totalReactions || 0))
+      .sort(
+        (a, b) =>
+          (this.reactionStats.get(b)?.totalReactions || 0) -
+          (this.reactionStats.get(a)?.totalReactions || 0)
+      )
       .slice(0, 5);
 
     return {
@@ -498,7 +502,7 @@ export class EmojiReactionService {
       totalReactions,
       totalUniqueUsers: uniqueUsers.size,
       averageParticipantsPerChannel,
-      mostActiveChannels
+      mostActiveChannels,
     };
   }
 
@@ -518,14 +522,12 @@ export class EmojiReactionService {
    */
   public getReactionHistory(channelId?: string, limit: number = 100): ReactionEvent[] {
     let history = this.reactionHistory;
-    
+
     if (channelId) {
-      history = history.filter(event => event.channelId === channelId);
+      history = history.filter((event) => event.channelId === channelId);
     }
-    
-    return history
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+
+    return history.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, limit);
   }
 
   /**
@@ -534,13 +536,15 @@ export class EmojiReactionService {
    */
   public clearCache(maxAge: number = 24 * 60 * 60 * 1000): void {
     const now = Date.now();
-    
+
     // 오래된 반응 히스토리 정리
     this.reactionHistory = this.reactionHistory.filter(
-      event => now - event.timestamp.getTime() < maxAge
+      (event) => now - event.timestamp.getTime() < maxAge
     );
-    
-    console.log(`[EmojiReactionService] 캐시 정리 완료: ${this.reactionHistory.length}개 이벤트 유지`);
+
+    console.log(
+      `[EmojiReactionService] 캐시 정리 완료: ${this.reactionHistory.length}개 이벤트 유지`
+    );
   }
 
   /**
@@ -556,15 +560,20 @@ export class EmojiReactionService {
       }
 
       const participants = this.getParticipants(channelId);
-      const stats = this.getReactionStats(channelId);
-      
+      // const _stats = this.getReactionStats(channelId); // 미사용
+
+      if (!channel) {
+        console.warn(`[EmojiReactionService] 채널이 null입니다: ${channelId}`);
+        return null;
+      }
+
       return {
         channelId: channel.id,
-        threadName: channel.name,
-        parentForumId: channel.parentId || '',
+        threadName: 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown',
+        parentForumId: 'parentId' in channel ? (channel.parentId ?? '') : '',
         participantCount: participants.length,
         lastActivity: new Date(), // 실제로는 마지막 활동 시간을 추적해야 함
-        isActive: participants.length > 0
+        isActive: participants.length > 0,
       };
     } catch (error) {
       console.error('[EmojiReactionService] 포럼 스레드 정보 조회 오류:', error);

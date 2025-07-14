@@ -1,7 +1,7 @@
 // src/services/VoiceChannelManager.ts - 음성 채널 관리
-import { Client, Channel, VoiceState, GuildMember, VoiceChannel, ChannelType, Guild } from 'discord.js';
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { Client, Channel, VoiceState, GuildMember, ChannelType, Guild } from 'discord.js';
+// import { DiscordConstants } from '../config/DiscordConstants.js'; // 미사용
+// import { RecruitmentConfig } from '../config/RecruitmentConfig.js'; // 미사용
 
 // 채널 변경 정보 인터페이스
 interface ChannelChangeInfo {
@@ -81,19 +81,19 @@ interface ChannelValidationResult {
   error?: string;
 }
 
-// 멤버 관리 결과 인터페이스
-interface MemberManagementResult {
-  success: boolean;
-  affected: number;
-  failed: number;
-  errors: string[];
-  details: Array<{
-    memberId: string;
-    memberName: string;
-    success: boolean;
-    error?: string;
-  }>;
-}
+// 멤버 관리 결과 인터페이스 (currently unused)
+// interface MemberManagementResult {
+//   success: boolean;
+//   affected: number;
+//   failed: number;
+//   errors: string[];
+//   details: Array<{
+//     memberId: string;
+//     memberName: string;
+//     success: boolean;
+//     error?: string;
+//   }>;
+// }
 
 // 채널 통계 인터페이스
 interface ChannelStatistics {
@@ -114,7 +114,7 @@ interface ChannelStatistics {
 export class VoiceChannelManager {
   private readonly client: Client;
   private readonly voiceCategoryId: string;
-  
+
   // 통계 및 모니터링
   private operationStats: {
     nicknameChanges: number;
@@ -125,7 +125,7 @@ export class VoiceChannelManager {
     nicknameChanges: 0,
     channelResets: 0,
     memberDisconnects: 0,
-    errors: 0
+    errors: 0,
   };
 
   private lastOperationTime: Date = new Date();
@@ -135,15 +135,18 @@ export class VoiceChannelManager {
   constructor(client: Client, voiceCategoryId: string) {
     this.client = client;
     this.voiceCategoryId = voiceCategoryId;
-    
+
     console.log(`[VoiceChannelManager] 초기화됨 - 대상 카테고리 ID: ${this.voiceCategoryId}`);
-    
+
     // 정기적으로 캐시 정리
-    setInterval(() => {
-      this.cleanupExpiredCache();
-    }, 5 * 60 * 1000); // 5분마다 실행
+    setInterval(
+      () => {
+        this.cleanupExpiredCache();
+      },
+      5 * 60 * 1000
+    ); // 5분마다 실행
   }
-  
+
   /**
    * 음성 채널 생성 이벤트 처리
    * @param channel - 생성된 채널
@@ -161,7 +164,7 @@ export class VoiceChannelManager {
       return false;
     }
   }
-  
+
   /**
    * 음성 채널 삭제 이벤트 처리
    * @param channel - 삭제된 채널
@@ -177,7 +180,7 @@ export class VoiceChannelManager {
       return false;
     }
   }
-  
+
   /**
    * 음성 채널 업데이트 이벤트 처리
    * @param oldChannel - 변경 전 채널
@@ -187,13 +190,13 @@ export class VoiceChannelManager {
   detectChannelChanges(oldChannel: Channel, newChannel: Channel): ChannelChangeInfo {
     try {
       const isTarget = this.isTargetVoiceChannel(newChannel);
-      
+
       // 기본 변경 정보
       let nameChanged = false;
       let limitChanged = false;
       let categoryChanged = false;
-      let oldName = '';
-      let newName = '';
+      let oldName: string = '';
+      let newName: string = '';
       let oldLimit = 0;
       let newLimit = 0;
       let oldParentId: string | null = null;
@@ -201,8 +204,8 @@ export class VoiceChannelManager {
 
       if ('name' in oldChannel && 'name' in newChannel) {
         nameChanged = oldChannel.name !== newChannel.name;
-        oldName = oldChannel.name;
-        newName = newChannel.name;
+        oldName = oldChannel.name || '';
+        newName = newChannel.name || '';
       }
 
       if ('userLimit' in oldChannel && 'userLimit' in newChannel) {
@@ -221,7 +224,7 @@ export class VoiceChannelManager {
       if (nameChanged || limitChanged || categoryChanged) {
         this.channelCache.delete(newChannel.id);
       }
-      
+
       return {
         isTarget,
         nameChanged,
@@ -232,7 +235,7 @@ export class VoiceChannelManager {
         oldLimit,
         newLimit,
         oldParentId,
-        newParentId
+        newParentId,
       };
     } catch (error) {
       console.error('[VoiceChannelManager] 채널 변경 감지 오류:', error);
@@ -244,11 +247,11 @@ export class VoiceChannelManager {
         oldName: '',
         newName: '',
         oldLimit: 0,
-        newLimit: 0
+        newLimit: 0,
       };
     }
   }
-  
+
   /**
    * 음성 상태 변경 이벤트 분석
    * @param oldState - 변경 전 음성 상태
@@ -264,9 +267,9 @@ export class VoiceChannelManager {
       isTargetCategory: false,
       wasTargetCategory: false,
       userId: newState.id,
-      memberName: newState.member?.displayName || 'Unknown'
+      memberName: newState.member?.displayName || 'Unknown',
     };
-    
+
     try {
       // 채널 입장
       if (!oldState.channel && newState.channel) {
@@ -274,9 +277,13 @@ export class VoiceChannelManager {
         result.channelId = newState.channel.id;
         result.channelName = newState.channel.name;
         result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
-        
-        console.log(`[VoiceChannelManager] 음성 채널 입장 분석: ${result.memberName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`);
-        console.log(`[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, 설정된 voiceCategoryId: ${this.voiceCategoryId}`);
+
+        console.log(
+          `[VoiceChannelManager] 음성 채널 입장 분석: ${result.memberName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`
+        );
+        console.log(
+          `[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, 설정된 voiceCategoryId: ${this.voiceCategoryId}`
+        );
       }
       // 채널 퇴장
       else if (oldState.channel && !newState.channel) {
@@ -286,11 +293,17 @@ export class VoiceChannelManager {
         result.oldChannelName = oldState.channel.name;
         result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
         result.isTargetCategory = result.wasTargetCategory; // 호환성을 위해
-        
-        console.log(`[VoiceChannelManager] 음성 채널 퇴장 분석: ${result.memberName} <- ${oldState.channel.name} (카테고리 일치: ${result.wasTargetCategory})`);
+
+        console.log(
+          `[VoiceChannelManager] 음성 채널 퇴장 분석: ${result.memberName} <- ${oldState.channel.name} (카테고리 일치: ${result.wasTargetCategory})`
+        );
       }
       // 채널 이동
-      else if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
+      else if (
+        oldState.channel &&
+        newState.channel &&
+        oldState.channel.id !== newState.channel.id
+      ) {
         result.actionType = 'move';
         result.channelId = newState.channel.id;
         result.oldChannelId = oldState.channel.id;
@@ -298,27 +311,35 @@ export class VoiceChannelManager {
         result.oldChannelName = oldState.channel.name;
         result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
         result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
-        
-        console.log(`[VoiceChannelManager] 음성 채널 이동 분석: ${result.memberName} ${oldState.channel.name} -> ${newState.channel.name} (이전 카테고리: ${result.wasTargetCategory}, 현재 카테고리: ${result.isTargetCategory})`);
+
+        console.log(
+          `[VoiceChannelManager] 음성 채널 이동 분석: ${result.memberName} ${oldState.channel.name} -> ${newState.channel.name} (이전 카테고리: ${result.wasTargetCategory}, 현재 카테고리: ${result.isTargetCategory})`
+        );
       }
       // 상태 변경 (음소거, 화면 공유 등)
-      else if (oldState.channel && newState.channel && oldState.channel.id === newState.channel.id) {
+      else if (
+        oldState.channel &&
+        newState.channel &&
+        oldState.channel.id === newState.channel.id
+      ) {
         result.actionType = 'update';
         result.channelId = newState.channel.id;
         result.channelName = newState.channel.name;
         result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
-        
+
         // 상태 변경은 일반적으로 참여자 수에 영향을 주지 않으므로 로그를 최소화
-        console.log(`[VoiceChannelManager] 음성 상태 변경: ${result.memberName} in ${newState.channel.name}`);
+        console.log(
+          `[VoiceChannelManager] 음성 상태 변경: ${result.memberName} in ${newState.channel.name}`
+        );
       }
     } catch (error) {
       console.error('[VoiceChannelManager] 음성 상태 변경 분석 오류:', error);
       this.operationStats.errors++;
     }
-    
+
     return result;
   }
-  
+
   /**
    * 음성 채널 정보 가져오기 (캐시 지원)
    * @param channelId - 채널 ID
@@ -333,13 +354,13 @@ export class VoiceChannelManager {
       }
 
       const channel = await this.client.channels.fetch(channelId);
-      
+
       if (!channel || channel.type !== ChannelType.GuildVoice) {
         console.warn(`[VoiceChannelManager] 채널을 찾을 수 없거나 음성 채널이 아님: ${channelId}`);
         return null;
       }
 
-      const voiceChannel = channel as VoiceChannel;
+      const voiceChannel = channel;
       const channelInfo: VoiceChannelInfo = {
         id: voiceChannel.id,
         name: voiceChannel.name,
@@ -351,19 +372,19 @@ export class VoiceChannelManager {
         guild: voiceChannel.guild,
         bitrate: voiceChannel.bitrate,
         categoryName: voiceChannel.parent?.name || 'Unknown',
-        createdAt: voiceChannel.createdAt || undefined
+        createdAt: voiceChannel.createdAt || undefined,
       };
 
       // 캐시에 저장
       this.cacheChannelInfo(channelId, channelInfo);
-      
+
       return channelInfo;
     } catch (error: any) {
       // 10003 에러 (Unknown Channel)는 채널이 삭제되었음을 의미
       if (error.code === 10003) {
         console.warn(`[VoiceChannelManager] 채널이 삭제되었거나 존재하지 않음: ${channelId}`);
-        return { 
-          deleted: true, 
+        return {
+          deleted: true,
           channelId,
           id: channelId,
           name: 'Deleted Channel',
@@ -372,16 +393,16 @@ export class VoiceChannelManager {
           memberCount: 0,
           members: [],
           isTargetCategory: false,
-          guild: null as any
+          guild: null as any,
         };
       }
-      
+
       console.error(`[VoiceChannelManager] 채널 정보 가져오기 실패: ${channelId}`, error);
       this.operationStats.errors++;
       return null;
     }
   }
-  
+
   /**
    * 삭제된 채널 목록 확인
    * @param channelIds - 확인할 채널 ID 목록
@@ -389,22 +410,23 @@ export class VoiceChannelManager {
    */
   async getDeletedChannels(channelIds: string[]): Promise<string[]> {
     const deletedChannels: string[] = [];
-    
+
     for (const channelId of channelIds) {
       try {
         await this.client.channels.fetch(channelId);
       } catch (error: any) {
-        if (error.code === 10003) { // Unknown Channel
+        if (error.code === 10003) {
+          // Unknown Channel
           deletedChannels.push(channelId);
           // 캐시에서도 제거
           this.channelCache.delete(channelId);
         }
       }
     }
-    
+
     return deletedChannels;
   }
-  
+
   /**
    * 음성 채널 초기화 (모든 멤버 추방)
    * @param channelId - 채널 ID
@@ -417,19 +439,19 @@ export class VoiceChannelManager {
       channelId,
       disconnectedMembers: 0,
       failedDisconnects: 0,
-      errors: []
+      errors: [],
     };
 
     try {
       const channelInfo = await this.getVoiceChannelInfo(channelId);
-      
+
       if (!channelInfo || channelInfo.deleted) {
         result.errors.push('채널을 찾을 수 없음');
         return result;
       }
 
       result.channelName = channelInfo.name;
-      
+
       // 모든 멤버 연결 해제
       const disconnectPromises = channelInfo.members.map(async (member) => {
         try {
@@ -444,23 +466,24 @@ export class VoiceChannelManager {
           return { success: false, member: member.displayName };
         }
       });
-      
+
       await Promise.all(disconnectPromises);
-      
+
       // 캐시 무효화
       this.channelCache.delete(channelId);
-      
+
       result.success = result.failedDisconnects === 0;
       result.duration = Date.now() - startTime;
-      
+
       this.operationStats.channelResets++;
       this.operationStats.memberDisconnects += result.disconnectedMembers;
       this.lastOperationTime = new Date();
-      
-      console.log(`[VoiceChannelManager] 음성 채널 초기화 완료: ${channelInfo.name} (${result.disconnectedMembers}명 연결 해제, ${result.failedDisconnects}명 실패)`);
-      
+
+      console.log(
+        `[VoiceChannelManager] 음성 채널 초기화 완료: ${channelInfo.name} (${result.disconnectedMembers}명 연결 해제, ${result.failedDisconnects}명 실패)`
+      );
+
       return result;
-      
     } catch (error) {
       const errorMsg = `음성 채널 초기화 실패: ${channelId}`;
       console.error(`[VoiceChannelManager] ${errorMsg}`, error);
@@ -469,7 +492,7 @@ export class VoiceChannelManager {
       return result;
     }
   }
-  
+
   /**
    * 멤버 별명 변경
    * @param member - 대상 멤버
@@ -480,19 +503,22 @@ export class VoiceChannelManager {
     try {
       const oldNickname = member.displayName;
       await member.setNickname(newNickname);
-      
+
       this.operationStats.nicknameChanges++;
       this.lastOperationTime = new Date();
-      
+
       console.log(`[VoiceChannelManager] 별명 변경 성공: ${oldNickname} -> ${newNickname}`);
       return true;
     } catch (error) {
-      console.error(`[VoiceChannelManager] 별명 변경 실패: ${member.displayName} -> ${newNickname}`, error);
+      console.error(
+        `[VoiceChannelManager] 별명 변경 실패: ${member.displayName} -> ${newNickname}`,
+        error
+      );
       this.operationStats.errors++;
       return false;
     }
   }
-  
+
   /**
    * 관전 모드로 별명 변경
    * @param member - 대상 멤버
@@ -502,7 +528,7 @@ export class VoiceChannelManager {
     try {
       const currentNickname = member.nickname || member.user.displayName;
       let newNickname: string;
-      
+
       if (currentNickname.startsWith('[대기]')) {
         newNickname = currentNickname.replace('[대기]', '[관전]');
       } else if (currentNickname.startsWith('[관전]')) {
@@ -511,34 +537,34 @@ export class VoiceChannelManager {
           alreadySpectator: true,
           oldNickname: currentNickname,
           newNickname: currentNickname,
-          message: '이미 관전 모드로 설정되어 있습니다.'
+          message: '이미 관전 모드로 설정되어 있습니다.',
         };
       } else {
         newNickname = `[관전] ${currentNickname}`;
       }
-      
+
       const success = await this.changeNickname(member, newNickname);
-      
+
       return {
         success,
         alreadySpectator: false,
         oldNickname: currentNickname,
-        newNickname: newNickname
+        newNickname,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
       console.error('[VoiceChannelManager] 관전 모드 설정 오류:', error);
       this.operationStats.errors++;
-      
+
       return {
         success: false,
         oldNickname: member.displayName,
         newNickname: member.displayName,
-        error: errorMsg
+        error: errorMsg,
       };
     }
   }
-  
+
   /**
    * 대기 모드로 별명 변경
    * @param member - 대상 멤버
@@ -548,7 +574,7 @@ export class VoiceChannelManager {
     try {
       const currentNickname = member.nickname || member.user.displayName;
       let newNickname: string;
-      
+
       if (currentNickname.startsWith('[관전]')) {
         newNickname = currentNickname.replace('[관전]', '[대기]');
       } else if (currentNickname.startsWith('[대기]')) {
@@ -557,34 +583,34 @@ export class VoiceChannelManager {
           alreadyWaiting: true,
           oldNickname: currentNickname,
           newNickname: currentNickname,
-          message: '이미 대기 모드로 설정되어 있습니다.'
+          message: '이미 대기 모드로 설정되어 있습니다.',
         };
       } else {
         newNickname = `[대기] ${currentNickname}`;
       }
-      
+
       const success = await this.changeNickname(member, newNickname);
-      
+
       return {
         success,
         alreadyWaiting: false,
         oldNickname: currentNickname,
-        newNickname: newNickname
+        newNickname,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
       console.error('[VoiceChannelManager] 대기 모드 설정 오류:', error);
       this.operationStats.errors++;
-      
+
       return {
         success: false,
         oldNickname: member.displayName,
         newNickname: member.displayName,
-        error: errorMsg
+        error: errorMsg,
       };
     }
   }
-  
+
   /**
    * 정상 모드로 복구 (태그 제거)
    * @param member - 대상 멤버
@@ -594,7 +620,7 @@ export class VoiceChannelManager {
     try {
       const currentNickname = member.nickname || member.user.displayName;
       let newNickname = currentNickname;
-      
+
       // [대기] 또는 [관전] 태그 제거
       if (currentNickname.startsWith('[대기]')) {
         newNickname = currentNickname.replace('[대기]', '').trim();
@@ -606,28 +632,28 @@ export class VoiceChannelManager {
           alreadyNormal: true,
           oldNickname: currentNickname,
           newNickname: currentNickname,
-          message: '이미 정상 모드입니다.'
+          message: '이미 정상 모드입니다.',
         };
       }
-      
+
       const success = await this.changeNickname(member, newNickname);
-      
+
       return {
         success,
         alreadyNormal: false,
         oldNickname: currentNickname,
-        newNickname: newNickname
+        newNickname,
       };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
       console.error('[VoiceChannelManager] 정상 모드 복구 오류:', error);
       this.operationStats.errors++;
-      
+
       return {
         success: false,
         oldNickname: member.displayName,
         newNickname: member.displayName,
-        error: errorMsg
+        error: errorMsg,
       };
     }
   }
@@ -640,7 +666,7 @@ export class VoiceChannelManager {
   async validateChannel(channelId: string): Promise<ChannelValidationResult> {
     try {
       const channelInfo = await this.getVoiceChannelInfo(channelId);
-      
+
       if (!channelInfo) {
         return {
           isValid: false,
@@ -648,7 +674,7 @@ export class VoiceChannelManager {
           isVoiceChannel: false,
           isTargetCategory: false,
           memberCount: 0,
-          error: '채널을 찾을 수 없음'
+          error: '채널을 찾을 수 없음',
         };
       }
 
@@ -659,7 +685,7 @@ export class VoiceChannelManager {
           isVoiceChannel: false,
           isTargetCategory: false,
           memberCount: 0,
-          error: '채널이 삭제됨'
+          error: '채널이 삭제됨',
         };
       }
 
@@ -668,20 +694,19 @@ export class VoiceChannelManager {
         exists: true,
         isVoiceChannel: true,
         isTargetCategory: channelInfo.isTargetCategory,
-        memberCount: channelInfo.memberCount
+        memberCount: channelInfo.memberCount,
       };
-
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
       console.error('[VoiceChannelManager] 채널 검증 오류:', error);
-      
+
       return {
         isValid: false,
         exists: false,
         isVoiceChannel: false,
         isTargetCategory: false,
         memberCount: 0,
-        error: errorMsg
+        error: errorMsg,
       };
     }
   }
@@ -697,23 +722,24 @@ export class VoiceChannelManager {
         throw new Error('길드를 찾을 수 없음');
       }
 
-      const allChannels = guild.channels.cache.filter(channel => 
-        channel.type === ChannelType.GuildVoice
+      const allChannels = guild.channels.cache.filter(
+        (channel) => channel.type === ChannelType.GuildVoice
       );
 
-      const targetCategoryChannels = allChannels.filter(channel => 
-        'parentId' in channel && channel.parentId === this.voiceCategoryId
+      const targetCategoryChannels = allChannels.filter(
+        (channel) => 'parentId' in channel && channel.parentId === this.voiceCategoryId
       );
 
       let totalMembers = 0;
       let channelsWithMembers = 0;
-      const channels: Array<{ id: string; name: string; memberCount: number; isActive: boolean }> = [];
+      const channels: Array<{ id: string; name: string; memberCount: number; isActive: boolean }> =
+        [];
 
       for (const channel of targetCategoryChannels.values()) {
-        const voiceChannel = channel as VoiceChannel;
+        const voiceChannel = channel;
         const memberCount = voiceChannel.members.size;
         totalMembers += memberCount;
-        
+
         if (memberCount > 0) {
           channelsWithMembers++;
         }
@@ -722,7 +748,7 @@ export class VoiceChannelManager {
           id: voiceChannel.id,
           name: voiceChannel.name,
           memberCount,
-          isActive: memberCount > 0
+          isActive: memberCount > 0,
         });
       }
 
@@ -730,12 +756,12 @@ export class VoiceChannelManager {
         totalChannels: allChannels.size,
         targetCategoryChannels: targetCategoryChannels.size,
         totalMembers,
-        averageMembersPerChannel: targetCategoryChannels.size > 0 ? totalMembers / targetCategoryChannels.size : 0,
+        averageMembersPerChannel:
+          targetCategoryChannels.size > 0 ? totalMembers / targetCategoryChannels.size : 0,
         channelsWithMembers,
         emptyChannels: targetCategoryChannels.size - channelsWithMembers,
-        channels
+        channels,
       };
-
     } catch (error) {
       console.error('[VoiceChannelManager] 채널 통계 조회 오류:', error);
       return {
@@ -745,7 +771,7 @@ export class VoiceChannelManager {
         averageMembersPerChannel: 0,
         channelsWithMembers: 0,
         emptyChannels: 0,
-        channels: []
+        channels: [],
       };
     }
   }
@@ -757,7 +783,7 @@ export class VoiceChannelManager {
   getOperationStats(): typeof this.operationStats & { lastOperationTime: Date } {
     return {
       ...this.operationStats,
-      lastOperationTime: this.lastOperationTime
+      lastOperationTime: this.lastOperationTime,
     };
   }
 
@@ -787,7 +813,7 @@ export class VoiceChannelManager {
   private cacheChannelInfo(channelId: string, info: VoiceChannelInfo): void {
     this.channelCache.set(channelId, {
       info,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 

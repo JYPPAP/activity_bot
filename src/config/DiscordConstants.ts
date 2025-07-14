@@ -96,9 +96,9 @@ export class DiscordConstants {
   // ========== 채널 타입 ==========
   static readonly CHANNEL_TYPES: ValidateConstants<ChannelTypes> = {
     GUILD_VOICE: ChannelType.GuildVoice,
-    GUILD_FORUM: ChannelType.GuildForum
+    GUILD_FORUM: ChannelType.GuildForum,
   } as const;
-  
+
   // ========== 커스텀 ID 접두사 ==========
   static readonly CUSTOM_ID_PREFIXES: ValidateConstants<CustomIdPrefixes> = {
     VOICE_CONNECT: 'voice_connect_',
@@ -112,17 +112,17 @@ export class DiscordConstants {
     ROLE_COMPLETE: 'role_complete_',
     STANDALONE_ROLE_BUTTON: 'standalone_role_btn_',
     STANDALONE_ROLE_COMPLETE: 'standalone_role_complete',
-    EXISTING_POST_SELECT: 'existing_post_select_'
+    EXISTING_POST_SELECT: 'existing_post_select_',
   } as const;
-  
+
   // ========== 메서드 값 ==========
   static readonly METHOD_VALUES: ValidateConstants<MethodValues> = {
     NEW_FORUM: 'new_forum',
     NEW_FORUM_PREFIX: 'new_forum_',
     EXISTING_FORUM: 'existing_forum',
-    EXISTING_FORUM_PREFIX: 'existing_forum_'
+    EXISTING_FORUM_PREFIX: 'existing_forum_',
   } as const;
-  
+
   // ========== 이모지 ==========
   static readonly EMOJIS: ValidateConstants<Emojis> = {
     VOICE: '🔊',
@@ -141,15 +141,15 @@ export class DiscordConstants {
     SPECTATOR: '👁️',
     RESET: '🔄',
     CONNECT: '🎯',
-    CLOSE: '🔒'
+    CLOSE: '🔒',
   } as const;
-  
+
   // ========== 특수 태그 ==========
   static readonly SPECIAL_TAGS: ValidateConstants<SpecialTags> = {
     WAITING: '[대기]',
-    SPECTATING: '[관전]'
+    SPECTATING: '[관전]',
   } as const;
-  
+
   // ========== Discord 제한사항 ==========
   static readonly LIMITS: ValidateConstants<ExtendedDiscordLimits> = {
     // 기본 제한사항
@@ -160,7 +160,7 @@ export class DiscordConstants {
     MODAL_DESCRIPTION_MAX: 1000,
     BUTTON_LABEL_MAX: 80,
     SELECT_OPTION_LABEL_MAX: 100,
-    
+
     // 확장 제한사항
     MESSAGE_CONTENT_MAX: 2000,
     EMBED_FIELDS_MAX: 25,
@@ -175,11 +175,11 @@ export class DiscordConstants {
     NICKNAME_MAX: 32,
     GUILD_NAME_MAX: 100,
     CHANNEL_NAME_MAX: 100,
-    ROLE_NAME_MAX: 100
+    ROLE_NAME_MAX: 100,
   } as const;
 
   // ========== 유틸리티 메서드 ==========
-  
+
   /**
    * 커스텀 ID가 특정 접두사로 시작하는지 확인
    * @param customId - 확인할 커스텀 ID
@@ -207,16 +207,16 @@ export class DiscordConstants {
    * @returns 검증 결과
    */
   static validateLength(
-    text: string, 
+    text: string,
     limitType: keyof ExtendedDiscordLimits
   ): { valid: boolean; length: number; limit: number } {
     const limit = this.LIMITS[limitType];
     const length = text.length;
-    
+
     return {
       valid: length <= limit,
       length,
-      limit
+      limit,
     };
   }
 
@@ -228,16 +228,16 @@ export class DiscordConstants {
    * @returns 잘린 텍스트
    */
   static truncateText(
-    text: string, 
-    limitType: keyof ExtendedDiscordLimits, 
+    text: string,
+    limitType: keyof ExtendedDiscordLimits,
     suffix: string = '...'
   ): string {
     const limit = this.LIMITS[limitType];
-    
+
     if (text.length <= limit) {
       return text;
     }
-    
+
     const maxLength = limit - suffix.length;
     return text.slice(0, maxLength) + suffix;
   }
@@ -270,7 +270,7 @@ export class DiscordConstants {
       methodValues: this.METHOD_VALUES,
       emojis: this.EMOJIS,
       specialTags: this.SPECIAL_TAGS,
-      limits: this.LIMITS
+      limits: this.LIMITS,
     };
   }
 
@@ -288,14 +288,14 @@ export class DiscordConstants {
 
     try {
       // 채널 타입 검증
-      Object.values(this.CHANNEL_TYPES).forEach(channelType => {
+      Object.values(this.CHANNEL_TYPES).forEach((channelType) => {
         if (typeof channelType !== 'number') {
           errors.push(`Invalid channel type: ${channelType}`);
         }
       });
 
       // 커스텀 ID 접두사 검증
-      Object.values(this.CUSTOM_ID_PREFIXES).forEach(prefix => {
+      Object.values(this.CUSTOM_ID_PREFIXES).forEach((prefix) => {
         if (typeof prefix !== 'string' || prefix.length === 0) {
           errors.push(`Invalid custom ID prefix: ${prefix}`);
         }
@@ -310,7 +310,6 @@ export class DiscordConstants {
           errors.push(`Invalid limit for ${key}: ${limit}`);
         }
       });
-
     } catch (error) {
       errors.push(`Validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -318,25 +317,28 @@ export class DiscordConstants {
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 }
 
 // 타입 내보내기
-export type { 
-  ChannelTypes, 
-  CustomIdPrefixes, 
-  MethodValues, 
-  Emojis, 
-  SpecialTags, 
+export type {
+  ChannelTypes,
+  CustomIdPrefixes,
+  MethodValues,
+  Emojis,
+  SpecialTags,
   DiscordLimits,
-  ExtendedDiscordLimits 
+  ExtendedDiscordLimits,
 };
 
 // 상수 값 타입 유틸리티
-export type CustomIdPrefix = typeof DiscordConstants.CUSTOM_ID_PREFIXES[keyof typeof DiscordConstants.CUSTOM_ID_PREFIXES];
-export type MethodValue = typeof DiscordConstants.METHOD_VALUES[keyof typeof DiscordConstants.METHOD_VALUES];
-export type EmojiValue = typeof DiscordConstants.EMOJIS[keyof typeof DiscordConstants.EMOJIS];
-export type SpecialTag = typeof DiscordConstants.SPECIAL_TAGS[keyof typeof DiscordConstants.SPECIAL_TAGS];
+export type CustomIdPrefix =
+  (typeof DiscordConstants.CUSTOM_ID_PREFIXES)[keyof typeof DiscordConstants.CUSTOM_ID_PREFIXES];
+export type MethodValue =
+  (typeof DiscordConstants.METHOD_VALUES)[keyof typeof DiscordConstants.METHOD_VALUES];
+export type EmojiValue = (typeof DiscordConstants.EMOJIS)[keyof typeof DiscordConstants.EMOJIS];
+export type SpecialTag =
+  (typeof DiscordConstants.SPECIAL_TAGS)[keyof typeof DiscordConstants.SPECIAL_TAGS];
 export type LimitKey = keyof typeof DiscordConstants.LIMITS;

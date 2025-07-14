@@ -1,0 +1,78 @@
+#!/bin/sh
+# Cross-platform pre-commit hook for Windows Git + WSL2 development
+
+# 환경 감지 함수
+detect_environment() {
+  # WSL 환경 감지 (최우선)
+  if [ -n "$WSL_DISTRO_NAME" ] || ([ -f /proc/version ] && grep -q Microsoft /proc/version); then
+    echo "wsl"
+  # Windows 환경 감지
+  elif [ -n "$WINDIR" ] || [ -n "$windir" ]; then
+    echo "windows"
+  # Git Bash 또는 MSYS2 환경 감지
+  elif [ -n "$MSYSTEM" ] || [ -n "$MINGW_PREFIX" ]; then
+    echo "gitbash"
+  # Linux/Unix 환경
+  else
+    echo "unix"
+  fi
+}
+
+# lint-staged 실행 함수
+run_lint_staged() {
+  local env_type="$1"
+  
+  case "$env_type" in
+    "windows")
+      # Windows 환경: cmd를 통해 실행
+      if command -v cmd.exe >/dev/null 2>&1; then
+        echo "Running lint-staged in Windows environment..."
+        cmd.exe /c "npx lint-staged" 2>/dev/null || \
+        cmd.exe /c "npm run lint-staged" 2>/dev/null || \
+        cmd.exe /c "node_modules\\.bin\\lint-staged.cmd" 2>/dev/null || \
+        return 1
+      else
+        return 1
+      fi
+      ;;
+    "wsl"|"unix"|"gitbash")
+      # WSL/Unix/GitBash 환경: 직접 실행
+      echo "Running lint-staged in WSL/Unix environment..."
+      if command -v npx >/dev/null 2>&1; then
+        npx lint-staged
+      elif [ -x "./node_modules/.bin/lint-staged" ]; then
+        ./node_modules/.bin/lint-staged
+      elif command -v npm >/dev/null 2>&1; then
+        npm run lint-staged 2>/dev/null
+      else
+        return 1
+      fi
+      ;;
+    *)
+      echo "Unknown environment"
+      return 1
+      ;;
+  esac
+}
+
+# 메인 실행
+main() {
+  local env_type
+  env_type=$(detect_environment)
+  
+  echo "Detected environment: $env_type"
+  
+  # lint-staged 실행
+  if run_lint_staged "$env_type"; then
+    echo "✅ Pre-commit checks passed"
+    exit 0
+  else
+    echo "❌ Pre-commit checks failed"
+    echo "Please ensure Node.js and lint-staged are properly installed"
+    echo "Environment: $env_type"
+    exit 1
+  fi
+}
+
+# 스크립트 실행
+main

@@ -3,6 +3,7 @@
 import {
   Client,
   Guild,
+  Role,
   GuildMember,
   User,
   VoiceState,
@@ -17,12 +18,12 @@ import {
   ChatInputCommandInteraction,
   SelectMenuInteraction,
   InteractionResponse,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  StringSelectMenuBuilder,
-  ModalBuilder,
-  TextInputBuilder,
+  // EmbedBuilder, // Unused
+  // ActionRowBuilder, // Unused
+  // ButtonBuilder, // Unused
+  // StringSelectMenuBuilder, // Unused
+  // ModalBuilder, // Unused
+  // TextInputBuilder, // Unused
   SlashCommandBuilder,
   PermissionsBitField,
   Collection,
@@ -38,11 +39,13 @@ import { ServiceDependencies } from './index.js';
 // 확장된 Discord.js 타입
 // ====================
 
-export interface ExtendedClient extends Client {
+export interface ExtendedClient extends Client<true> {
   commands: Collection<string, BotCommand>;
   services: ServiceDependencies;
-  isReady: boolean;
 }
+
+// Alias for backward compatibility
+export type EnhancedClient = ExtendedClient;
 
 export interface ExtendedGuild extends Guild {
   getBotMember(): GuildMember | null;
@@ -88,7 +91,7 @@ export interface BotCommand {
   examples?: string[];
 }
 
-export type CommandCategory = 
+export type CommandCategory =
   | 'activity'
   | 'configuration'
   | 'utility'
@@ -151,7 +154,7 @@ export interface VoiceStateUpdateEvent {
   timestamp: Date;
 }
 
-export type VoiceAction = 
+export type VoiceAction =
   | 'join'
   | 'leave'
   | 'move'
@@ -223,12 +226,7 @@ export interface ActivityEmbed extends EmbedConfig {
   lastUpdate: Date;
 }
 
-export type ActivityStatus = 
-  | 'active'
-  | 'inactive'
-  | 'afk'
-  | 'insufficient'
-  | 'sufficient';
+export type ActivityStatus = 'active' | 'inactive' | 'afk' | 'insufficient' | 'sufficient';
 
 // ====================
 // 컴포넌트 타입
@@ -243,12 +241,7 @@ export interface ButtonConfig {
   url?: string;
 }
 
-export type ButtonStyle = 
-  | 'Primary'
-  | 'Secondary'
-  | 'Success'
-  | 'Danger'
-  | 'Link';
+export type ButtonStyle = 'Primary' | 'Secondary' | 'Success' | 'Danger' | 'Link';
 
 export interface SelectMenuConfig {
   customId: string;
@@ -412,7 +405,7 @@ export interface DiscordLogEntry {
   metadata?: Record<string, any>;
 }
 
-export type LogType = 
+export type LogType =
   | 'message_create'
   | 'message_update'
   | 'message_delete'
@@ -437,12 +430,15 @@ export type LogType =
 // ====================
 
 export interface DiscordAPIError {
-  code: number;
+  code: number | string;
   message: string;
-  httpStatus: number;
+  httpStatus?: number;
+  status: number;
   method: string;
   url: string;
-  requestBody?: any;
+  requestBody: any;
+  rawError: any;
+  name: string;
 }
 
 export interface RateLimitData {
@@ -457,33 +453,21 @@ export interface RateLimitData {
 // 유틸리티 타입
 // ====================
 
-export type ChannelResolvable = 
-  | string
-  | TextChannel
-  | VoiceChannel
-  | ForumChannel
-  | ThreadChannel;
+export type ChannelResolvable = string | TextChannel | VoiceChannel | ForumChannel | ThreadChannel;
 
-export type UserResolvable = 
-  | string
-  | User
-  | GuildMember;
+export type UserResolvable = string | User | GuildMember;
 
-export type RoleResolvable = 
-  | string
-  | Role;
+export type RoleResolvable = string | Role;
 
-export type GuildResolvable = 
-  | string
-  | Guild;
+export type GuildResolvable = string | Guild;
 
 // ====================
 // 이벤트 핸들러 타입
 // ====================
 
-export type EventHandler<T extends keyof Events> = (
-  ...args: Parameters<Events[T]>
-) => Promise<void> | void;
+export type EventHandler<T extends keyof Events> = Events[T] extends (...args: any[]) => any
+  ? (...args: Parameters<Events[T]>) => Promise<void> | void
+  : (...args: any[]) => Promise<void> | void;
 
 export interface EventListenerOptions {
   once?: boolean;
@@ -528,23 +512,17 @@ export function isThreadChannel(channel: any): channel is ThreadChannel {
 export function isChatInputCommandInteraction(
   interaction: any
 ): interaction is ChatInputCommandInteraction {
-  return interaction && interaction.isChatInputCommand && interaction.isChatInputCommand();
+  return interaction?.isChatInputCommand?.();
 }
 
-export function isButtonInteraction(
-  interaction: any
-): interaction is ButtonInteraction {
-  return interaction && interaction.isButton && interaction.isButton();
+export function isButtonInteraction(interaction: any): interaction is ButtonInteraction {
+  return interaction?.isButton?.();
 }
 
-export function isModalSubmitInteraction(
-  interaction: any
-): interaction is ModalSubmitInteraction {
-  return interaction && interaction.isModalSubmit && interaction.isModalSubmit();
+export function isModalSubmitInteraction(interaction: any): interaction is ModalSubmitInteraction {
+  return interaction?.isModalSubmit?.();
 }
 
-export function isSelectMenuInteraction(
-  interaction: any
-): interaction is SelectMenuInteraction {
-  return interaction && interaction.isStringSelectMenu && interaction.isStringSelectMenu();
+export function isSelectMenuInteraction(interaction: any): interaction is SelectMenuInteraction {
+  return interaction?.isStringSelectMenu?.();
 }

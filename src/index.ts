@@ -7,6 +7,7 @@ import './config/logger-termux.js';
 import { logger } from './config/logger-termux.js';
 
 import { Bot } from './bot.js';
+// @ts-ignore: JS module without declarations
 import { keepAlive } from '../server.js';
 
 // 프로세스 정보 인터페이스
@@ -31,11 +32,11 @@ interface StartupStats {
 process.on('uncaughtException', (error: Error) => {
   logger.error('처리되지 않은 예외 발생:', {
     error: error.message,
-    stack: error.stack,
     timestamp: new Date().toISOString(),
-    type: 'uncaughtException'
+    type: 'uncaughtException',
+    ...(error.stack ? { stack: error.stack } : {}),
   });
-  
+
   // 치명적인 오류이므로 안전하게 종료
   process.exit(1);
 });
@@ -46,9 +47,9 @@ process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
     stack: reason?.stack,
     promise: promise.toString(),
     timestamp: new Date().toISOString(),
-    type: 'unhandledRejection'
+    type: 'unhandledRejection',
   });
-  
+
   // Promise 거부는 종료하지 않고 로그만 기록
 });
 
@@ -74,7 +75,7 @@ function getProcessInfo(): ProcessInfo {
     architecture: process.arch,
     pid: process.pid,
     uptime: process.uptime(),
-    memoryUsage: process.memoryUsage()
+    memoryUsage: process.memoryUsage(),
   };
 }
 
@@ -84,7 +85,7 @@ function getProcessInfo(): ProcessInfo {
  * @returns MB 단위 문자열
  */
 function formatMemoryUsage(bytes: number): string {
-  return `${Math.round(bytes / 1024 / 1024 * 100) / 100} MB`;
+  return `${Math.round((bytes / 1024 / 1024) * 100) / 100} MB`;
 }
 
 /**
@@ -104,15 +105,15 @@ function logStartupInfo(processInfo: ProcessInfo): void {
         rss: formatMemoryUsage(processInfo.memoryUsage.rss),
         heapTotal: formatMemoryUsage(processInfo.memoryUsage.heapTotal),
         heapUsed: formatMemoryUsage(processInfo.memoryUsage.heapUsed),
-        external: formatMemoryUsage(processInfo.memoryUsage.external)
-      }
+        external: formatMemoryUsage(processInfo.memoryUsage.external),
+      },
     },
     config: {
       guildId: config.GUILDID,
       logChannelId: config.LOG_CHANNEL_ID,
       forumChannelId: config.FORUM_CHANNEL_ID,
-      voiceCategoryId: config.VOICE_CATEGORY_ID
-    }
+      voiceCategoryId: config.VOICE_CATEGORY_ID,
+    },
   });
 }
 
@@ -123,7 +124,7 @@ function startMemoryMonitoring(): void {
   setInterval(() => {
     const memUsage = process.memoryUsage();
     const heapUsedMB = Math.round(memUsage.heapUsed / 1024 / 1024);
-    
+
     // 메모리 사용량이 높으면 경고
     if (heapUsedMB > 200) {
       logger.warn('높은 메모리 사용량 감지', {
@@ -131,7 +132,7 @@ function startMemoryMonitoring(): void {
         heapTotal: formatMemoryUsage(memUsage.heapTotal),
         rss: formatMemoryUsage(memUsage.rss),
         external: formatMemoryUsage(memUsage.external),
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       });
     }
   }, 60000); // 1분마다 체크
@@ -143,18 +144,18 @@ function startMemoryMonitoring(): void {
 async function gracefulShutdown(): Promise<void> {
   try {
     logger.info('안전한 종료 프로세스 시작');
-    
+
     const bot = Bot.getInstance();
     if (bot) {
       await bot.shutdown();
     }
-    
+
     logger.info('봇이 안전하게 종료되었습니다');
     process.exit(0);
   } catch (error) {
     logger.error('종료 프로세스 중 오류 발생:', {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
+      ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
     });
     process.exit(1);
   }
@@ -176,7 +177,7 @@ function calculateStartupStats(startTime: Date, initTime: Date, loginTime: Date)
     startTime,
     initializationTime,
     loginTime: loginTimeMs,
-    totalStartupTime
+    totalStartupTime,
   };
 }
 
@@ -196,12 +197,13 @@ function validateEnvironment(): void {
   if (missingVars.length > 0) {
     logger.error('필수 환경 변수가 누락되었습니다:', {
       missingVariables: missingVars,
-      availableVariables: Object.keys(process.env).filter(key => 
-        key.startsWith('DISCORD_') || 
-        key === 'TOKEN' || 
-        key === 'GUILDID' || 
-        key.includes('CHANNEL')
-      )
+      availableVariables: Object.keys(process.env).filter(
+        (key) =>
+          key.startsWith('DISCORD_') ||
+          key === 'TOKEN' ||
+          key === 'GUILDID' ||
+          key.includes('CHANNEL')
+      ),
     });
     throw new Error(`필수 환경 변수 누락: ${missingVars.join(', ')}`);
   }
@@ -235,7 +237,7 @@ async function main(): Promise<void> {
     await bot.initialize();
     const initEndTime = new Date();
     logger.info('봇 초기화 완료', {
-      initializationTime: `${initEndTime.getTime() - initStartTime.getTime()}ms`
+      initializationTime: `${initEndTime.getTime() - initStartTime.getTime()}ms`,
     });
 
     // 서버 실행하여 봇 활성 상태 유지
@@ -245,7 +247,7 @@ async function main(): Promise<void> {
 
     // 봇 로그인
     logger.info('Discord에 로그인 중...');
-    const loginStartTime = new Date();
+    // const loginStartTime = new Date(); // 미사용
     await bot.login();
     const loginEndTime = new Date();
 
@@ -262,28 +264,27 @@ async function main(): Promise<void> {
       startupStats: {
         initializationTime: `${startupStats.initializationTime}ms`,
         loginTime: `${startupStats.loginTime}ms`,
-        totalStartupTime: `${startupStats.totalStartupTime}ms`
+        totalStartupTime: `${startupStats.totalStartupTime}ms`,
       },
       memoryUsage: {
         heapUsed: formatMemoryUsage(process.memoryUsage().heapUsed),
-        rss: formatMemoryUsage(process.memoryUsage().rss)
-      }
+        rss: formatMemoryUsage(process.memoryUsage().rss),
+      },
     });
 
     // 정상 시작 완료
     logger.info('🚀 Discord Bot이 정상적으로 실행되었습니다!', {
       uptime: `${Math.round(process.uptime())}초`,
-      memoryUsage: formatMemoryUsage(process.memoryUsage().heapUsed)
+      memoryUsage: formatMemoryUsage(process.memoryUsage().heapUsed),
     });
-
   } catch (error) {
     const errorDetails = {
       error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined,
       timestamp: new Date().toISOString(),
       platform: 'Termux Android',
       startupTime: Date.now() - appStartTime.getTime(),
-      processInfo: getProcessInfo()
+      processInfo: getProcessInfo(),
+      ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
     };
 
     logger.error('봇 실행 중 치명적인 오류 발생:', errorDetails);
@@ -294,11 +295,12 @@ async function main(): Promise<void> {
         await bot.shutdown();
       } catch (shutdownError) {
         logger.error('봇 종료 중 추가 오류:', {
-          shutdownError: shutdownError instanceof Error ? shutdownError.message : String(shutdownError)
+          shutdownError:
+            shutdownError instanceof Error ? shutdownError.message : String(shutdownError),
         });
       }
     }
-    
+
     // 치명적인 에러이므로 프로세스 종료
     process.exit(1);
   }

@@ -1,22 +1,20 @@
 // src/services/ForumPostManager.ts - 포럼 포스트 관리
-import { 
-  Client, 
-  EmbedBuilder, 
-  ActionRowBuilder, 
-  ButtonBuilder, 
-  ButtonStyle, 
-  ForumChannel, 
-  ThreadChannel, 
+import {
+  Client,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ForumChannel,
+  ThreadChannel,
   ChannelType,
-  Guild,
   User,
-  Message,
-  Collection
 } from 'discord.js';
+
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
-import { TextProcessor } from '../utils/TextProcessor.js';
 import { formatParticipantList } from '../utils/formatters.js';
+import { TextProcessor } from '../utils/TextProcessor.js';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
@@ -113,14 +111,19 @@ export class ForumPostManager {
   private trackedMessages: Map<string, TrackedMessage[]> = new Map();
   private postStats: Map<string, ForumStats> = new Map();
   private participantCache: Map<string, string[]> = new Map();
-  private notificationQueue: Array<{ postId: string; message: string; type: string }> = [];
+  // private _notificationQueue: Array<{ postId: string; message: string; type: string }> = [];
 
-  constructor(client: Client, forumChannelId: string, forumTagId: string, databaseManager: any = null) {
+  constructor(
+    client: Client,
+    forumChannelId: string,
+    forumTagId: string,
+    databaseManager: any = null
+  ) {
     this.client = client;
     this.forumChannelId = forumChannelId;
     this.forumTagId = forumTagId;
     this.databaseManager = databaseManager;
-    
+
     // 기본 설정 초기화
     this.config = {
       autoArchiveDuration: 1440, // 24시간
@@ -128,7 +131,7 @@ export class ForumPostManager {
       maxParticipants: 50,
       allowSpectators: true,
       requireApproval: false,
-      customTags: []
+      customTags: [],
     };
 
     // 통계 초기화
@@ -141,14 +144,17 @@ export class ForumPostManager {
    * @param voiceChannelId - 음성 채널 ID (선택사항)
    * @returns 생성된 포스트 ID
    */
-  async createForumPost(recruitmentData: RecruitmentData, voiceChannelId?: string): Promise<CreatePostResult> {
+  async createForumPost(
+    recruitmentData: RecruitmentData,
+    voiceChannelId?: string
+  ): Promise<CreatePostResult> {
     try {
-      const forumChannel = await this.client.channels.fetch(this.forumChannelId) as ForumChannel;
-      
+      const forumChannel = (await this.client.channels.fetch(this.forumChannelId)) as ForumChannel;
+
       if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
         return {
           success: false,
-          error: '포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.'
+          error: '포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.',
         };
       }
 
@@ -157,7 +163,7 @@ export class ForumPostManager {
       if (!validation.isValid) {
         return {
           success: false,
-          error: validation.error
+          ...(validation.error && { error: validation.error }),
         };
       }
 
@@ -168,20 +174,24 @@ export class ForumPostManager {
       // 역할 멘션 생성 및 역할 ID 추출
       let roleMentions = '';
       let roleIds: string[] = [];
-      
+
       if (recruitmentData.tags) {
         const guild = forumChannel.guild;
-        roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
-        
+        const roleMentionResult = await TextProcessor.convertTagsToRoleMentions(
+          recruitmentData.tags.join(', '),
+          guild
+        );
+        roleMentions = roleMentionResult.mentions.join(' ');
+
         const roleMatches = roleMentions.match(/<@&(\d+)>/g);
         if (roleMatches) {
-          roleIds = roleMatches.map(match => match.match(/\d+/)?.[0] || '').filter(Boolean);
+          roleIds = roleMatches.map((match) => match.match(/\d+/)?.[0] || '').filter(Boolean);
         }
       }
 
       // 버튼 구성
       const components = [];
-      
+
       if (voiceChannelId) {
         // 음성 채널 연동된 경우: 음성 채널 버튼 사용
         const voiceChannelButtons = this.createVoiceChannelButtons(voiceChannelId);
@@ -193,25 +203,27 @@ export class ForumPostManager {
       }
 
       const messageOptions = {
-        content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,
+        ...(roleMentions && roleIds.length > 0 && { content: roleMentions }),
         embeds: [embed],
-        components: components,
-        allowedMentions: { 
-          roles: roleIds 
-        }
+        components,
+        allowedMentions: {
+          roles: roleIds,
+        },
       };
 
       const thread = await forumChannel.threads.create({
         name: title,
         message: messageOptions,
-        appliedTags: this.forumTagId ? [this.forumTagId] : undefined,
-        autoArchiveDuration: this.config.autoArchiveDuration
+        ...(this.forumTagId && { appliedTags: [this.forumTagId] }),
+        autoArchiveDuration: this.config.autoArchiveDuration,
       });
 
       // 모집자를 스레드에 자동으로 추가
       try {
         await thread.members.add(recruitmentData.author.id);
-        console.log(`[ForumPostManager] 모집자가 스레드에 추가됨: ${recruitmentData.author.displayName}`);
+        console.log(
+          `[ForumPostManager] 모집자가 스레드에 추가됨: ${recruitmentData.author.displayName}`
+        );
       } catch (addError) {
         console.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패:', addError);
         warnings.push('모집자를 스레드에 추가하는데 실패했습니다.');
@@ -221,8 +233,10 @@ export class ForumPostManager {
       if (voiceChannelId) {
         try {
           const voiceChannel = await this.client.channels.fetch(voiceChannelId);
-          if (voiceChannel) {
-            await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannelId}`);
+          if (voiceChannel && 'guild' in voiceChannel && 'name' in voiceChannel) {
+            await thread.send(
+              `🔊 **음성 채널**: https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannelId}`
+            );
             console.log(`[ForumPostManager] 음성 채널 링크 메시지 추가됨: ${voiceChannel.name}`);
           }
         } catch (linkError) {
@@ -233,9 +247,9 @@ export class ForumPostManager {
 
       // 참가 안내 메시지 추가
       try {
-        const participationGuide = 
+        const participationGuide =
           '<:GAP_2:1319891512573689917> 이모지를 누르면 실시간으로 참가자 목록이 업데이트됩니다.';
-        
+
         await thread.send(participationGuide);
         console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
       } catch (guideError) {
@@ -255,7 +269,7 @@ export class ForumPostManager {
             title: recruitmentData.title,
             voiceChannelId: voiceChannelId || null,
             createdAt: new Date(),
-            isActive: true
+            isActive: true,
           });
         } catch (dbError) {
           console.warn('[ForumPostManager] 데이터베이스 저장 실패:', dbError);
@@ -264,19 +278,18 @@ export class ForumPostManager {
       }
 
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
-      
+
       return {
         success: true,
         postId: thread.id,
         threadName: thread.name,
-        warnings: warnings.length > 0 ? warnings : undefined
+        ...(warnings.length > 0 && { warnings }),
       };
-
     } catch (error) {
       console.error('[ForumPostManager] 포럼 포스트 생성 오류:', error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : '포럼 포스트 생성 중 오류가 발생했습니다.'
+        error: error instanceof Error ? error.message : '포럼 포스트 생성 중 오류가 발생했습니다.',
       };
     }
   }
@@ -323,13 +336,13 @@ export class ForumPostManager {
     // 서버 멤버 객체면 서버 닉네임 사용, 아니면 전역명 사용
     const displayName = recruitmentData.author.displayName || recruitmentData.author.username;
     const cleanedNickname = TextProcessor.cleanNickname(displayName);
-    
+
     // 카테고리 태그 추가
     const categoryTag = recruitmentData.category ? `[${recruitmentData.category}]` : '';
-    
+
     // 우선순위 이모지 추가
     const priorityEmoji = this.getPriorityEmoji(recruitmentData.priority);
-    
+
     return `${priorityEmoji}${categoryTag}[${cleanedNickname}] ${recruitmentData.title}`;
   }
 
@@ -340,10 +353,14 @@ export class ForumPostManager {
    */
   private getPriorityEmoji(priority?: string): string {
     switch (priority) {
-      case 'high': return '🔥';
-      case 'medium': return '⚡';
-      case 'low': return '💤';
-      default: return '';
+      case 'high':
+        return '🔥';
+      case 'medium':
+        return '⚡';
+      case 'low':
+        return '💤';
+      default:
+        return '';
     }
   }
 
@@ -353,64 +370,74 @@ export class ForumPostManager {
    * @param voiceChannelId - 음성 채널 ID (선택사항)
    * @returns 생성된 임베드
    */
-  private async createPostEmbed(recruitmentData: RecruitmentData, voiceChannelId?: string): Promise<EmbedBuilder> {
+  private async createPostEmbed(
+    recruitmentData: RecruitmentData,
+    voiceChannelId?: string
+  ): Promise<EmbedBuilder> {
     let content = `# 🎮 ${recruitmentData.title}\n\n`;
-    
+
     // embed에 역할 멘션 표시
     if (recruitmentData.tags) {
       const guild = this.client.guilds.cache.first();
       if (guild) {
-        const roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
+        const roleMentions = await TextProcessor.convertTagsToRoleMentions(
+          recruitmentData.tags.join(', '),
+          guild
+        );
         content += `## 🏷️ 태그\n${roleMentions}\n\n`;
       }
     }
-    
+
     content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
-    
+
     // 요구사항 추가
     if (recruitmentData.requirements && recruitmentData.requirements.length > 0) {
       content += `## 📋 요구사항\n`;
-      recruitmentData.requirements.forEach(req => {
+      recruitmentData.requirements.forEach((req) => {
         content += `• ${req}\n`;
       });
       content += '\n';
     }
-    
+
     // 보상 추가
     if (recruitmentData.rewards && recruitmentData.rewards.length > 0) {
       content += `## 🎁 보상\n`;
-      recruitmentData.rewards.forEach(reward => {
+      recruitmentData.rewards.forEach((reward) => {
         content += `• ${reward}\n`;
       });
       content += '\n';
     }
-    
+
     // 마감일 추가
     if (recruitmentData.deadline) {
       content += `## ⏰ 마감일\n<t:${Math.floor(recruitmentData.deadline.getTime() / 1000)}:F>\n\n`;
     }
-    
+
     // 최대 참가자 수 추가
     if (recruitmentData.maxParticipants) {
       content += `## 👥 최대 참가자\n${recruitmentData.maxParticipants}명\n\n`;
     }
-    
+
     content += `## 👤 모집자\n<@${recruitmentData.author.id}>`;
 
     const embed = new EmbedBuilder()
       .setDescription(content)
-      .setColor(voiceChannelId ? RecruitmentConfig.COLORS.SUCCESS : RecruitmentConfig.COLORS.STANDALONE_POST)
+      .setColor(
+        voiceChannelId ? RecruitmentConfig.COLORS.SUCCESS : RecruitmentConfig.COLORS.STANDALONE_POST
+      )
       .setFooter({
-        text: voiceChannelId ? '음성 채널과 연동된 구인구직입니다.' : '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
-        iconURL: recruitmentData.author.displayAvatarURL()
+        text: voiceChannelId
+          ? '음성 채널과 연동된 구인구직입니다.'
+          : '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
+        iconURL: recruitmentData.author.displayAvatarURL(),
       })
       .setTimestamp();
 
     // 우선순위에 따른 색상 설정
     if (recruitmentData.priority === 'high') {
-      embed.setColor(0xFF0000); // 빨간색
+      embed.setColor(0xff0000); // 빨간색
     } else if (recruitmentData.priority === 'medium') {
-      embed.setColor(0xFFAA00); // 주황색
+      embed.setColor(0xffaa00); // 주황색
     }
 
     return embed;
@@ -437,7 +464,11 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(spectateButton, waitButton, resetButton);
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+      spectateButton,
+      waitButton,
+      resetButton
+    );
   }
 
   /**
@@ -460,7 +491,11 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    return new ActionRowBuilder<ButtonBuilder>().addComponents(spectateButton, waitButton, resetButton);
+    return new ActionRowBuilder<ButtonBuilder>().addComponents(
+      spectateButton,
+      waitButton,
+      resetButton
+    );
   }
 
   /**
@@ -472,19 +507,19 @@ export class ForumPostManager {
    * @returns 성공 여부
    */
   async sendParticipantUpdateMessage(
-    postId: string, 
-    currentCount: number, 
-    maxCount: number | string, 
-    voiceChannelName: string
+    postId: string,
+    currentCount: number,
+    maxCount: number | string,
+    _voiceChannelName: string
   ): Promise<ParticipantUpdateResult> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
       if (!thread || !thread.isThread() || thread.archived) {
         return {
           success: false,
           participantCount: currentCount,
-          error: `스레드를 찾을 수 없거나 아카이브됨: ${postId}`
+          error: `스레드를 찾을 수 없거나 아카이브됨: ${postId}`,
         };
       }
 
@@ -492,31 +527,36 @@ export class ForumPostManager {
       await this._deleteTrackedMessages(postId, 'participant_count');
 
       const timeString = TextProcessor.formatKoreanTime();
-      const progressBar = this.createProgressBar(currentCount, typeof maxCount === 'number' ? maxCount : 100);
-      
-      const updateMessage = `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n` +
-                          `${progressBar}\n` +
-                          `**⏰ 업데이트**: ${timeString}`;
+      const progressBar = this.createProgressBar(
+        currentCount,
+        typeof maxCount === 'number' ? maxCount : 100
+      );
+
+      const updateMessage =
+        `# 👥 현재 참여자: ${currentCount}/${maxCount}명\n` +
+        `${progressBar}\n` +
+        `**⏰ 업데이트**: ${timeString}`;
 
       const sentMessage = await thread.send(updateMessage);
 
       // 새 메시지 추적 저장
       await this._trackMessage(postId, 'participant_count', sentMessage.id);
 
-      console.log(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
-      
+      console.log(
+        `[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`
+      );
+
       return {
         success: true,
         participantCount: currentCount,
-        messageId: sentMessage.id
+        messageId: sentMessage.id,
       };
-
     } catch (error) {
       console.error(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 실패: ${postId}`, error);
       return {
         success: false,
         participantCount: currentCount,
-        error: error instanceof Error ? error.message : '알 수 없는 오류'
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
       };
     }
   }
@@ -531,10 +571,10 @@ export class ForumPostManager {
     const percentage = Math.min((current / max) * 100, 100);
     const filledBlocks = Math.floor(percentage / 10);
     const emptyBlocks = 10 - filledBlocks;
-    
+
     const filledChar = '█';
     const emptyChar = '░';
-    
+
     return `[${filledChar.repeat(filledBlocks)}${emptyChar.repeat(emptyBlocks)}] ${percentage.toFixed(1)}%`;
   }
 
@@ -555,8 +595,8 @@ export class ForumPostManager {
     linkerId: string
   ): Promise<boolean> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
       if (!thread || !thread.isThread() || thread.archived) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
         return false;
@@ -575,11 +615,12 @@ export class ForumPostManager {
 
       // Embed와 별도로 네이티브 채널 링크 전송
       await thread.send({ embeds: [linkEmbed] });
-      await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${guildId}/${voiceChannelId}`);
-      
+      await thread.send(
+        `🔊 **음성 채널**: https://discord.com/channels/${guildId}/${voiceChannelId}`
+      );
+
       console.log(`[ForumPostManager] 음성 채널 연동 메시지 전송 완료: ${postId}`);
       return true;
-
     } catch (error) {
       console.error(`[ForumPostManager] 음성 채널 연동 메시지 전송 실패: ${postId}`, error);
       return false;
@@ -592,10 +633,13 @@ export class ForumPostManager {
    * @param includeArchived - 아카이브된 포스트 포함 여부
    * @returns 포스트 목록
    */
-  async getExistingPosts(limit: number = 10, includeArchived: boolean = false): Promise<ForumPostInfo[]> {
+  async getExistingPosts(
+    limit: number = 10,
+    includeArchived: boolean = false
+  ): Promise<ForumPostInfo[]> {
     try {
-      const forumChannel = await this.client.channels.fetch(this.forumChannelId) as ForumChannel;
-      
+      const forumChannel = (await this.client.channels.fetch(this.forumChannelId)) as ForumChannel;
+
       if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
         console.error('[ForumPostManager] 포럼 채널을 찾을 수 없습니다.');
         return [];
@@ -612,22 +656,21 @@ export class ForumPostManager {
       }
 
       const recentPosts = allThreads
-        .sort((a, b) => b.createdTimestamp - a.createdTimestamp)
+        .sort((a, b) => (b.createdTimestamp || 0) - (a.createdTimestamp || 0))
         .slice(0, limit);
 
-      return recentPosts.map(thread => ({
+      return recentPosts.map((thread) => ({
         id: thread.id,
         name: thread.name,
-        archived: thread.archived,
+        archived: thread.archived ?? false,
         messageCount: thread.messageCount || 0,
         memberCount: thread.memberCount || 0,
-        createdAt: thread.createdAt,
+        createdAt: thread.createdAt ?? new Date(),
         lastMessageId: thread.lastMessageId,
         ownerId: thread.ownerId,
-        isActive: !thread.archived,
-        participantCount: this.participantCache.get(thread.id)?.length || 0
+        isActive: !(thread.archived ?? false),
+        participantCount: this.participantCache.get(thread.id)?.length || 0,
       }));
-
     } catch (error) {
       console.error('[ForumPostManager] 기존 포스트 목록 가져오기 실패:', error);
       return [];
@@ -642,9 +685,9 @@ export class ForumPostManager {
    */
   async archivePost(postId: string, options: ArchiveOptions = {}): Promise<boolean> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
-      if (!thread || !thread.isThread()) {
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
+      if (!thread?.isThread()) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
@@ -658,7 +701,7 @@ export class ForumPostManager {
         reason = '음성 채널 삭제됨',
         lockThread = true,
         sendNotification = true,
-        preserveMessages = false
+        preserveMessages = false,
       } = options;
 
       // 아카이브 메시지 전송
@@ -667,9 +710,9 @@ export class ForumPostManager {
           .setTitle('🔒 구인구직 종료')
           .setDescription(
             `이 구인구직이 자동으로 종료되었습니다.\n` +
-            `**사유**: ${reason}\n` +
-            `**종료 시간**: <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
-            `${lockThread ? '📝 이 포스트는 잠금 처리되어 더 이상 메시지를 작성할 수 없습니다.' : ''}`
+              `**사유**: ${reason}\n` +
+              `**종료 시간**: <t:${Math.floor(Date.now() / 1000)}:F>\n\n` +
+              `${lockThread ? '📝 이 포스트는 잠금 처리되어 더 이상 메시지를 작성할 수 없습니다.' : ''}`
           )
           .setColor(RecruitmentConfig.COLORS.WARNING)
           .setTimestamp();
@@ -704,7 +747,7 @@ export class ForumPostManager {
           await this.databaseManager.updateForumPost(postId, {
             isActive: false,
             archivedAt: new Date(),
-            archiveReason: reason
+            archiveReason: reason,
           });
         } catch (dbError) {
           console.warn('[ForumPostManager] 데이터베이스 업데이트 실패:', dbError);
@@ -713,7 +756,6 @@ export class ForumPostManager {
 
       console.log(`[ForumPostManager] 포럼 포스트 아카이브 완료: ${postId} (${reason})`);
       return true;
-
     } catch (error) {
       console.error(`[ForumPostManager] 포럼 포스트 아카이브 실패: ${postId}`, error);
       return false;
@@ -727,10 +769,11 @@ export class ForumPostManager {
    */
   async postExists(postId: string): Promise<boolean> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
       return thread !== null && thread.isThread() && !thread.archived;
     } catch (error: any) {
-      if (error.code === 10003) { // Unknown Channel
+      if (error.code === 10003) {
+        // Unknown Channel
         return false;
       }
       console.error(`[ForumPostManager] 포스트 존재 확인 실패: ${postId}`, error);
@@ -745,25 +788,24 @@ export class ForumPostManager {
    */
   async getPostInfo(postId: string): Promise<ForumPostInfo | null> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
-      if (!thread || !thread.isThread()) {
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
+      if (!thread?.isThread()) {
         return null;
       }
 
       return {
         id: thread.id,
         name: thread.name,
-        archived: thread.archived,
+        archived: thread.archived ?? false,
         messageCount: thread.messageCount || 0,
         memberCount: thread.memberCount || 0,
-        createdAt: thread.createdAt,
+        createdAt: thread.createdAt ?? new Date(),
         lastMessageId: thread.lastMessageId,
         ownerId: thread.ownerId,
         isActive: !thread.archived,
-        participantCount: this.participantCache.get(thread.id)?.length || 0
+        participantCount: this.participantCache.get(thread.id)?.length || 0,
       };
-
     } catch (error) {
       console.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, error);
       return null;
@@ -778,9 +820,9 @@ export class ForumPostManager {
    */
   async sendParticipantList(postId: string, participants: string[]): Promise<boolean> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
-      if (!thread || !thread.isThread()) {
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
+      if (!thread?.isThread()) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
@@ -799,9 +841,10 @@ export class ForumPostManager {
       // 메시지 전송
       await thread.send(participantListText);
 
-      console.log(`[ForumPostManager] 참가자 목록 메시지 전송 완료: ${postId} (${participants.length}명)`);
+      console.log(
+        `[ForumPostManager] 참가자 목록 메시지 전송 완료: ${postId} (${participants.length}명)`
+      );
       return true;
-
     } catch (error) {
       console.error(`[ForumPostManager] 참가자 목록 메시지 전송 실패: ${postId}`, error);
       return false;
@@ -816,18 +859,18 @@ export class ForumPostManager {
    * @returns 성공 여부
    */
   async sendEmojiParticipantUpdate(
-    postId: string, 
-    participants: string[], 
-    emojiName: string = '참가'
+    postId: string,
+    participants: string[],
+    _emojiName: string = '참가'
   ): Promise<ParticipantUpdateResult> {
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
-      
-      if (!thread || !thread.isThread()) {
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
+
+      if (!thread?.isThread()) {
         return {
           success: false,
           participantCount: participants.length,
-          error: `스레드를 찾을 수 없음: ${postId}`
+          error: `스레드를 찾을 수 없음: ${postId}`,
         };
       }
 
@@ -835,7 +878,7 @@ export class ForumPostManager {
         return {
           success: false,
           participantCount: participants.length,
-          error: `아카이브된 스레드: ${postId}`
+          error: `아카이브된 스레드: ${postId}`,
         };
       }
 
@@ -854,20 +897,21 @@ export class ForumPostManager {
       // 새 메시지 추적 저장
       await this._trackMessage(postId, 'emoji_reaction', sentMessage.id);
 
-      console.log(`[ForumPostManager] 이모지 참가자 현황 업데이트 완료: ${postId} (${participants.length}명)`);
-      
+      console.log(
+        `[ForumPostManager] 이모지 참가자 현황 업데이트 완료: ${postId} (${participants.length}명)`
+      );
+
       return {
         success: true,
         participantCount: participants.length,
-        messageId: sentMessage.id
+        messageId: sentMessage.id,
       };
-
     } catch (error) {
       console.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, error);
       return {
         success: false,
         participantCount: participants.length,
-        error: error instanceof Error ? error.message : '알 수 없는 오류'
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
       };
     }
   }
@@ -879,7 +923,7 @@ export class ForumPostManager {
     this.postStats.clear();
     this.participantCache.clear();
     this.trackedMessages.clear();
-    this.notificationQueue = [];
+    // this._notificationQueue = [];
   }
 
   /**
@@ -887,26 +931,27 @@ export class ForumPostManager {
    * @param postId - 포스트 ID
    * @param recruitmentData - 구인구직 데이터
    */
-  private async updateForumStats(postId: string, recruitmentData: RecruitmentData): Promise<void> {
+  private async updateForumStats(_postId: string, recruitmentData: RecruitmentData): Promise<void> {
     try {
       const stats = this.postStats.get('global') || this.createEmptyStats();
-      
+
       stats.totalPosts++;
       stats.activePosts++;
-      
+
       if (recruitmentData.category) {
-        stats.postsByCategory[recruitmentData.category] = (stats.postsByCategory[recruitmentData.category] || 0) + 1;
+        stats.postsByCategory[recruitmentData.category] =
+          (stats.postsByCategory[recruitmentData.category] || 0) + 1;
       }
-      
+
       if (recruitmentData.tags) {
-        recruitmentData.tags.forEach(tag => {
+        recruitmentData.tags.forEach((tag) => {
           const index = stats.popularTags.indexOf(tag);
           if (index === -1) {
             stats.popularTags.push(tag);
           }
         });
       }
-      
+
       this.postStats.set('global', stats);
     } catch (error) {
       console.error('[ForumPostManager] 포럼 통계 업데이트 실패:', error);
@@ -926,7 +971,7 @@ export class ForumPostManager {
       averageParticipantsPerPost: 0,
       mostActiveAuthors: [],
       popularTags: [],
-      postsByCategory: {}
+      postsByCategory: {},
     };
   }
 
@@ -945,20 +990,20 @@ export class ForumPostManager {
     try {
       // 데이터베이스에서 추적된 메시지 ID들 가져오기
       const messageIds = await this.databaseManager.getTrackedMessages(threadId, messageType);
-      
+
       if (messageIds.length === 0) {
         return true; // 삭제할 메시지가 없음
       }
 
       // 스레드 가져오기
-      const thread = await this.client.channels.fetch(threadId) as ThreadChannel;
-      if (!thread || !thread.isThread()) {
+      const thread = (await this.client.channels.fetch(threadId)) as ThreadChannel;
+      if (!thread?.isThread()) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${threadId}`);
         return false;
       }
 
       let deletedCount = 0;
-      
+
       // 각 메시지 삭제 시도
       for (const messageId of messageIds) {
         try {
@@ -969,7 +1014,8 @@ export class ForumPostManager {
             console.log(`[ForumPostManager] 메시지 삭제 완료: ${messageId}`);
           }
         } catch (deleteError: any) {
-          if (deleteError.code === 10008) { // Unknown Message
+          if (deleteError.code === 10008) {
+            // Unknown Message
             console.log(`[ForumPostManager] 메시지가 이미 삭제됨: ${messageId}`);
           } else {
             console.warn(`[ForumPostManager] 메시지 삭제 실패: ${messageId}`, deleteError.message);
@@ -979,12 +1025,16 @@ export class ForumPostManager {
 
       // 데이터베이스에서 추적 정보 삭제
       await this.databaseManager.clearTrackedMessages(threadId, messageType);
-      
-      console.log(`[ForumPostManager] 추적된 메시지 삭제 완료: ${threadId}, ${messageType}, ${deletedCount}/${messageIds.length}개`);
-      return true;
 
+      console.log(
+        `[ForumPostManager] 추적된 메시지 삭제 완료: ${threadId}, ${messageType}, ${deletedCount}/${messageIds.length}개`
+      );
+      return true;
     } catch (error) {
-      console.error(`[ForumPostManager] 추적된 메시지 삭제 오류: ${threadId}, ${messageType}`, error);
+      console.error(
+        `[ForumPostManager] 추적된 메시지 삭제 오류: ${threadId}, ${messageType}`,
+        error
+      );
       return false;
     }
   }
@@ -996,7 +1046,11 @@ export class ForumPostManager {
    * @param messageId - 메시지 ID
    * @returns 성공 여부
    */
-  private async _trackMessage(threadId: string, messageType: string, messageId: string): Promise<boolean> {
+  private async _trackMessage(
+    threadId: string,
+    messageType: string,
+    messageId: string
+  ): Promise<boolean> {
     if (!this.databaseManager) {
       console.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
       return false;
@@ -1007,7 +1061,10 @@ export class ForumPostManager {
       console.log(`[ForumPostManager] 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
       return true;
     } catch (error) {
-      console.error(`[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`, error);
+      console.error(
+        `[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`,
+        error
+      );
       return false;
     }
   }
@@ -1018,7 +1075,7 @@ export class ForumPostManager {
    */
   private async _cleanupTrackedMessages(threadId: string): Promise<void> {
     const messageTypes = ['participant_count', 'emoji_reaction', 'notification'];
-    
+
     for (const messageType of messageTypes) {
       await this._deleteTrackedMessages(threadId, messageType);
     }
@@ -1055,13 +1112,13 @@ export class ForumPostManager {
    * @param message - 알림 메시지
    * @param type - 알림 타입
    */
-  public async sendNotification(postId: string, message: string, type: string): Promise<boolean> {
+  public async sendNotification(postId: string, message: string, _type: string): Promise<boolean> {
     if (!this.config.enableNotifications) {
       return false;
     }
 
     try {
-      const thread = await this.client.channels.fetch(postId) as ThreadChannel;
+      const thread = (await this.client.channels.fetch(postId)) as ThreadChannel;
       if (!thread || !thread.isThread() || thread.archived) {
         return false;
       }

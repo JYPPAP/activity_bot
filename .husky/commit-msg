@@ -1,0 +1,79 @@
+#!/bin/sh
+# Cross-platform commit-msg hook
+
+# 환경 감지 함수
+detect_environment() {
+  if [ -n "$WSL_DISTRO_NAME" ] || ([ -f /proc/version ] && grep -q Microsoft /proc/version); then
+    echo "wsl"
+  elif [ -n "$WINDIR" ] || [ -n "$windir" ]; then
+    echo "windows"
+  elif [ -n "$MSYSTEM" ] || [ -n "$MINGW_PREFIX" ]; then
+    echo "gitbash"
+  else
+    echo "unix"
+  fi
+}
+
+# commitlint 실행 함수
+run_commitlint() {
+  local env_type="$1"
+  local commit_msg_file="$2"
+  
+  case "$env_type" in
+    "windows")
+      # Windows 환경
+      if command -v cmd.exe >/dev/null 2>&1; then
+        cmd.exe /c "npx commitlint --edit $commit_msg_file" 2>/dev/null || \
+        cmd.exe /c "npm run commitlint -- --edit $commit_msg_file" 2>/dev/null || \
+        cmd.exe /c "node_modules\\.bin\\commitlint.cmd --edit $commit_msg_file" 2>/dev/null || \
+        return 0  # Windows에서 실패 시 무시 (선택사항)
+      else
+        return 0
+      fi
+      ;;
+    "wsl"|"unix"|"gitbash")
+      # WSL/Unix/GitBash 환경
+      if command -v npx >/dev/null 2>&1; then
+        npx --no -- commitlint --edit "$commit_msg_file"
+      elif [ -x "./node_modules/.bin/commitlint" ]; then
+        ./node_modules/.bin/commitlint --edit "$commit_msg_file"
+      elif command -v npm >/dev/null 2>&1; then
+        npm run commitlint -- --edit "$commit_msg_file" 2>/dev/null || return 0
+      else
+        return 0  # commitlint 없으면 무시
+      fi
+      ;;
+    *)
+      return 0
+      ;;
+  esac
+}
+
+# 메인 실행
+main() {
+  local env_type
+  local commit_msg_file="$1"
+  
+  env_type=$(detect_environment)
+  
+  if [ -z "$commit_msg_file" ]; then
+    echo "❌ Commit message file not provided"
+    exit 1
+  fi
+  
+  echo "Detected environment: $env_type"
+  echo "Checking commit message format..."
+  
+  # commitlint 실행
+  if run_commitlint "$env_type" "$commit_msg_file"; then
+    echo "✅ Commit message format is valid"
+    exit 0
+  else
+    echo "❌ Commit message format check failed"
+    echo "Please use conventional commit format: type(scope): description"
+    exit 1
+  fi
+}
+
+# 스크립트 실행
+main "$1"

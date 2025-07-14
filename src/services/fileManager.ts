@@ -1,7 +1,7 @@
 // src/services/fileManager.ts - 파일 관리 서비스 (TypeScript)
 import fs from 'fs';
 import path from 'path';
-import { promises as fsPromises } from 'fs';
+// import { promises as fsPromises } from 'fs'; // Unused
 
 // ====================
 // 파일 관리 옵션 타입
@@ -74,7 +74,7 @@ export class FileManager {
   private static readonly DEFAULT_ENCODING: BufferEncoding = 'utf8';
   private static readonly DEFAULT_INDENT = 2;
   private static readonly MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-  
+
   private readonly watchedFiles: Map<string, fs.FSWatcher> = new Map();
 
   /**
@@ -88,7 +88,7 @@ export class FileManager {
       encoding = FileManager.DEFAULT_ENCODING,
       fallback = {},
       validateJSON = true,
-      throwOnError = false
+      throwOnError = false,
     } = options;
 
     try {
@@ -106,7 +106,7 @@ export class FileManager {
       }
 
       const data = fs.readFileSync(filePath, encoding);
-      
+
       if (validateJSON && !this.isValidJSON(data)) {
         throw new Error(`유효하지 않은 JSON 형식: ${filePath}`);
       }
@@ -115,11 +115,11 @@ export class FileManager {
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`[FileManager] JSON 로드 오류 (${filePath}):`, errorMessage);
-      
+
       if (throwOnError) {
         throw error;
       }
-      
+
       return fallback as T;
     }
   }
@@ -137,7 +137,7 @@ export class FileManager {
       indent = FileManager.DEFAULT_INDENT,
       createPath = true,
       backup = false,
-      atomic = false
+      atomic = false,
     } = options;
 
     try {
@@ -180,13 +180,10 @@ export class FileManager {
    * @param options - 로드 옵션
    * @returns 로드된 데이터로 생성된 Map 객체
    */
-  loadMapFromJSON<K = string, V = any>(
-    filePath: string,
-    options: FileLoadOptions = {}
-  ): Map<K, V> {
+  loadMapFromJSON<K = string, V = any>(filePath: string, options: FileLoadOptions = {}): Map<K, V> {
     try {
       const jsonData = this.loadJSON<Record<string, V>>(filePath, options);
-      
+
       if (!jsonData || typeof jsonData !== 'object') {
         return new Map<K, V>();
       }
@@ -254,7 +251,7 @@ export class FileManager {
   getFileInfo(filePath: string): FileInfo | null {
     try {
       const exists = this.fileExists(filePath);
-      
+
       if (!exists) {
         return {
           path: filePath,
@@ -265,12 +262,12 @@ export class FileManager {
           lastModified: new Date(0),
           extension: path.extname(filePath),
           basename: path.basename(filePath),
-          dirname: path.dirname(filePath)
+          dirname: path.dirname(filePath),
         };
       }
 
       const stats = fs.statSync(filePath);
-      
+
       return {
         path: filePath,
         exists: true,
@@ -280,7 +277,7 @@ export class FileManager {
         lastModified: stats.mtime,
         extension: path.extname(filePath),
         basename: path.basename(filePath),
-        dirname: path.dirname(filePath)
+        dirname: path.dirname(filePath),
       };
     } catch (error) {
       console.error(`[FileManager] 파일 정보 조회 오류 (${filePath}):`, error);
@@ -296,7 +293,7 @@ export class FileManager {
   getDirectoryInfo(dirPath: string): DirectoryInfo | null {
     try {
       const exists = this.directoryExists(dirPath);
-      
+
       if (!exists) {
         return {
           path: dirPath,
@@ -305,7 +302,7 @@ export class FileManager {
           filesCount: 0,
           directoriesCount: 0,
           totalSize: 0,
-          lastModified: new Date(0)
+          lastModified: new Date(0),
         };
       }
 
@@ -338,7 +335,7 @@ export class FileManager {
         filesCount,
         directoriesCount,
         totalSize,
-        lastModified
+        lastModified,
       };
     } catch (error) {
       console.error(`[FileManager] 디렉토리 정보 조회 오류 (${dirPath}):`, error);
@@ -470,18 +467,18 @@ export class FileManager {
       if (!this.fileExists(filePath)) {
         return {
           isValid: false,
-          error: '파일이 존재하지 않습니다'
+          error: '파일이 존재하지 않습니다',
         };
       }
 
       const stats = fs.statSync(filePath);
-      
+
       if (stats.size === 0) {
         return {
           isValid: false,
           error: '파일이 비어있습니다',
           size: 0,
-          lastModified: stats.mtime
+          lastModified: stats.mtime,
         };
       }
 
@@ -490,19 +487,19 @@ export class FileManager {
           isValid: false,
           error: '파일이 너무 큽니다',
           size: stats.size,
-          lastModified: stats.mtime
+          lastModified: stats.mtime,
         };
       }
 
       return {
         isValid: true,
         size: stats.size,
-        lastModified: stats.mtime
+        lastModified: stats.mtime,
       };
     } catch (error) {
       return {
         isValid: false,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -534,7 +531,7 @@ export class FileManager {
       }
 
       const items = fs.readdirSync(dirPath);
-      const files = items.filter(item => {
+      const files = items.filter((item) => {
         const itemPath = path.join(dirPath, item);
         const stats = fs.statSync(itemPath);
         return stats.isFile() && (!filter || filter(item));
@@ -560,7 +557,7 @@ export class FileManager {
       }
 
       const items = fs.readdirSync(dirPath);
-      const directories = items.filter(item => {
+      const directories = items.filter((item) => {
         const itemPath = path.join(dirPath, item);
         const stats = fs.statSync(itemPath);
         return stats.isDirectory() && (!filter || filter(item));
@@ -620,7 +617,10 @@ export class FileManager {
    * @param callback - 변경 시 호출될 콜백
    * @returns 감시 해제 함수
    */
-  watchFile(filePath: string, callback: (eventType: string, filename: string) => void): () => void {
+  watchFile(
+    filePath: string,
+    callback: (eventType: string, filename: string | null) => void
+  ): () => void {
     try {
       if (this.watchedFiles.has(filePath)) {
         this.unwatchFile(filePath);
@@ -697,7 +697,7 @@ export class FileManager {
       }
 
       const stats = fs.statSync(targetPath);
-      
+
       if (stats.isFile()) {
         return stats.size === 0;
       } else if (stats.isDirectory()) {
@@ -758,7 +758,7 @@ export class FileManager {
     const timestamp = Date.now();
     const random = Math.random().toString(36).substring(2, 8);
     const filename = `${prefix}_${timestamp}_${random}${extension}`;
-    
+
     return path.join(process.cwd(), 'temp', filename);
   }
 
@@ -786,11 +786,11 @@ export class FileManager {
  */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
+
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 }
 
@@ -801,17 +801,17 @@ export function formatFileSize(bytes: number): string {
  */
 export function isPathSafe(filePath: string): boolean {
   const normalized = path.normalize(filePath);
-  
+
   // 상위 디렉토리 접근 시도 확인
   if (normalized.includes('..')) {
     return false;
   }
-  
+
   // 절대 경로 확인 (필요에 따라 허용/불허용 결정)
   if (path.isAbsolute(normalized)) {
     return true; // 절대 경로 허용
   }
-  
+
   return true;
 }
 
@@ -822,7 +822,7 @@ export function isPathSafe(filePath: string): boolean {
  */
 export function getMimeType(filePath: string): string {
   const ext = path.extname(filePath).toLowerCase();
-  
+
   const mimeTypes: { [key: string]: string } = {
     '.json': 'application/json',
     '.js': 'application/javascript',
@@ -840,8 +840,8 @@ export function getMimeType(filePath: string): string {
     '.pdf': 'application/pdf',
     '.zip': 'application/zip',
     '.tar': 'application/x-tar',
-    '.gz': 'application/gzip'
+    '.gz': 'application/gzip',
   };
-  
+
   return mimeTypes[ext] || 'application/octet-stream';
 }

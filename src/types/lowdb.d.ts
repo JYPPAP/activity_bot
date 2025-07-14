@@ -27,7 +27,14 @@ declare module 'lowdb' {
 
 declare module 'lowdb/adapters/FileSync.js' {
   class FileSync {
-    constructor(filename: string, options?: { defaultValue?: any; serialize?: (data: any) => string; deserialize?: (data: string) => any; });
+    constructor(
+      filename: string,
+      options?: {
+        defaultValue?: any;
+        serialize?: (data: any) => string;
+        deserialize?: (data: string) => any;
+      }
+    );
   }
   export default FileSync;
 }

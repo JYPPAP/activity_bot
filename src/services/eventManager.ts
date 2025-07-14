@@ -1,5 +1,6 @@
 // src/services/eventManager.ts - 이벤트 관리 서비스 (TypeScript)
 import { EventEmitter } from 'events';
+
 import { EnhancedClient } from '../types/discord.js';
 
 // ====================
@@ -77,9 +78,9 @@ export class EventManager extends EventEmitter {
       defaultTimeout: 30000, // 30초
       defaultMaxRetries: 3,
       defaultRetryDelay: 1000, // 1초
-      ...options
+      ...options,
     };
-    
+
     this.setMaxListeners(0); // 무제한 리스너 허용
   }
 
@@ -104,23 +105,23 @@ export class EventManager extends EventEmitter {
     }
 
     const handlerId = `${event}_${this.nextId++}`;
-    
+
     const handlerInfo: EventHandlerInfo<T> = {
       handler,
       options: {
-        priority: 0,
-        timeout: this.options.defaultTimeout,
-        maxRetries: this.options.defaultMaxRetries,
-        retryDelay: this.options.defaultRetryDelay,
-        ...options
+        priority: options?.priority ?? 0,
+        ...(options?.timeout !== undefined && { timeout: options.timeout }),
+        ...(options?.maxRetries !== undefined && { maxRetries: options.maxRetries }),
+        ...(options?.retryDelay !== undefined && { retryDelay: options.retryDelay }),
+        ...(options?.once !== undefined && { once: options.once }),
       },
       id: handlerId,
       stats: {
         calls: 0,
         successes: 0,
         errors: 0,
-        totalExecutionTime: 0
-      }
+        totalExecutionTime: 0,
+      },
     };
 
     if (!this.handlers.has(event)) {
@@ -147,7 +148,7 @@ export class EventManager extends EventEmitter {
    * @param options - 이벤트 리스너 옵션
    * @returns 핸들러 ID
    */
-  once<T extends any[] = any[]>(
+  registerOnce<T extends any[] = any[]>(
     event: string,
     handler: EventHandler<T>,
     options: EventListenerOptions = {}
@@ -165,11 +166,11 @@ export class EventManager extends EventEmitter {
     const eventHandlers = this.handlers.get(event);
     if (!eventHandlers) return false;
 
-    const index = eventHandlers.findIndex(info => info.id === handlerId);
+    const index = eventHandlers.findIndex((info) => info.id === handlerId);
     if (index === -1) return false;
 
     eventHandlers.splice(index, 1);
-    
+
     if (eventHandlers.length === 0) {
       this.handlers.delete(event);
     }
@@ -228,7 +229,7 @@ export class EventManager extends EventEmitter {
 
     for (const handlerInfo of handlers) {
       const handlerStartTime = Date.now();
-      
+
       try {
         // 통계 업데이트
         if (this.options.enableStats) {
@@ -253,7 +254,6 @@ export class EventManager extends EventEmitter {
         if (handlerInfo.options.once) {
           toRemove.push(handlerInfo.id);
         }
-
       } catch (error) {
         // 오류 통계 업데이트
         if (this.options.enableStats) {
@@ -265,7 +265,11 @@ export class EventManager extends EventEmitter {
         console.error(`[EventManager] 이벤트 핸들러 오류 (${event}):`, errorMessage);
 
         // 재시도 로직
-        if (this.options.enableRetry && handlerInfo.options.maxRetries && handlerInfo.options.maxRetries > 0) {
+        if (
+          this.options.enableRetry &&
+          handlerInfo.options.maxRetries &&
+          handlerInfo.options.maxRetries > 0
+        ) {
           await this.retryHandler(handlerInfo, args, event);
         }
 
@@ -274,7 +278,7 @@ export class EventManager extends EventEmitter {
           event,
           handlerId: handlerInfo.id,
           error,
-          args
+          args,
         });
       }
     }
@@ -300,7 +304,7 @@ export class EventManager extends EventEmitter {
     args: any[]
   ): Promise<void> {
     const timeout = handlerInfo.options.timeout!;
-    
+
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
         reject(new Error(`핸들러 타임아웃 (${timeout}ms)`));
@@ -334,17 +338,20 @@ export class EventManager extends EventEmitter {
 
     for (let retry = 1; retry <= maxRetries; retry++) {
       try {
-        await new Promise(resolve => setTimeout(resolve, retryDelay * retry));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay * retry));
         await handlerInfo.handler(...args);
-        
+
         if (this.options.enableLogging) {
           console.log(`[EventManager] 핸들러 재시도 성공 (${event}, ${retry}/${maxRetries})`);
         }
-        
+
         return; // 성공 시 종료
       } catch (error) {
         if (retry === maxRetries) {
-          console.error(`[EventManager] 핸들러 재시도 실패 (${event}, ${retry}/${maxRetries}):`, error);
+          console.error(
+            `[EventManager] 핸들러 재시도 실패 (${event}, ${retry}/${maxRetries}):`,
+            error
+          );
           throw error;
         }
       }
@@ -365,14 +372,14 @@ export class EventManager extends EventEmitter {
         totalCalls: 0,
         successCount: 0,
         errorCount: 0,
-        averageExecutionTime: 0
+        averageExecutionTime: 0,
       });
     }
 
     const stats = this.eventStats.get(event)!;
     stats.totalCalls++;
     stats.lastCalled = new Date();
-    
+
     // 평균 실행 시간 계산
     if (stats.averageExecutionTime) {
       stats.averageExecutionTime = (stats.averageExecutionTime + executionTime) / 2;
@@ -388,7 +395,7 @@ export class EventManager extends EventEmitter {
   clearHandlers(event: string): void {
     if (this.handlers.has(event)) {
       this.handlers.delete(event);
-      
+
       if (this.options.enableLogging) {
         console.log(`[EventManager] 이벤트 핸들러 모두 제거: ${event}`);
       }
@@ -401,7 +408,7 @@ export class EventManager extends EventEmitter {
   clearAllHandlers(): void {
     this.handlers.clear();
     this.eventStats.clear();
-    
+
     if (this.options.enableLogging) {
       console.log('[EventManager] 모든 이벤트 핸들러 제거');
     }
@@ -444,13 +451,15 @@ export class EventManager extends EventEmitter {
    */
   getEventStats(event?: string): EventStats | EventStats[] {
     if (event) {
-      return this.eventStats.get(event) || {
-        eventName: event,
-        handlerCount: this.getHandlerCount(event),
-        totalCalls: 0,
-        successCount: 0,
-        errorCount: 0
-      };
+      return (
+        this.eventStats.get(event) || {
+          eventName: event,
+          handlerCount: this.getHandlerCount(event),
+          totalCalls: 0,
+          successCount: 0,
+          errorCount: 0,
+        }
+      );
     }
 
     return Array.from(this.eventStats.values());
@@ -469,10 +478,10 @@ export class EventManager extends EventEmitter {
     const handlers = this.handlers.get(event);
     if (!handlers) return [];
 
-    return handlers.map(handler => ({
+    return handlers.map((handler) => ({
       id: handler.id,
       options: handler.options,
-      stats: handler.stats
+      stats: handler.stats,
     }));
   }
 
@@ -489,8 +498,10 @@ export class EventManager extends EventEmitter {
   } {
     const totalEvents = this.handlers.size;
     const totalHandlers = this.getTotalHandlerCount();
-    const totalCalls = Array.from(this.eventStats.values())
-      .reduce((sum, stat) => sum + stat.totalCalls, 0);
+    const totalCalls = Array.from(this.eventStats.values()).reduce(
+      (sum, stat) => sum + stat.totalCalls,
+      0
+    );
 
     const enabledFeatures: string[] = [];
     if (this.options.enableStats) enabledFeatures.push('통계');
@@ -502,7 +513,7 @@ export class EventManager extends EventEmitter {
       totalHandlers,
       totalCalls,
       averageHandlersPerEvent: totalEvents > 0 ? totalHandlers / totalEvents : 0,
-      enabledFeatures
+      enabledFeatures,
     };
   }
 
@@ -530,7 +541,7 @@ export class EventManager extends EventEmitter {
   pauseEvent(event: string): void {
     // 클라이언트에서 이벤트 리스너 제거
     this.client.removeAllListeners(event);
-    
+
     if (this.options.enableLogging) {
       console.log(`[EventManager] 이벤트 일시 중지: ${event}`);
     }
@@ -546,7 +557,7 @@ export class EventManager extends EventEmitter {
       this.client.on(event, async (...args: any[]) => {
         await this.executeHandlers(event, handlers, args);
       });
-      
+
       if (this.options.enableLogging) {
         console.log(`[EventManager] 이벤트 재개: ${event}`);
       }
@@ -577,7 +588,7 @@ export class EventManager extends EventEmitter {
   cleanup(): void {
     this.clearAllHandlers();
     this.removeAllListeners();
-    
+
     if (this.options.enableLogging) {
       console.log('[EventManager] 정리 작업 완료');
     }
@@ -597,20 +608,20 @@ export class EventManager extends EventEmitter {
 export function EventHandler(eventName: string, options: EventListenerOptions = {}) {
   return function (target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value;
-    
+
     descriptor.value = function (...args: any[]) {
       return originalMethod.apply(this, args);
     };
-    
+
     // 메타데이터 저장
     if (!target.constructor._eventHandlers) {
       target.constructor._eventHandlers = [];
     }
-    
+
     target.constructor._eventHandlers.push({
       eventName,
       methodName: propertyKey,
-      options
+      options,
     });
   };
 }
@@ -622,9 +633,9 @@ export function EventHandler(eventName: string, options: EventListenerOptions = 
  */
 export function registerEventHandlers(eventManager: EventManager, target: any): void {
   const eventHandlers = target.constructor._eventHandlers;
-  
+
   if (!eventHandlers) return;
-  
+
   for (const { eventName, methodName, options } of eventHandlers) {
     const handler = target[methodName].bind(target);
     eventManager.registerHandler(eventName, handler, options);
@@ -644,7 +655,7 @@ export const DiscordEvents = {
   DEBUG: 'debug',
   RATE_LIMIT: 'rateLimit',
   INVALID_REQUEST_WARNING: 'invalidRequestWarning',
-  
+
   // 길드 이벤트
   GUILD_CREATE: 'guildCreate',
   GUILD_DELETE: 'guildDelete',
@@ -664,13 +675,13 @@ export const DiscordEvents = {
   GUILD_EMOJI_UPDATE: 'emojiUpdate',
   GUILD_BAN_ADD: 'guildBanAdd',
   GUILD_BAN_REMOVE: 'guildBanRemove',
-  
+
   // 채널 이벤트
   CHANNEL_CREATE: 'channelCreate',
   CHANNEL_DELETE: 'channelDelete',
   CHANNEL_UPDATE: 'channelUpdate',
   CHANNEL_PINS_UPDATE: 'channelPinsUpdate',
-  
+
   // 메시지 이벤트
   MESSAGE_CREATE: 'messageCreate',
   MESSAGE_DELETE: 'messageDelete',
@@ -680,18 +691,18 @@ export const DiscordEvents = {
   MESSAGE_REACTION_REMOVE: 'messageReactionRemove',
   MESSAGE_REACTION_REMOVE_ALL: 'messageReactionRemoveAll',
   MESSAGE_REACTION_REMOVE_EMOJI: 'messageReactionRemoveEmoji',
-  
+
   // 상호작용 이벤트
   INTERACTION_CREATE: 'interactionCreate',
-  
+
   // 음성 이벤트
   VOICE_STATE_UPDATE: 'voiceStateUpdate',
-  
+
   // 사용자 이벤트
   USER_UPDATE: 'userUpdate',
   PRESENCE_UPDATE: 'presenceUpdate',
   TYPING_START: 'typingStart',
-  
+
   // 스레드 이벤트
   THREAD_CREATE: 'threadCreate',
   THREAD_DELETE: 'threadDelete',
@@ -699,35 +710,35 @@ export const DiscordEvents = {
   THREAD_LIST_SYNC: 'threadListSync',
   THREAD_MEMBER_UPDATE: 'threadMemberUpdate',
   THREAD_MEMBERS_UPDATE: 'threadMembersUpdate',
-  
+
   // 스테이지 이벤트
   STAGE_INSTANCE_CREATE: 'stageInstanceCreate',
   STAGE_INSTANCE_UPDATE: 'stageInstanceUpdate',
   STAGE_INSTANCE_DELETE: 'stageInstanceDelete',
-  
+
   // 스티커 이벤트
   STICKER_CREATE: 'stickerCreate',
   STICKER_DELETE: 'stickerDelete',
   STICKER_UPDATE: 'stickerUpdate',
-  
+
   // 초대 이벤트
   INVITE_CREATE: 'inviteCreate',
   INVITE_DELETE: 'inviteDelete',
-  
+
   // 웹훅 이벤트
   WEBHOOKS_UPDATE: 'webhooksUpdate',
-  
+
   // 애플리케이션 명령 이벤트
   APPLICATION_COMMAND_PERMISSIONS_UPDATE: 'applicationCommandPermissionsUpdate',
-  
+
   // 자동 조정 이벤트
   AUTO_MODERATION_RULE_CREATE: 'autoModerationRuleCreate',
   AUTO_MODERATION_RULE_DELETE: 'autoModerationRuleDelete',
   AUTO_MODERATION_RULE_UPDATE: 'autoModerationRuleUpdate',
   AUTO_MODERATION_ACTION_EXECUTION: 'autoModerationActionExecution',
-  
+
   // 감사 로그 이벤트
-  GUILD_AUDIT_LOG_ENTRY_CREATE: 'guildAuditLogEntryCreate'
+  GUILD_AUDIT_LOG_ENTRY_CREATE: 'guildAuditLogEntryCreate',
 } as const;
 
-export type DiscordEventNames = typeof DiscordEvents[keyof typeof DiscordEvents];
+export type DiscordEventNames = (typeof DiscordEvents)[keyof typeof DiscordEvents];

@@ -3,11 +3,11 @@ import { GuildMember, PermissionsBitField } from 'discord.js';
 
 // 권한 레벨 정의
 export enum PermissionLevel {
-  PUBLIC = 0,           // 모든 사용자
-  TRUSTED = 1,          // 신뢰받는 사용자
-  MODERATOR = 2,        // 중간 관리자
-  ADMIN = 3,            // 관리자
-  SUPER_ADMIN = 4       // 최고 관리자
+  PUBLIC = 0, // 모든 사용자
+  TRUSTED = 1, // 신뢰받는 사용자
+  MODERATOR = 2, // 중간 관리자
+  ADMIN = 3, // 관리자
+  SUPER_ADMIN = 4, // 최고 관리자
 }
 
 // 역할 권한 매핑 인터페이스
@@ -41,10 +41,10 @@ interface PermissionStatistics {
   totalChecks: number;
   successfulChecks: number;
   deniedChecks: number;
-  checksByCommand: Record<string, { allowed: number; denied: number; }>;
-  checksByLevel: Record<PermissionLevel, { allowed: number; denied: number; }>;
+  checksByCommand: Record<string, { allowed: number; denied: number }>;
+  checksByLevel: Record<PermissionLevel, { allowed: number; denied: number }>;
   lastCheckTime: Date;
-  mostUsedCommands: Array<{ command: string; uses: number; }>;
+  mostUsedCommands: Array<{ command: string; uses: number }>;
 }
 
 // 상수 검증 타입
@@ -56,147 +56,144 @@ export class CommandPermissions {
   // ========== 역할 권한 매핑 ==========
   private static readonly ROLE_PERMISSION_MAP: ValidatePermissions<RolePermissionMap> = {
     // 최고 관리자
-    '관리자': PermissionLevel.SUPER_ADMIN,
-    '봇관리자': PermissionLevel.SUPER_ADMIN,
-    'Administrator': PermissionLevel.SUPER_ADMIN,
-    
+    관리자: PermissionLevel.SUPER_ADMIN,
+    봇관리자: PermissionLevel.SUPER_ADMIN,
+    Administrator: PermissionLevel.SUPER_ADMIN,
+
     // 일반 관리자
-    '부관리자': PermissionLevel.ADMIN,
-    'Moderator': PermissionLevel.ADMIN,
-    '운영진': PermissionLevel.ADMIN,
-    
+    부관리자: PermissionLevel.ADMIN,
+    Moderator: PermissionLevel.ADMIN,
+    운영진: PermissionLevel.ADMIN,
+
     // 중간 관리자
-    '서브관리자': PermissionLevel.MODERATOR,
-    'Helper': PermissionLevel.MODERATOR,
-    '도우미': PermissionLevel.MODERATOR,
-    
+    서브관리자: PermissionLevel.MODERATOR,
+    Helper: PermissionLevel.MODERATOR,
+    도우미: PermissionLevel.MODERATOR,
+
     // 신뢰받는 사용자
-    'VIP': PermissionLevel.TRUSTED,
-    '정회원': PermissionLevel.TRUSTED,
-    'Regular': PermissionLevel.TRUSTED,
-    
+    VIP: PermissionLevel.TRUSTED,
+    정회원: PermissionLevel.TRUSTED,
+    Regular: PermissionLevel.TRUSTED,
+
     // 기본 사용자는 PUBLIC (별도 매핑 불필요)
   } as const;
 
   // ========== 명령어 권한 설정 ==========
-  private static readonly COMMAND_PERMISSIONS: ValidatePermissions<Record<string, CommandPermissionConfig>> = {
+  private static readonly COMMAND_PERMISSIONS: ValidatePermissions<
+    Record<string, CommandPermissionConfig>
+  > = {
     // 일반 사용자 명령어
-    '구직': {
+    구직: {
       level: PermissionLevel.PUBLIC,
       enabled: true,
-      description: '구인구직 기능 - 모든 사용자 사용 가능'
+      description: '구인구직 기능 - 모든 사용자 사용 가능',
     },
-    'help': {
+    help: {
       level: PermissionLevel.PUBLIC,
       enabled: true,
-      description: '도움말 명령어'
+      description: '도움말 명령어',
     },
-    'ping': {
+    ping: {
       level: PermissionLevel.PUBLIC,
       enabled: true,
-      description: '봇 상태 확인'
+      description: '봇 상태 확인',
     },
 
     // 신뢰받는 사용자 명령어
-    'report': {
+    report: {
       level: PermissionLevel.TRUSTED,
       enabled: true,
-      description: '간단한 보고서 조회'
+      description: '간단한 보고서 조회',
     },
 
     // 중간 관리자 명령어
-    'kick': {
+    kick: {
       level: PermissionLevel.MODERATOR,
       discordPermissions: [PermissionsBitField.Flags.KickMembers],
       enabled: true,
-      description: '멤버 추방'
+      description: '멤버 추방',
     },
-    'timeout': {
+    timeout: {
       level: PermissionLevel.MODERATOR,
       discordPermissions: [PermissionsBitField.Flags.ModerateMembers],
       enabled: true,
-      description: '멤버 타임아웃'
+      description: '멤버 타임아웃',
     },
 
     // 관리자 명령어
-    'ban': {
+    ban: {
       level: PermissionLevel.ADMIN,
       discordPermissions: [PermissionsBitField.Flags.BanMembers],
       enabled: true,
-      description: '멤버 차단'
+      description: '멤버 차단',
     },
-    'channel': {
+    channel: {
       level: PermissionLevel.ADMIN,
       discordPermissions: [PermissionsBitField.Flags.ManageChannels],
       enabled: true,
-      description: '채널 관리'
+      description: '채널 관리',
     },
 
     // 최고 관리자 명령어
-    'gap_list': {
+    gap_list: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '활동 목록 조회'
+      description: '활동 목록 조회',
     },
-    'gap_config': {
+    gap_config: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '설정 관리'
+      description: '설정 관리',
     },
-    'gap_reset': {
+    gap_reset: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '데이터 초기화'
+      description: '데이터 초기화',
     },
-    'gap_save': {
+    gap_save: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '데이터 저장'
+      description: '데이터 저장',
     },
-    'gap_report': {
+    gap_report: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '활동 보고서 생성'
+      description: '활동 보고서 생성',
     },
-    'gap_cycle': {
+    gap_afk: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '보고서 주기 관리'
+      description: 'AFK 관리',
     },
-    'gap_afk': {
+    gap_calendar: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: 'AFK 관리'
+      description: '캘린더 보고서',
     },
-    'gap_calendar': {
+    gap_stats: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '캘린더 보고서'
+      description: '통계 조회',
     },
-    'gap_stats': {
+    시간체크: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '통계 조회'
-    },
-    '시간체크': {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: '시간 확인'
+      description: '시간 확인',
     },
 
     // 특별 권한 명령어 (특정 사용자 ID 필요)
-    'system_shutdown': {
+    system_shutdown: {
       level: PermissionLevel.SUPER_ADMIN,
       userIds: ['592666673627004939'], // 특정 사용자만
       enabled: false,
-      description: '시스템 종료 (비활성화됨)'
+      description: '시스템 종료 (비활성화됨)',
     },
-    'database_backup': {
+    database_backup: {
       level: PermissionLevel.SUPER_ADMIN,
       userIds: ['592666673627004939'],
       enabled: true,
-      description: '데이터베이스 백업'
-    }
+      description: '데이터베이스 백업',
+    },
   } as const;
 
   // ========== 통계 관리 ==========
@@ -205,9 +202,15 @@ export class CommandPermissions {
     successfulChecks: 0,
     deniedChecks: 0,
     checksByCommand: {},
-    checksByLevel: {},
+    checksByLevel: {
+      [PermissionLevel.PUBLIC]: { allowed: 0, denied: 0 },
+      [PermissionLevel.TRUSTED]: { allowed: 0, denied: 0 },
+      [PermissionLevel.MODERATOR]: { allowed: 0, denied: 0 },
+      [PermissionLevel.ADMIN]: { allowed: 0, denied: 0 },
+      [PermissionLevel.SUPER_ADMIN]: { allowed: 0, denied: 0 },
+    },
     lastCheckTime: new Date(),
-    mostUsedCommands: []
+    mostUsedCommands: [],
   };
 
   // ========== 권한 확인 메서드 ==========
@@ -230,7 +233,7 @@ export class CommandPermissions {
 
     // 역할 기반 권한 확인
     let maxLevel = PermissionLevel.PUBLIC;
-    
+
     for (const role of member.roles.cache.values()) {
       const roleLevel = this.ROLE_PERMISSION_MAP[role.name];
       if (roleLevel !== undefined && roleLevel > maxLevel) {
@@ -251,7 +254,7 @@ export class CommandPermissions {
     this.updateStatistics(commandName, 'check');
 
     const commandConfig = this.COMMAND_PERMISSIONS[commandName];
-    
+
     // 명령어가 정의되지 않은 경우
     if (!commandConfig) {
       this.updateStatistics(commandName, 'denied');
@@ -259,7 +262,7 @@ export class CommandPermissions {
         hasPermission: false,
         reason: '정의되지 않은 명령어입니다.',
         userLevel: this.getUserPermissionLevel(member),
-        userRoles: member.roles.cache.map(role => role.name)
+        userRoles: member.roles.cache.map((role) => role.name),
       };
     }
 
@@ -271,12 +274,12 @@ export class CommandPermissions {
         reason: '현재 비활성화된 명령어입니다.',
         requiredLevel: commandConfig.level,
         userLevel: this.getUserPermissionLevel(member),
-        userRoles: member.roles.cache.map(role => role.name)
+        userRoles: member.roles.cache.map((role) => role.name),
       };
     }
 
     const userLevel = this.getUserPermissionLevel(member);
-    const userRoles = member.roles.cache.map(role => role.name);
+    const userRoles = member.roles.cache.map((role) => role.name);
 
     // 특정 사용자 ID 확인 (가장 높은 우선순위)
     if (commandConfig.userIds && commandConfig.userIds.length > 0) {
@@ -287,7 +290,7 @@ export class CommandPermissions {
           reason: '이 명령어는 특정 사용자만 사용할 수 있습니다.',
           requiredLevel: commandConfig.level,
           userLevel,
-          userRoles
+          userRoles,
         };
       }
     }
@@ -300,16 +303,14 @@ export class CommandPermissions {
         reason: '권한 레벨이 부족합니다.',
         requiredLevel: commandConfig.level,
         userLevel,
-        userRoles
+        userRoles,
       };
     }
 
     // 특정 역할 요구사항 확인
     if (commandConfig.specificRoles && commandConfig.specificRoles.length > 0) {
-      const hasRequiredRole = commandConfig.specificRoles.some(role => 
-        userRoles.includes(role)
-      );
-      
+      const hasRequiredRole = commandConfig.specificRoles.some((role) => userRoles.includes(role));
+
       if (!hasRequiredRole) {
         this.updateStatistics(commandName, 'denied');
         return {
@@ -317,7 +318,7 @@ export class CommandPermissions {
           reason: '필요한 역할이 없습니다.',
           requiredRoles: [...commandConfig.specificRoles],
           userLevel,
-          userRoles
+          userRoles,
         };
       }
     }
@@ -325,11 +326,14 @@ export class CommandPermissions {
     // Discord 권한 확인
     if (commandConfig.discordPermissions && commandConfig.discordPermissions.length > 0) {
       const missingPermissions: string[] = [];
-      
+
       for (const permission of commandConfig.discordPermissions) {
         if (!member.permissions.has(permission)) {
-          const permissionName = Object.keys(PermissionsBitField.Flags)
-            .find(key => PermissionsBitField.Flags[key as keyof typeof PermissionsBitField.Flags] === permission);
+          const permissionName = Object.keys(PermissionsBitField.Flags).find(
+            (key) =>
+              PermissionsBitField.Flags[key as keyof typeof PermissionsBitField.Flags] ===
+              permission
+          );
           if (permissionName) {
             missingPermissions.push(permissionName);
           }
@@ -343,7 +347,7 @@ export class CommandPermissions {
           reason: 'Discord 권한이 부족합니다.',
           missingDiscordPermissions: missingPermissions,
           userLevel,
-          userRoles
+          userRoles,
         };
       }
     }
@@ -353,7 +357,7 @@ export class CommandPermissions {
     return {
       hasPermission: true,
       userLevel,
-      userRoles
+      userRoles,
     };
   }
 
@@ -373,27 +377,33 @@ export class CommandPermissions {
    * @param checkResult - 권한 확인 결과 (선택사항)
    * @returns 권한 부족 메시지
    */
-  static getPermissionDeniedMessage(commandName: string, checkResult?: PermissionCheckResult): string {
-    if (checkResult && checkResult.reason) {
+  static getPermissionDeniedMessage(
+    commandName: string,
+    checkResult?: PermissionCheckResult
+  ): string {
+    if (checkResult?.reason) {
       let message = `❌ ${checkResult.reason}`;
-      
+
       if (checkResult.requiredLevel !== undefined) {
         message += `\n필요 권한 레벨: ${PermissionLevel[checkResult.requiredLevel]}`;
       }
-      
+
       if (checkResult.requiredRoles && checkResult.requiredRoles.length > 0) {
         message += `\n필요 역할: ${checkResult.requiredRoles.join(', ')}`;
       }
-      
-      if (checkResult.missingDiscordPermissions && checkResult.missingDiscordPermissions.length > 0) {
+
+      if (
+        checkResult.missingDiscordPermissions &&
+        checkResult.missingDiscordPermissions.length > 0
+      ) {
         message += `\n부족한 Discord 권한: ${checkResult.missingDiscordPermissions.join(', ')}`;
       }
-      
+
       return message;
     }
 
     const commandConfig = this.COMMAND_PERMISSIONS[commandName];
-    
+
     if (!commandConfig) {
       return '❌ 정의되지 않은 명령어입니다.';
     }
@@ -455,11 +465,11 @@ export class CommandPermissions {
    */
   static getAllCommands(level?: PermissionLevel): string[] {
     const commands = Object.keys(this.COMMAND_PERMISSIONS);
-    
+
     if (level !== undefined) {
-      return commands.filter(cmd => this.COMMAND_PERMISSIONS[cmd].level === level);
+      return commands.filter((cmd) => this.COMMAND_PERMISSIONS[cmd].level === level);
     }
-    
+
     return commands;
   }
 
@@ -469,7 +479,7 @@ export class CommandPermissions {
    * @returns 사용 가능한 명령어 목록
    */
   static getAvailableCommands(member: GuildMember): string[] {
-    return Object.keys(this.COMMAND_PERMISSIONS).filter(commandName => 
+    return Object.keys(this.COMMAND_PERMISSIONS).filter((commandName) =>
       this.hasCommandPermission(member, commandName)
     );
   }
@@ -487,21 +497,21 @@ export class CommandPermissions {
   } {
     const commands = Object.values(this.COMMAND_PERMISSIONS);
     const commandsByLevel: Record<string, number> = {};
-    
+
     // 레벨별 명령어 수 계산
     for (const level of Object.values(PermissionLevel)) {
       if (typeof level === 'number') {
         const levelName = PermissionLevel[level];
-        commandsByLevel[levelName] = commands.filter(cmd => cmd.level === level).length;
+        commandsByLevel[levelName] = commands.filter((cmd) => cmd.level === level).length;
       }
     }
 
     return {
       totalCommands: commands.length,
-      enabledCommands: commands.filter(cmd => cmd.enabled).length,
-      disabledCommands: commands.filter(cmd => !cmd.enabled).length,
+      enabledCommands: commands.filter((cmd) => cmd.enabled).length,
+      disabledCommands: commands.filter((cmd) => !cmd.enabled).length,
       commandsByLevel,
-      totalRoles: Object.keys(this.ROLE_PERMISSION_MAP).length
+      totalRoles: Object.keys(this.ROLE_PERMISSION_MAP).length,
     };
   }
 
@@ -512,7 +522,10 @@ export class CommandPermissions {
    * @param commandName - 명령어 이름
    * @param action - 액션 ('check', 'allowed', 'denied')
    */
-  private static updateStatistics(commandName: string, action: 'check' | 'allowed' | 'denied'): void {
+  private static updateStatistics(
+    commandName: string,
+    action: 'check' | 'allowed' | 'denied'
+  ): void {
     this.statistics.lastCheckTime = new Date();
 
     if (action === 'check') {
@@ -550,8 +563,8 @@ export class CommandPermissions {
    * @param commandName - 명령어 이름
    */
   private static updateMostUsedCommands(commandName: string): void {
-    const existing = this.statistics.mostUsedCommands.find(cmd => cmd.command === commandName);
-    
+    const existing = this.statistics.mostUsedCommands.find((cmd) => cmd.command === commandName);
+
     if (existing) {
       existing.uses++;
     } else {
@@ -580,9 +593,15 @@ export class CommandPermissions {
       successfulChecks: 0,
       deniedChecks: 0,
       checksByCommand: {},
-      checksByLevel: {},
+      checksByLevel: {
+        [PermissionLevel.PUBLIC]: { allowed: 0, denied: 0 },
+        [PermissionLevel.TRUSTED]: { allowed: 0, denied: 0 },
+        [PermissionLevel.MODERATOR]: { allowed: 0, denied: 0 },
+        [PermissionLevel.ADMIN]: { allowed: 0, denied: 0 },
+        [PermissionLevel.SUPER_ADMIN]: { allowed: 0, denied: 0 },
+      },
       lastCheckTime: new Date(),
-      mostUsedCommands: []
+      mostUsedCommands: [],
     };
   }
 
@@ -622,15 +641,16 @@ export class CommandPermissions {
           errors.push(`Invalid permission level for role ${roleName}: ${level}`);
         }
       });
-
     } catch (error) {
-      errors.push(`Permission validation error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      errors.push(
+        `Permission validation error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     }
 
     return {
       valid: errors.length === 0,
       errors,
-      warnings
+      warnings,
     };
   }
 }
@@ -649,7 +669,7 @@ export const ROLE_BASED_PERMISSIONS = Object.fromEntries(
     cmdName,
     Object.entries(CommandPermissions['ROLE_PERMISSION_MAP'])
       .filter(([_, level]) => level >= config.level)
-      .map(([roleName, _]) => roleName)
+      .map(([roleName, _]) => roleName),
   ])
 );
 
@@ -663,12 +683,9 @@ export function getPermissionDeniedMessage(commandName: string): string {
 }
 
 // 타입 내보내기
-export type {
-  PermissionCheckResult,
-  PermissionStatistics
-};
+export type { PermissionStatistics };
 
 // 권한 레벨 타입 유틸리티
 export type PermissionLevelType = PermissionLevel;
-export type CommandName = keyof typeof CommandPermissions['COMMAND_PERMISSIONS'];
-export type RoleName = keyof typeof CommandPermissions['ROLE_PERMISSION_MAP'];
+export type CommandName = keyof (typeof CommandPermissions)['COMMAND_PERMISSIONS'];
+export type RoleName = keyof (typeof CommandPermissions)['ROLE_PERMISSION_MAP'];

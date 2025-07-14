@@ -1,17 +1,19 @@
 // src/services/DatabaseManager.ts - LowDB 버전 (TypeScript)
+import path from 'path';
+
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync.js';
-import path from 'path';
+
 import { DatabaseSchema, DatabaseConfig } from '../types/database.js';
-import { 
-  UserActivity, 
-  RoleConfig, 
-  ActivityLogEntry, 
+import {
+  UserActivity,
+  RoleConfig,
+  ActivityLogEntry,
   AfkStatus,
   ForumMessageData,
   VoiceChannelMapping,
   ResetHistoryEntry,
-  DatabaseManager as IDatabaseManager
+  LogQueryOptions,
 } from '../types/index.js';
 
 // ====================
@@ -84,16 +86,17 @@ export interface DatabaseStats {
 // 데이터베이스 매니저 클래스
 // ====================
 
-export class DatabaseManager implements IDatabaseManager {
+export class DatabaseManager {
+  // TODO: Implement full IDatabaseManager interface
   private readonly dbPath: string;
   private readonly adapter: any; // lowdb v1 타입 호환성을 위해 any 사용
   private readonly db: any; // lowdb v1 타입 호환성을 위해 any 사용
-  
+
   // 캐싱 시스템
   private readonly cache: Map<string, any> = new Map();
   private readonly cacheTimeout: number = 30000; // 30초
   private lastCacheTime: number = 0;
-  
+
   // 설정
   private readonly config: DatabaseConfig;
 
@@ -105,7 +108,7 @@ export class DatabaseManager implements IDatabaseManager {
       backupInterval: config.backupInterval || 3600000, // 1시간
       maxBackups: config.maxBackups || 5,
       validation: config.validation ?? true,
-      ...config
+      ...config,
     };
 
     this.dbPath = this.config.path!;
@@ -132,8 +135,8 @@ export class DatabaseManager implements IDatabaseManager {
       metadata: {
         version: '1.0.0',
         created_at: Date.now(),
-        last_updated: Date.now()
-      }
+        last_updated: Date.now(),
+      },
     };
 
     this.db.defaults(defaults).write();
@@ -145,12 +148,10 @@ export class DatabaseManager implements IDatabaseManager {
   async initialize(): Promise<boolean> {
     try {
       // 메타데이터 업데이트
-      this.db.get('metadata')
-        .assign({ last_updated: Date.now() })
-        .write();
+      this.db.get('metadata').assign({ last_updated: Date.now() }).write();
 
       console.log(`[DB] LowDB 데이터베이스가 ${this.dbPath}에 연결되었습니다.`);
-      
+
       // 자동 백업 활성화
       if (this.config.autoBackup) {
         this.scheduleBackup();
@@ -166,20 +167,18 @@ export class DatabaseManager implements IDatabaseManager {
   /**
    * 스마트 캐싱 시스템
    */
-  private smartReload(options: CacheOptions = {}): void {
-    const { forceReload = false, timeout = this.cacheTimeout } = options;
+  smartReload(forceReload: boolean = false): void {
+    const timeout = this.cacheTimeout;
     const now = Date.now();
-    
-    if (forceReload || (now - this.lastCacheTime) > timeout) {
+
+    if (forceReload || now - this.lastCacheTime > timeout) {
       try {
         this.db.read();
         this.lastCacheTime = now;
         this.cache.clear();
-        
+
         // 메타데이터 업데이트
-        this.db.get('metadata')
-          .assign({ last_updated: now })
-          .write();
+        this.db.get('metadata').assign({ last_updated: now }).write();
       } catch (error) {
         console.error('[DB] 데이터 새로고침 실패:', error);
       }
@@ -191,11 +190,11 @@ export class DatabaseManager implements IDatabaseManager {
    */
   private getCached<T>(key: string, getter: () => T): T {
     this.smartReload();
-    
+
     if (this.cache.has(key)) {
       return this.cache.get(key) as T;
     }
-    
+
     const data = getter();
     this.cache.set(key, data);
     return data;
@@ -206,14 +205,14 @@ export class DatabaseManager implements IDatabaseManager {
    */
   private invalidateCache(): void {
     this.cache.clear();
-    this.smartReload({ forceReload: true });
+    this.smartReload(true);
   }
 
   /**
    * 강제 데이터 새로고침
    */
   forceReload(): void {
-    this.smartReload({ forceReload: true });
+    this.smartReload(true);
   }
 
   /**
@@ -229,7 +228,7 @@ export class DatabaseManager implements IDatabaseManager {
    */
   async getStats(): Promise<DatabaseStats> {
     this.smartReload();
-    
+
     const userActivity = this.db.get('user_activity').value();
     const roleConfig = this.db.get('role_config').value();
     const activityLogs = this.db.get('activity_logs').value();
@@ -243,21 +242,20 @@ export class DatabaseManager implements IDatabaseManager {
       totalLogs: activityLogs.length,
       totalAfkUsers: Object.keys(afkStatus).length,
       totalMappings: Object.keys(mappings).length,
-      lastUpdate: new Date(metadata.last_updated)
+      lastUpdate: new Date(metadata.last_updated),
     };
   }
 
   /**
    * 데이터베이스 연결 종료
    */
-  async close(): Promise<boolean> {
+  async close(): Promise<void> {
     try {
       this.cache.clear();
       console.log('[DB] 데이터베이스 연결이 종료되었습니다.');
-      return true;
     } catch (error) {
       console.error('[DB] 데이터베이스 종료 오류:', error);
-      return false;
+      throw error;
     }
   }
 
@@ -309,17 +307,16 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const activityData: UserActivity = {
         userId,
         totalTime,
         startTime,
-        displayName
+        lastUpdate: Date.now(),
+        ...(displayName && { displayName }),
       };
 
-      this.db.get('user_activity')
-        .set(userId, activityData)
-        .write();
+      this.db.get('user_activity').set(userId, activityData).write();
 
       return true;
     } catch (error) {
@@ -342,9 +339,9 @@ export class DatabaseManager implements IDatabaseManager {
    * 특정 역할을 가진 사용자들의 활동 데이터 가져오기
    */
   async getUserActivityByRole(
-    roleId: string,
-    startTime?: number,
-    endTime?: number
+    _roleId: string,
+    _startTime?: number,
+    _endTime?: number
   ): Promise<UserActivity[]> {
     // 현재 LowDB 구조에서는 역할별 필터링이 제한적
     // 모든 사용자 활동을 반환하고 상위 레벨에서 필터링
@@ -394,17 +391,18 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const configData: RoleConfig = {
         roleName,
         minHours,
-        resetTime,
-        reportCycle
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        ...(resetTime !== undefined && resetTime !== null && { resetTime }),
+        reportCycle: reportCycle.toString(),
+        enabled: true,
       };
 
-      this.db.get('role_config')
-        .set(roleName, configData)
-        .write();
+      this.db.get('role_config').set(roleName, configData).write();
 
       return true;
     } catch (error) {
@@ -435,25 +433,28 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const roleConfig = await this.getRoleConfig(roleName);
       if (roleConfig) {
-        await this.updateRoleConfig(roleName, roleConfig.minHours, resetTime, roleConfig.reportCycle);
+        await this.updateRoleConfig(
+          roleName,
+          roleConfig.minHours,
+          resetTime,
+          parseInt(roleConfig.reportCycle || '1', 10)
+        );
       } else {
         await this.updateRoleConfig(roleName, 0, resetTime);
       }
 
       // 리셋 이력 기록
       const historyEntry: ResetHistoryEntry = {
-        id: Date.now(),
-        roleName,
-        resetTime,
-        reason
+        id: Date.now().toString(),
+        timestamp: Date.now(),
+        data: { roleName, resetTime },
+        reason,
       };
 
-      this.db.get('reset_history')
-        .push(historyEntry)
-        .write();
+      this.db.get('reset_history').push(historyEntry).write();
 
       return true;
     } catch (error) {
@@ -469,7 +470,8 @@ export class DatabaseManager implements IDatabaseManager {
     if (!roleName) return [];
 
     return this.getCached(`reset_history_${roleName}`, () => {
-      return this.db.get('reset_history')
+      return this.db
+        .get('reset_history')
         .filter({ roleName })
         .sortBy('resetTime')
         .reverse()
@@ -502,16 +504,14 @@ export class DatabaseManager implements IDatabaseManager {
       const logEntry: ActivityLogEntry = {
         id: logId,
         userId,
-        eventType,
+        userName: 'Unknown',
         channelId,
         channelName,
+        action: 'join',
         timestamp,
-        membersCount: members.length
       };
 
-      this.db.get('activity_logs')
-        .push(logEntry)
-        .write();
+      this.db.get('activity_logs').push(logEntry).write();
 
       // 멤버 목록 저장
       if (members.length > 0) {
@@ -528,35 +528,40 @@ export class DatabaseManager implements IDatabaseManager {
   /**
    * 특정 기간의 활동 로그 가져오기
    */
-  async getActivityLogs(
-    startTime: number,
-    endTime: number,
-    options: ActivityLogOptions = {}
-  ): Promise<ActivityLogEntry[]> {
-    const { eventType, limit, sortBy = 'timestamp', sortOrder = 'desc' } = options;
+  async getActivityLogs(options: LogQueryOptions = {}): Promise<ActivityLogEntry[]> {
+    const { startDate, endDate, action, limit, userId, channelId } = options;
+    const startTime = startDate?.getTime() || 0;
+    const endTime = endDate?.getTime() || Date.now();
 
     try {
       this.smartReload();
-      
-      let query = this.db.get('activity_logs')
-        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime);
 
-      if (eventType) {
-        query = query.filter({ eventType });
+      let query = this.db
+        .get('activity_logs')
+        .filter((log: ActivityLogEntry) => log.timestamp >= startTime && log.timestamp <= endTime);
+
+      if (action) {
+        query = query.filter({ action });
       }
 
-      let logs = query.sortBy(sortBy).value();
-      
-      if (sortOrder === 'desc') {
-        logs = logs.reverse();
+      if (userId) {
+        query = query.filter({ userId });
       }
+
+      if (channelId) {
+        query = query.filter({ channelId });
+      }
+
+      let logs = query.sortBy('timestamp').value();
+
+      logs = logs.reverse(); // desc order by default
 
       if (limit) {
         logs = logs.slice(0, limit);
       }
 
       // 멤버 정보 추가
-      return logs.map(log => {
+      return logs.map((log: ActivityLogEntry) => {
         const members = this.db.get(`log_members.${log.id}`).value() || [];
         return { ...log, members };
       });
@@ -574,15 +579,16 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.smartReload();
-      
-      const logs = this.db.get('activity_logs')
+
+      const logs = this.db
+        .get('activity_logs')
         .filter({ userId })
         .sortBy('timestamp')
         .reverse()
         .take(limit)
         .value();
 
-      return logs.map(log => {
+      return logs.map((log: ActivityLogEntry) => {
         const members = this.db.get(`log_members.${log.id}`).value() || [];
         return { ...log, members };
       });
@@ -598,18 +604,19 @@ export class DatabaseManager implements IDatabaseManager {
   async getDailyActivityStats(
     startTime: number,
     endTime: number,
-    options: StatsOptions = {}
+    _options: StatsOptions = {}
   ): Promise<DailyActivityStats[]> {
     try {
       this.smartReload();
-      
-      const logs = this.db.get('activity_logs')
-        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
+
+      const logs = this.db
+        .get('activity_logs')
+        .filter((log: ActivityLogEntry) => log.timestamp >= startTime && log.timestamp <= endTime)
         .value();
 
       const dailyStats: { [key: string]: DailyActivityStats } = {};
 
-      logs.forEach(log => {
+      logs.forEach((log: ActivityLogEntry) => {
         const date = new Date(log.timestamp);
         const dateStr = date.toISOString().split('T')[0];
 
@@ -619,27 +626,27 @@ export class DatabaseManager implements IDatabaseManager {
             totalEvents: 0,
             joins: 0,
             leaves: 0,
-            uniqueUsers: 0
+            uniqueUsers: 0,
           };
         }
 
         dailyStats[dateStr].totalEvents++;
 
-        if (log.eventType === 'JOIN') {
+        if (log.action === 'join') {
           dailyStats[dateStr].joins++;
-        } else if (log.eventType === 'LEAVE') {
+        } else if (log.action === 'leave') {
           dailyStats[dateStr].leaves++;
         }
       });
 
       // 고유 사용자 수 계산
-      Object.keys(dailyStats).forEach(dateStr => {
-        const dayLogs = logs.filter(log => {
+      Object.keys(dailyStats).forEach((dateStr) => {
+        const dayLogs = logs.filter((log: ActivityLogEntry) => {
           const logDate = new Date(log.timestamp).toISOString().split('T')[0];
           return logDate === dateStr;
         });
-        
-        const uniqueUsers = new Set(dayLogs.map(log => log.userId));
+
+        const uniqueUsers = new Set(dayLogs.map((log: ActivityLogEntry) => log.userId));
         dailyStats[dateStr].uniqueUsers = uniqueUsers.size;
       });
 
@@ -662,12 +669,12 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.smartReload();
-      
-      const logs = this.db.get('activity_logs')
-        .filter(log => 
-          log.userId === userId && 
-          log.timestamp >= startTime && 
-          log.timestamp <= endTime
+
+      const logs = this.db
+        .get('activity_logs')
+        .filter(
+          (log: ActivityLogEntry) =>
+            log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime
         )
         .value();
 
@@ -698,18 +705,18 @@ export class DatabaseManager implements IDatabaseManager {
   /**
    * 특정 기간의 활동 멤버 목록 가져오기
    */
-  async getActiveMembersForTimeRange(
-    startTime: number,
-    endTime: number
-  ): Promise<ActiveMember[]> {
+  async getActiveMembersForTimeRange(startTime: number, endTime: number): Promise<ActiveMember[]> {
     try {
       this.smartReload();
-      
-      const logs = this.db.get('activity_logs')
-        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
+
+      const logs = this.db
+        .get('activity_logs')
+        .filter((log: ActivityLogEntry) => log.timestamp >= startTime && log.timestamp <= endTime)
         .value();
 
-      const userIds = [...new Set(logs.map(log => log.userId))];
+      const userIds: string[] = [
+        ...new Set<string>(logs.map((log: ActivityLogEntry) => log.userId)),
+      ];
       const activeMembers: ActiveMember[] = [];
 
       for (const userId of userIds) {
@@ -718,7 +725,7 @@ export class DatabaseManager implements IDatabaseManager {
           activeMembers.push({
             userId,
             displayName: userActivity.displayName || userId,
-            totalTime: userActivity.totalTime || 0
+            totalTime: userActivity.totalTime || 0,
           });
         }
       }
@@ -740,14 +747,15 @@ export class DatabaseManager implements IDatabaseManager {
   ): Promise<ChannelActivity[]> {
     try {
       this.smartReload();
-      
-      const logs = this.db.get('activity_logs')
-        .filter(log => log.timestamp >= startTime && log.timestamp <= endTime)
+
+      const logs = this.db
+        .get('activity_logs')
+        .filter((log: ActivityLogEntry) => log.timestamp >= startTime && log.timestamp <= endTime)
         .value();
 
       const channelCounts: { [key: string]: number } = {};
-      
-      logs.forEach(log => {
+
+      logs.forEach((log: ActivityLogEntry) => {
         if (!channelCounts[log.channelName]) {
           channelCounts[log.channelName] = 0;
         }
@@ -798,10 +806,10 @@ export class DatabaseManager implements IDatabaseManager {
       const roleConfig = await this.getRoleConfig(roleName);
       if (!roleConfig) return null;
 
-      const reportCycle = roleConfig.reportCycle || 1;
-      const lastResetTime = roleConfig.resetTime || Date.now();
+      const reportCycle: number = Number(roleConfig.reportCycle) || 1;
+      const lastResetTime: number = roleConfig.resetTime || Date.now();
 
-      return lastResetTime + (reportCycle * 7 * 24 * 60 * 60 * 1000);
+      return lastResetTime + reportCycle * 7 * 24 * 60 * 60 * 1000;
     } catch (error) {
       console.error('[DB] 다음 보고서 시간 조회 오류:', error);
       return null;
@@ -815,7 +823,7 @@ export class DatabaseManager implements IDatabaseManager {
    */
   async setUserAfkStatus(
     userId: string,
-    displayName: string,
+    _displayName: string,
     untilTimestamp: number
   ): Promise<boolean> {
     if (!userId || !untilTimestamp) return false;
@@ -825,16 +833,18 @@ export class DatabaseManager implements IDatabaseManager {
 
       const afkData: AfkStatus = {
         userId,
-        displayName,
+        isAfk: true,
+        afkStartTime: Date.now(),
         afkUntil: untilTimestamp,
-        createdAt: Date.now()
+        totalAfkTime: 0,
+        lastUpdate: Date.now(),
       };
 
-      this.db.get('afk_status')
-        .set(userId, afkData)
-        .write();
+      this.db.get('afk_status').set(userId, afkData).write();
 
-      console.log(`[DB] 잠수 상태 설정: ${userId}, until: ${new Date(untilTimestamp).toISOString()}`);
+      console.log(
+        `[DB] 잠수 상태 설정: ${userId}, until: ${new Date(untilTimestamp).toISOString()}`
+      );
       return true;
     } catch (error) {
       console.error('[DB] 잠수 상태 설정 오류:', error);
@@ -854,7 +864,7 @@ export class DatabaseManager implements IDatabaseManager {
       const afkData = this.db.get('afk_status').get(userId).value();
       console.log(`[DB] 잠수 상태 조회: ${userId}, 결과:`, afkData);
 
-      if (!afkData || !afkData.afkUntil) {
+      if (!afkData?.afkUntil) {
         return null;
       }
 
@@ -874,7 +884,7 @@ export class DatabaseManager implements IDatabaseManager {
     try {
       this.invalidateCache();
       this.db.get('afk_status').unset(userId).write();
-      
+
       console.log(`[DB] 잠수 상태 해제: ${userId}`);
       return true;
     } catch (error) {
@@ -893,9 +903,10 @@ export class DatabaseManager implements IDatabaseManager {
       const afkData = this.db.get('afk_status').value();
       const afkUsers: AfkStatus[] = [];
 
-      for (const [userId, data] of Object.entries(afkData)) {
-        if (data.afkUntil) {
-          afkUsers.push(data);
+      for (const [_userId, data] of Object.entries(afkData)) {
+        const afkStatus = data as AfkStatus;
+        if (afkStatus.afkUntil) {
+          afkUsers.push(afkStatus);
         }
       }
 
@@ -918,7 +929,8 @@ export class DatabaseManager implements IDatabaseManager {
       const clearedUsers: string[] = [];
 
       for (const [userId, data] of Object.entries(afkData)) {
-        if (data.afkUntil && data.afkUntil < now) {
+        const afkStatus = data as AfkStatus;
+        if (afkStatus.afkUntil && afkStatus.afkUntil < now) {
           this.db.get('afk_status').unset(userId).write();
           clearedUsers.push(userId);
           console.log(`[DB] 잠수 상태 만료 해제: ${userId}`);
@@ -946,19 +958,19 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const threadData = this.db.get('forum_messages').get(threadId).value() || {};
-      
+
       if (!threadData[messageType]) {
         threadData[messageType] = [];
       }
-      
+
       if (!threadData[messageType].includes(messageId)) {
         threadData[messageType].push(messageId);
       }
-      
+
       this.db.get('forum_messages').set(threadId, threadData).write();
-      
+
       console.log(`[DB] 포럼 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
       return true;
     } catch (error) {
@@ -975,12 +987,12 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.smartReload();
-      
+
       const threadData = this.db.get('forum_messages').get(threadId).value();
-      if (!threadData || !threadData[messageType]) {
+      if (!threadData?.[messageType]) {
         return [];
       }
-      
+
       return threadData[messageType] || [];
     } catch (error) {
       console.error('[DB] 추적된 메시지 조회 오류:', error);
@@ -996,21 +1008,21 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const threadData = this.db.get('forum_messages').get(threadId).value();
-      if (!threadData || !threadData[messageType]) {
+      if (!threadData?.[messageType]) {
         return [];
       }
-      
+
       const messageIds = threadData[messageType] || [];
       delete threadData[messageType];
-      
+
       if (Object.keys(threadData).length === 0) {
         this.db.get('forum_messages').unset(threadId).write();
       } else {
         this.db.get('forum_messages').set(threadId, threadData).write();
       }
-      
+
       console.log(`[DB] 추적된 메시지 삭제: ${threadId}, ${messageType}, ${messageIds.length}개`);
       return messageIds;
     } catch (error) {
@@ -1022,24 +1034,24 @@ export class DatabaseManager implements IDatabaseManager {
   /**
    * 모든 포럼 메시지 추적 정보 삭제 (스레드 단위)
    */
-  async clearAllTrackedMessagesForThread(threadId: string): Promise<ForumMessageData> {
-    if (!threadId) return {};
+  async clearAllTrackedMessagesForThread(threadId: string): Promise<ForumMessageData | null> {
+    if (!threadId) return null;
 
     try {
       this.invalidateCache();
-      
+
       const threadData = this.db.get('forum_messages').get(threadId).value();
       if (!threadData) {
-        return {};
+        return null;
       }
-      
+
       this.db.get('forum_messages').unset(threadId).write();
-      
+
       console.log(`[DB] 스레드의 모든 추적 메시지 삭제: ${threadId}`);
       return threadData;
     } catch (error) {
       console.error('[DB] 스레드 메시지 추적 정보 삭제 오류:', error);
-      return {};
+      return null;
     }
   }
 
@@ -1051,26 +1063,24 @@ export class DatabaseManager implements IDatabaseManager {
   async saveChannelMapping(
     voiceChannelId: string,
     forumPostId: string,
-    lastParticipantCount: number = 0
+    _lastParticipantCount: number = 0
   ): Promise<boolean> {
     if (!voiceChannelId || !forumPostId) return false;
 
     try {
       this.invalidateCache();
-      
+
       const now = Date.now();
       const mappingData: VoiceChannelMapping = {
-        voice_channel_id: voiceChannelId,
-        forum_post_id: forumPostId,
-        created_at: now,
-        last_updated: now,
-        last_participant_count: lastParticipantCount
+        channelId: voiceChannelId,
+        forumPostId,
+        threadId: forumPostId,
+        createdAt: now,
+        isActive: true,
       };
-      
-      this.db.get('voice_channel_mappings')
-        .set(voiceChannelId, mappingData)
-        .write();
-      
+
+      this.db.get('voice_channel_mappings').set(voiceChannelId, mappingData).write();
+
       console.log(`[DB] 채널 매핑 저장: ${voiceChannelId} -> ${forumPostId}`);
       return true;
     } catch (error) {
@@ -1087,7 +1097,7 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.smartReload();
-      
+
       const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
       return mappingData || null;
     } catch (error) {
@@ -1102,7 +1112,7 @@ export class DatabaseManager implements IDatabaseManager {
   async getAllChannelMappings(): Promise<VoiceChannelMapping[]> {
     try {
       this.smartReload();
-      
+
       const mappings = this.db.get('voice_channel_mappings').value();
       return Object.values(mappings);
     } catch (error) {
@@ -1119,14 +1129,14 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const existed = this.db.get('voice_channel_mappings').has(voiceChannelId).value();
       if (!existed) {
         return false;
       }
-      
+
       this.db.get('voice_channel_mappings').unset(voiceChannelId).write();
-      
+
       console.log(`[DB] 채널 매핑 제거: ${voiceChannelId}`);
       return true;
     } catch (error) {
@@ -1146,20 +1156,18 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.invalidateCache();
-      
+
       const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
       if (!mappingData) {
         console.log(`[DB] 매핑을 찾을 수 없음: ${voiceChannelId}`);
         return false;
       }
-      
+
       mappingData.last_participant_count = participantCount;
       mappingData.last_updated = Date.now();
-      
-      this.db.get('voice_channel_mappings')
-        .set(voiceChannelId, mappingData)
-        .write();
-      
+
+      this.db.get('voice_channel_mappings').set(voiceChannelId, mappingData).write();
+
       console.log(`[DB] 참여자 수 업데이트: ${voiceChannelId} -> ${participantCount}`);
       return true;
     } catch (error) {
@@ -1176,15 +1184,16 @@ export class DatabaseManager implements IDatabaseManager {
 
     try {
       this.smartReload();
-      
+
       const mappings = this.db.get('voice_channel_mappings').value();
-      
+
       for (const [channelId, data] of Object.entries(mappings)) {
-        if (data.forum_post_id === forumPostId) {
+        const mapping = data as any; // TODO: Define proper mapping type
+        if (mapping.forum_post_id === forumPostId) {
           return channelId;
         }
       }
-      
+
       return null;
     } catch (error) {
       console.error('[DB] 포스트 ID로 채널 ID 조회 오류:', error);
@@ -1195,40 +1204,43 @@ export class DatabaseManager implements IDatabaseManager {
   /**
    * 만료된 매핑 정리
    */
-  async cleanupExpiredMappings(
-    options: CleanupOptions = {}
-  ): Promise<number> {
-    const { 
+  async cleanupExpiredMappings(options: CleanupOptions = {}): Promise<number> {
+    const {
       maxAge = 7 * 24 * 60 * 60 * 1000, // 7일
       dryRun = false,
-      verbose = false
+      verbose = false,
     } = options;
 
     try {
       this.smartReload();
-      
+
       const now = Date.now();
       const mappings = this.db.get('voice_channel_mappings').value();
       let cleanedCount = 0;
-      
+
       for (const [channelId, data] of Object.entries(mappings)) {
-        if (data.last_updated && (now - data.last_updated) > maxAge) {
+        const mapping = data as any; // TODO: Define proper mapping type
+        if (mapping.last_updated && now - mapping.last_updated > maxAge) {
           if (!dryRun) {
             this.db.get('voice_channel_mappings').unset(channelId).write();
           }
           cleanedCount++;
-          
+
           if (verbose) {
-            const daysPassed = Math.round((now - data.last_updated) / (24 * 60 * 60 * 1000));
-            console.log(`[DB] ${dryRun ? '(DRY RUN) ' : ''}만료된 매핑 제거: ${channelId} (${daysPassed}일 경과)`);
+            const daysPassed = Math.round((now - mapping.last_updated) / (24 * 60 * 60 * 1000));
+            console.log(
+              `[DB] ${dryRun ? '(DRY RUN) ' : ''}만료된 매핑 제거: ${channelId} (${daysPassed}일 경과)`
+            );
           }
         }
       }
-      
+
       if (cleanedCount > 0 && verbose) {
-        console.log(`[DB] ${dryRun ? '(DRY RUN) ' : ''}만료된 매핑 정리 완료: ${cleanedCount}개 제거`);
+        console.log(
+          `[DB] ${dryRun ? '(DRY RUN) ' : ''}만료된 매핑 정리 완료: ${cleanedCount}개 제거`
+        );
       }
-      
+
       return cleanedCount;
     } catch (error) {
       console.error('[DB] 만료된 매핑 정리 오류:', error);
@@ -1246,7 +1258,7 @@ export class DatabaseManager implements IDatabaseManager {
     roleConfigData: any,
     options: MigrationOptions = {}
   ): Promise<boolean> {
-    const { validateData = true, createBackup = true, skipErrors = false } = options;
+    const { validateData: _validateData = true, createBackup = true, skipErrors = false } = options;
 
     try {
       // 백업 생성
@@ -1264,12 +1276,10 @@ export class DatabaseManager implements IDatabaseManager {
               userId,
               totalTime: (data as any).totalTime || 0,
               startTime: (data as any).startTime || null,
-              displayName: null
+              lastUpdate: Date.now(),
             };
 
-            this.db.get('user_activity')
-              .set(userId, activityData)
-              .write();
+            this.db.get('user_activity').set(userId, activityData).write();
           } catch (error) {
             console.error(`[DB] 사용자 활동 마이그레이션 오류 (${userId}):`, error);
             if (!skipErrors) throw error;
@@ -1285,25 +1295,24 @@ export class DatabaseManager implements IDatabaseManager {
           const configData: RoleConfig = {
             roleName,
             minHours: minHours as number,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
             resetTime,
-            reportCycle: 1
+            reportCycle: '1',
+            enabled: true,
           };
 
-          this.db.get('role_config')
-            .set(roleName, configData)
-            .write();
+          this.db.get('role_config').set(roleName, configData).write();
 
           if (resetTime) {
             const historyEntry: ResetHistoryEntry = {
-              id: Date.now() + Math.random(),
-              roleName,
-              resetTime,
-              reason: 'JSON 데이터 마이그레이션'
+              id: (Date.now() + Math.random()).toString(),
+              timestamp: Date.now(),
+              data: { roleName, resetTime },
+              reason: 'JSON 데이터 마이그레이션',
             };
 
-            this.db.get('reset_history')
-              .push(historyEntry)
-              .write();
+            this.db.get('reset_history').push(historyEntry).write();
           }
         } catch (error) {
           console.error(`[DB] 역할 설정 마이그레이션 오류 (${roleName}):`, error);
@@ -1327,11 +1336,11 @@ export class DatabaseManager implements IDatabaseManager {
   async createBackup(): Promise<string> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const backupPath = `${this.dbPath}.backup.${timestamp}`;
-    
+
     try {
       const fs = await import('fs');
       await fs.promises.copyFile(this.dbPath, backupPath);
-      
+
       console.log(`[DB] 백업 생성 완료: ${backupPath}`);
       return backupPath;
     } catch (error) {
@@ -1347,7 +1356,7 @@ export class DatabaseManager implements IDatabaseManager {
     if (!this.config.autoBackup) return;
 
     const interval = this.config.backupInterval || 3600000; // 1시간
-    
+
     setInterval(async () => {
       try {
         await this.createBackup();
@@ -1365,17 +1374,17 @@ export class DatabaseManager implements IDatabaseManager {
     try {
       const fs = await import('fs');
       const path = await import('path');
-      
+
       const dir = path.dirname(this.dbPath);
       const baseName = path.basename(this.dbPath);
-      
+
       const files = await fs.promises.readdir(dir);
       const backupFiles = files
-        .filter(file => file.startsWith(`${baseName}.backup.`))
-        .map(file => ({
+        .filter((file) => file.startsWith(`${baseName}.backup.`))
+        .map((file) => ({
           name: file,
           path: path.join(dir, file),
-          stats: fs.statSync(path.join(dir, file))
+          stats: fs.statSync(path.join(dir, file)),
         }))
         .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime());
 

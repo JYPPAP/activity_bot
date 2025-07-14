@@ -2,7 +2,7 @@
 module.exports = {
   apps: [{
     name: 'discord-bot',
-    script: 'src/index.js',
+    script: 'dist/index.js',
     
     // 환경 변수
     env: {
@@ -72,6 +72,37 @@ module.exports = {
     
     // Errsole 대시보드 포트 충돌 방지
     env_file: '.env'
+  }, {
+    // TypeScript 개발용 설정
+    name: 'discord-bot-dev',
+    script: 'src/index.ts',
+    interpreter: 'tsx',
+    
+    // 개발 환경 변수
+    env: {
+      NODE_ENV: 'development',
+      ERRSOLE_PORT: 8003, // 개발용 포트
+    },
+    
+    // 개발 환경 최적화
+    instances: 1,
+    exec_mode: 'fork',
+    autorestart: true,
+    watch: ['src/**/*.ts', 'src/**/*.js'], // TypeScript 파일 감시
+    ignore_watch: ['node_modules', 'logs', 'dist'],
+    max_memory_restart: '512M',
+    
+    // 빠른 재시작
+    restart_delay: 1000,
+    max_restarts: 5,
+    min_uptime: '5s',
+    
+    // 개발용 로그
+    log_file: './logs/dev-combined.log',
+    out_file: './logs/dev-out.log',
+    error_file: './logs/dev-error.log',
+    
+    env_file: '.env'
   }],
   
   deploy: {
@@ -87,7 +118,7 @@ module.exports = {
       'pre-setup': 'ls -la', // 배포 전 디렉토리 확인
       'post-setup': 'ls -la && pwd', // 배포 후 디렉토리 확인  
       'pre-deploy': 'git fetch --all', // 배포 전 최신 코드 가져오기
-      'post-deploy': 'npm install && npm run pm2:stop; npm run pm2:start --env production && npm run pm2:logs',
+      'post-deploy': 'npm install && npm run build && npm run pm2:stop; npm run pm2:start --env production && npm run pm2:logs',
       
       // 배포 관련 설정
       ssh_options: 'ForwardAgent=yes', // SSH 에이전트 포워딩
@@ -103,7 +134,7 @@ module.exports = {
       ref: 'origin/master',
       repo: 'https://github.com/JYPPAP/activity_bot.git',
       path: '/data/data/com.termux/files/home/discord_bot',
-      'post-deploy': 'npm install && npm run pm2:start',
+      'post-deploy': 'npm install && npm run build && npm run pm2:start',
     }
   }
 };

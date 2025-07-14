@@ -1,9 +1,17 @@
 // src/commands/gapListCommand.ts - gap_list 명령어 (잠수 기능 개선)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
+
+import { UserClassificationService } from '../services/UserClassificationService.js';
 import { EmbedFactory } from '../utils/embedBuilder.js';
 import { cleanRoleName } from '../utils/formatters.js';
-import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
-import { UserClassificationService } from '../services/UserClassificationService.js';
+
+import {
+  CommandBase,
+  CommandServices,
+  CommandResult,
+  CommandExecutionOptions,
+  CommandMetadata,
+} from './CommandBase.js';
 
 export class GapListCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
@@ -13,11 +21,8 @@ export class GapListCommand extends CommandBase {
     cooldown: 10,
     guildOnly: true,
     usage: '/gap_list role:<역할이름>',
-    examples: [
-      '/gap_list role:정규',
-      '/gap_list role:준회원'
-    ],
-    aliases: ['활동목록', 'list']
+    examples: ['/gap_list role:정규', '/gap_list role:준회원'],
+    aliases: ['활동목록', 'list'],
   };
 
   private userClassificationService: UserClassificationService | null = null;
@@ -33,11 +38,8 @@ export class GapListCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addStringOption(option =>
-        option
-          .setName('role')
-          .setDescription('조회할 역할 이름')
-          .setRequired(true)
+      .addStringOption((option) =>
+        option.setName('role').setDescription('조회할 역할 이름').setRequired(true)
       ) as SlashCommandBuilder;
   }
 
@@ -54,7 +56,10 @@ export class GapListCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(
+    interaction: ChatInputCommandInteraction,
+    _options: CommandExecutionOptions
+  ): Promise<CommandResult> {
     try {
       // 서비스 의존성 확인
       if (!this.userClassificationService) {
@@ -62,12 +67,12 @@ export class GapListCommand extends CommandBase {
       }
 
       // 역할 옵션 가져오기
-      const roleOption = interaction.options.getString("role");
+      const roleOption = interaction.options.getString('role');
       if (!roleOption) {
         throw new Error('역할 옵션이 제공되지 않았습니다.');
       }
 
-      const roles = roleOption.split(',').map(r => cleanRoleName(r.trim()));
+      const roles = roleOption.split(',').map((r) => cleanRoleName(r.trim()));
       const guild = interaction.guild;
 
       if (!guild) {
@@ -77,13 +82,13 @@ export class GapListCommand extends CommandBase {
       // 캐시 확인
       const cacheKey = `gap_list_${roles.join('_')}_${guild.id}`;
       const cached = this.getCached<any>(cacheKey);
-      
+
       if (cached) {
         await this.sendActivityEmbeds(interaction, cached.embeds);
         return {
           success: true,
           message: '캐시된 활동 데이터를 전송했습니다.',
-          data: cached
+          data: cached,
         };
       }
 
@@ -92,15 +97,15 @@ export class GapListCommand extends CommandBase {
 
       // 역할 멤버 가져오기
       const members = await guild.members.fetch();
-      const roleMembers = members.filter(member =>
-        member.roles.cache.some(r => roles.includes(r.name))
+      const roleMembers = members.filter((member) =>
+        member.roles.cache.some((r) => roles.includes(r.name))
       );
 
       // 역할 멤버가 없는 경우 처리
       if (roleMembers.size === 0) {
         return {
           success: false,
-          message: `지정된 역할(${roles.join(', ')})을 가진 멤버가 없습니다.`
+          message: `지정된 역할(${roles.join(', ')})을 가진 멤버가 없습니다.`,
         };
       }
 
@@ -108,8 +113,12 @@ export class GapListCommand extends CommandBase {
       await this.activityTracker.saveActivityData();
 
       // 최신 데이터로 활성/비활성/잠수 사용자 분류
-      const classificationResult = await this.userClassificationService.classifyUsers(roles[0], roleMembers);
-      const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours, statistics } = classificationResult;
+      const classificationResult = await this.userClassificationService.classifyUsers(
+        roles[0],
+        roleMembers
+      );
+      const { activeUsers, inactiveUsers, afkUsers, resetTime, minHours, statistics } =
+        classificationResult;
 
       // 임베드 생성
       const embeds = EmbedFactory.createActivityEmbeds({
@@ -117,15 +126,36 @@ export class GapListCommand extends CommandBase {
         activeUsers,
         inactiveUsers,
         afkUsers,
-        startDate: resetTime,
+        startDate: resetTime ? new Date(resetTime) : new Date(0),
         endDate: new Date(),
         minHours,
-        title: '활동 목록'
+        title: '활동 목록',
       });
 
       // 통계 정보 추가 (옵션)
       if (statistics && this.config.enableDetailedStats) {
-        const statsEmbed = EmbedFactory.createStatsEmbed(statistics);
+        const statsEmbedData = {
+          title: '📊 활동 통계',
+          stats: [
+            { name: '총 사용자', value: `${statistics.totalUsers}명`, inline: true },
+            {
+              name: '활성 사용자 비율',
+              value: `${statistics.activePercentage.toFixed(1)}%`,
+              inline: true,
+            },
+            {
+              name: '비활성 사용자 비율',
+              value: `${statistics.inactivePercentage.toFixed(1)}%`,
+              inline: true,
+            },
+            {
+              name: '평균 활동 시간',
+              value: `${(statistics.averageActivityTime / (60 * 60 * 1000)).toFixed(1)}시간`,
+              inline: true,
+            },
+          ],
+        };
+        const statsEmbed = EmbedFactory.createStatsEmbed(statsEmbedData);
         embeds.push(statsEmbed);
       }
 
@@ -136,7 +166,7 @@ export class GapListCommand extends CommandBase {
         roleMembers: roleMembers.size,
         activeCount: activeUsers.length,
         inactiveCount: inactiveUsers.length,
-        afkCount: afkUsers.length
+        afkCount: afkUsers.length,
       };
       this.setCached(cacheKey, cacheData);
 
@@ -151,16 +181,15 @@ export class GapListCommand extends CommandBase {
           activeUsers: activeUsers.length,
           inactiveUsers: inactiveUsers.length,
           afkUsers: afkUsers.length,
-          roles: roles
-        }
+          roles,
+        },
       };
-
     } catch (error) {
       console.error('GapListCommand 실행 오류:', error);
       return {
         success: false,
         message: '활동 목록 조회 중 오류가 발생했습니다.',
-        error: error as Error
+        error: error as Error,
       };
     }
   }
@@ -170,7 +199,10 @@ export class GapListCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param embeds - 전송할 임베드 배열
    */
-  private async sendActivityEmbeds(interaction: ChatInputCommandInteraction, embeds: any[]): Promise<void> {
+  private async sendActivityEmbeds(
+    interaction: ChatInputCommandInteraction,
+    embeds: any[]
+  ): Promise<void> {
     try {
       // DM으로 임베드 전송 시도
       for (const embed of embeds) {
@@ -182,7 +214,6 @@ export class GapListCommand extends CommandBase {
         content: '📩 활동 데이터 임베드를 DM으로 전송했습니다!',
         flags: MessageFlags.Ephemeral,
       });
-
     } catch (dmError) {
       console.warn('DM 전송 실패, 채널에서 직접 전송:', dmError);
 
@@ -190,10 +221,10 @@ export class GapListCommand extends CommandBase {
         // DM 전송 실패 시 채널에서 직접 임베드 제공
         // 임베드가 너무 많은 경우 분할 전송
         const maxEmbedsPerMessage = 10;
-        
+
         for (let i = 0; i < embeds.length; i += maxEmbedsPerMessage) {
           const embedBatch = embeds.slice(i, i + maxEmbedsPerMessage);
-          
+
           if (i === 0) {
             await interaction.followUp({
               content: '📂 DM 전송에 실패했습니다. 여기에서 확인하세요:',
@@ -207,16 +238,15 @@ export class GapListCommand extends CommandBase {
             });
           }
         }
-
       } catch (followUpError) {
         console.error('팔로우업 전송도 실패:', followUpError);
-        
+
         // 최후의 수단으로 간단한 텍스트 메시지 전송
         await interaction.followUp({
           content: '❌ 활동 데이터 전송에 실패했습니다. 잠시 후 다시 시도해주세요.',
           flags: MessageFlags.Ephemeral,
         });
-        
+
         throw followUpError;
       }
     }
@@ -237,7 +267,7 @@ export class GapListCommand extends CommandBase {
 • 여러 역할을 쉼표로 구분하여 조회할 수 있습니다.
 
 **예시:**
-${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
+${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
 
 **쿨다운:** ${this.metadata.cooldown}초
 **권한:** 서버 전용`;
@@ -248,7 +278,7 @@ ${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
    */
   public updateConfig(newConfig: any): void {
     super.updateConfig(newConfig);
-    
+
     // 추가 설정 처리
     if (newConfig.enableDetailedStats !== undefined) {
       this.config.enableDetailedStats = newConfig.enableDetailedStats;

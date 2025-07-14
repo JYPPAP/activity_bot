@@ -1,0 +1,100 @@
+# Git attributes for consistent line endings
+# https://git-scm.com/docs/gitattributes
+
+# Set default behavior to automatically normalize line endings
+* text=auto eol=lf
+
+# Source code files - force LF line endings
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.jsx text eol=lf
+*.tsx text eol=lf
+
+# Configuration files - force LF line endings
+*.json text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.conf text eol=lf
+
+# Documentation files - force LF line endings
+*.md text eol=lf
+*.txt text eol=lf
+*.rst text eol=lf
+
+# Web files - force LF line endings
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+*.sass text eol=lf
+*.less text eol=lf
+
+# Shell scripts - force LF line endings
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+*.fish text eol=lf
+
+# Ignore files - force LF line endings
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.editorconfig text eol=lf
+.prettierrc* text eol=lf
+.eslintrc* text eol=lf
+.npmignore text eol=lf
+
+# Package files - force LF line endings
+package.json text eol=lf
+package-lock.json text eol=lf
+yarn.lock text eol=lf
+pnpm-lock.yaml text eol=lf
+composer.json text eol=lf
+composer.lock text eol=lf
+
+# Binary files - do not touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.bmp binary
+*.ico binary
+*.svg binary
+*.webp binary
+*.pdf binary
+*.zip binary
+*.tar binary
+*.gz binary
+*.7z binary
+*.rar binary
+*.exe binary
+*.dll binary
+*.so binary
+*.dylib binary
+
+# Database files - do not touch
+*.db binary
+*.sqlite binary
+*.sqlite3 binary
+
+# Font files - do not touch
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary
+*.otf binary
+
+# Audio/Video files - do not touch
+*.mp3 binary
+*.mp4 binary
+*.avi binary
+*.mov binary
+*.wav binary
+*.flac binary
+
+# Special cases
+*.bat text eol=crlf
+*.cmd text eol=crlf

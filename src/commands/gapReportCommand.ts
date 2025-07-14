@@ -1,9 +1,24 @@
 // src/commands/gapReportCommand.ts - gap_report 명령어
-import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, Collection, GuildMember, TextChannel } from 'discord.js';
-import { cleanRoleName } from '../utils/formatters.js';
-import { EmbedFactory } from '../utils/embedBuilder.js';
-import { CommandBase, CommandServices, CommandResult, CommandExecutionOptions, CommandMetadata } from './CommandBase.js';
+import {
+  ChatInputCommandInteraction,
+  MessageFlags,
+  SlashCommandBuilder,
+  Collection,
+  GuildMember,
+  TextChannel,
+} from 'discord.js';
+
 import { UserClassificationService } from '../services/UserClassificationService.js';
+import { EmbedFactory } from '../utils/embedBuilder.js';
+import { cleanRoleName } from '../utils/formatters.js';
+
+import {
+  CommandBase,
+  CommandServices,
+  CommandResult,
+  CommandExecutionOptions,
+  CommandMetadata,
+} from './CommandBase.js';
 
 // 명령어 옵션 인터페이스
 interface ReportCommandOptions {
@@ -61,9 +76,9 @@ export class GapReportCommand extends CommandBase {
       '/gap_report role:정규',
       '/gap_report role:정규 test_mode:true',
       '/gap_report role:정규 start_date:241201 end_date:241231',
-      '/gap_report role:정규 reset:true log_channel:#보고서'
+      '/gap_report role:정규 reset:true log_channel:#보고서',
     ],
-    aliases: ['report', '보고서']
+    aliases: ['report', '보고서'],
   };
 
   private userClassificationService: UserClassificationService | null = null;
@@ -79,55 +94,43 @@ export class GapReportCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addStringOption(option =>
-        option
-          .setName('role')
-          .setDescription('보고서를 생성할 역할 이름')
-          .setRequired(true)
+      .addStringOption((option) =>
+        option.setName('role').setDescription('보고서를 생성할 역할 이름').setRequired(true)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('start_date')
           .setDescription('시작 날짜 (YYMMDD 형식, 선택사항)')
           .setRequired(false)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('end_date')
           .setDescription('종료 날짜 (YYMMDD 형식, 선택사항)')
           .setRequired(false)
       )
-      .addBooleanOption(option =>
+      .addBooleanOption((option) =>
         option
           .setName('test_mode')
           .setDescription('테스트 모드 (리셋 시간 기록 안함)')
           .setRequired(false)
       )
-      .addBooleanOption(option =>
-        option
-          .setName('reset')
-          .setDescription('보고서 생성 후 활동 시간 리셋')
-          .setRequired(false)
+      .addBooleanOption((option) =>
+        option.setName('reset').setDescription('보고서 생성 후 활동 시간 리셋').setRequired(false)
       )
-      .addChannelOption(option =>
-        option
-          .setName('log_channel')
-          .setDescription('보고서를 전송할 채널')
-          .setRequired(false)
+      .addChannelOption((option) =>
+        option.setName('log_channel').setDescription('보고서를 전송할 채널').setRequired(false)
       )
-      .addBooleanOption(option =>
+      .addBooleanOption((option) =>
         option
           .setName('include_statistics')
           .setDescription('통계 정보 포함 여부')
           .setRequired(false)
       )
-      .addBooleanOption(option =>
-        option
-          .setName('include_charts')
-          .setDescription('차트 생성 여부')
-          .setRequired(false)
+      .addBooleanOption((option) =>
+        option.setName('include_charts').setDescription('차트 생성 여부').setRequired(false)
       )
-      .addStringOption(option =>
+      .addStringOption((option) =>
         option
           .setName('export_format')
           .setDescription('내보내기 형식')
@@ -153,9 +156,12 @@ export class GapReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
-  protected async executeCommand(interaction: ChatInputCommandInteraction, _options: CommandExecutionOptions): Promise<CommandResult> {
+  protected async executeCommand(
+    interaction: ChatInputCommandInteraction,
+    _options: CommandExecutionOptions
+  ): Promise<CommandResult> {
     const startTime = Date.now();
-    
+
     try {
       // 서비스 의존성 확인
       if (!this.userClassificationService) {
@@ -168,13 +174,13 @@ export class GapReportCommand extends CommandBase {
       // 캐시 확인
       const cacheKey = this.generateCacheKey(commandOptions);
       const cached = this.getCached<ReportGenerationResult>(cacheKey);
-      
+
       if (cached && !commandOptions.isTestMode) {
         await this.sendCachedReport(interaction, cached);
         return {
           success: true,
           message: '캐시된 보고서를 전송했습니다.',
-          data: cached
+          data: cached,
         };
       }
 
@@ -186,7 +192,7 @@ export class GapReportCommand extends CommandBase {
       if (!this.validateRoleConfig(roleConfig, commandOptions.role, interaction)) {
         return {
           success: false,
-          message: `역할 "${commandOptions.role}"에 대한 설정을 찾을 수 없습니다.`
+          message: `역할 "${commandOptions.role}"에 대한 설정을 찾을 수 없습니다.`,
         };
       }
 
@@ -195,7 +201,7 @@ export class GapReportCommand extends CommandBase {
       if (roleMembers.size === 0) {
         return {
           success: false,
-          message: `역할 "${commandOptions.role}"을 가진 멤버가 없습니다.`
+          message: `역할 "${commandOptions.role}"을 가진 멤버가 없습니다.`,
         };
       }
 
@@ -204,37 +210,46 @@ export class GapReportCommand extends CommandBase {
       if (!dateValidation.isValid || !dateValidation.dateRange) {
         return {
           success: false,
-          message: dateValidation.error || '날짜 범위 설정에 실패했습니다.'
+          message: dateValidation.error || '날짜 범위 설정에 실패했습니다.',
         };
       }
 
       // 진행 상황 알림
       await interaction.followUp({
-        content: `📊 **보고서 생성 중...**\n\n` +
-                `🎯 **역할:** ${commandOptions.role}\n` +
-                `📅 **기간:** ${this.formatDateRange(dateValidation.dateRange)}\n` +
-                `👥 **대상 멤버:** ${roleMembers.size}명\n` +
-                `🧪 **테스트 모드:** ${commandOptions.isTestMode ? '활성화' : '비활성화'}\n\n` +
-                `⏳ **예상 소요 시간:** ${this.estimateProcessingTime(roleMembers.size)}초`,
+        content:
+          `📊 **보고서 생성 중...**\n\n` +
+          `🎯 **역할:** ${commandOptions.role}\n` +
+          `📅 **기간:** ${this.formatDateRange(dateValidation.dateRange)}\n` +
+          `👥 **대상 멤버:** ${roleMembers.size}명\n` +
+          `🧪 **테스트 모드:** ${commandOptions.isTestMode ? '활성화' : '비활성화'}\n\n` +
+          `⏳ **예상 소요 시간:** ${this.estimateProcessingTime(roleMembers.size)}초`,
         flags: MessageFlags.Ephemeral,
       });
 
       // 사용자 분류 및 보고서 생성
-      const reportEmbeds = await this.generateReport(commandOptions.role, roleMembers, dateValidation.dateRange);
+      const reportEmbeds = await this.generateReport(
+        commandOptions.role,
+        roleMembers,
+        dateValidation.dateRange
+      );
 
       // 통계 생성
-      const statistics = commandOptions.includeStatistics ? 
-        await this.generateStatistics(roleMembers, dateValidation.dateRange) : undefined;
+      const statistics = commandOptions.includeStatistics
+        ? await this.generateStatistics(roleMembers, dateValidation.dateRange)
+        : undefined;
 
       // 보고서 결과 생성
       const result: ReportGenerationResult = {
         role: commandOptions.role,
         dateRange: dateValidation.dateRange,
         reportEmbeds,
-        statistics,
         executionTime: Date.now() - startTime,
-        testMode: commandOptions.isTestMode
+        testMode: commandOptions.isTestMode,
       };
+
+      if (statistics) {
+        result.statistics = statistics;
+      }
 
       // 캐시 저장 (테스트 모드가 아닌 경우만)
       if (!commandOptions.isTestMode) {
@@ -259,7 +274,7 @@ export class GapReportCommand extends CommandBase {
             memberCount: roleMembers.size,
             testMode: commandOptions.isTestMode,
             executionTime: result.executionTime,
-            statistics: result.statistics
+            statistics: result.statistics,
           }
         );
       }
@@ -267,14 +282,14 @@ export class GapReportCommand extends CommandBase {
       return {
         success: true,
         message: '활동 보고서가 성공적으로 생성되었습니다.',
-        data: result
+        data: result,
       };
-
     } catch (error) {
       console.error('gap_report 명령어 실행 오류:', error);
-      
-      const errorMessage = error instanceof Error ? error.message : '보고서 생성 중 오류가 발생했습니다.';
-      
+
+      const errorMessage =
+        error instanceof Error ? error.message : '보고서 생성 중 오류가 발생했습니다.';
+
       await interaction.followUp({
         content: `❌ ${errorMessage}`,
         flags: MessageFlags.Ephemeral,
@@ -283,7 +298,7 @@ export class GapReportCommand extends CommandBase {
       return {
         success: false,
         message: errorMessage,
-        error: error as Error
+        error: error as Error,
       };
     }
   }
@@ -293,17 +308,26 @@ export class GapReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    */
   private getCommandOptions(interaction: ChatInputCommandInteraction): ReportCommandOptions {
-    return {
-      role: cleanRoleName(interaction.options.getString("role")!),
-      startDateStr: interaction.options.getString("start_date")?.trim(),
-      endDateStr: interaction.options.getString("end_date")?.trim(),
-      isTestMode: interaction.options.getBoolean("test_mode") ?? false,
-      resetOption: interaction.options.getBoolean("reset") ?? false,
-      logChannelId: interaction.options.getChannel("log_channel")?.id || process.env.CALENDAR_LOG_CHANNEL_ID,
-      includeStatistics: interaction.options.getBoolean("include_statistics") ?? false,
-      includeCharts: interaction.options.getBoolean("include_charts") ?? false,
-      exportFormat: interaction.options.getString("export_format") as 'embed' | 'csv' | 'json' || 'embed'
+    const options: ReportCommandOptions = {
+      role: cleanRoleName(interaction.options.getString('role')!),
+      isTestMode: interaction.options.getBoolean('test_mode') ?? false,
+      resetOption: interaction.options.getBoolean('reset') ?? false,
+      includeStatistics: interaction.options.getBoolean('include_statistics') ?? false,
+      includeCharts: interaction.options.getBoolean('include_charts') ?? false,
+      exportFormat:
+        (interaction.options.getString('export_format') as 'embed' | 'csv' | 'json') || 'embed',
     };
+
+    const startDateStr = interaction.options.getString('start_date')?.trim();
+    const endDateStr = interaction.options.getString('end_date')?.trim();
+    const logChannelId =
+      interaction.options.getChannel('log_channel')?.id || process.env.CALENDAR_LOG_CHANNEL_ID;
+
+    if (startDateStr) options.startDateStr = startDateStr;
+    if (endDateStr) options.endDateStr = endDateStr;
+    if (logChannelId) options.logChannelId = logChannelId;
+
+    return options;
   }
 
   /**
@@ -312,7 +336,11 @@ export class GapReportCommand extends CommandBase {
    * @param role - 역할 이름
    * @param interaction - 상호작용 객체
    */
-  private validateRoleConfig(roleConfig: any, role: string, interaction: ChatInputCommandInteraction): boolean {
+  private validateRoleConfig(
+    roleConfig: any,
+    role: string,
+    interaction: ChatInputCommandInteraction
+  ): boolean {
     if (!roleConfig) {
       interaction.followUp({
         content: `❌ 역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
@@ -328,11 +356,12 @@ export class GapReportCommand extends CommandBase {
    * @param guild - 길드
    * @param role - 역할 이름
    */
-  private async getRoleMembers(guild: NonNullable<ChatInputCommandInteraction['guild']>, role: string): Promise<Collection<string, GuildMember>> {
+  private async getRoleMembers(
+    guild: NonNullable<ChatInputCommandInteraction['guild']>,
+    role: string
+  ): Promise<Collection<string, GuildMember>> {
     const members = await guild.members.fetch();
-    return members.filter(member =>
-      member.roles.cache.some(r => r.name === role)
-    );
+    return members.filter((member) => member.roles.cache.some((r) => r.name === role));
   }
 
   /**
@@ -344,7 +373,7 @@ export class GapReportCommand extends CommandBase {
     if (!/^\d{6}$/.test(dateStr)) {
       return {
         isValid: false,
-        error: `${label} 날짜 형식이 올바르지 않습니다. '${dateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250413)`
+        error: `${label} 날짜 형식이 올바르지 않습니다. '${dateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250413)`,
       };
     }
     return { isValid: true };
@@ -356,7 +385,11 @@ export class GapReportCommand extends CommandBase {
    * @param roleConfig - 역할 설정
    * @param interaction - 상호작용 객체
    */
-  private async parseDateRange(options: ReportCommandOptions, roleConfig: any, _interaction: ChatInputCommandInteraction): Promise<DateValidationResult> {
+  private async parseDateRange(
+    options: ReportCommandOptions,
+    roleConfig: any,
+    _interaction: ChatInputCommandInteraction
+  ): Promise<DateValidationResult> {
     const { startDateStr, endDateStr } = options;
 
     // 날짜 옵션이 제공된 경우
@@ -376,35 +409,35 @@ export class GapReportCommand extends CommandBase {
         // 날짜 파싱
         const dateRange = this.parseYYMMDDDates(startDateStr, endDateStr);
         console.log('파싱된 날짜:', dateRange.startDate, dateRange.endDate);
-        
+
         // 날짜 범위 유효성 검사
         const rangeValidation = this.validateDateRange(dateRange);
         if (!rangeValidation.isValid) {
           return rangeValidation;
         }
-        
+
         return {
           isValid: true,
-          dateRange
+          dateRange,
         };
       } catch (error) {
         console.error('날짜 파싱 오류:', error);
         return {
           isValid: false,
-          error: `날짜 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`
+          error: `날짜 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
         };
       }
     } else if (startDateStr || endDateStr) {
       // 시작 날짜 또는 종료 날짜만 제공된 경우
       return {
         isValid: false,
-        error: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.'
+        error: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.',
       };
     } else {
       // 날짜가 지정되지 않은 경우 기본값 사용
       return {
         isValid: true,
-        dateRange: this.getDefaultDateRange(roleConfig)
+        dateRange: this.getDefaultDateRange(roleConfig),
       };
     }
   }
@@ -446,12 +479,12 @@ export class GapReportCommand extends CommandBase {
    */
   private validateDateRange(dateRange: DateRange): DateValidationResult {
     const { startDate, endDate } = dateRange;
-    
+
     // 시작 날짜가 종료 날짜보다 늦은지 확인
     if (startDate > endDate) {
       return {
         isValid: false,
-        error: '시작 날짜가 종료 날짜보다 늦습니다.'
+        error: '시작 날짜가 종료 날짜보다 늦습니다.',
       };
     }
 
@@ -460,7 +493,7 @@ export class GapReportCommand extends CommandBase {
     if (endDate.getTime() - startDate.getTime() > maxRange) {
       return {
         isValid: false,
-        error: '날짜 범위는 최대 1년까지 가능합니다.'
+        error: '날짜 범위는 최대 1년까지 가능합니다.',
       };
     }
 
@@ -469,7 +502,7 @@ export class GapReportCommand extends CommandBase {
     if (startDate > now) {
       return {
         isValid: false,
-        error: '시작 날짜가 현재 날짜보다 미래입니다.'
+        error: '시작 날짜가 현재 날짜보다 미래입니다.',
       };
     }
 
@@ -483,7 +516,7 @@ export class GapReportCommand extends CommandBase {
   private getDefaultDateRange(roleConfig: any): DateRange {
     const startDate = roleConfig.resetTime
       ? new Date(roleConfig.resetTime)
-      : new Date(Date.now() - (7 * 24 * 60 * 60 * 1000)); // 7일 전
+      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7일 전
     const endDate = new Date();
 
     return { startDate, endDate };
@@ -495,12 +528,19 @@ export class GapReportCommand extends CommandBase {
    * @param roleMembers - 역할 멤버
    * @param dateRange - 날짜 범위
    */
-  private async generateReport(role: string, roleMembers: Collection<string, GuildMember>, dateRange: DateRange): Promise<any[]> {
+  private async generateReport(
+    role: string,
+    roleMembers: Collection<string, GuildMember>,
+    dateRange: DateRange
+  ): Promise<any[]> {
     const { startDate, endDate } = dateRange;
 
     // 사용자 분류 서비스로 사용자 분류 (날짜 범위 기준)
     const classificationResult = await this.userClassificationService!.classifyUsersByDateRange(
-      role, roleMembers, startDate, endDate
+      role,
+      roleMembers,
+      startDate,
+      endDate
     );
 
     const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } = classificationResult;
@@ -514,8 +554,8 @@ export class GapReportCommand extends CommandBase {
       startDate,
       endDate,
       minHours,
-      reportCycle,
-      title: '활동 보고서'
+      reportCycle: reportCycle ? parseInt(reportCycle) : null,
+      title: '활동 보고서',
     });
   }
 
@@ -524,17 +564,20 @@ export class GapReportCommand extends CommandBase {
    * @param roleMembers - 역할 멤버
    * @param dateRange - 날짜 범위
    */
-  private async generateStatistics(roleMembers: Collection<string, GuildMember>, _dateRange: DateRange): Promise<ReportGenerationResult['statistics']> {
+  private async generateStatistics(
+    roleMembers: Collection<string, GuildMember>,
+    _dateRange: DateRange
+  ): Promise<ReportGenerationResult['statistics']> {
     // 간단한 통계 생성 (실제 구현에서는 더 상세한 통계 생성)
     const totalMembers = roleMembers.size;
-    
+
     // 임시 통계 (실제 구현에서는 사용자 분류 결과를 사용)
     return {
       totalMembers,
       activeCount: 0,
       inactiveCount: 0,
       afkCount: 0,
-      averageActivity: 0
+      averageActivity: 0,
     };
   }
 
@@ -544,13 +587,18 @@ export class GapReportCommand extends CommandBase {
    * @param options - 명령어 옵션
    * @param result - 보고서 결과
    */
-  private async sendReport(interaction: ChatInputCommandInteraction, options: ReportCommandOptions, result: ReportGenerationResult): Promise<void> {
+  private async sendReport(
+    interaction: ChatInputCommandInteraction,
+    options: ReportCommandOptions,
+    result: ReportGenerationResult
+  ): Promise<void> {
     if (options.isTestMode) {
       // 테스트인 경우 서버 내 Embed로 전송
       await interaction.followUp({
-        content: `⚠️ **테스트 모드로 실행됩니다.**\n\n` +
-                `📊 **실행 시간:** ${result.executionTime}ms\n` +
-                `🔄 **리셋 시간이 기록되지 않습니다.**`,
+        content:
+          `⚠️ **테스트 모드로 실행됩니다.**\n\n` +
+          `📊 **실행 시간:** ${result.executionTime}ms\n` +
+          `🔄 **리셋 시간이 기록되지 않습니다.**`,
         embeds: result.reportEmbeds,
         flags: MessageFlags.Ephemeral,
       });
@@ -558,14 +606,17 @@ export class GapReportCommand extends CommandBase {
       // 지정된 채널에 전송
       if (options.logChannelId) {
         try {
-          const logChannel = await interaction.client.channels.fetch(options.logChannelId) as TextChannel;
+          const logChannel = (await interaction.client.channels.fetch(
+            options.logChannelId
+          )) as TextChannel;
           if (logChannel?.isTextBased()) {
             await logChannel.send({
-              content: `📊 **${options.role} 역할 활동 보고서**\n\n` +
-                      `📅 **기간:** ${this.formatDateRange(result.dateRange)}\n` +
-                      `⏱️ **생성 시간:** ${result.executionTime}ms\n` +
-                      `🔢 **대상 멤버:** ${result.statistics?.totalMembers || 0}명`,
-              embeds: result.reportEmbeds
+              content:
+                `📊 **${options.role} 역할 활동 보고서**\n\n` +
+                `📅 **기간:** ${this.formatDateRange(result.dateRange)}\n` +
+                `⏱️ **생성 시간:** ${result.executionTime}ms\n` +
+                `🔢 **대상 멤버:** ${result.statistics?.totalMembers || 0}명`,
+              embeds: result.reportEmbeds,
             });
           }
         } catch (error) {
@@ -578,11 +629,11 @@ export class GapReportCommand extends CommandBase {
       successMessage += `📊 **역할:** ${options.role}\n`;
       successMessage += `📅 **기간:** ${this.formatDateRange(result.dateRange)}\n`;
       successMessage += `⏱️ **생성 시간:** ${result.executionTime}ms\n`;
-      
+
       if (result.statistics) {
         successMessage += `👥 **대상 멤버:** ${result.statistics.totalMembers}명\n`;
       }
-      
+
       if (options.logChannelId) {
         successMessage += `📢 **전송 채널:** <#${options.logChannelId}>\n`;
       }
@@ -599,13 +650,17 @@ export class GapReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param cached - 캐시된 결과
    */
-  private async sendCachedReport(interaction: ChatInputCommandInteraction, cached: ReportGenerationResult): Promise<void> {
+  private async sendCachedReport(
+    interaction: ChatInputCommandInteraction,
+    cached: ReportGenerationResult
+  ): Promise<void> {
     await interaction.followUp({
-      content: `📋 **캐시된 보고서를 사용합니다.**\n\n` +
-              `📊 **역할:** ${cached.role}\n` +
-              `📅 **기간:** ${this.formatDateRange(cached.dateRange)}\n` +
-              `⏱️ **원본 생성 시간:** ${cached.executionTime}ms\n` +
-              `🔄 **캐시 사용으로 즉시 전송됩니다.**`,
+      content:
+        `📋 **캐시된 보고서를 사용합니다.**\n\n` +
+        `📊 **역할:** ${cached.role}\n` +
+        `📅 **기간:** ${this.formatDateRange(cached.dateRange)}\n` +
+        `⏱️ **원본 생성 시간:** ${cached.executionTime}ms\n` +
+        `🔄 **캐시 사용으로 즉시 전송됩니다.**`,
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -615,7 +670,10 @@ export class GapReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    * @param options - 명령어 옵션
    */
-  private async handleReset(interaction: ChatInputCommandInteraction, options: ReportCommandOptions): Promise<void> {
+  private async handleReset(
+    interaction: ChatInputCommandInteraction,
+    options: ReportCommandOptions
+  ): Promise<void> {
     // 테스트 모드가 아니고, 리셋 옵션이 켜져 있을 경우에만 리셋 시간 업데이트
     if (!options.isTestMode && options.resetOption) {
       try {
@@ -639,10 +697,11 @@ export class GapReportCommand extends CommandBase {
    * @param options - 명령어 옵션
    */
   private generateCacheKey(options: ReportCommandOptions): string {
-    const dateKey = options.startDateStr && options.endDateStr 
-      ? `${options.startDateStr}_${options.endDateStr}`
-      : 'default';
-    
+    const dateKey =
+      options.startDateStr && options.endDateStr
+        ? `${options.startDateStr}_${options.endDateStr}`
+        : 'default';
+
     return `report_${options.role}_${dateKey}_${options.includeStatistics}_${options.includeCharts}`;
   }
 
@@ -691,7 +750,7 @@ export class GapReportCommand extends CommandBase {
 • \`export_format\`: 내보내기 형식 (선택사항)
 
 **예시:**
-${this.metadata.examples?.map(ex => `\`${ex}\``).join('\n')}
+${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
 
 **권한:** 관리자 전용
 **쿨다운:** ${this.metadata.cooldown}초`;

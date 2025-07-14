@@ -101,15 +101,15 @@ interface ValidationResult {
   error?: string;
 }
 
-// 참가자 업데이트 결과 인터페이스
-interface ParticipantUpdateResult {
-  success: boolean;
-  currentCount: number;
-  maxCount: number | string;
-  previousCount: number;
-  messageId?: string;
-  error?: string;
-}
+// 참가자 업데이트 결과 인터페이스 (currently unused)
+// interface ParticipantUpdateResult {
+//   success: boolean;
+//   currentCount: number;
+//   maxCount: number | string;
+//   previousCount: number;
+//   messageId?: string;
+//   error?: string;
+// }
 
 export class MappingService {
   private client: Client;
@@ -120,12 +120,22 @@ export class MappingService {
   private updateQueue: Map<string, QueuedUpdate> = new Map();
   private lastParticipantCounts: Map<string, number> = new Map();
   private mappingHealth: Map<string, 'healthy' | 'warning' | 'error'> = new Map();
-  private updateHistory: Array<{ channelId: string; timestamp: Date; success: boolean; error?: string }> = [];
+  private updateHistory: Array<{
+    channelId: string;
+    timestamp: Date;
+    success: boolean;
+    error?: string;
+  }> = [];
   private maxHistorySize: number = 100;
   private syncInterval: NodeJS.Timeout | null = null;
   private healthCheckInterval: NodeJS.Timeout | null = null;
 
-  constructor(client: Client, voiceChannelManager: any, forumPostManager: any, databaseManager: any) {
+  constructor(
+    client: Client,
+    voiceChannelManager: any,
+    forumPostManager: any,
+    databaseManager: any
+  ) {
     this.client = client;
     this.voiceChannelManager = voiceChannelManager;
     this.forumPostManager = forumPostManager;
@@ -181,10 +191,10 @@ export class MappingService {
 
       console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
       this.logCurrentMappings();
-      
+
       // 즉시 참가자 수 업데이트 큐에 추가
       this.queueUpdate(voiceChannelId, 1000);
-      
+
       return true;
     } catch (error) {
       console.error(`[MappingService] 매핑 추가 오류: ${voiceChannelId} -> ${postId}`, error);
@@ -202,12 +212,14 @@ export class MappingService {
     try {
       const [voiceChannelInfo, postInfo] = await Promise.allSettled([
         this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId),
-        this.forumPostManager.getPostInfo(postId)
+        this.forumPostManager.getPostInfo(postId),
       ]);
 
-      const voiceChannelExists = voiceChannelInfo.status === 'fulfilled' && voiceChannelInfo.value !== null;
+      const voiceChannelExists =
+        voiceChannelInfo.status === 'fulfilled' && voiceChannelInfo.value !== null;
       const postExists = postInfo.status === 'fulfilled' && postInfo.value !== null;
-      const postArchived = postExists && (postInfo as PromiseFulfilledResult<PostInfo>).value.archived;
+      const postArchived =
+        postExists && (postInfo as PromiseFulfilledResult<PostInfo>).value.archived;
 
       const isValid = voiceChannelExists && postExists && !postArchived;
 
@@ -216,7 +228,9 @@ export class MappingService {
         voiceChannelExists,
         postExists,
         postArchived,
-        error: !isValid ? `음성 채널 존재: ${voiceChannelExists}, 포스트 존재: ${postExists}, 포스트 아카이브됨: ${postArchived}` : undefined
+        ...(!isValid && {
+          error: `음성 채널 존재: ${voiceChannelExists}, 포스트 존재: ${postExists}, 포스트 아카이브됨: ${postArchived}`,
+        }),
       };
     } catch (error) {
       return {
@@ -224,7 +238,7 @@ export class MappingService {
         voiceChannelExists: false,
         postExists: false,
         postArchived: false,
-        error: error instanceof Error ? error.message : '알 수 없는 오류'
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
       };
     }
   }
@@ -242,7 +256,7 @@ export class MappingService {
         // 관련 데이터들도 함께 제거
         this.lastParticipantCounts.delete(voiceChannelId);
         this.mappingHealth.delete(voiceChannelId);
-        
+
         // 큐된 업데이트가 있다면 취소
         if (this.updateQueue.has(voiceChannelId)) {
           const queuedUpdate = this.updateQueue.get(voiceChannelId)!;
@@ -341,11 +355,13 @@ export class MappingService {
       timer,
       scheduledAt: new Date(),
       delay,
-      retryCount
+      retryCount,
     };
 
     this.updateQueue.set(voiceChannelId, queuedUpdate);
-    console.log(`[MappingService] 업데이트 큐에 추가: ${voiceChannelId} (${delay}ms 후 실행, 재시도: ${retryCount})`);
+    console.log(
+      `[MappingService] 업데이트 큐에 추가: ${voiceChannelId} (${delay}ms 후 실행, 재시도: ${retryCount})`
+    );
   }
 
   /**
@@ -355,7 +371,9 @@ export class MappingService {
    */
   private async processQueuedUpdate(voiceChannelId: string, retryCount: number = 0): Promise<void> {
     try {
-      console.log(`[MappingService] 큐된 업데이트 처리 시작: ${voiceChannelId} (재시도: ${retryCount})`);
+      console.log(
+        `[MappingService] 큐된 업데이트 처리 시작: ${voiceChannelId} (재시도: ${retryCount})`
+      );
 
       const postId = this.getPostId(voiceChannelId);
       if (!postId) {
@@ -386,7 +404,7 @@ export class MappingService {
       console.log(`[MappingService] 음성 채널 정보:`, {
         name: voiceChannelInfo.name,
         memberCount: voiceChannelInfo.members?.size || 0,
-        categoryId: voiceChannelInfo.parentId
+        categoryId: voiceChannelInfo.parentId,
       });
 
       // 참여자 수 계산
@@ -408,7 +426,7 @@ export class MappingService {
       console.log(`[MappingService] 포스트 정보:`, {
         name: postInfo.name,
         archived: postInfo.archived,
-        messageCount: postInfo.messageCount
+        messageCount: postInfo.messageCount,
       });
 
       const maxCount = participantTracker.extractMaxParticipants(postInfo.name);
@@ -417,15 +435,19 @@ export class MappingService {
       // 이전 참여자 수와 비교
       const lastCount = this.lastParticipantCounts.get(voiceChannelId) || 0;
       if (lastCount === currentCount) {
-        console.log(`[MappingService] 참여자 수 변경 없음 (${currentCount}/${maxCount}), 메시지 전송 건너뛰기`);
+        console.log(
+          `[MappingService] 참여자 수 변경 없음 (${currentCount}/${maxCount}), 메시지 전송 건너뛰기`
+        );
         this.recordUpdateHistory(voiceChannelId, true, '참여자 수 변경 없음');
         this.mappingHealth.set(voiceChannelId, 'healthy');
         return;
       }
 
       // 참여자 수 업데이트 메시지 전송
-      console.log(`[MappingService] 참여자 수 변경 감지: ${lastCount} -> ${currentCount}, 메시지 전송 시작...`);
-      
+      console.log(
+        `[MappingService] 참여자 수 변경 감지: ${lastCount} -> ${currentCount}, 메시지 전송 시작...`
+      );
+
       const updateResult = await this.forumPostManager.sendParticipantUpdateMessage(
         postId,
         currentCount,
@@ -433,19 +455,29 @@ export class MappingService {
         voiceChannelInfo.name
       );
 
-      if (updateResult && (typeof updateResult === 'boolean' ? updateResult : updateResult.success)) {
+      if (
+        updateResult &&
+        (typeof updateResult === 'boolean' ? updateResult : updateResult.success)
+      ) {
         // 성공적으로 전송된 경우에만 마지막 참여자 수 저장
         this.lastParticipantCounts.set(voiceChannelId, currentCount);
 
         // 데이터베이스에도 참여자 수 업데이트
         if (this.databaseManager) {
-          const dbUpdated = await this.databaseManager.updateLastParticipantCount(voiceChannelId, currentCount);
+          const dbUpdated = await this.databaseManager.updateLastParticipantCount(
+            voiceChannelId,
+            currentCount
+          );
           if (!dbUpdated) {
-            console.warn(`[MappingService] 데이터베이스 참여자 수 업데이트 실패: ${voiceChannelId}`);
+            console.warn(
+              `[MappingService] 데이터베이스 참여자 수 업데이트 실패: ${voiceChannelId}`
+            );
           }
         }
 
-        console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
+        console.log(
+          `[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`
+        );
         this.recordUpdateHistory(voiceChannelId, true);
         this.mappingHealth.set(voiceChannelId, 'healthy');
       } else {
@@ -463,16 +495,21 @@ export class MappingService {
           this.mappingHealth.set(voiceChannelId, 'error');
         }
       }
-
     } catch (error) {
       console.error(`[MappingService] 큐된 업데이트 처리 오류: ${voiceChannelId}`, error);
-      this.recordUpdateHistory(voiceChannelId, false, error instanceof Error ? error.message : '알 수 없는 오류');
+      this.recordUpdateHistory(
+        voiceChannelId,
+        false,
+        error instanceof Error ? error.message : '알 수 없는 오류'
+      );
       this.mappingHealth.set(voiceChannelId, 'error');
 
       // 재시도 로직
       if (retryCount < 3) {
         const retryDelay = Math.min(5000 * Math.pow(2, retryCount), 30000);
-        console.log(`[MappingService] 오류 발생, ${retryDelay}ms 후 재시도 예정 (${retryCount + 1}/3)`);
+        console.log(
+          `[MappingService] 오류 발생, ${retryDelay}ms 후 재시도 예정 (${retryCount + 1}/3)`
+        );
         this.queueUpdate(voiceChannelId, retryDelay, retryCount + 1);
       }
     }
@@ -489,7 +526,7 @@ export class MappingService {
       channelId,
       timestamp: new Date(),
       success,
-      error
+      ...(error && { error }),
     });
 
     // 히스토리 크기 제한
@@ -560,7 +597,9 @@ export class MappingService {
           const removed = await this.removeMapping(channelId);
           if (removed) {
             cleanedCount++;
-            console.log(`[MappingService] 삭제된 포스트로 인한 매핑 제거: ${channelId} -> ${postId}`);
+            console.log(
+              `[MappingService] 삭제된 포스트로 인한 매핑 제거: ${channelId} -> ${postId}`
+            );
           }
         }
       } catch (error) {
@@ -596,7 +635,7 @@ export class MappingService {
         deletedPosts: 0,
         totalCleaned: 0,
         remainingMappings: 0,
-        skipped: true
+        skipped: true,
       };
     }
 
@@ -613,7 +652,7 @@ export class MappingService {
         deletedPosts,
         totalCleaned: deletedChannels + deletedPosts,
         remainingMappings: this.getMappingCount(),
-        errors: errors.length > 0 ? errors : undefined
+        ...(errors.length > 0 && { errors }),
       };
 
       console.log(`[MappingService] 전체 정리 작업 완료:`, result);
@@ -628,7 +667,7 @@ export class MappingService {
         deletedPosts: 0,
         totalCleaned: 0,
         remainingMappings: this.getMappingCount(),
-        errors
+        errors,
       };
     }
   }
@@ -638,8 +677,10 @@ export class MappingService {
    */
   logCurrentMappings(): void {
     if (this.channelPostMap.size > 0) {
-      console.log(`[MappingService] 현재 매핑 상태 (${this.channelPostMap.size}개):`,
-        Array.from(this.channelPostMap.entries()));
+      console.log(
+        `[MappingService] 현재 매핑 상태 (${this.channelPostMap.size}개):`,
+        Array.from(this.channelPostMap.entries())
+      );
     } else {
       console.log(`[MappingService] 현재 매핑된 채널 없음`);
     }
@@ -653,12 +694,12 @@ export class MappingService {
     const mappings = Array.from(this.channelPostMap.entries()).map(([channelId, postId]) => {
       const lastCount = this.lastParticipantCounts.get(channelId) || 0;
       const health = this.mappingHealth.get(channelId) || 'warning';
-      
+
       return {
         channelId,
         postId,
         lastCount,
-        isHealthy: health === 'healthy'
+        isHealthy: health === 'healthy',
       };
     });
 
@@ -670,8 +711,12 @@ export class MappingService {
       { healthy: 0, warning: 0, error: 0 }
     );
 
-    const totalParticipants = Array.from(this.lastParticipantCounts.values()).reduce((sum, count) => sum + count, 0);
-    const averageParticipants = this.channelPostMap.size > 0 ? totalParticipants / this.channelPostMap.size : 0;
+    const totalParticipants = Array.from(this.lastParticipantCounts.values()).reduce(
+      (sum, count) => sum + count,
+      0
+    );
+    const averageParticipants =
+      this.channelPostMap.size > 0 ? totalParticipants / this.channelPostMap.size : 0;
 
     return {
       totalMappings: this.getMappingCount(),
@@ -680,7 +725,7 @@ export class MappingService {
       warningMappings: healthCounts.warning,
       errorMappings: healthCounts.error,
       averageParticipants,
-      mappings
+      mappings,
     };
   }
 
@@ -696,12 +741,12 @@ export class MappingService {
     try {
       const [voiceChannelInfo, postInfo] = await Promise.allSettled([
         this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId),
-        this.forumPostManager.getPostInfo(postId)
+        this.forumPostManager.getPostInfo(postId),
       ]);
 
       const voiceChannel = voiceChannelInfo.status === 'fulfilled' ? voiceChannelInfo.value : null;
       const post = postInfo.status === 'fulfilled' ? postInfo.value : null;
-      
+
       const health = this.mappingHealth.get(voiceChannelId) || 'warning';
       const isValid = voiceChannel !== null && post !== null && !post.archived;
 
@@ -711,11 +756,13 @@ export class MappingService {
         voiceChannel,
         post,
         hasQueuedUpdate: this.updateQueue.has(voiceChannelId),
-        lastParticipantCount: this.lastParticipantCounts.get(voiceChannelId),
+        ...(this.lastParticipantCounts.has(voiceChannelId) &&
+          this.lastParticipantCounts.get(voiceChannelId) !== undefined && {
+            lastParticipantCount: this.lastParticipantCounts.get(voiceChannelId)!,
+          }),
         isValid,
-        healthStatus: health
+        healthStatus: health,
       };
-
     } catch (error) {
       console.error(`[MappingService] 매핑 상세 정보 가져오기 실패: ${voiceChannelId}`, error);
       return null;
@@ -758,7 +805,13 @@ export class MappingService {
     // Discord 클라이언트 준비 상태 확인
     if (!this.isClientReady()) {
       console.warn('[MappingService] Discord 클라이언트가 준비되지 않아 매핑 로드를 연기합니다.');
-      return { success: false, loaded: 0, validated: 0, removed: 0, error: '클라이언트 준비되지 않음' };
+      return {
+        success: false,
+        loaded: 0,
+        validated: 0,
+        removed: 0,
+        error: '클라이언트 준비되지 않음',
+      };
     }
 
     try {
@@ -768,7 +821,13 @@ export class MappingService {
 
       if (!Array.isArray(savedMappings)) {
         console.warn('[MappingService] 데이터베이스에서 유효하지 않은 매핑 데이터를 받았습니다.');
-        return { success: false, loaded: 0, validated: 0, removed: 0, error: '유효하지 않은 데이터 형식' };
+        return {
+          success: false,
+          loaded: 0,
+          validated: 0,
+          removed: 0,
+          error: '유효하지 않은 데이터 형식',
+        };
       }
 
       let loadedCount = 0;
@@ -792,11 +851,11 @@ export class MappingService {
             // 유효한 매핑인 경우 메모리에 로드
             this.channelPostMap.set(voice_channel_id, forum_post_id);
             this.mappingHealth.set(voice_channel_id, 'healthy');
-            
+
             if (last_participant_count !== undefined) {
               this.lastParticipantCounts.set(voice_channel_id, last_participant_count);
             }
-            
+
             validatedCount++;
             console.log(`[MappingService] 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
           } else {
@@ -804,7 +863,9 @@ export class MappingService {
             try {
               await this.databaseManager.removeChannelMapping(voice_channel_id);
               removedCount++;
-              console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (${validation.error})`);
+              console.log(
+                `[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (${validation.error})`
+              );
             } catch (removeError) {
               console.error(`[MappingService] 매핑 제거 실패: ${voice_channel_id}`, removeError);
             }
@@ -812,14 +873,20 @@ export class MappingService {
 
           loadedCount++;
         } catch (error) {
-          console.error(`[MappingService] 매핑 검증 중 예상치 못한 오류: ${voice_channel_id} -> ${forum_post_id}`, error);
+          console.error(
+            `[MappingService] 매핑 검증 중 예상치 못한 오류: ${voice_channel_id} -> ${forum_post_id}`,
+            error
+          );
 
           // 일반적인 오류의 경우 해당 매핑만 제거하고 계속 진행
           try {
             await this.databaseManager.removeChannelMapping(voice_channel_id);
             removedCount++;
           } catch (removeError) {
-            console.error(`[MappingService] 오류 발생 매핑 제거 실패: ${voice_channel_id}`, removeError);
+            console.error(
+              `[MappingService] 오류 발생 매핑 제거 실패: ${voice_channel_id}`,
+              removeError
+            );
           }
         }
       }
@@ -828,7 +895,7 @@ export class MappingService {
         success: true,
         loaded: loadedCount,
         validated: validatedCount,
-        removed: removedCount
+        removed: removedCount,
       };
 
       console.log(`[MappingService] 매핑 로드 완료:`, result);
@@ -837,12 +904,12 @@ export class MappingService {
       return result;
     } catch (error) {
       console.error('[MappingService] 매핑 로드 오류:', error);
-      return { 
-        success: false, 
-        loaded: 0, 
-        validated: 0, 
-        removed: 0, 
-        error: error instanceof Error ? error.message : '알 수 없는 오류' 
+      return {
+        success: false,
+        loaded: 0,
+        validated: 0,
+        removed: 0,
+        error: error instanceof Error ? error.message : '알 수 없는 오류',
       };
     }
   }
@@ -881,9 +948,12 @@ export class MappingService {
       clearInterval(this.syncInterval);
     }
 
-    this.syncInterval = setInterval(async () => {
-      await this.syncWithDatabase();
-    }, 5 * 60 * 1000); // 5분마다 동기화
+    this.syncInterval = setInterval(
+      async () => {
+        await this.syncWithDatabase();
+      },
+      5 * 60 * 1000
+    ); // 5분마다 동기화
 
     console.log('[MappingService] 정기적인 데이터베이스 동기화 시작 (5분 간격)');
   }
@@ -896,9 +966,12 @@ export class MappingService {
       clearInterval(this.healthCheckInterval);
     }
 
-    this.healthCheckInterval = setInterval(async () => {
-      await this.performHealthCheck();
-    }, 10 * 60 * 1000); // 10분마다 헬스 체크
+    this.healthCheckInterval = setInterval(
+      async () => {
+        await this.performHealthCheck();
+      },
+      10 * 60 * 1000
+    ); // 10분마다 헬스 체크
 
     console.log('[MappingService] 정기적인 헬스 체크 시작 (10분 간격)');
   }
@@ -912,12 +985,14 @@ export class MappingService {
     for (const [channelId, postId] of this.channelPostMap.entries()) {
       try {
         const validation = await this.validateMapping(channelId, postId);
-        
+
         if (validation.isValid) {
           this.mappingHealth.set(channelId, 'healthy');
         } else {
           this.mappingHealth.set(channelId, 'error');
-          console.warn(`[MappingService] 헬스 체크 실패: ${channelId} -> ${postId} (${validation.error})`);
+          console.warn(
+            `[MappingService] 헬스 체크 실패: ${channelId} -> ${postId} (${validation.error})`
+          );
         }
       } catch (error) {
         this.mappingHealth.set(channelId, 'error');
@@ -926,7 +1001,9 @@ export class MappingService {
     }
 
     const stats = this.getMappingStats();
-    console.log(`[MappingService] 헬스 체크 완료: 건강 ${stats.healthyMappings}, 경고 ${stats.warningMappings}, 오류 ${stats.errorMappings}`);
+    console.log(
+      `[MappingService] 헬스 체크 완료: 건강 ${stats.healthyMappings}, 경고 ${stats.warningMappings}, 오류 ${stats.errorMappings}`
+    );
   }
 
   /**
@@ -941,11 +1018,13 @@ export class MappingService {
       const loadResult = await this.loadMappingsFromDatabase();
 
       if (loadResult.success) {
-        console.log(`[MappingService] 초기화 완료: ${loadResult.validated}개 매핑 복구, ${loadResult.removed}개 매핑 정리`);
-        
+        console.log(
+          `[MappingService] 초기화 완료: ${loadResult.validated}개 매핑 복구, ${loadResult.removed}개 매핑 정리`
+        );
+
         // 초기 헬스 체크 수행
         await this.performHealthCheck();
-        
+
         return true;
       } else {
         console.error('[MappingService] 초기화 실패:', loadResult.error);
@@ -964,7 +1043,7 @@ export class MappingService {
     console.log('[MappingService] 서비스 종료 중...');
 
     // 모든 큐된 업데이트 취소
-    for (const [channelId, queuedUpdate] of this.updateQueue.entries()) {
+    for (const [_channelId, queuedUpdate] of this.updateQueue.entries()) {
       clearTimeout(queuedUpdate.timer);
     }
     this.updateQueue.clear();
@@ -988,7 +1067,9 @@ export class MappingService {
    * @param limit - 조회할 항목 수
    * @returns 업데이트 히스토리
    */
-  getUpdateHistory(limit: number = 50): Array<{ channelId: string; timestamp: Date; success: boolean; error?: string }> {
+  getUpdateHistory(
+    limit: number = 50
+  ): Array<{ channelId: string; timestamp: Date; success: boolean; error?: string }> {
     return this.updateHistory
       .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
       .slice(0, limit);
@@ -998,12 +1079,17 @@ export class MappingService {
    * 큐된 업데이트 정보 조회
    * @returns 큐된 업데이트 목록
    */
-  getQueuedUpdates(): Array<{ channelId: string; scheduledAt: Date; delay: number; retryCount: number }> {
-    return Array.from(this.updateQueue.values()).map(update => ({
+  getQueuedUpdates(): Array<{
+    channelId: string;
+    scheduledAt: Date;
+    delay: number;
+    retryCount: number;
+  }> {
+    return Array.from(this.updateQueue.values()).map((update) => ({
       channelId: update.voiceChannelId,
       scheduledAt: update.scheduledAt,
       delay: update.delay,
-      retryCount: update.retryCount
+      retryCount: update.retryCount,
     }));
   }
 }

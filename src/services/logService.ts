@@ -1,9 +1,17 @@
 // src/services/logService.ts - 로깅 서비스 (TypeScript)
-import { ChannelType, VoiceChannel, Channel, GuildMember, TextChannel, ThreadChannel } from 'discord.js';
+import {
+  ChannelType,
+  VoiceChannel,
+  Channel,
+  GuildMember,
+  TextChannel,
+  ThreadChannel,
+} from 'discord.js';
+
 import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants.js';
-import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder.js';
 import { logger } from '../config/logger-termux.js';
 import { EnhancedClient } from '../types/discord.js';
+import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder.js';
 
 // ====================
 // 로그 서비스 타입
@@ -56,7 +64,7 @@ export enum LogLevel {
   INFO = 1,
   WARN = 2,
   ERROR = 3,
-  FATAL = 4
+  FATAL = 4,
 }
 
 export enum LogEventType {
@@ -74,9 +82,10 @@ export enum LogEventType {
   GUILD_UPDATE = 'GUILD_UPDATE',
   INTERACTION = 'INTERACTION',
   ERROR = 'ERROR',
+  FATAL = 'FATAL',
   WARNING = 'WARNING',
   INFO = 'INFO',
-  DEBUG = 'DEBUG'
+  DEBUG = 'DEBUG',
 }
 
 // ====================
@@ -91,9 +100,9 @@ export class LogService {
     totalMessages: 0,
     sentMessages: 0,
     failedMessages: 0,
-    retryCount: 0
+    retryCount: 0,
   };
-  
+
   private logTimeout: NodeJS.Timeout | null = null;
   private isProcessing = false;
   private readonly messageHistory: LogMessage[] = [];
@@ -109,7 +118,7 @@ export class LogService {
       enableConsoleLogging: true,
       logLevel: LogLevel.INFO,
       includeMetadata: true,
-      ...options
+      ...options,
     };
 
     // 초기화 검증
@@ -157,7 +166,7 @@ export class LogService {
         members: [...membersInChannel],
         eventType,
         timestamp: new Date(),
-        metadata: this.options.includeMetadata ? { ...metadata } : undefined
+        ...(this.options.includeMetadata && metadata && { metadata: { ...metadata } }),
       };
 
       // Errsole에 음성 활동 로그 기록
@@ -167,7 +176,7 @@ export class LogService {
           memberCount: membersInChannel.length,
           members: membersInChannel,
           timestamp: logMessage.timestamp.toISOString(),
-          metadata
+          metadata,
         });
       }
 
@@ -185,13 +194,12 @@ export class LogService {
 
       // 배치 처리 스케줄링
       this.scheduleLogSending();
-
     } catch (error) {
       console.error('[LogService] 로그 기록 오류:', error);
       logger.error('로그 기록 오류', {
         error: error instanceof Error ? error.message : String(error),
         message,
-        eventType
+        eventType,
       });
     }
   }
@@ -223,11 +231,12 @@ export class LogService {
    * 긴급 메시지가 있는지 확인
    */
   private hasUrgentMessage(): boolean {
-    return this.logMessages.some(msg => 
-      msg.eventType === LogEventType.ERROR || 
-      msg.eventType === LogEventType.FATAL ||
-      msg.message.includes('오류') ||
-      msg.message.includes('실패')
+    return this.logMessages.some(
+      (msg) =>
+        msg.eventType === LogEventType.ERROR ||
+        msg.eventType === LogEventType.FATAL ||
+        msg.message.includes('오류') ||
+        msg.message.includes('실패')
     );
   }
 
@@ -238,20 +247,20 @@ export class LogService {
     if (this.isProcessing || this.logMessages.length === 0) return;
 
     this.isProcessing = true;
-    
+
     try {
       const logChannel = await this.getLogChannel();
       if (!logChannel) {
         logger.error('로그 채널을 찾을 수 없습니다', {
           logChannelId: this.options.logChannelId,
-          messageCount: this.logMessages.length
+          messageCount: this.logMessages.length,
         });
         return;
       }
 
       logger.debug(`${this.logMessages.length}개의 로그 메시지를 Discord 채널로 전송`, {
         logChannelId: this.options.logChannelId,
-        messageCount: this.logMessages.length
+        messageCount: this.logMessages.length,
       });
 
       // 메시지 복사 후 원본 초기화
@@ -260,10 +269,10 @@ export class LogService {
 
       // 배치 단위로 전송
       const batches = this.createBatches(messagesToSend, this.options.batchSize);
-      
+
       for (const batch of batches) {
         await this.sendBatch(logChannel, batch);
-        
+
         // 배치 간 간격 (API 제한 방지)
         if (batches.length > 1) {
           await this.sleep(1000);
@@ -274,15 +283,14 @@ export class LogService {
       this.stats.lastSentAt = new Date();
 
       logger.debug(`Discord 채널로 로그 전송 완료`);
-
     } catch (error) {
       this.stats.failedMessages += this.logMessages.length;
       this.stats.lastFailedAt = new Date();
-      
+
       logger.error('Discord 로그 메시지 전송 오류', {
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-        messageCount: this.logMessages.length
+        messageCount: this.logMessages.length,
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
       });
 
       // 재시도 로직
@@ -298,21 +306,23 @@ export class LogService {
   private async getLogChannel(): Promise<TextChannel | ThreadChannel | null> {
     try {
       const channel = await this.client.channels.fetch(this.options.logChannelId);
-      
+
       if (!channel) return null;
-      
-      if (channel.isTextBased() && 
-          (channel.type === ChannelType.GuildText || 
-           channel.type === ChannelType.PrivateThread ||
-           channel.type === ChannelType.PublicThread)) {
+
+      if (
+        channel.isTextBased() &&
+        (channel.type === ChannelType.GuildText ||
+          channel.type === ChannelType.PrivateThread ||
+          channel.type === ChannelType.PublicThread)
+      ) {
         return channel as TextChannel | ThreadChannel;
       }
-      
+
       return null;
     } catch (error) {
       logger.error('로그 채널 가져오기 오류', {
         channelId: this.options.logChannelId,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       return null;
     }
@@ -328,30 +338,29 @@ export class LogService {
     for (const log of batch) {
       try {
         const colorCode = this.getColorForEventType(log.eventType, log.message);
-        
+
         const embedData: LogEmbedData = {
           message: log.message,
           members: log.members,
           colorCode,
           timestamp: log.timestamp,
-          channelName: log.channelName,
-          action: log.eventType
+          ...(log.channelName && { channelName: log.channelName }),
+          action: log.eventType,
         };
 
         const options: LogEmbedOptions = {
           includeMembers: log.members.length > 0,
           maxMembersShown: 20,
           showMemberCount: true,
-          maxFieldLength: 1024
+          maxFieldLength: 1024,
         };
 
         const embed = EmbedFactory.createLogEmbed(embedData, options);
         await channel.send({ embeds: [embed] });
-
       } catch (error) {
         logger.error('개별 로그 메시지 전송 오류', {
           error: error instanceof Error ? error.message : String(error),
-          logMessage: log.message
+          logMessage: log.message,
         });
       }
     }
@@ -360,14 +369,20 @@ export class LogService {
   /**
    * 이벤트 타입에 따른 색상 결정
    */
-  private getColorForEventType(eventType: string, message: string): string {
+  private getColorForEventType(eventType: string, message: string): number {
     if (eventType === LogEventType.JOIN || message.includes(MESSAGE_TYPES.JOIN)) {
       return COLORS.LOG_JOIN;
     } else if (eventType === LogEventType.LEAVE || message.includes(MESSAGE_TYPES.LEAVE)) {
       return COLORS.LOG_LEAVE;
-    } else if (eventType === LogEventType.CHANNEL_CREATE || message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
+    } else if (
+      eventType === LogEventType.CHANNEL_CREATE ||
+      message.includes(MESSAGE_TYPES.CHANNEL_CREATE)
+    ) {
       return COLORS.LOG_CREATE;
-    } else if (eventType === LogEventType.CHANNEL_RENAME || message.includes(MESSAGE_TYPES.CHANNEL_RENAME)) {
+    } else if (
+      eventType === LogEventType.CHANNEL_RENAME ||
+      message.includes(MESSAGE_TYPES.CHANNEL_RENAME)
+    ) {
       return COLORS.LOG_RENAME;
     } else if (eventType === LogEventType.ERROR) {
       return COLORS.ERROR;
@@ -376,7 +391,7 @@ export class LogService {
     } else if (eventType === LogEventType.INFO) {
       return COLORS.INFO;
     }
-    
+
     return COLORS.LOG; // 기본 색상
   }
 
@@ -385,24 +400,24 @@ export class LogService {
    */
   private async handleSendFailure(): Promise<void> {
     this.stats.retryCount++;
-    
+
     if (this.stats.retryCount <= this.options.maxRetries) {
       const delay = Math.min(1000 * Math.pow(2, this.stats.retryCount), 30000);
-      
+
       logger.info(`로그 전송 재시도 예정 (${this.stats.retryCount}/${this.options.maxRetries})`, {
         delay,
-        messageCount: this.logMessages.length
+        messageCount: this.logMessages.length,
       });
-      
+
       setTimeout(() => {
         this.sendLogMessages();
       }, delay);
     } else {
       logger.error('로그 전송 최대 재시도 횟수 초과', {
         retryCount: this.stats.retryCount,
-        messageCount: this.logMessages.length
+        messageCount: this.logMessages.length,
       });
-      
+
       // 메시지 버림
       this.logMessages.length = 0;
       this.stats.retryCount = 0;
@@ -414,11 +429,11 @@ export class LogService {
    */
   private createBatches<T>(items: T[], batchSize: number): T[][] {
     const batches: T[][] = [];
-    
+
     for (let i = 0; i < items.length; i += batchSize) {
       batches.push(items.slice(i, i + batchSize));
     }
-    
+
     return batches;
   }
 
@@ -426,7 +441,7 @@ export class LogService {
    * 지연 함수
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -434,7 +449,7 @@ export class LogService {
    */
   private addToHistory(message: LogMessage): void {
     this.messageHistory.push(message);
-    
+
     if (this.messageHistory.length > this.maxHistorySize) {
       this.messageHistory.shift();
     }
@@ -449,15 +464,15 @@ export class LogService {
     if (!channel) return [];
 
     try {
-      const freshChannel = await channel.guild.channels.fetch(channel.id) as VoiceChannel;
-      if (!freshChannel || !freshChannel.members) return [];
-      
+      const freshChannel = (await channel.guild.channels.fetch(channel.id)) as VoiceChannel;
+      if (!freshChannel?.members) return [];
+
       return freshChannel.members.map((member: GuildMember) => member.displayName);
     } catch (error) {
       logger.error('채널 멤버 정보 가져오기 오류', {
         channelId: channel?.id,
         channelName: channel?.name,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       return [];
     }
@@ -471,18 +486,18 @@ export class LogService {
   async handleChannelUpdate(oldChannel: Channel, newChannel: Channel): Promise<void> {
     if (newChannel.type === ChannelType.GuildVoice) {
       const oldVoiceChannel = oldChannel as VoiceChannel;
-      const newVoiceChannel = newChannel as VoiceChannel;
-      
+      const newVoiceChannel = newChannel;
+
       if (oldVoiceChannel.name !== newVoiceChannel.name) {
         logger.discordEvent('음성 채널 이름 변경 감지', {
           oldName: oldVoiceChannel.name,
           newName: newVoiceChannel.name,
           channelId: newVoiceChannel.id,
-          guildId: newVoiceChannel.guild.id
+          guildId: newVoiceChannel.guild.id,
         });
 
         const membersInChannel = await this.getVoiceChannelMembers(newVoiceChannel);
-        
+
         this.logActivity(
           `${MESSAGE_TYPES.CHANNEL_RENAME}: \` ${oldVoiceChannel.name} \` → \` ${newVoiceChannel.name} \``,
           membersInChannel,
@@ -491,7 +506,7 @@ export class LogService {
             oldName: oldVoiceChannel.name,
             newName: newVoiceChannel.name,
             channelId: newVoiceChannel.id,
-            guildId: newVoiceChannel.guild.id
+            guildId: newVoiceChannel.guild.id,
           }
         );
       }
@@ -504,13 +519,13 @@ export class LogService {
    */
   async handleChannelCreate(channel: Channel): Promise<void> {
     if (channel.type === ChannelType.GuildVoice) {
-      const voiceChannel = channel as VoiceChannel;
-      
+      const voiceChannel = channel;
+
       logger.discordEvent('음성 채널 생성 감지', {
         channelName: voiceChannel.name,
         channelId: voiceChannel.id,
         guildId: voiceChannel.guild.id,
-        parentId: voiceChannel.parentId
+        parentId: voiceChannel.parentId,
       });
 
       this.logActivity(
@@ -521,7 +536,7 @@ export class LogService {
           channelName: voiceChannel.name,
           channelId: voiceChannel.id,
           guildId: voiceChannel.guild.id,
-          parentId: voiceChannel.parentId
+          parentId: voiceChannel.parentId,
         }
       );
     }
@@ -533,12 +548,12 @@ export class LogService {
    */
   async handleChannelDelete(channel: Channel): Promise<void> {
     if (channel.type === ChannelType.GuildVoice) {
-      const voiceChannel = channel as VoiceChannel;
-      
+      const voiceChannel = channel;
+
       logger.discordEvent('음성 채널 삭제 감지', {
         channelName: voiceChannel.name,
         channelId: voiceChannel.id,
-        guildId: voiceChannel.guild.id
+        guildId: voiceChannel.guild.id,
       });
 
       this.logActivity(
@@ -548,7 +563,7 @@ export class LogService {
         {
           channelName: voiceChannel.name,
           channelId: voiceChannel.id,
-          guildId: voiceChannel.guild.id
+          guildId: voiceChannel.guild.id,
         }
       );
     }
@@ -600,12 +615,14 @@ export class LogService {
    * 오류 로그
    */
   error(message: string, error?: Error, metadata?: Record<string, any>): void {
-    const errorData = error ? {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      ...metadata
-    } : metadata;
+    const errorData = error
+      ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          ...metadata,
+        }
+      : metadata;
 
     this.log(LogLevel.ERROR, message, LogEventType.ERROR, errorData);
   }
@@ -614,12 +631,14 @@ export class LogService {
    * 치명적 오류 로그
    */
   fatal(message: string, error?: Error, metadata?: Record<string, any>): void {
-    const errorData = error ? {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      ...metadata
-    } : metadata;
+    const errorData = error
+      ? {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          ...metadata,
+        }
+      : metadata;
 
     this.log(LogLevel.FATAL, message, LogEventType.FATAL, errorData);
   }
@@ -638,7 +657,7 @@ export class LogService {
     let messages = [...this.messageHistory];
 
     if (filter) {
-      messages = messages.filter(msg => {
+      messages = messages.filter((msg) => {
         // 이벤트 타입 필터
         if (filter.eventTypes && !filter.eventTypes.includes(msg.eventType)) {
           return false;
@@ -655,9 +674,12 @@ export class LogService {
         }
 
         // 키워드 필터
-        if (filter.keywords && !filter.keywords.some(keyword => 
-          msg.message.toLowerCase().includes(keyword.toLowerCase())
-        )) {
+        if (
+          filter.keywords &&
+          !filter.keywords.some((keyword) =>
+            msg.message.toLowerCase().includes(keyword.toLowerCase())
+          )
+        ) {
           return false;
         }
 
@@ -666,7 +688,7 @@ export class LogService {
           const msgTime = msg.timestamp.getTime();
           const startTime = filter.timeRange.start.getTime();
           const endTime = filter.timeRange.end.getTime();
-          
+
           if (msgTime < startTime || msgTime > endTime) {
             return false;
           }
@@ -703,7 +725,7 @@ export class LogService {
       clearTimeout(this.logTimeout);
       this.logTimeout = null;
     }
-    
+
     await this.sendLogMessages();
   }
 
@@ -755,7 +777,7 @@ export function formatLogMessage(
   const timestamp = new Date().toISOString();
   const levelName = LogLevel[level].padEnd(5);
   const metadataStr = metadata ? ` | ${JSON.stringify(metadata)}` : '';
-  
+
   return `[${timestamp}] [${levelName}] ${message}${metadataStr}`;
 }
 

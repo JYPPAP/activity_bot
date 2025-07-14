@@ -1,5 +1,6 @@
 // src/services/PermissionService.ts - 권한 관리 서비스
-import { User, GuildMember, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
+import { User, GuildMember, PermissionFlagsBits } from 'discord.js';
+
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 
 // 권한 결과 인터페이스
@@ -37,17 +38,17 @@ enum PermissionLevel {
   USER = 'user',
   MODERATOR = 'moderator',
   ADMIN = 'admin',
-  OWNER = 'owner'
+  OWNER = 'owner',
 }
 
-// 권한 체크 결과 인터페이스
-interface PermissionCheck {
-  allowed: boolean;
-  reason: string;
-  level: PermissionLevel;
-  requiredLevel: PermissionLevel;
-  additionalInfo?: string;
-}
+// 권한 체크 결과 인터페이스 (currently unused)
+// interface PermissionCheck {
+//   allowed: boolean;
+//   reason: string;
+//   level: PermissionLevel;
+//   requiredLevel: PermissionLevel;
+//   additionalInfo?: string;
+// }
 
 // 권한 감사 로그 인터페이스
 interface PermissionAuditLog {
@@ -72,7 +73,10 @@ export class PermissionService {
   private static auditLogs: PermissionAuditLog[] = [];
   private static maxAuditLogs: number = 1000;
   private static rolePermissions: Map<string, RolePermissionConfig> = new Map();
-  private static permissionCache: Map<string, { permissions: PermissionSummary; timestamp: number }> = new Map();
+  private static permissionCache: Map<
+    string,
+    { permissions: PermissionSummary; timestamp: number }
+  > = new Map();
   private static cacheTimeout: number = 5 * 60 * 1000; // 5분
 
   /**
@@ -92,7 +96,7 @@ export class PermissionService {
 
       // 캐시된 권한 확인
       const cached = this.getCachedPermissions(user.id);
-      if (cached && cached.hasRecruitmentPermission !== undefined) {
+      if (cached?.hasRecruitmentPermission !== undefined) {
         console.log(`[PermissionService] 📋 캐시된 권한 사용: ${user.displayName} (${user.id})`);
         return cached.hasRecruitmentPermission;
       }
@@ -120,7 +124,9 @@ export class PermissionService {
           return true;
         }
 
-        console.log(`[PermissionService] ❌ 제한 모드에서 허용되지 않은 사용자: ${user.displayName} (${user.id})`);
+        console.log(
+          `[PermissionService] ❌ 제한 모드에서 허용되지 않은 사용자: ${user.displayName} (${user.id})`
+        );
         this.logPermissionCheck(user.id, 'recruitment_access', false, '제한 모드');
         return false;
       }
@@ -129,7 +135,6 @@ export class PermissionService {
       console.log(`[PermissionService] ✅ 구인구직 접근 허용: ${user.displayName} (${user.id})`);
       this.logPermissionCheck(user.id, 'recruitment_access', true, '기본 허용');
       return true;
-
     } catch (error) {
       console.error(`[PermissionService] 구인구직 권한 확인 오류:`, error);
       this.logPermissionCheck(user.id, 'recruitment_access', false, '오류 발생');
@@ -197,7 +202,6 @@ export class PermissionService {
 
       this.logPermissionCheck(user.id, 'manage_post', false, '권한 없음');
       return false;
-
     } catch (error) {
       console.error(`[PermissionService] 포스트 관리 권한 확인 오류:`, error);
       this.logPermissionCheck(user.id, 'manage_post', false, '오류 발생');
@@ -214,15 +218,19 @@ export class PermissionService {
     if (!member) return false;
 
     try {
-      const hasPermission = member.permissions.has(PermissionFlagsBits.ManageChannels) ||
-                           member.permissions.has(PermissionFlagsBits.Administrator) ||
-                           this.hasRolePermission(member, 'manage_voice_channels');
+      const hasPermission =
+        member.permissions.has(PermissionFlagsBits.ManageChannels) ||
+        member.permissions.has(PermissionFlagsBits.Administrator) ||
+        this.hasRolePermission(member, 'manage_voice_channels');
 
-      this.logPermissionCheck(member.id, 'manage_voice_channels', hasPermission, 
-        hasPermission ? '권한 있음' : '권한 없음');
+      this.logPermissionCheck(
+        member.id,
+        'manage_voice_channels',
+        hasPermission,
+        hasPermission ? '권한 있음' : '권한 없음'
+      );
 
       return hasPermission;
-
     } catch (error) {
       console.error(`[PermissionService] 음성 채널 관리 권한 확인 오류:`, error);
       this.logPermissionCheck(member.id, 'manage_voice_channels', false, '오류 발생');
@@ -236,7 +244,10 @@ export class PermissionService {
    * @param targetMember - 대상 멤버
    * @returns 닉네임 변경 권한 여부
    */
-  static canManageNicknames(member: GuildMember | null, targetMember: GuildMember | null = null): boolean {
+  static canManageNicknames(
+    member: GuildMember | null,
+    targetMember: GuildMember | null = null
+  ): boolean {
     if (!member) return false;
 
     try {
@@ -247,21 +258,30 @@ export class PermissionService {
       }
 
       // 관리자나 닉네임 관리 권한이 있는 경우
-      const hasPermission = member.permissions.has(PermissionFlagsBits.ManageNicknames) ||
-                           member.permissions.has(PermissionFlagsBits.Administrator) ||
-                           this.hasRolePermission(member, 'manage_nicknames');
+      const hasPermission =
+        member.permissions.has(PermissionFlagsBits.ManageNicknames) ||
+        member.permissions.has(PermissionFlagsBits.Administrator) ||
+        this.hasRolePermission(member, 'manage_nicknames');
 
       // 권한 계층 확인 (관리자는 다른 관리자의 닉네임 변경 불가)
-      if (hasPermission && targetMember && this.hasAdminPermission(targetMember) && !this.hasAdminPermission(member)) {
+      if (
+        hasPermission &&
+        targetMember &&
+        this.hasAdminPermission(targetMember) &&
+        !this.hasAdminPermission(member)
+      ) {
         this.logPermissionCheck(member.id, 'manage_nickname', false, '대상이 상위 권한');
         return false;
       }
 
-      this.logPermissionCheck(member.id, 'manage_nickname', hasPermission, 
-        hasPermission ? '권한 있음' : '권한 없음');
+      this.logPermissionCheck(
+        member.id,
+        'manage_nickname',
+        hasPermission,
+        hasPermission ? '권한 있음' : '권한 없음'
+      );
 
       return hasPermission;
-
     } catch (error) {
       console.error(`[PermissionService] 닉네임 관리 권한 확인 오류:`, error);
       this.logPermissionCheck(member.id, 'manage_nickname', false, '오류 발생');
@@ -276,14 +296,18 @@ export class PermissionService {
    * @param member - 길드 멤버 객체
    * @returns 결과
    */
-  static setRecruitmentEnabled(enabled: boolean, user: User, member: GuildMember | null): PermissionResult {
+  static setRecruitmentEnabled(
+    enabled: boolean,
+    user: User,
+    member: GuildMember | null
+  ): PermissionResult {
     try {
       // 관리자만 기능 활성화/비활성화 가능
       if (!member || !this.hasAdminPermission(member)) {
         this.logPermissionCheck(user.id, 'set_recruitment_enabled', false, '관리자 권한 없음');
         return {
           success: false,
-          message: '❌ 관리자만 구인구직 기능을 활성화/비활성화할 수 있습니다.'
+          message: '❌ 관리자만 구인구직 기능을 활성화/비활성화할 수 있습니다.',
         };
       }
 
@@ -295,20 +319,24 @@ export class PermissionService {
       this.clearPermissionCache();
 
       console.log(`[PermissionService] 구인구직 기능 ${status}: ${user.displayName} (${user.id})`);
-      this.logPermissionCheck(user.id, 'set_recruitment_enabled', true, `${previousState} -> ${enabled}`);
+      this.logPermissionCheck(
+        user.id,
+        'set_recruitment_enabled',
+        true,
+        `${previousState} -> ${enabled}`
+      );
 
       return {
         success: true,
         message: `✅ 구인구직 기능이 ${status}되었습니다.`,
-        data: { previousState, newState: enabled }
+        data: { previousState, newState: enabled },
       };
-
     } catch (error) {
       console.error(`[PermissionService] 구인구직 기능 설정 오류:`, error);
       this.logPermissionCheck(user.id, 'set_recruitment_enabled', false, '오류 발생');
       return {
         success: false,
-        message: '❌ 설정 변경 중 오류가 발생했습니다.'
+        message: '❌ 설정 변경 중 오류가 발생했습니다.',
       };
     }
   }
@@ -320,14 +348,18 @@ export class PermissionService {
    * @param requestMember - 요청 멤버 객체
    * @returns 결과
    */
-  static addAllowedUser(userId: string, requestUser: User, requestMember: GuildMember | null): PermissionResult {
+  static addAllowedUser(
+    userId: string,
+    requestUser: User,
+    requestMember: GuildMember | null
+  ): PermissionResult {
     try {
       // 관리자만 사용자 추가 가능
       if (!requestMember || !this.hasAdminPermission(requestMember)) {
         this.logPermissionCheck(requestUser.id, 'add_allowed_user', false, '관리자 권한 없음');
         return {
           success: false,
-          message: '❌ 관리자만 허용된 사용자를 추가할 수 있습니다.'
+          message: '❌ 관리자만 허용된 사용자를 추가할 수 있습니다.',
         };
       }
 
@@ -335,7 +367,7 @@ export class PermissionService {
       if (!userId || typeof userId !== 'string' || userId.length < 10) {
         return {
           success: false,
-          message: '❌ 유효하지 않은 사용자 ID입니다.'
+          message: '❌ 유효하지 않은 사용자 ID입니다.',
         };
       }
 
@@ -343,30 +375,31 @@ export class PermissionService {
       if (RecruitmentConfig.ALLOWED_USER_IDS.includes(userId)) {
         return {
           success: false,
-          message: '⚠️ 해당 사용자는 이미 허용된 목록에 있습니다.'
+          message: '⚠️ 해당 사용자는 이미 허용된 목록에 있습니다.',
         };
       }
 
       RecruitmentConfig.ALLOWED_USER_IDS.push(userId);
-      
+
       // 해당 사용자의 권한 캐시 초기화
       this.clearUserPermissionCache(userId);
 
-      console.log(`[PermissionService] 허용된 사용자 추가: ${userId} (요청자: ${requestUser.displayName})`);
+      console.log(
+        `[PermissionService] 허용된 사용자 추가: ${userId} (요청자: ${requestUser.displayName})`
+      );
       this.logPermissionCheck(requestUser.id, 'add_allowed_user', true, `추가된 사용자: ${userId}`);
 
       return {
         success: true,
         message: `✅ 사용자 <@${userId}>가 허용된 목록에 추가되었습니다.`,
-        data: { addedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length }
+        data: { addedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length },
       };
-
     } catch (error) {
       console.error(`[PermissionService] 허용된 사용자 추가 오류:`, error);
       this.logPermissionCheck(requestUser.id, 'add_allowed_user', false, '오류 발생');
       return {
         success: false,
-        message: '❌ 사용자 추가 중 오류가 발생했습니다.'
+        message: '❌ 사용자 추가 중 오류가 발생했습니다.',
       };
     }
   }
@@ -378,14 +411,18 @@ export class PermissionService {
    * @param requestMember - 요청 멤버 객체
    * @returns 결과
    */
-  static removeAllowedUser(userId: string, requestUser: User, requestMember: GuildMember | null): PermissionResult {
+  static removeAllowedUser(
+    userId: string,
+    requestUser: User,
+    requestMember: GuildMember | null
+  ): PermissionResult {
     try {
       // 관리자만 사용자 제거 가능
       if (!requestMember || !this.hasAdminPermission(requestMember)) {
         this.logPermissionCheck(requestUser.id, 'remove_allowed_user', false, '관리자 권한 없음');
         return {
           success: false,
-          message: '❌ 관리자만 허용된 사용자를 제거할 수 있습니다.'
+          message: '❌ 관리자만 허용된 사용자를 제거할 수 있습니다.',
         };
       }
 
@@ -393,30 +430,36 @@ export class PermissionService {
       if (index === -1) {
         return {
           success: false,
-          message: '⚠️ 해당 사용자는 허용된 목록에 없습니다.'
+          message: '⚠️ 해당 사용자는 허용된 목록에 없습니다.',
         };
       }
 
       RecruitmentConfig.ALLOWED_USER_IDS.splice(index, 1);
-      
+
       // 해당 사용자의 권한 캐시 초기화
       this.clearUserPermissionCache(userId);
 
-      console.log(`[PermissionService] 허용된 사용자 제거: ${userId} (요청자: ${requestUser.displayName})`);
-      this.logPermissionCheck(requestUser.id, 'remove_allowed_user', true, `제거된 사용자: ${userId}`);
+      console.log(
+        `[PermissionService] 허용된 사용자 제거: ${userId} (요청자: ${requestUser.displayName})`
+      );
+      this.logPermissionCheck(
+        requestUser.id,
+        'remove_allowed_user',
+        true,
+        `제거된 사용자: ${userId}`
+      );
 
       return {
         success: true,
         message: `✅ 사용자 <@${userId}>가 허용된 목록에서 제거되었습니다.`,
-        data: { removedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length }
+        data: { removedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length },
       };
-
     } catch (error) {
       console.error(`[PermissionService] 허용된 사용자 제거 오류:`, error);
       this.logPermissionCheck(requestUser.id, 'remove_allowed_user', false, '오류 발생');
       return {
         success: false,
-        message: '❌ 사용자 제거 중 오류가 발생했습니다.'
+        message: '❌ 사용자 제거 중 오류가 발생했습니다.',
       };
     }
   }
@@ -435,7 +478,7 @@ export class PermissionService {
         return {
           success: false,
           users: [],
-          message: '❌ 관리자만 허용된 사용자 목록을 조회할 수 있습니다.'
+          message: '❌ 관리자만 허용된 사용자 목록을 조회할 수 있습니다.',
         };
       }
 
@@ -445,19 +488,18 @@ export class PermissionService {
         success: true,
         users: [...RecruitmentConfig.ALLOWED_USER_IDS],
         message: `📋 현재 허용된 사용자: ${RecruitmentConfig.ALLOWED_USER_IDS.length}명`,
-        data: { 
+        data: {
           totalUsers: RecruitmentConfig.ALLOWED_USER_IDS.length,
-          restrictedMode: process.env.RECRUITMENT_RESTRICTED_MODE === 'true'
-        }
+          restrictedMode: process.env.RECRUITMENT_RESTRICTED_MODE === 'true',
+        },
       };
-
     } catch (error) {
       console.error(`[PermissionService] 허용된 사용자 목록 조회 오류:`, error);
       this.logPermissionCheck(requestUser.id, 'get_allowed_users', false, '오류 발생');
       return {
         success: false,
         users: [],
-        message: '❌ 목록 조회 중 오류가 발생했습니다.'
+        message: '❌ 목록 조회 중 오류가 발생했습니다.',
       };
     }
   }
@@ -481,14 +523,28 @@ export class PermissionService {
 
       // 기본 권한들 확인
       const isAdmin = member ? this.hasAdminPermission(member) : false;
-      const canManageChannels = member ? member.permissions.has(PermissionFlagsBits.ManageChannels) : false;
-      const canManageNicknames = member ? member.permissions.has(PermissionFlagsBits.ManageNicknames) : false;
-      const canManageMessages = member ? member.permissions.has(PermissionFlagsBits.ManageMessages) : false;
-      const canManageRoles = member ? member.permissions.has(PermissionFlagsBits.ManageRoles) : false;
-      const canKickMembers = member ? member.permissions.has(PermissionFlagsBits.KickMembers) : false;
+      const canManageChannels = member
+        ? member.permissions.has(PermissionFlagsBits.ManageChannels)
+        : false;
+      const canManageNicknames = member
+        ? member.permissions.has(PermissionFlagsBits.ManageNicknames)
+        : false;
+      const canManageMessages = member
+        ? member.permissions.has(PermissionFlagsBits.ManageMessages)
+        : false;
+      const canManageRoles = member
+        ? member.permissions.has(PermissionFlagsBits.ManageRoles)
+        : false;
+      const canKickMembers = member
+        ? member.permissions.has(PermissionFlagsBits.KickMembers)
+        : false;
       const canBanMembers = member ? member.permissions.has(PermissionFlagsBits.BanMembers) : false;
-      const canManageGuild = member ? member.permissions.has(PermissionFlagsBits.ManageGuild) : false;
-      const canViewAuditLog = member ? member.permissions.has(PermissionFlagsBits.ViewAuditLog) : false;
+      const canManageGuild = member
+        ? member.permissions.has(PermissionFlagsBits.ManageGuild)
+        : false;
+      const canViewAuditLog = member
+        ? member.permissions.has(PermissionFlagsBits.ViewAuditLog)
+        : false;
 
       // 권한 목록 구성
       if (isAdmin) permissions.push('Administrator');
@@ -505,7 +561,7 @@ export class PermissionService {
       if (member) {
         for (const role of member.roles.cache.values()) {
           const roleConfig = this.rolePermissions.get(role.id);
-          if (roleConfig && roleConfig.isActive) {
+          if (roleConfig?.isActive) {
             permissions.push(`Role: ${roleConfig.roleName}`);
           }
         }
@@ -516,7 +572,11 @@ export class PermissionService {
         warnings.push('멤버 정보를 찾을 수 없습니다.');
       }
 
-      if (process.env.RECRUITMENT_RESTRICTED_MODE === 'true' && !RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id) && !isAdmin) {
+      if (
+        process.env.RECRUITMENT_RESTRICTED_MODE === 'true' &&
+        !RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id) &&
+        !isAdmin
+      ) {
         warnings.push('제한 모드에서 구인구직 기능 접근이 제한됩니다.');
       }
 
@@ -534,17 +594,16 @@ export class PermissionService {
         isInAllowedList: RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id),
         recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED,
         permissions,
-        warnings
+        warnings,
       };
 
       // 캐시에 저장
       this.cachePermissions(user.id, summary);
 
       return summary;
-
     } catch (error) {
       console.error(`[PermissionService] 권한 요약 생성 오류:`, error);
-      
+
       // 오류 발생 시 기본 권한 반환
       return {
         hasRecruitmentPermission: false,
@@ -560,7 +619,7 @@ export class PermissionService {
         isInAllowedList: false,
         recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED,
         permissions: [],
-        warnings: ['권한 정보 로드 중 오류가 발생했습니다.']
+        warnings: ['권한 정보 로드 중 오류가 발생했습니다.'],
       };
     }
   }
@@ -576,9 +635,12 @@ export class PermissionService {
 
     if (member.guild.ownerId === user.id) return PermissionLevel.OWNER;
     if (this.hasAdminPermission(member)) return PermissionLevel.ADMIN;
-    if (member.permissions.has(PermissionFlagsBits.ManageMessages) || 
-        member.permissions.has(PermissionFlagsBits.ManageChannels)) return PermissionLevel.MODERATOR;
-    
+    if (
+      member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      member.permissions.has(PermissionFlagsBits.ManageChannels)
+    )
+      return PermissionLevel.MODERATOR;
+
     return PermissionLevel.USER;
   }
 
@@ -590,14 +652,19 @@ export class PermissionService {
    * @param priority - 우선순위
    * @returns 설정 성공 여부
    */
-  static addRolePermission(roleId: string, roleName: string, permissions: string[], priority: number = 0): boolean {
+  static addRolePermission(
+    roleId: string,
+    roleName: string,
+    permissions: string[],
+    priority: number = 0
+  ): boolean {
     try {
       this.rolePermissions.set(roleId, {
         roleId,
         roleName,
         permissions,
         priority,
-        isActive: true
+        isActive: true,
       });
 
       console.log(`[PermissionService] 역할 권한 설정 추가: ${roleName} (${roleId})`);
@@ -616,14 +683,20 @@ export class PermissionService {
    * @param reason - 사유
    * @param target - 대상
    */
-  private static logPermissionCheck(userId: string, action: string, result: boolean, reason?: string, target?: string): void {
+  private static logPermissionCheck(
+    userId: string,
+    action: string,
+    result: boolean,
+    reason?: string,
+    target?: string
+  ): void {
     const log: PermissionAuditLog = {
       userId,
       action,
-      target,
       result,
       timestamp: new Date(),
-      reason
+      ...(target && { target }),
+      ...(reason && { reason }),
     };
 
     this.auditLogs.push(log);
@@ -642,7 +715,7 @@ export class PermissionService {
   private static cachePermissions(userId: string, permissions: PermissionSummary): void {
     this.permissionCache.set(userId, {
       permissions,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     });
   }
 
@@ -687,14 +760,12 @@ export class PermissionService {
    */
   static getAuditLogs(userId?: string, limit: number = 100): PermissionAuditLog[] {
     let logs = this.auditLogs;
-    
+
     if (userId) {
-      logs = logs.filter(log => log.userId === userId);
+      logs = logs.filter((log) => log.userId === userId);
     }
 
-    return logs
-      .sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-      .slice(0, limit);
+    return logs.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, limit);
   }
 
   /**
@@ -712,13 +783,13 @@ export class PermissionService {
     const recentActions: Record<string, number> = {};
     let successCount = 0;
 
-    this.auditLogs.forEach(log => {
+    this.auditLogs.forEach((log) => {
       recentActions[log.action] = (recentActions[log.action] || 0) + 1;
       if (log.result) successCount++;
     });
 
     const userActionCounts = new Map<string, number>();
-    this.auditLogs.forEach(log => {
+    this.auditLogs.forEach((log) => {
       userActionCounts.set(log.userId, (userActionCounts.get(log.userId) || 0) + 1);
     });
 
@@ -733,7 +804,7 @@ export class PermissionService {
       successRate: this.auditLogs.length > 0 ? (successCount / this.auditLogs.length) * 100 : 0,
       topUsers,
       allowedUsersCount: RecruitmentConfig.ALLOWED_USER_IDS.length,
-      recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED
+      recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED,
     };
   }
 
@@ -742,14 +813,17 @@ export class PermissionService {
    */
   static initialize(): void {
     console.log('[PermissionService] 권한 시스템 초기화 중...');
-    
+
     // 기본 역할 권한 설정
     this.setupDefaultRolePermissions();
-    
+
     // 캐시 정리 작업 스케줄링
-    setInterval(() => {
-      this.cleanupExpiredCache();
-    }, 10 * 60 * 1000); // 10분마다 실행
+    setInterval(
+      () => {
+        this.cleanupExpiredCache();
+      },
+      10 * 60 * 1000
+    ); // 10분마다 실행
 
     console.log('[PermissionService] 권한 시스템 초기화 완료');
   }

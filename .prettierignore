@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+out/
+
+# Logs
+logs/
+*.log
+
+# Environment files
+.env*
+
+# Package files
+package-lock.json
+yarn.lock
+
+# Cache directories
+.eslintcache
+.prettiercache
+
+# Coverage directory
+coverage/
+
+# IDE files
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Legacy files
+*.js
+!scripts/*.js
+!*.config.js
+!*.config.cjs
+
+# Documentation
+*.md
