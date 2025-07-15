@@ -135,45 +135,20 @@ export class CommandPermissions {
     },
 
     // 최고 관리자 명령어
-    gap_list: {
+    잠수: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '활동 목록 조회',
+      description: '잠수 상태 관리',
     },
-    gap_config: {
+    설정: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
-      description: '설정 관리',
+      description: '역할 설정 관리',
     },
-    gap_reset: {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: '데이터 초기화',
-    },
-    gap_save: {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: '데이터 저장',
-    },
-    gap_report: {
+    보고서: {
       level: PermissionLevel.SUPER_ADMIN,
       enabled: true,
       description: '활동 보고서 생성',
-    },
-    gap_afk: {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: 'AFK 관리',
-    },
-    gap_calendar: {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: '캘린더 보고서',
-    },
-    gap_stats: {
-      level: PermissionLevel.SUPER_ADMIN,
-      enabled: true,
-      description: '통계 조회',
     },
     시간체크: {
       level: PermissionLevel.SUPER_ADMIN,

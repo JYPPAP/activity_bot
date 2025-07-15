@@ -1,4 +1,4 @@
-// src/commands/gapAfkCommand.ts - gap_afk 명령어
+// src/commands/jamsuCommand.ts - 잠수 명령어
 import {
   ChatInputCommandInteraction,
   MessageFlags,
@@ -28,19 +28,19 @@ interface AfkSetResult {
   isNewRole: boolean;
 }
 
-export class GapAfkCommand extends CommandBase {
+export class JamsuCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
-    name: 'gap_afk',
+    name: '잠수',
     description: '사용자를 잠수 상태로 설정합니다.',
     category: 'administration',
     permissions: ['ManageRoles'],
     cooldown: 5,
     adminOnly: true,
     guildOnly: true,
-    usage: '/gap_afk user:<사용자> until_date:<날짜>',
+    usage: '/잠수 user:<사용자> until_date:<날짜>',
     examples: [
-      '/gap_afk user:@사용자 until_date:250510',
-      '/gap_afk user:@사용자 until_date:250615 reason:휴가',
+      '/잠수 user:@사용자 until_date:250510',
+      '/잠수 user:@사용자 until_date:250615 reason:휴가',
     ],
     aliases: ['afk', '잠수'],
   };
@@ -85,7 +85,7 @@ export class GapAfkCommand extends CommandBase {
   }
 
   /**
-   * gap_afk 명령어의 실제 실행 로직
+   * 잠수 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
@@ -341,7 +341,7 @@ export class GapAfkCommand extends CommandBase {
         data: result,
       };
     } catch (error) {
-      console.error('gap_afk 명령어 실행 오류:', error);
+      console.error('잠수 명령어 실행 오류:', error);
 
       const errorMessage =
         error instanceof Error ? error.message : '잠수 상태 설정 중 오류가 발생했습니다.';

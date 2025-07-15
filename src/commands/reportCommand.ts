@@ -1,4 +1,4 @@
-// src/commands/gapReportCommand.ts - gap_report 명령어
+// src/commands/reportCommand.ts - 보고서 명령어
 import {
   ChatInputCommandInteraction,
   MessageFlags,
@@ -62,21 +62,21 @@ interface DateValidationResult {
   dateRange?: DateRange;
 }
 
-export class GapReportCommand extends CommandBase {
+export class ReportCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
-    name: 'gap_report',
+    name: '보고서',
     description: '역할별 활동 보고서를 생성합니다.',
     category: 'administration',
     permissions: ['Administrator'],
     cooldown: 60,
     adminOnly: true,
     guildOnly: true,
-    usage: '/gap_report role:<역할이름> [start_date:<시작날짜>] [end_date:<종료날짜>]',
+    usage: '/보고서 role:<역할이름> [start_date:<시작날짜>] [end_date:<종료날짜>]',
     examples: [
-      '/gap_report role:정규',
-      '/gap_report role:정규 test_mode:true',
-      '/gap_report role:정규 start_date:241201 end_date:241231',
-      '/gap_report role:정규 reset:true log_channel:#보고서',
+      '/보고서 role:정규',
+      '/보고서 role:정규 test_mode:true',
+      '/보고서 role:정규 start_date:241201 end_date:241231',
+      '/보고서 role:정규 reset:true log_channel:#보고서',
     ],
     aliases: ['report', '보고서'],
   };
@@ -152,7 +152,7 @@ export class GapReportCommand extends CommandBase {
   }
 
   /**
-   * gap_report 명령어의 실제 실행 로직
+   * 보고서 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
@@ -285,7 +285,7 @@ export class GapReportCommand extends CommandBase {
         data: result,
       };
     } catch (error) {
-      console.error('gap_report 명령어 실행 오류:', error);
+      console.error('보고서 명령어 실행 오류:', error);
 
       const errorMessage =
         error instanceof Error ? error.message : '보고서 생성 중 오류가 발생했습니다.';
@@ -343,7 +343,7 @@ export class GapReportCommand extends CommandBase {
   ): boolean {
     if (!roleConfig) {
       interaction.followUp({
-        content: `❌ 역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
+        content: `❌ 역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /설정 명령어로 설정해주세요.`,
         flags: MessageFlags.Ephemeral,
       });
       return false;

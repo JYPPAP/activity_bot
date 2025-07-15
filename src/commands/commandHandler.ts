@@ -18,15 +18,10 @@ import { UserClassificationService } from '../services/UserClassificationService
 import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
 
 import { CommandBase, CommandServices } from './CommandBase.js';
-import { GapAfkCommand } from './gapAfkCommand.js';
-import { GapCalendarCommand } from './gapCalendarCommand.js';
+import { JamsuCommand } from './jamsuCommand.js';
 import { GapCheckCommand } from './gapCheckCommand.js';
-import { GapConfigCommand } from './gapConfigCommand.js';
-import { GapListCommand } from './gapListCommand.js';
-import { GapReportCommand } from './gapReportCommand.js';
-import { GapResetCommand } from './gapResetCommand.js';
-import { GapSaveCommand } from './gapSaveCommand.js';
-import { GapStatsCommand } from './gapStatsCommand.js';
+import { SettingsCommand } from './settingsCommand.js';
+import { ReportCommand } from './reportCommand.js';
 import { RecruitmentCommand } from './recruitmentCommand.js';
 
 // 명령어 핸들러 설정
@@ -161,39 +156,25 @@ export class CommandHandler {
       };
 
       // 명령어 인스턴스 생성
-      const gapListCommand = new GapListCommand(services) as ExtendedCommand;
-      const gapConfigCommand = new GapConfigCommand(services);
-      const gapResetCommand = new GapResetCommand(services);
+      const jamsuCommand = new JamsuCommand(services);
+      const settingsCommand = new SettingsCommand(services);
+      const reportCommand = new ReportCommand(services) as ExtendedCommand;
       const gapCheckCommand = new GapCheckCommand(services);
-      const gapSaveCommand = new GapSaveCommand(services);
-      const gapCalendarCommand = new GapCalendarCommand(services);
-      const gapStatsCommand = new GapStatsCommand(services);
-      const gapReportCommand = new GapReportCommand(services) as ExtendedCommand;
-      const gapAfkCommand = new GapAfkCommand(services);
       const recruitmentCommand = new RecruitmentCommand({
         ...services,
         voiceForumService: this.voiceForumService,
       });
 
       // UserClassificationService 의존성 주입
-      if (gapListCommand.setUserClassificationService) {
-        gapListCommand.setUserClassificationService(this.userClassificationService);
-      }
-
-      if (gapReportCommand.setUserClassificationService) {
-        gapReportCommand.setUserClassificationService(this.userClassificationService);
+      if (reportCommand.setUserClassificationService) {
+        reportCommand.setUserClassificationService(this.userClassificationService);
       }
 
       // 명령어 맵에 등록
-      this.registerCommand('gap_list', gapListCommand);
-      this.registerCommand('gap_config', gapConfigCommand);
-      this.registerCommand('gap_reset', gapResetCommand);
+      this.registerCommand('잠수', jamsuCommand);
+      this.registerCommand('설정', settingsCommand);
+      this.registerCommand('보고서', reportCommand);
       this.registerCommand('시간체크', gapCheckCommand);
-      this.registerCommand('gap_save', gapSaveCommand);
-      this.registerCommand('gap_calendar', gapCalendarCommand);
-      this.registerCommand('gap_stats', gapStatsCommand);
-      this.registerCommand('gap_report', gapReportCommand);
-      this.registerCommand('gap_afk', gapAfkCommand);
       this.registerCommand('구직', recruitmentCommand);
 
       console.log('명령어 초기화 완료:', [...this.commands.keys()]);

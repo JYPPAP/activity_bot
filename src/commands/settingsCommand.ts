@@ -1,4 +1,4 @@
-// src/commands/gapConfigCommand.ts - gap_config 명령어 (수정)
+// src/commands/settingsCommand.ts - 설정 명령어
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 
 import { cleanRoleName } from '../utils/formatters.js';
@@ -27,17 +27,17 @@ interface RoleConfig {
   enabled: boolean | undefined;
 }
 
-export class GapConfigCommand extends CommandBase {
+export class SettingsCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
-    name: 'gap_config',
+    name: '설정',
     description: '역할별 최소 활동시간을 설정합니다.',
     category: 'administration',
     permissions: ['Administrator'],
     cooldown: 5,
     adminOnly: true,
     guildOnly: true,
-    usage: '/gap_config role:<역할이름> hours:<시간>',
-    examples: ['/gap_config role:정규 hours:10', '/gap_config role:준회원 hours:5'],
+    usage: '/설정 role:<역할이름> hours:<시간>',
+    examples: ['/설정 role:정규 hours:10', '/설정 role:준회원 hours:5'],
     aliases: ['config', '설정'],
   };
 
@@ -87,7 +87,7 @@ export class GapConfigCommand extends CommandBase {
   }
 
   /**
-   * gap_config 명령어의 실제 실행 로직
+   * 설정 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
    */
@@ -218,7 +218,7 @@ export class GapConfigCommand extends CommandBase {
         data: newConfig,
       };
     } catch (error) {
-      console.error('gap_config 명령어 실행 오류:', error);
+      console.error('설정 명령어 실행 오류:', error);
 
       const errorMessage =
         error instanceof Error ? error.message : '설정 저장 중 알 수 없는 오류가 발생했습니다.';
