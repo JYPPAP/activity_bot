@@ -172,7 +172,7 @@ export class CalendarLogService {
     userId: string
   ): Promise<void> {
     try {
-      await this.db.logActivity(userId, type, channelId, channelName, members);
+      await this.db.logDetailedActivity(userId, type, channelId, channelName, members);
     } catch (error) {
       console.error('[CalendarLogService] 활동 로그 기록 오류:', error);
     }

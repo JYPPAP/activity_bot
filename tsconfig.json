@@ -20,6 +20,10 @@
     "strictNullChecks": true,
     "strictFunctionTypes": true,
     
+    // 데코레이터 지원 (DI Container 용)
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    
     // 기타 옵션
     "resolveJsonModule": true,
     "skipLibCheck": true,

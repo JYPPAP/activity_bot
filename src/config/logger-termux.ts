@@ -50,6 +50,20 @@ interface HealthCheckData {
   memory: MemoryUsage;
   memoryDiff: MemoryDiff;
   timestamp: string;
+  discord?: DiscordHealthMetrics;
+}
+
+interface DiscordHealthMetrics {
+  websocketPing: number;
+  guilds: number;
+  users: number;
+  channels: number;
+  ready: boolean;
+  rateLimitHits: number;
+  reconnections: number;
+  totalDisconnections: number;
+  eventTypesTracked: number;
+  performanceIssues: string[];
 }
 
 interface MemoryUsage {
@@ -95,6 +109,8 @@ interface BotLogger extends LoggerMethods {
   commandExecution: (message: string, meta?: LogMeta) => void;
   databaseOperation: (message: string, meta?: LogMeta) => void;
   discordEvent: (message: string, meta?: LogMeta) => void;
+  discordRateLimit: (message: string, meta?: LogMeta) => void;
+  discordPerformance: (message: string, meta?: LogMeta) => void;
   withMeta: (meta: LogMeta) => LoggerMethods;
 }
 
@@ -472,6 +488,48 @@ function startHealthMonitoring(): void {
         external: Math.round(currentMemory.external / 1024 / 1024),
       };
 
+      // Discord 봇 메트릭 수집 (동적 임포트로 순환 참조 방지)
+      let discordMetrics: DiscordHealthMetrics | undefined;
+      try {
+        const { Bot } = await import('../bot.js');
+        const botInstance = Bot.getInstance();
+        
+        if (botInstance && botInstance.isReady()) {
+          const performanceStatus = botInstance.services.performanceMonitor.getDetailedReport();
+          
+          // 성능 이슈 감지
+          const performanceIssues: string[] = [];
+          
+          if (performanceStatus.websocket.ping > 300) {
+            performanceIssues.push(`높은 레이턴시: ${performanceStatus.websocket.ping}ms`);
+          }
+          
+          if (performanceStatus.api.rateLimitHits > 20) {
+            performanceIssues.push(`레이트 리밋: ${performanceStatus.api.rateLimitHits}회`);
+          }
+          
+          if (performanceStatus.websocket.reconnectCount > 5) {
+            performanceIssues.push(`재연결: ${performanceStatus.websocket.reconnectCount}회`);
+          }
+          
+          discordMetrics = {
+            websocketPing: performanceStatus.websocket.ping,
+            guilds: performanceStatus.discord.guilds,
+            users: performanceStatus.discord.users,
+            channels: performanceStatus.discord.channels,
+            ready: performanceStatus.discord.ready,
+            rateLimitHits: performanceStatus.api.rateLimitHits,
+            reconnections: performanceStatus.websocket.reconnectCount,
+            totalDisconnections: performanceStatus.websocket.totalDisconnections,
+            eventTypesTracked: Object.keys(performanceStatus.events).length,
+            performanceIssues,
+          };
+        }
+      } catch (error) {
+        // Discord 메트릭 수집 실패 시 무시 (봇이 아직 초기화되지 않았을 수 있음)
+        console.debug('Discord 메트릭 수집 건너뜀:', error instanceof Error ? error.message : String(error));
+      }
+
       // 헬스체크 데이터
       const healthData: HealthCheckData = {
         uptime: `${Math.round(uptime / 60)}분`,
@@ -481,10 +539,21 @@ function startHealthMonitoring(): void {
           heapUsed: Math.round(memoryDiff.heapUsed / 1024 / 1024),
         },
         timestamp: new Date().toISOString(),
+        ...(discordMetrics && { discord: discordMetrics }),
       };
 
       // 헬스체크 로그
       logger.info(`[HealthCheck] 시스템 상태 체크`, healthData);
+
+      // Discord 성능 이슈 경고
+      if (discordMetrics && discordMetrics.performanceIssues.length > 0) {
+        logger.warn(`[HealthCheck] Discord 성능 이슈 감지`, {
+          issues: discordMetrics.performanceIssues,
+          websocketPing: discordMetrics.websocketPing,
+          rateLimitHits: discordMetrics.rateLimitHits,
+          recommendation: '봇 상태 점검 필요',
+        });
+      }
 
       // 메모리 누수 경고 (RSS가 200MB 이상 증가했을 때)
       if (memoryDiff.rss > 200 * 1024 * 1024) {
@@ -577,6 +646,15 @@ export const logger: BotLogger = {
     errsole.meta({ type: 'discord_event', ...meta }).debug(message);
   },
 
+  discordRateLimit: (message: string, meta: LogMeta = {}) => {
+    errsole.meta({ type: 'discord_rate_limit', ...meta }).warn(message);
+    sendSlackAlert('warn', message, { type: 'discord_rate_limit', ...meta });
+  },
+
+  discordPerformance: (message: string, meta: LogMeta = {}) => {
+    errsole.meta({ type: 'discord_performance', ...meta }).info(message);
+  },
+
   // 메타데이터와 함께 로깅하는 헬퍼 함수
   withMeta: (meta: LogMeta): LoggerMethods => ({
     debug: (message: string) => errsole.meta(meta).debug(message),
@@ -654,6 +732,10 @@ export function createChildLogger(defaultMeta: LogMeta): BotLogger {
       logger.databaseOperation(message, { ...defaultMeta, ...meta }),
     discordEvent: (message: string, meta: LogMeta = {}) =>
       logger.discordEvent(message, { ...defaultMeta, ...meta }),
+    discordRateLimit: (message: string, meta: LogMeta = {}) =>
+      logger.discordRateLimit(message, { ...defaultMeta, ...meta }),
+    discordPerformance: (message: string, meta: LogMeta = {}) =>
+      logger.discordPerformance(message, { ...defaultMeta, ...meta }),
     withMeta: (meta: LogMeta) => logger.withMeta({ ...defaultMeta, ...meta }),
   };
 }

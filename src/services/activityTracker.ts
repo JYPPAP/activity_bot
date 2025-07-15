@@ -1,12 +1,16 @@
 // src/services/activityTracker.ts - 활동 추적 서비스 (TypeScript)
+import { injectable, inject } from 'tsyringe';
 import { VoiceState, GuildMember, Collection, Guild, VoiceChannel } from 'discord.js';
 
 import { TIME, FILTERS, MESSAGE_TYPES } from '../config/constants.js';
 import { config } from '../config/env.js';
 import { EnhancedClient } from '../types/discord.js';
 
-import { SQLiteManager } from './SQLiteManager.js';
-import { LogService } from './logService.js';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager.js';
+import type { ILogService } from '../interfaces/ILogService.js';
+import type { IActivityTracker } from '../interfaces/IActivityTracker.js';
+import type { IRedisService } from '../interfaces/IRedisService.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 // import { UserActivity } from '../types/index.js'; // 미사용
 
 // ====================
@@ -66,15 +70,25 @@ export interface VoiceStateChange {
 // 활동 추적 서비스 클래스
 // ====================
 
-export class ActivityTracker {
+@injectable()
+export class ActivityTracker implements IActivityTracker {
   private readonly client: EnhancedClient;
-  private readonly db: SQLiteManager;
-  private readonly logService: LogService;
+  private readonly db: IDatabaseManager;
+  private readonly logService: ILogService;
+  private readonly redis: IRedisService;
   private readonly options: Required<ActivityTrackerOptions>;
 
-  // 활동 데이터 저장소
-  private readonly channelActivityTime: Map<string, ActivityData> = new Map();
+  // 활동 데이터 저장소 (Redis 기반 + fallback)
+  private readonly channelActivityTime: Map<string, ActivityData> = new Map(); // fallback용
   private roleActivityConfig: Record<string, number> = {};
+
+  // Redis 키 패턴
+  private readonly REDIS_KEYS = {
+    VOICE_SESSION: (userId: string) => `voice_session:${userId}`,
+    ACTIVITY_DATA: (userId: string) => `activity_data:${userId}`,
+    SESSION_STATS: 'session_stats',
+    ACTIVE_SESSIONS: 'active_voice_sessions',
+  };
 
   // 제어 변수
   private saveActivityTimeout: NodeJS.Timeout | null = null;
@@ -93,15 +107,20 @@ export class ActivityTracker {
     uptime: 0,
   };
 
+  // 세션 및 이벤트 추적 (fallback용)
+  private currentSessions: Map<string, { startTime: number; channelId: string }> = new Map();
+
   constructor(
-    client: EnhancedClient,
-    dbManager: SQLiteManager,
-    logService: LogService,
+    @inject(DI_TOKENS.DiscordClient) client: EnhancedClient,
+    @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
+    @inject(DI_TOKENS.ILogService) logService: ILogService,
+    @inject(DI_TOKENS.IRedisService) redis: IRedisService,
     options: ActivityTrackerOptions = {}
   ) {
     this.client = client;
     this.db = dbManager;
     this.logService = logService;
+    this.redis = redis;
     this.options = {
       saveDelay: TIME.SAVE_ACTIVITY_DELAY,
       batchSize: 50,
@@ -117,6 +136,202 @@ export class ActivityTracker {
       this.scheduleStatisticsUpdate();
     }
   }
+
+  // ===========================================
+  // Redis 세션 관리 메서드들
+  // ===========================================
+
+  /**
+   * Redis에서 음성 세션 데이터 조회 (fallback 포함)
+   */
+  private async getVoiceSession(userId: string): Promise<{ startTime: number; channelId: string } | null> {
+    try {
+      if (this.redis.isConnected()) {
+        const sessionData = await this.redis.hgetall(this.REDIS_KEYS.VOICE_SESSION(userId));
+        if (sessionData.startTime && sessionData.channelId) {
+          return {
+            startTime: parseInt(sessionData.startTime),
+            channelId: sessionData.channelId,
+          };
+        }
+      }
+
+      // fallback - 메모리에서 조회
+      return this.currentSessions.get(userId) || null;
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 세션 조회 실패:', error);
+      return this.currentSessions.get(userId) || null;
+    }
+  }
+
+  /**
+   * Redis에 음성 세션 데이터 저장 (fallback 포함)
+   */
+  private async setVoiceSession(userId: string, startTime: number, channelId: string): Promise<void> {
+    const sessionData = { startTime, channelId };
+
+    try {
+      if (this.redis.isConnected()) {
+        await this.redis.hmset(this.REDIS_KEYS.VOICE_SESSION(userId), {
+          startTime: startTime.toString(),
+          channelId: channelId,
+          timestamp: Date.now().toString(),
+        });
+
+        // 24시간 TTL 설정
+        await this.redis.expire(this.REDIS_KEYS.VOICE_SESSION(userId), 86400);
+
+        // 활성 세션 집합에 추가
+        await this.redis.sadd(this.REDIS_KEYS.ACTIVE_SESSIONS, userId);
+      }
+
+      // fallback 메모리에도 저장
+      this.currentSessions.set(userId, sessionData);
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 세션 저장 실패:', error);
+      
+      // 에러 발생시 fallback만 사용
+      this.currentSessions.set(userId, sessionData);
+    }
+  }
+
+  /**
+   * Redis에서 음성 세션 데이터 삭제 (fallback 포함)
+   */
+  private async removeVoiceSession(userId: string): Promise<void> {
+    try {
+      if (this.redis.isConnected()) {
+        await this.redis.del(this.REDIS_KEYS.VOICE_SESSION(userId));
+        await this.redis.srem(this.REDIS_KEYS.ACTIVE_SESSIONS, userId);
+      }
+
+      // fallback 메모리에서도 삭제
+      this.currentSessions.delete(userId);
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 세션 삭제 실패:', error);
+      
+      // 에러 발생시 fallback만 삭제
+      this.currentSessions.delete(userId);
+    }
+  }
+
+  /**
+   * Redis에서 활동 데이터 조회 (fallback 포함)
+   */
+  private async getActivityData(userId: string): Promise<ActivityData | null> {
+    try {
+      if (this.redis.isConnected()) {
+        const activityData = await this.redis.getJSON<ActivityData>(this.REDIS_KEYS.ACTIVITY_DATA(userId));
+        if (activityData) {
+          return activityData;
+        }
+      }
+
+      // fallback - 메모리에서 조회
+      return this.channelActivityTime.get(userId) || null;
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 활동 데이터 조회 실패:', error);
+      return this.channelActivityTime.get(userId) || null;
+    }
+  }
+
+  /**
+   * Redis에 활동 데이터 저장 (fallback 포함)
+   */
+  private async setActivityData(userId: string, activityData: ActivityData): Promise<void> {
+    try {
+      if (this.redis.isConnected()) {
+        await this.redis.setJSON(this.REDIS_KEYS.ACTIVITY_DATA(userId), activityData, 3600); // 1시간 TTL
+      }
+
+      // fallback 메모리에도 저장
+      this.channelActivityTime.set(userId, activityData);
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 활동 데이터 저장 실패:', error);
+      
+      // 에러 발생시 fallback만 사용
+      this.channelActivityTime.set(userId, activityData);
+    }
+  }
+
+  /**
+   * Redis에서 모든 활성 세션 조회
+   */
+  private async getAllActiveSessions(): Promise<string[]> {
+    try {
+      if (this.redis.isConnected()) {
+        const userIds = await this.redis.smembers(this.REDIS_KEYS.ACTIVE_SESSIONS);
+        return userIds;
+      }
+
+      // fallback - 메모리에서 조회
+      return Array.from(this.currentSessions.keys());
+    } catch (error) {
+      console.error('[ActivityTracker] Redis 활성 세션 조회 실패:', error);
+      return Array.from(this.currentSessions.keys());
+    }
+  }
+
+  /**
+   * 봇 재시작 시 Redis에서 세션 복구
+   */
+  async restoreActiveSessions(): Promise<void> {
+    try {
+      if (!this.redis.isConnected()) {
+        console.log('[ActivityTracker] Redis 연결 없음. 세션 복구 건너뜀.');
+        return;
+      }
+
+      console.log('[ActivityTracker] Redis에서 활성 세션 복구 중...');
+      
+      const activeUserIds = await this.getAllActiveSessions();
+      let restoredCount = 0;
+
+      for (const userId of activeUserIds) {
+        try {
+          const sessionData = await this.getVoiceSession(userId);
+          const activityData = await this.getActivityData(userId);
+
+          if (sessionData) {
+            // 현재 시간으로부터 너무 오래된 세션은 정리
+            const sessionAge = Date.now() - sessionData.startTime;
+            if (sessionAge > 86400000) { // 24시간 이상
+              await this.removeVoiceSession(userId);
+              console.log(`[ActivityTracker] 오래된 세션 정리: ${userId}`);
+              continue;
+            }
+
+            // 메모리에 세션 복구
+            this.currentSessions.set(userId, sessionData);
+            restoredCount++;
+          }
+
+          if (activityData) {
+            this.channelActivityTime.set(userId, activityData);
+          }
+        } catch (error) {
+          console.error(`[ActivityTracker] 사용자 ${userId} 세션 복구 실패:`, error);
+        }
+      }
+
+      console.log(`[ActivityTracker] ✅ ${restoredCount}개 세션 복구 완료`);
+
+      // 실시간 알림 발송
+      if (this.redis.isConnected()) {
+        await this.redis.publish('voice_activity', JSON.stringify({
+          type: 'session_restore',
+          restoredSessions: restoredCount,
+          timestamp: Date.now(),
+        }));
+      }
+    } catch (error) {
+      console.error('[ActivityTracker] 세션 복구 실패:', error);
+    }
+  }
+
+  // ===========================================
+  // 기존 메서드들
+  // ===========================================
 
   /**
    * 활동 데이터를 DB에서 로드
@@ -282,7 +497,7 @@ export class ActivityTracker {
         throw new Error('길드를 찾을 수 없습니다.');
       }
 
-      await this.db.updateRoleResetTime(role, now, '관리자 명령으로 초기화');
+      await this.db.updateRoleResetTime(role, now);
       const members = await guild.members.fetch();
 
       for (const [_, member] of members) {
@@ -394,7 +609,7 @@ export class ActivityTracker {
     }
 
     // 활동 시간 추적
-    this.trackActivityTime(change, userId, member, now);
+    await this.trackActivityTime(change, userId, member, now);
     this.debounceSaveActivityData();
   }
 
@@ -420,57 +635,135 @@ export class ActivityTracker {
   }
 
   /**
-   * 활동 시간 추적
+   * 활동 시간 추적 (Redis 기반)
    */
-  private trackActivityTime(
+  private async trackActivityTime(
     change: VoiceStateChange,
     userId: string,
     member: GuildMember,
     now: number
-  ): void {
+  ): Promise<void> {
     const isExcluded = (channelId: string | null) =>
       channelId && config.EXCLUDED_CHANNELS.includes(channelId);
 
     if (change.type === 'join' && !isExcluded(change.newChannelId)) {
-      this.startActivityTracking(userId, member, now);
+      await this.startActivityTracking(userId, member, now, change.newChannelId!);
     } else if (change.type === 'leave' && !isExcluded(change.oldChannelId)) {
-      this.endActivityTracking(userId, now);
+      await this.endActivityTracking(userId, now);
     } else if (change.type === 'move') {
       if (isExcluded(change.oldChannelId) && !isExcluded(change.newChannelId)) {
-        this.startActivityTracking(userId, member, now);
+        await this.startActivityTracking(userId, member, now, change.newChannelId!);
       } else if (!isExcluded(change.oldChannelId) && isExcluded(change.newChannelId)) {
-        this.endActivityTracking(userId, now);
+        await this.endActivityTracking(userId, now);
       }
     }
   }
 
   /**
-   * 활동 추적 시작
+   * 활동 추적 시작 (Redis 기반)
    */
-  private startActivityTracking(userId: string, member: GuildMember, now: number): void {
-    if (!this.channelActivityTime.has(userId)) {
-      this.channelActivityTime.set(userId, {
-        startTime: now,
-        totalTime: 0,
-        displayName: member.displayName,
-      });
-    } else {
-      const userActivity = this.channelActivityTime.get(userId)!;
-      if (userActivity.startTime === null) {
-        userActivity.startTime = now;
+  private async startActivityTracking(userId: string, member: GuildMember, now: number, channelId: string): Promise<void> {
+    try {
+      // 기존 활동 데이터 조회
+      let activityData = await this.getActivityData(userId);
+      
+      if (!activityData) {
+        // 새 활동 데이터 생성
+        activityData = {
+          startTime: now,
+          totalTime: 0,
+          displayName: member.displayName,
+        };
+      } else {
+        // 기존 데이터 업데이트
+        if (activityData.startTime === null) {
+          activityData.startTime = now;
+        }
+        activityData.displayName = member.displayName;
       }
-      userActivity.displayName = member.displayName;
+
+      // Redis에 활동 데이터 저장
+      await this.setActivityData(userId, activityData);
+
+      // Redis에 음성 세션 저장
+      await this.setVoiceSession(userId, now, channelId);
+
+      // 실시간 알림 발송
+      if (this.redis.isConnected()) {
+        await this.redis.publish('voice_activity', JSON.stringify({
+          type: 'join',
+          userId,
+          channelId,
+          displayName: member.displayName,
+          timestamp: now,
+        }));
+      }
+
+      console.log(`[ActivityTracker] 세션 시작: ${member.displayName} (${userId}) - 채널: ${channelId}`);
+    } catch (error) {
+      console.error('[ActivityTracker] 활동 추적 시작 실패:', error);
+      
+      // fallback - 메모리만 사용
+      if (!this.channelActivityTime.has(userId)) {
+        this.channelActivityTime.set(userId, {
+          startTime: now,
+          totalTime: 0,
+          displayName: member.displayName,
+        });
+      } else {
+        const userActivity = this.channelActivityTime.get(userId)!;
+        if (userActivity.startTime === null) {
+          userActivity.startTime = now;
+        }
+        userActivity.displayName = member.displayName;
+      }
     }
   }
 
   /**
-   * 활동 추적 종료
+   * 활동 추적 종료 (Redis 기반)
    */
-  private endActivityTracking(userId: string, now: number): void {
-    const userActivity = this.channelActivityTime.get(userId);
-    if (userActivity && userActivity.startTime !== null) {
-      userActivity.totalTime += now - userActivity.startTime;
-      userActivity.startTime = null;
+  private async endActivityTracking(userId: string, now: number): Promise<void> {
+    try {
+      // Redis에서 활동 데이터 조회
+      const activityData = await this.getActivityData(userId);
+      const sessionData = await this.getVoiceSession(userId);
+
+      if (activityData && activityData.startTime !== null) {
+        // 세션 시간 계산
+        const sessionDuration = now - activityData.startTime;
+        activityData.totalTime += sessionDuration;
+        activityData.startTime = null;
+
+        // Redis에 업데이트된 활동 데이터 저장
+        await this.setActivityData(userId, activityData);
+
+        // 실시간 알림 발송
+        if (this.redis.isConnected()) {
+          await this.redis.publish('voice_activity', JSON.stringify({
+            type: 'leave',
+            userId,
+            channelId: sessionData?.channelId || 'unknown',
+            sessionDuration,
+            totalTime: activityData.totalTime,
+            timestamp: now,
+          }));
+        }
+
+        console.log(`[ActivityTracker] 세션 종료: ${userId} - 세션 시간: ${sessionDuration}ms, 총 시간: ${activityData.totalTime}ms`);
+      }
+
+      // Redis에서 음성 세션 삭제
+      await this.removeVoiceSession(userId);
+    } catch (error) {
+      console.error('[ActivityTracker] 활동 추적 종료 실패:', error);
+      
+      // fallback - 메모리만 사용
+      const userActivity = this.channelActivityTime.get(userId);
+      if (userActivity && userActivity.startTime !== null) {
+        userActivity.totalTime += now - userActivity.startTime;
+        userActivity.startTime = null;
+      }
     }
   }
 
@@ -508,7 +801,7 @@ export class ActivityTracker {
 
       this.logService.logActivity(logMessage, membersInChannel, 'JOIN');
 
-      await this.db.logActivity(
+      await this.db.logDetailedActivity(
         newState.id,
         'JOIN',
         newState.channelId!,
@@ -537,7 +830,7 @@ export class ActivityTracker {
 
       this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
 
-      await this.db.logActivity(
+      await this.db.logDetailedActivity(
         oldState.id,
         'LEAVE',
         oldState.channelId!,

@@ -1,5 +1,6 @@
 // SQLiteManager - 고성능 SQLite 데이터베이스 매니저
 
+import { injectable, inject } from 'tsyringe';
 import sqlite3 from 'sqlite3';
 import path from 'path';
 
@@ -16,20 +17,37 @@ import {
 } from '../types/sqlite.js';
 
 import { UserActivity, ActivityLogEntry, AfkStatus, RoleConfig, VoiceChannelMapping } from '../types/index.js';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager.js';
+import type { IRedisService } from '../interfaces/IRedisService.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
-export class SQLiteManager {
+@injectable()
+export class SQLiteManager implements IDatabaseManager {
   private connection: DatabaseConnection | null = null;
   private initializer: DatabaseInitializer;
   private config: Required<SQLiteConfig>;
 
-  // 성능 최적화를 위한 캐싱 시스템
-  private cache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();
+  // Redis 캐싱 시스템 (분산 캐시)
+  private redis: IRedisService;
+  private fallbackCache: Map<string, { data: any; timestamp: number; ttl: number }> = new Map();
   private metrics: PerformanceMetrics;
+
+  // 캐시 설정
+  private readonly CACHE_TTL = {
+    USER_ACTIVITY: 300, // 5분
+    ROLE_CONFIG: 600,   // 10분
+    ACTIVITY_LOG: 180,  // 3분
+    STATISTICS: 120,    // 2분
+  };
 
   // 준비된 쿼리 문들 (성능 최적화)
   private preparedStatements: Map<string, sqlite3.Statement> = new Map();
 
-  constructor(config: Partial<SQLiteConfig> = {}) {
+  constructor(
+    config: Partial<SQLiteConfig> = {},
+    @inject(DI_TOKENS.IRedisService) redis: IRedisService
+  ) {
+    this.redis = redis;
     this.config = {
       database: config.database || path.join(process.cwd(), 'activity_bot.sqlite'),
       enableWAL: config.enableWAL ?? true,
@@ -120,7 +138,7 @@ export class SQLiteManager {
     const cacheKey = `user_activity_${userId}`;
 
     // 캐시 확인
-    const cached = this.getFromCache(cacheKey);
+    const cached = await this.getFromCache(cacheKey);
     if (cached) {
       return this.convertToUserActivity(cached);
     }
@@ -135,7 +153,7 @@ export class SQLiteManager {
 
       if (row) {
         const userActivity = this.convertToUserActivity(row);
-        this.setCache(cacheKey, row, 30000); // 30초 캐시
+        await this.setCache(cacheKey, row, this.CACHE_TTL.USER_ACTIVITY); // Redis TTL 사용
         return userActivity;
       }
 
@@ -235,7 +253,7 @@ export class SQLiteManager {
       this.updateMetrics(Date.now() - startTime);
 
       // 캐시 무효화
-      this.invalidateCache(`user_activity_${userId}`);
+      await this.invalidateCache(`user_activity_${userId}`);
 
       return true;
     } catch (error) {
@@ -270,7 +288,7 @@ export class SQLiteManager {
         ]);
 
         // 캐시 무효화
-        this.invalidateCache(`user_activity_${userId}`);
+        await this.invalidateCache(`user_activity_${userId}`);
       }
 
       await this.run('COMMIT');
@@ -456,8 +474,8 @@ export class SQLiteManager {
   async getActiveUsers(): Promise<UserActivity[]> {
     const cacheKey = 'active_users';
 
-    // 캐시 확인 (5초 TTL)
-    const cached = this.getFromCache(cacheKey);
+    // 캐시 확인
+    const cached = await this.getFromCache(cacheKey);
     if (cached) {
       return cached;
     }
@@ -475,7 +493,7 @@ export class SQLiteManager {
         lastUpdate: Date.now(),
       }));
 
-      this.setCache(cacheKey, activeUsers, 5000); // 5초 캐시
+      await this.setCache(cacheKey, activeUsers, this.CACHE_TTL.STATISTICS); // Redis TTL 사용
       return activeUsers;
     } catch (error) {
       console.error('[SQLite] 활성 사용자 조회 실패:', error);
@@ -511,7 +529,7 @@ export class SQLiteManager {
       await this.run('DELETE FROM user_activities WHERE user_id = ?', [userId]);
       this.updateMetrics(Date.now() - startTime);
       
-      this.invalidateCache(`user_activity_${userId}`);
+      await this.invalidateCache(`user_activity_${userId}`);
       return true;
     } catch (error) {
       console.error('[SQLite] 사용자 활동 삭제 실패:', error);
@@ -698,9 +716,30 @@ export class SQLiteManager {
   }
 
   /**
-   * 활동 로그 기록
+   * 일반 활동 로그 기록 (IDatabaseManager 인터페이스 구현)
    */
-  async logActivity(userId: string, eventType: string, channelId: string, channelName: string, members: string[] = []): Promise<string> {
+  async logActivity(action: string, metadata?: Record<string, any>): Promise<boolean> {
+    try {
+      const logEntry: ActivityLogEntry = {
+        userId: metadata?.userId || 'system',
+        userName: metadata?.userName || 'System',
+        channelId: metadata?.channelId || '',
+        channelName: metadata?.channelName || '',
+        action: action as any,
+        timestamp: Date.now()
+      };
+
+      return await this.addActivityLog(logEntry);
+    } catch (error) {
+      console.error('[SQLite] 활동 로그 기록 실패:', error);
+      return false;
+    }
+  }
+
+  /**
+   * 상세 활동 로그 기록 (기존 메서드)
+   */
+  async logDetailedActivity(userId: string, eventType: string, channelId: string, channelName: string, members: string[] = []): Promise<string> {
     try {
       const logEntry: ActivityLogEntry = {
         userId,
@@ -1249,15 +1288,15 @@ export class SQLiteManager {
   /**
    * 호환성을 위한 더미 메서드들
    */
-  smartReload(forceReload?: boolean): void {
+  async smartReload(forceReload?: boolean): Promise<void> {
     // SQLite는 항상 최신 데이터를 반환하므로 별도 구현 불필요
     if (forceReload) {
-      this.cache.clear();
+      await this.clearCache();
     }
   }
 
-  forceReload(): void {
-    this.cache.clear();
+  async forceReload(): Promise<void> {
+    await this.clearCache();
   }
 
   /**
@@ -1304,47 +1343,99 @@ export class SQLiteManager {
   // ===========================================
 
   /**
-   * 캐시에서 데이터 조회
+   * 캐시에서 데이터 조회 (Redis 우선, 실패시 fallback)
    */
-  private getFromCache(key: string): any {
-    const cached = this.cache.get(key);
-    if (cached && Date.now() - cached.timestamp < cached.ttl) {
-      this.metrics.cacheHitRate = this.metrics.cacheHitRate * 0.9 + 1 * 0.1;
-      return cached.data;
-    }
-
-    if (cached) {
-      this.cache.delete(key);
-    }
-
-    this.metrics.cacheHitRate = this.metrics.cacheHitRate * 0.9;
-    return null;
-  }
-
-  /**
-   * 캐시에 데이터 저장
-   */
-  private setCache(key: string, data: any, ttl: number): void {
-    this.cache.set(key, {
-      data,
-      timestamp: Date.now(),
-      ttl,
-    });
-
-    // 캐시 크기 제한 (1000개)
-    if (this.cache.size > 1000) {
-      const oldestKey = this.cache.keys().next().value;
-      if (oldestKey) {
-        this.cache.delete(oldestKey);
+  private async getFromCache(key: string): Promise<any> {
+    try {
+      // Redis에서 먼저 시도
+      if (this.redis.isConnected()) {
+        const cached = await this.redis.getJSON(key);
+        if (cached !== null) {
+          this.metrics.cacheHitRate = this.metrics.cacheHitRate * 0.9 + 1 * 0.1;
+          return cached;
+        }
       }
+
+      // Redis 실패시 fallback cache 사용
+      const cached = this.fallbackCache.get(key);
+      if (cached && Date.now() - cached.timestamp < cached.ttl) {
+        this.metrics.cacheHitRate = this.metrics.cacheHitRate * 0.9 + 1 * 0.1;
+        return cached.data;
+      }
+
+      if (cached) {
+        this.fallbackCache.delete(key);
+      }
+
+      this.metrics.cacheHitRate = this.metrics.cacheHitRate * 0.9;
+      return null;
+    } catch (error) {
+      console.error('[SQLite] 캐시 조회 실패:', error);
+      
+      // 에러 발생시 fallback cache만 사용
+      const cached = this.fallbackCache.get(key);
+      if (cached && Date.now() - cached.timestamp < cached.ttl) {
+        return cached.data;
+      }
+      
+      return null;
     }
   }
 
   /**
-   * 캐시 무효화
+   * 캐시에 데이터 저장 (Redis 우선, 실패시 fallback)
    */
-  private invalidateCache(key: string): void {
-    this.cache.delete(key);
+  private async setCache(key: string, data: any, ttlSeconds: number): Promise<void> {
+    try {
+      // Redis에 저장 시도
+      if (this.redis.isConnected()) {
+        await this.redis.setJSON(key, data, ttlSeconds);
+      }
+
+      // fallback cache에도 저장
+      this.fallbackCache.set(key, {
+        data,
+        timestamp: Date.now(),
+        ttl: ttlSeconds * 1000, // milliseconds로 변환
+      });
+
+      // fallback 캐시 크기 제한 (500개로 축소 - Redis가 주 캐시)
+      if (this.fallbackCache.size > 500) {
+        const oldestKey = this.fallbackCache.keys().next().value;
+        if (oldestKey) {
+          this.fallbackCache.delete(oldestKey);
+        }
+      }
+    } catch (error) {
+      console.error('[SQLite] 캐시 저장 실패:', error);
+      
+      // 에러 발생시 fallback cache만 사용
+      this.fallbackCache.set(key, {
+        data,
+        timestamp: Date.now(),
+        ttl: ttlSeconds * 1000,
+      });
+    }
+  }
+
+  /**
+   * 캐시 무효화 (Redis + fallback)
+   */
+  private async invalidateCache(key: string): Promise<void> {
+    try {
+      // Redis에서 삭제
+      if (this.redis.isConnected()) {
+        await this.redis.del(key);
+      }
+
+      // fallback cache에서도 삭제
+      this.fallbackCache.delete(key);
+    } catch (error) {
+      console.error('[SQLite] 캐시 무효화 실패:', error);
+      
+      // 에러 발생시 fallback cache만 삭제
+      this.fallbackCache.delete(key);
+    }
   }
 
   /**
@@ -1490,6 +1581,91 @@ export class SQLiteManager {
       this.connection.isConnected = false;
 
       console.log('[SQLite] 데이터베이스 연결 종료');
+    }
+  }
+
+  // ===========================================
+  // IDatabaseManager 인터페이스 구현 메서드들
+  // ===========================================
+
+  /**
+   * 캐시 클리어 (Redis + fallback)
+   */
+  async clearCache(): Promise<void> {
+    try {
+      // Redis 캐시 클리어 (봇 관련 키만)
+      if (this.redis.isConnected()) {
+        const keys = await this.redis.keys('user_activity_*');
+        keys.push(...await this.redis.keys('role_config_*'));
+        keys.push(...await this.redis.keys('activity_log_*'));
+        keys.push(...await this.redis.keys('active_users'));
+        
+        for (const key of keys) {
+          await this.redis.del(key);
+        }
+      }
+
+      // fallback cache 클리어
+      this.fallbackCache.clear();
+      console.log('[SQLite] Redis 및 fallback 캐시가 클리어되었습니다.');
+    } catch (error) {
+      console.error('[SQLite] 캐시 클리어 실패:', error);
+      
+      // 에러 발생시 fallback cache만 클리어
+      this.fallbackCache.clear();
+      console.log('[SQLite] fallback 캐시가 클리어되었습니다.');
+    }
+  }
+
+  /**
+   * 캐시 통계 조회 (Redis + fallback 통합)
+   */
+  getCacheStats(): { hitRate: number; size: number; maxSize: number } {
+    return {
+      hitRate: this.metrics.cacheHitRate,
+      size: this.fallbackCache.size, // fallback cache 크기 (Redis 크기는 별도 모니터링)
+      maxSize: 500 // fallback cache 최대 크기
+    };
+  }
+
+  /**
+   * 헬스 체크
+   */
+  async healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details: Record<string, any> }> {
+    try {
+      const isConnected = this.connection?.isConnected || false;
+      const cacheStats = this.getCacheStats();
+      
+      if (!isConnected) {
+        return {
+          status: 'unhealthy',
+          details: {
+            connected: false,
+            error: 'Database connection is not established'
+          }
+        };
+      }
+
+      // 간단한 쿼리로 연결 테스트
+      await this.get('SELECT 1');
+
+      return {
+        status: 'healthy',
+        details: {
+          connected: true,
+          cacheSize: cacheStats.size,
+          cacheHitRate: cacheStats.hitRate,
+          queryCount: this.metrics.queryCount,
+          averageQueryTime: this.metrics.averageQueryTime
+        }
+      };
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        details: {
+          error: error instanceof Error ? error.message : String(error)
+        }
+      };
     }
   }
 }

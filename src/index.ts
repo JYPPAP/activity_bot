@@ -1,4 +1,5 @@
 // src/index.ts - 애플리케이션 진입점
+import 'reflect-metadata'; // DI Container (TSyringe) 지원
 import process from 'process';
 
 // ⚠️ 중요: 환경변수를 먼저 로드 후 logger 임포트

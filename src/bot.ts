@@ -1,16 +1,26 @@
 // src/bot.ts - 봇 클래스 정의 (TypeScript 버전)
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import fs from 'fs';
+import { MemoryGuard } from 'discord-optimizer';
 
 import { ExtendedClient } from './types/discord.js';
 
-// 서비스 임포트
+// DI Container 및 서비스 임포트
+import { DIContainer, setupContainer } from './di/container.js';
+import { DI_TOKENS } from './interfaces/index.js';
+import type { 
+  IDatabaseManager, 
+  ILogService, 
+  IActivityTracker, 
+  ICalendarLogService,
+  ICommandHandler,
+  IPerformanceMonitoringService,
+  IPrometheusMetricsService,
+  IRedisService
+} from './interfaces/index.js';
+
+// 추가 서비스 임포트 (DI Container로 관리되지 않는 서비스들)
 import { EventManager } from './services/eventManager.js';
-import { ActivityTracker } from './services/activityTracker.js';
-import { LogService } from './services/logService.js';
-import { CalendarLogService } from './services/calendarLogService.js';
-import { CommandHandler } from './commands/commandHandler.js';
-import { SQLiteManager } from './services/SQLiteManager.js';
 import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
 import { EmojiReactionService } from './services/EmojiReactionService.js';
 
@@ -21,14 +31,17 @@ import { logger } from './config/logger-termux.js';
 
 // 타입 정의
 interface BotServices {
-  dbManager: SQLiteManager;
-  logService: LogService;
-  calendarLogService: CalendarLogService;
-  activityTracker: ActivityTracker;
+  redisService: IRedisService;
+  dbManager: IDatabaseManager;
+  logService: ILogService;
+  calendarLogService: ICalendarLogService;
+  activityTracker: IActivityTracker;
   voiceForumService: VoiceChannelForumIntegrationService;
   emojiReactionService: EmojiReactionService;
-  commandHandler: CommandHandler;
+  commandHandler: ICommandHandler;
   eventManager: EventManager;
+  performanceMonitor: IPerformanceMonitoringService;
+  prometheusMetrics: IPrometheusMetricsService;
 }
 
 interface BotStats {
@@ -53,6 +66,7 @@ interface MigrationResult {
 interface InitializationResult {
   success: boolean;
   services: {
+    redis: boolean;
     database: boolean;
     eventManager: boolean;
     activityTracker: boolean;
@@ -90,7 +104,6 @@ export class Bot {
   };
 
   constructor(token: string) {
-    // 싱글톤 패턴 - 이미 인스턴스가 존재하면 그 인스턴스 반환
     if (Bot.instance) {
       logger.warn('Bot 인스턴스가 이미 존재합니다. 기존 인스턴스를 반환합니다.');
       return Bot.instance;
@@ -101,7 +114,13 @@ export class Bot {
     }
 
     this.token = token;
-    this.client = new Client(Bot.CLIENT_OPTIONS);
+
+    // Discord Client 생성 및 Discord-Optimizer로 메모리 관리 최적화
+    const baseClient = new Client(Bot.CLIENT_OPTIONS);
+    this.client = MemoryGuard.wrap(baseClient, {
+      maxMemory: 256, // 256MB 메모리 제한 (Termux 환경 고려)
+      autoRestart: false, // PM2가 재시작을 담당하므로 비활성화
+    });
 
     // 통계 초기화
     this.stats = {
@@ -115,6 +134,18 @@ export class Bot {
       commandsExecuted: 0,
       eventsProcessed: 0,
     };
+
+    // DI Container 설정 및 Discord Client 등록
+    try {
+      setupContainer();
+      DIContainer.registerClient(this.client);
+      logger.info('DI Container 설정 완료');
+    } catch (error) {
+      logger.error('DI Container 설정 중 오류 발생:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
 
     // 서비스 인스턴스 생성
     try {
@@ -143,69 +174,60 @@ export class Bot {
   }
 
   /**
-   * 서비스 인스턴스들 초기화
+   * 서비스 인스턴스들 초기화 (DI Container 사용)
    * @returns 초기화된 서비스들
    */
   private initializeServices(): BotServices {
-    logger.info('서비스 초기화 시작');
+    logger.info('DI Container를 사용하여 서비스 초기화 시작');
 
-    // 데이터베이스 관리자
-    const dbManager = new SQLiteManager();
+    try {
+      // DI Container에서 관리되는 서비스들 조회
+      const redisService = DIContainer.get<IRedisService>(DI_TOKENS.IRedisService);
+      const dbManager = DIContainer.get<IDatabaseManager>(DI_TOKENS.IDatabaseManager);
+      const logService = DIContainer.get<ILogService>(DI_TOKENS.ILogService);
+      const calendarLogService = DIContainer.get<ICalendarLogService>(DI_TOKENS.ICalendarLogService);
+      const activityTracker = DIContainer.get<IActivityTracker>(DI_TOKENS.IActivityTracker);
+      const commandHandler = DIContainer.get<ICommandHandler>(DI_TOKENS.ICommandHandler);
+      const performanceMonitor = DIContainer.get<IPerformanceMonitoringService>(DI_TOKENS.IPerformanceMonitoringService);
+      const prometheusMetrics = DIContainer.get<IPrometheusMetricsService>(DI_TOKENS.IPrometheusMetricsService);
 
-    // 로그 서비스
-    const logService = new LogService(this.client as unknown as ExtendedClient, {
-      logChannelId: config.LOG_CHANNEL_ID,
-    });
+      // DI Container로 관리되지 않는 서비스들 (수동 생성)
+      // TODO: 향후 이들도 DI Container로 이관할 예정
+      const voiceForumService = new VoiceChannelForumIntegrationService(
+        this.client as unknown as ExtendedClient,
+        config.FORUM_CHANNEL_ID || '',
+        config.VOICE_CATEGORY_ID || '',
+        dbManager as any // 임시 타입 캐스팅
+      );
 
-    // 달력 로그 서비스
-    const calendarLogService = new CalendarLogService(
-      this.client as unknown as ExtendedClient,
-      dbManager
-    );
+      const emojiReactionService = new EmojiReactionService(
+        this.client,
+        voiceForumService.forumPostManager
+      );
 
-    // 활동 추적 서비스
-    const activityTracker = new ActivityTracker(
-      this.client as unknown as ExtendedClient,
-      dbManager,
-      logService
-    );
+      const eventManager = new EventManager(this.client as unknown as ExtendedClient);
 
-    // 음성-포럼 연동 서비스
-    const voiceForumService = new VoiceChannelForumIntegrationService(
-      this.client as unknown as ExtendedClient,
-      config.FORUM_CHANNEL_ID || '',
-      config.VOICE_CATEGORY_ID || '',
-      dbManager
-    );
+      logger.info('DI Container 서비스 조회 완료');
 
-    // 이모지 반응 서비스
-    const emojiReactionService = new EmojiReactionService(
-      this.client,
-      voiceForumService.forumPostManager
-    );
-
-    // 명령어 핸들러
-    const commandHandler = new CommandHandler(
-      this.client,
-      activityTracker,
-      dbManager,
-      calendarLogService,
-      voiceForumService
-    );
-
-    // 이벤트 관리자
-    const eventManager = new EventManager(this.client as unknown as ExtendedClient);
-
-    return {
-      dbManager,
-      logService,
-      calendarLogService,
-      activityTracker,
-      voiceForumService,
-      emojiReactionService,
-      commandHandler,
-      eventManager,
-    };
+      return {
+        redisService,
+        dbManager,
+        logService,
+        calendarLogService,
+        activityTracker,
+        voiceForumService,
+        emojiReactionService,
+        commandHandler,
+        eventManager,
+        performanceMonitor,
+        prometheusMetrics,
+      };
+    } catch (error) {
+      logger.error('DI Container 서비스 조회 중 오류:', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
   }
 
   /**
@@ -217,6 +239,7 @@ export class Bot {
     const result: InitializationResult = {
       success: false,
       services: {
+        redis: false,
         database: false,
         eventManager: false,
         activityTracker: false,
@@ -230,7 +253,23 @@ export class Bot {
     try {
       logger.info('봇 초기화 프로세스 시작');
 
-      // 1. 데이터베이스 초기화
+      // 1. Redis 연결 초기화
+      try {
+        const redisConnected = await this.services.redisService.connect();
+        result.services.redis = redisConnected;
+        
+        if (redisConnected) {
+          logger.info('✅ Redis 연결 초기화 완료');
+        } else {
+          logger.warn('⚠️ Redis 연결 실패 - fallback 캐시 사용');
+        }
+      } catch (error) {
+        const errorMsg = `Redis 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
+        result.errors.push(errorMsg);
+        logger.warn(`⚠️ ${errorMsg} - fallback 캐시 사용`);
+      }
+
+      // 2. 데이터베이스 초기화
       try {
         await this.services.dbManager.initialize();
         result.services.database = true;
@@ -317,6 +356,12 @@ export class Bot {
             });
 
             await this.services.activityTracker.initializeActivityData(guild);
+            
+            // Redis 세션 복구 (Redis가 연결된 경우에만)
+            if (this.services.redisService.isConnected()) {
+              await this.services.activityTracker.restoreActiveSessions();
+            }
+            
             initResult.services.activityTracker = true;
             logger.info('✅ 활동 추적 초기화 완료');
           } catch (error) {
@@ -355,6 +400,28 @@ export class Bot {
           // 매핑 초기화 실패해도 봇 전체는 계속 실행
         }
 
+        // Prometheus 메트릭 서비스 시작
+        try {
+          logger.info('Prometheus 메트릭 서비스 시작');
+          await this.services.prometheusMetrics.start();
+          logger.info('✅ Prometheus 메트릭 서비스 시작 완료');
+        } catch (error) {
+          const errorMsg = `Prometheus 메트릭 서비스 시작 실패: ${error instanceof Error ? error.message : String(error)}`;
+          initResult.errors.push(errorMsg);
+          logger.error(errorMsg);
+        }
+
+        // 성능 모니터링 서비스 시작
+        try {
+          logger.info('성능 모니터링 서비스 시작');
+          this.services.performanceMonitor.start();
+          logger.info('✅ 성능 모니터링 서비스 시작 완료');
+        } catch (error) {
+          const errorMsg = `성능 모니터링 서비스 시작 실패: ${error instanceof Error ? error.message : String(error)}`;
+          initResult.errors.push(errorMsg);
+          logger.error(errorMsg);
+        }
+
         // 최종 상태 로깅
         const successfulServices = Object.values(initResult.services).filter(Boolean).length;
         const totalServices = Object.keys(initResult.services).length;
@@ -369,6 +436,14 @@ export class Bot {
               }
             : null,
           stats: this.getBasicStats(),
+          monitoring: {
+            discordOptimizer: 'enabled',
+            performanceMonitoring: 'enabled',
+            prometheusMetrics: 'enabled',
+            redis: this.services.redisService.isConnected() ? 'connected' : 'fallback',
+            memoryLimit: '256MB',
+            metricsEndpoint: 'http://0.0.0.0:3001/metrics',
+          },
         });
       } catch (error) {
         logger.error('Ready 이벤트 처리 중 오류:', {
@@ -649,8 +724,20 @@ export class Bot {
 
     const shutdownTasks = [
       {
+        name: 'Prometheus 메트릭 서비스 중지',
+        task: () => this.services.prometheusMetrics.stop(),
+      },
+      {
+        name: '성능 모니터링 서비스 중지',
+        task: () => this.services.performanceMonitor.stop(),
+      },
+      {
         name: '활동 데이터 저장',
         task: () => this.services.activityTracker.saveActivityData(),
+      },
+      {
+        name: 'Redis 연결 종료',
+        task: () => this.services.redisService.disconnect(),
       },
       {
         name: '데이터베이스 연결 종료',
