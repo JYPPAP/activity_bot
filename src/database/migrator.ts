@@ -2,10 +2,12 @@
 
 import fs from 'fs';
 import path from 'path';
+
 import sqlite3 from 'sqlite3';
 
-import { DatabaseInitializer } from './init.js';
-import { MigrationStatus } from '../types/sqlite.js';
+import { MigrationStatus } from '../types/sqlite';
+
+import { DatabaseInitializer } from './init';
 
 // 기존 JSON 데이터 구조 타입
 interface LegacyUserActivity {

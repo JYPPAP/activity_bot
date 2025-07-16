@@ -1,7 +1,7 @@
 // src/services/eventManager.ts - 이벤트 관리 서비스 (TypeScript)
 import { EventEmitter } from 'events';
 
-import { EnhancedClient } from '../types/discord.js';
+import { EnhancedClient } from '../types/discord';
 
 // ====================
 // 이벤트 관련 타입

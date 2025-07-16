@@ -1,5 +1,4 @@
 // src/services/logService.ts - 로깅 서비스 (TypeScript)
-import { injectable, inject } from 'tsyringe';
 import {
   ChannelType,
   VoiceChannel,
@@ -8,13 +7,14 @@ import {
   TextChannel,
   ThreadChannel,
 } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
-import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants.js';
-import { logger } from '../config/logger-termux.js';
-import { EnhancedClient } from '../types/discord.js';
-import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder.js';
-import type { ILogService } from '../interfaces/ILogService.js';
-import { DI_TOKENS } from '../interfaces/index.js';
+import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants';
+import { logger } from '../config/logger-termux';
+import type { ILogService } from '../interfaces/ILogService';
+import { DI_TOKENS } from '../interfaces/index';
+import { EnhancedClient } from '../types/discord';
+import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder';
 
 // ====================
 // 로그 서비스 타입
@@ -113,7 +113,7 @@ export class LogService implements ILogService {
   private readonly maxHistorySize = 1000;
 
   constructor(
-    @inject(DI_TOKENS.DiscordClient) client: EnhancedClient, 
+    @inject(DI_TOKENS.DiscordClient) client: EnhancedClient,
     @inject(DI_TOKENS.LogServiceConfig) options: LogServiceOptions
   ) {
     this.client = client;

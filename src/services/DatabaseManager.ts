@@ -2,9 +2,9 @@
 import path from 'path';
 
 import low from 'lowdb';
-import FileSync from 'lowdb/adapters/FileSync.js';
+import FileSync from 'lowdb/adapters/FileSync';
 
-import { DatabaseSchema, DatabaseConfig } from '../types/database.js';
+import { DatabaseSchema, DatabaseConfig } from '../types/database';
 import {
   UserActivity,
   RoleConfig,
@@ -14,7 +14,7 @@ import {
   VoiceChannelMapping,
   ResetHistoryEntry,
   LogQueryOptions,
-} from '../types/index.js';
+} from '../types/index';
 
 // ====================
 // 메서드 옵션 타입

@@ -825,7 +825,7 @@ export function getMimeType(filePath: string): string {
 
   const mimeTypes: { [key: string]: string } = {
     '.json': 'application/json',
-    '.js': 'application/javascript',
+    '': 'application/javascript',
     '.ts': 'application/typescript',
     '.txt': 'text/plain',
     '.md': 'text/markdown',

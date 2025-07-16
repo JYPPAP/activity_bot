@@ -9,8 +9,8 @@ import {
   APIEmbedField,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { DiscordConstants } from '../config/DiscordConstants';
+import { RecruitmentConfig } from '../config/RecruitmentConfig';
 
 // 기존 포스트 정보 인터페이스
 interface ExistingPost {

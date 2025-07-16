@@ -57,7 +57,12 @@ export interface DatabaseManager {
   // 사용자 활동 관련
   getUserActivity(userId: string): Promise<UserActivity | null>;
   getAllUserActivity(): Promise<UserActivity[]>;
-  updateUserActivity(userId: string, totalTime: number, startTime?: number | null, displayName?: string | null): Promise<boolean>;
+  updateUserActivity(
+    userId: string,
+    totalTime: number,
+    startTime?: number | null,
+    displayName?: string | null
+  ): Promise<boolean>;
   deleteUserActivity(userId: string): Promise<boolean>;
   getUserActivityByDateRange(userId: string, startTime: number, endTime: number): Promise<number>;
   getUserActivityLogs(userId: string, limit?: number): Promise<ActivityLogEntry[]>;
@@ -65,13 +70,24 @@ export interface DatabaseManager {
   // 역할 설정 관련
   getRoleConfig(roleName: string): Promise<RoleConfig | null>;
   getAllRoleConfigs(): Promise<RoleConfig[]>;
-  updateRoleConfig(roleName: string, minHours: number, resetTime?: number | null, reportCycle?: number): Promise<boolean>;
+  updateRoleConfig(
+    roleName: string,
+    minHours: number,
+    resetTime?: number | null,
+    reportCycle?: number
+  ): Promise<boolean>;
   updateRoleReportCycle(roleName: string, cycle: number): Promise<boolean>;
   updateRoleResetTime(roleName: string, resetTime: number, reason?: string): Promise<boolean>;
   getNextReportTime(roleName: string): Promise<number | null>;
 
   // 활동 로그 관련
-  logActivity(userId: string, eventType: string, channelId: string, channelName: string, members?: string[]): Promise<string>;
+  logActivity(
+    userId: string,
+    eventType: string,
+    channelId: string,
+    channelName: string,
+    members?: string[]
+  ): Promise<string>;
   getActivityLogs(options?: LogQueryOptions): Promise<ActivityLogEntry[]>;
   getDailyActivityStats(startTime: number, endTime: number, options?: any): Promise<any[]>;
   getActiveMembersForTimeRange(startTime: number, endTime: number): Promise<any[]>;
@@ -91,7 +107,11 @@ export interface DatabaseManager {
   clearAllTrackedMessagesForThread(threadId: string): Promise<any>;
 
   // 음성 채널 매핑
-  saveChannelMapping(voiceChannelId: string, forumPostId: string, lastParticipantCount?: number): Promise<boolean>;
+  saveChannelMapping(
+    voiceChannelId: string,
+    forumPostId: string,
+    lastParticipantCount?: number
+  ): Promise<boolean>;
   getChannelMapping(voiceChannelId: string): Promise<VoiceChannelMapping | null>;
   getAllChannelMappings(): Promise<VoiceChannelMapping[]>;
   removeChannelMapping(voiceChannelId: string): Promise<boolean>;
@@ -103,10 +123,10 @@ export interface DatabaseManager {
   createBackup(): Promise<string>;
   hasAnyData(): Promise<boolean>;
   migrateFromJSON(activityData: any, roleConfigData: any, options?: any): Promise<boolean>;
-  
+
   // 통계 관련
   getStats(): Promise<any>;
-  
+
   // 리셋 히스토리 관련
   getRoleResetHistory(roleName: string, limit?: number): Promise<any[]>;
 

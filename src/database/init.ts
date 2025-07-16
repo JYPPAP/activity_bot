@@ -1,11 +1,12 @@
 // SQLite 데이터베이스 초기화 스크립트
 
-import sqlite3 from 'sqlite3';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-import { SQLiteConfig, DatabaseConnection } from '../types/sqlite.js';
+import sqlite3 from 'sqlite3';
+
+import { SQLiteConfig, DatabaseConnection } from '../types/sqlite';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

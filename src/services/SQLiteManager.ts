@@ -1,10 +1,21 @@
 // SQLiteManager - 고성능 SQLite 데이터베이스 매니저
 
-import { injectable, inject } from 'tsyringe';
-import sqlite3 from 'sqlite3';
 import path from 'path';
 
-import { DatabaseInitializer } from '../database/init.js';
+import sqlite3 from 'sqlite3';
+import { injectable, inject } from 'tsyringe';
+
+import { DatabaseInitializer } from '../database/init';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
+import { DI_TOKENS } from '../interfaces/index';
+import type { IRedisService } from '../interfaces/IRedisService';
+import {
+  UserActivity,
+  ActivityLogEntry,
+  AfkStatus,
+  RoleConfig,
+  VoiceChannelMapping,
+} from '../types/index';
 import {
   SQLiteConfig,
   DatabaseConnection,
@@ -14,12 +25,7 @@ import {
   PerformanceMetrics,
   UserActivityQueryOptions,
   ActivityLogQueryOptions,
-} from '../types/sqlite.js';
-
-import { UserActivity, ActivityLogEntry, AfkStatus, RoleConfig, VoiceChannelMapping } from '../types/index.js';
-import type { IDatabaseManager } from '../interfaces/IDatabaseManager.js';
-import type { IRedisService } from '../interfaces/IRedisService.js';
-import { DI_TOKENS } from '../interfaces/index.js';
+} from '../types/sqlite';
 
 @injectable()
 export class SQLiteManager implements IDatabaseManager {
@@ -35,9 +41,9 @@ export class SQLiteManager implements IDatabaseManager {
   // 캐시 설정
   private readonly CACHE_TTL = {
     USER_ACTIVITY: 300, // 5분
-    ROLE_CONFIG: 600,   // 10분
-    ACTIVITY_LOG: 180,  // 3분
-    STATISTICS: 120,    // 2분
+    ROLE_CONFIG: 600, // 10분
+    ACTIVITY_LOG: 180, // 3분
+    STATISTICS: 120, // 2분
   };
 
   // 준비된 쿼리 문들 (성능 최적화)
@@ -210,13 +216,18 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 사용자 활동 업데이트 (호환성 메서드)
    */
-  async updateUserActivity(userId: string, totalTimeOrActivity: number | Partial<UserActivity>, startTime?: number | null, displayName?: string | null): Promise<boolean> {
+  async updateUserActivity(
+    userId: string,
+    totalTimeOrActivity: number | Partial<UserActivity>,
+    startTime?: number | null,
+    displayName?: string | null
+  ): Promise<boolean> {
     // 호환성을 위해 여러 시그니처 지원
     if (typeof totalTimeOrActivity === 'number') {
       const activity: Partial<UserActivity> = {
         totalTime: totalTimeOrActivity,
         startTime: startTime !== undefined ? startTime : null,
-        ...(displayName !== undefined && displayName !== null && { displayName })
+        ...(displayName !== undefined && displayName !== null && { displayName }),
       };
       return await this.updateUserActivityInternal(userId, activity);
     } else {
@@ -227,7 +238,10 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 사용자 활동 업데이트 (내부 메서드)
    */
-  private async updateUserActivityInternal(userId: string, activity: Partial<UserActivity>): Promise<boolean> {
+  private async updateUserActivityInternal(
+    userId: string,
+    activity: Partial<UserActivity>
+  ): Promise<boolean> {
     try {
       const currentData = await this.getUserActivity(userId);
       const updatedData: UserActivityRow = {
@@ -528,7 +542,7 @@ export class SQLiteManager implements IDatabaseManager {
       const startTime = Date.now();
       await this.run('DELETE FROM user_activities WHERE user_id = ?', [userId]);
       this.updateMetrics(Date.now() - startTime);
-      
+
       await this.invalidateCache(`user_activity_${userId}`);
       return true;
     } catch (error) {
@@ -540,7 +554,11 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 특정 기간 사용자 활동 시간 조회
    */
-  async getUserActivityByDateRange(userId: string, startTime: number, endTime: number): Promise<number> {
+  async getUserActivityByDateRange(
+    userId: string,
+    startTime: number,
+    endTime: number
+  ): Promise<number> {
     try {
       const sql = `
         SELECT SUM(session_duration) as total_time
@@ -548,7 +566,7 @@ export class SQLiteManager implements IDatabaseManager {
         WHERE user_id = ? AND timestamp >= ? AND timestamp <= ?
           AND session_duration IS NOT NULL
       `;
-      
+
       const result = await this.get(sql, [userId, startTime, endTime]);
       return result?.total_time || 0;
     } catch (error) {
@@ -565,7 +583,7 @@ export class SQLiteManager implements IDatabaseManager {
       userId,
       limit,
       orderBy: 'timestamp',
-      orderDirection: 'DESC'
+      orderDirection: 'DESC',
     });
   }
 
@@ -587,7 +605,7 @@ export class SQLiteManager implements IDatabaseManager {
         updatedAt: row.updated_at,
         resetTime: row.reset_time,
         reportCycle: row.report_cycle || '1',
-        enabled: true
+        enabled: true,
       };
 
       return config;
@@ -606,14 +624,14 @@ export class SQLiteManager implements IDatabaseManager {
       const rows = await this.all('SELECT * FROM role_configs ORDER BY role_name');
       this.updateMetrics(Date.now() - startTime);
 
-      return rows.map(row => ({
+      return rows.map((row) => ({
         roleName: row.role_name,
         minHours: row.min_hours || 0,
         createdAt: row.created_at,
         updatedAt: row.updated_at,
         resetTime: row.reset_time,
         reportCycle: row.report_cycle || '1',
-        enabled: true
+        enabled: true,
       }));
     } catch (error) {
       console.error('[SQLite] 모든 역할 설정 조회 실패:', error);
@@ -624,17 +642,22 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 역할 설정 업데이트
    */
-  async updateRoleConfig(roleName: string, minHours: number, resetTime?: number | null, reportCycle: number = 1): Promise<boolean> {
+  async updateRoleConfig(
+    roleName: string,
+    minHours: number,
+    resetTime?: number | null,
+    reportCycle: number = 1
+  ): Promise<boolean> {
     try {
       const sql = `
         INSERT OR REPLACE INTO role_configs 
         (role_name, min_hours, reset_time, report_cycle, updated_at, created_at) 
         VALUES (?, ?, ?, ?, ?, ?)
       `;
-      
+
       const now = Date.now();
       await this.run(sql, [roleName, minHours, resetTime, reportCycle.toString(), now, now]);
-      
+
       return true;
     } catch (error) {
       console.error('[SQLite] 역할 설정 업데이트 실패:', error);
@@ -652,7 +675,7 @@ export class SQLiteManager implements IDatabaseManager {
         SET report_cycle = ?, updated_at = ? 
         WHERE role_name = ?
       `;
-      
+
       await this.run(sql, [cycle.toString(), Date.now(), roleName]);
       return true;
     } catch (error) {
@@ -664,32 +687,36 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 역할 리셋 시간 업데이트
    */
-  async updateRoleResetTime(roleName: string, resetTime: number, reason: string = '관리자에 의한 리셋'): Promise<boolean> {
+  async updateRoleResetTime(
+    roleName: string,
+    resetTime: number,
+    reason: string = '관리자에 의한 리셋'
+  ): Promise<boolean> {
     try {
       const sql = `
         UPDATE role_configs 
         SET reset_time = ?, updated_at = ? 
         WHERE role_name = ?
       `;
-      
+
       await this.run(sql, [resetTime, Date.now(), roleName]);
-      
+
       // 리셋 히스토리 추가
       const historySQL = `
         INSERT INTO reset_history 
         (reset_type, reset_timestamp, admin_user_id, affected_users_count, backup_data, created_at) 
         VALUES (?, ?, ?, ?, ?, ?)
       `;
-      
+
       await this.run(historySQL, [
         'manual',
         resetTime,
         null,
         null,
         JSON.stringify({ roleName, reason }),
-        Date.now()
+        Date.now(),
       ]);
-      
+
       return true;
     } catch (error) {
       console.error('[SQLite] 역할 리셋 시간 업데이트 실패:', error);
@@ -726,7 +753,7 @@ export class SQLiteManager implements IDatabaseManager {
         channelId: metadata?.channelId || '',
         channelName: metadata?.channelName || '',
         action: action as any,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       return await this.addActivityLog(logEntry);
@@ -739,7 +766,13 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 상세 활동 로그 기록 (기존 메서드)
    */
-  async logDetailedActivity(userId: string, eventType: string, channelId: string, channelName: string, members: string[] = []): Promise<string> {
+  async logDetailedActivity(
+    userId: string,
+    eventType: string,
+    channelId: string,
+    channelName: string,
+    members: string[] = []
+  ): Promise<string> {
     try {
       const logEntry: ActivityLogEntry = {
         userId,
@@ -747,13 +780,13 @@ export class SQLiteManager implements IDatabaseManager {
         channelId,
         channelName,
         action: eventType as any,
-        timestamp: Date.now()
+        timestamp: Date.now(),
       };
 
       const success = await this.addActivityLog(logEntry);
       if (success) {
         const logId = `${logEntry.timestamp}-${userId.slice(0, 6)}`;
-        
+
         // 멤버 정보 저장 (필요시)
         if (members.length > 0) {
           const memberSQL = `
@@ -762,10 +795,10 @@ export class SQLiteManager implements IDatabaseManager {
           `;
           await this.run(memberSQL, [logId, JSON.stringify(members), Date.now(), Date.now()]);
         }
-        
+
         return logId;
       }
-      
+
       throw new Error('Failed to add activity log');
     } catch (error) {
       console.error('[SQLite] 활동 로그 기록 실패:', error);
@@ -776,7 +809,11 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 일일 활동 통계 조회
    */
-  async getDailyActivityStats(startTime: number, endTime: number, _options: any = {}): Promise<any[]> {
+  async getDailyActivityStats(
+    startTime: number,
+    endTime: number,
+    _options: any = {}
+  ): Promise<any[]> {
     try {
       const sql = `
         SELECT 
@@ -790,14 +827,14 @@ export class SQLiteManager implements IDatabaseManager {
         GROUP BY DATE(timestamp/1000, 'unixepoch')
         ORDER BY date
       `;
-      
+
       const rows = await this.all(sql, [startTime, endTime]);
-      return rows.map(row => ({
+      return rows.map((row) => ({
         date: row.date,
         totalEvents: row.totalEvents,
         joins: row.joins,
         leaves: row.leaves,
-        uniqueUsers: row.uniqueUsers
+        uniqueUsers: row.uniqueUsers,
       }));
     } catch (error) {
       console.error('[SQLite] 일일 활동 통계 조회 실패:', error);
@@ -821,12 +858,12 @@ export class SQLiteManager implements IDatabaseManager {
         GROUP BY ua.user_id
         ORDER BY ua.total_time DESC
       `;
-      
+
       const rows = await this.all(sql, [startTime, endTime]);
-      return rows.map(row => ({
+      return rows.map((row) => ({
         userId: row.userId,
         displayName: row.displayName || row.userId,
-        totalTime: row.totalTime
+        totalTime: row.totalTime,
       }));
     } catch (error) {
       console.error('[SQLite] 활성 멤버 조회 실패:', error);
@@ -837,7 +874,11 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 가장 활성화된 채널 조회
    */
-  async getMostActiveChannels(startTime: number, endTime: number, limit: number = 5): Promise<any[]> {
+  async getMostActiveChannels(
+    startTime: number,
+    endTime: number,
+    limit: number = 5
+  ): Promise<any[]> {
     try {
       const sql = `
         SELECT 
@@ -850,7 +891,7 @@ export class SQLiteManager implements IDatabaseManager {
         ORDER BY count DESC
         LIMIT ?
       `;
-      
+
       const rows = await this.all(sql, [startTime, endTime, limit]);
       return rows;
     } catch (error) {
@@ -868,7 +909,7 @@ export class SQLiteManager implements IDatabaseManager {
       const rows = await this.all('SELECT * FROM afk_status WHERE is_afk = 1');
       this.updateMetrics(Date.now() - startTime);
 
-      return rows.map(row => this.convertToAfkStatus(row));
+      return rows.map((row) => this.convertToAfkStatus(row));
     } catch (error) {
       console.error('[SQLite] AFK 사용자 조회 실패:', error);
       return [];
@@ -881,25 +922,24 @@ export class SQLiteManager implements IDatabaseManager {
   async clearExpiredAfkStatus(): Promise<string[]> {
     try {
       const now = Date.now();
-      
+
       // 만료된 사용자 찾기
       const expiredRows = await this.all(
         'SELECT user_id FROM afk_status WHERE afk_since IS NOT NULL AND afk_since < ?',
         [now]
       );
-      
-      const expiredUsers = expiredRows.map(row => row.user_id);
-      
+
+      const expiredUsers = expiredRows.map((row) => row.user_id);
+
       if (expiredUsers.length > 0) {
         // 만료된 사용자들 삭제
-        await this.run(
-          'DELETE FROM afk_status WHERE afk_since IS NOT NULL AND afk_since < ?',
-          [now]
-        );
-        
+        await this.run('DELETE FROM afk_status WHERE afk_since IS NOT NULL AND afk_since < ?', [
+          now,
+        ]);
+
         console.log(`[SQLite] ${expiredUsers.length}명의 만료된 AFK 상태 정리 완료`);
       }
-      
+
       return expiredUsers;
     } catch (error) {
       console.error('[SQLite] 만료된 AFK 상태 정리 실패:', error);
@@ -910,14 +950,18 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * AFK 상태 설정
    */
-  async setUserAfkStatus(userId: string, _displayName: string, untilTimestamp: number): Promise<boolean> {
+  async setUserAfkStatus(
+    userId: string,
+    _displayName: string,
+    untilTimestamp: number
+  ): Promise<boolean> {
     try {
       const afkStatus: Partial<AfkStatus> = {
         isAfk: true,
         afkStartTime: Date.now(),
-        afkUntil: untilTimestamp
+        afkUntil: untilTimestamp,
       };
-      
+
       return await this.updateAfkStatus(userId, afkStatus);
     } catch (error) {
       console.error('[SQLite] AFK 상태 설정 실패:', error);
@@ -933,7 +977,7 @@ export class SQLiteManager implements IDatabaseManager {
       const startTime = Date.now();
       await this.run('DELETE FROM afk_status WHERE user_id = ?', [userId]);
       this.updateMetrics(Date.now() - startTime);
-      
+
       return true;
     } catch (error) {
       console.error('[SQLite] AFK 상태 해제 실패:', error);
@@ -944,23 +988,27 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 포럼 메시지 추적
    */
-  async trackForumMessage(threadId: string, messageType: string, messageId: string): Promise<boolean> {
+  async trackForumMessage(
+    threadId: string,
+    messageType: string,
+    messageId: string
+  ): Promise<boolean> {
     try {
       const sql = `
         INSERT OR REPLACE INTO forum_messages 
         (message_id, channel_id, user_id, content, message_data, created_at) 
         VALUES (?, ?, ?, ?, ?, ?)
       `;
-      
+
       await this.run(sql, [
         messageId,
         threadId,
         'system',
         messageType,
         JSON.stringify({ messageType, threadId }),
-        Date.now()
+        Date.now(),
       ]);
-      
+
       return true;
     } catch (error) {
       console.error('[SQLite] 포럼 메시지 추적 실패:', error);
@@ -977,9 +1025,9 @@ export class SQLiteManager implements IDatabaseManager {
         SELECT message_id FROM forum_messages 
         WHERE channel_id = ? AND content = ?
       `;
-      
+
       const rows = await this.all(sql, [threadId, messageType]);
-      return rows.map(row => row.message_id);
+      return rows.map((row) => row.message_id);
     } catch (error) {
       console.error('[SQLite] 추적된 메시지 조회 실패:', error);
       return [];
@@ -992,12 +1040,12 @@ export class SQLiteManager implements IDatabaseManager {
   async clearTrackedMessages(threadId: string, messageType: string): Promise<string[]> {
     try {
       const messages = await this.getTrackedMessages(threadId, messageType);
-      
-      await this.run(
-        'DELETE FROM forum_messages WHERE channel_id = ? AND content = ?',
-        [threadId, messageType]
-      );
-      
+
+      await this.run('DELETE FROM forum_messages WHERE channel_id = ? AND content = ?', [
+        threadId,
+        messageType,
+      ]);
+
       return messages;
     } catch (error) {
       console.error('[SQLite] 추적된 메시지 삭제 실패:', error);
@@ -1010,13 +1058,12 @@ export class SQLiteManager implements IDatabaseManager {
    */
   async clearAllTrackedMessagesForThread(threadId: string): Promise<any> {
     try {
-      const allMessages = await this.all(
-        'SELECT * FROM forum_messages WHERE channel_id = ?',
-        [threadId]
-      );
-      
+      const allMessages = await this.all('SELECT * FROM forum_messages WHERE channel_id = ?', [
+        threadId,
+      ]);
+
       await this.run('DELETE FROM forum_messages WHERE channel_id = ?', [threadId]);
-      
+
       return allMessages.reduce((acc, msg) => {
         if (!acc[msg.content]) acc[msg.content] = [];
         acc[msg.content].push(msg.message_id);
@@ -1031,28 +1078,32 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 음성 채널 매핑 저장
    */
-  async saveChannelMapping(voiceChannelId: string, forumPostId: string, lastParticipantCount: number = 0): Promise<boolean> {
+  async saveChannelMapping(
+    voiceChannelId: string,
+    forumPostId: string,
+    lastParticipantCount: number = 0
+  ): Promise<boolean> {
     try {
       const sql = `
         INSERT OR REPLACE INTO voice_channel_mappings 
         (voice_channel_id, forum_channel_id, mapping_data, created_at, updated_at) 
         VALUES (?, ?, ?, ?, ?)
       `;
-      
+
       const mappingData = {
         forumPostId,
         lastParticipantCount,
-        isActive: true
+        isActive: true,
       };
-      
+
       await this.run(sql, [
         voiceChannelId,
         forumPostId,
         JSON.stringify(mappingData),
         Date.now(),
-        Date.now()
+        Date.now(),
       ]);
-      
+
       return true;
     } catch (error) {
       console.error('[SQLite] 채널 매핑 저장 실패:', error);
@@ -1069,17 +1120,17 @@ export class SQLiteManager implements IDatabaseManager {
         'SELECT * FROM voice_channel_mappings WHERE voice_channel_id = ?',
         [voiceChannelId]
       );
-      
+
       if (!row) return null;
-      
+
       const mappingData = JSON.parse(row.mapping_data || '{}');
-      
+
       return {
         channelId: voiceChannelId,
         forumPostId: mappingData.forumPostId || row.forum_channel_id,
         threadId: mappingData.forumPostId || row.forum_channel_id,
         createdAt: row.created_at,
-        isActive: mappingData.isActive ?? true
+        isActive: mappingData.isActive ?? true,
       };
     } catch (error) {
       console.error('[SQLite] 채널 매핑 조회 실패:', error);
@@ -1093,15 +1144,15 @@ export class SQLiteManager implements IDatabaseManager {
   async getAllChannelMappings(): Promise<VoiceChannelMapping[]> {
     try {
       const rows = await this.all('SELECT * FROM voice_channel_mappings');
-      
-      return rows.map(row => {
+
+      return rows.map((row) => {
         const mappingData = JSON.parse(row.mapping_data || '{}');
         return {
           channelId: row.voice_channel_id,
           forumPostId: mappingData.forumPostId || row.forum_channel_id,
           threadId: mappingData.forumPostId || row.forum_channel_id,
           createdAt: row.created_at,
-          isActive: mappingData.isActive ?? true
+          isActive: mappingData.isActive ?? true,
         };
       });
     } catch (error) {
@@ -1115,7 +1166,9 @@ export class SQLiteManager implements IDatabaseManager {
    */
   async removeChannelMapping(voiceChannelId: string): Promise<boolean> {
     try {
-      await this.run('DELETE FROM voice_channel_mappings WHERE voice_channel_id = ?', [voiceChannelId]);
+      await this.run('DELETE FROM voice_channel_mappings WHERE voice_channel_id = ?', [
+        voiceChannelId,
+      ]);
       return true;
     } catch (error) {
       console.error('[SQLite] 채널 매핑 제거 실패:', error);
@@ -1126,7 +1179,10 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * 참여자 수 업데이트
    */
-  async updateLastParticipantCount(voiceChannelId: string, participantCount: number): Promise<boolean> {
+  async updateLastParticipantCount(
+    voiceChannelId: string,
+    participantCount: number
+  ): Promise<boolean> {
     try {
       const sql = `
         UPDATE voice_channel_mappings 
@@ -1134,7 +1190,7 @@ export class SQLiteManager implements IDatabaseManager {
             updated_at = ?
         WHERE voice_channel_id = ?
       `;
-      
+
       await this.run(sql, [participantCount, Date.now(), voiceChannelId]);
       return true;
     } catch (error) {
@@ -1152,7 +1208,7 @@ export class SQLiteManager implements IDatabaseManager {
         'SELECT voice_channel_id FROM voice_channel_mappings WHERE forum_channel_id = ?',
         [forumPostId]
       );
-      
+
       return row?.voice_channel_id || null;
     } catch (error) {
       console.error('[SQLite] 포스트 ID로 채널 ID 조회 실패:', error);
@@ -1167,12 +1223,11 @@ export class SQLiteManager implements IDatabaseManager {
     try {
       const maxAge = options.maxAge || 7 * 24 * 60 * 60 * 1000; // 7일
       const now = Date.now();
-      
-      const result = await this.run(
-        'DELETE FROM voice_channel_mappings WHERE updated_at < ?',
-        [now - maxAge]
-      );
-      
+
+      const result = await this.run('DELETE FROM voice_channel_mappings WHERE updated_at < ?', [
+        now - maxAge,
+      ]);
+
       return result.changes || 0;
     } catch (error) {
       console.error('[SQLite] 만료된 매핑 정리 실패:', error);
@@ -1187,11 +1242,11 @@ export class SQLiteManager implements IDatabaseManager {
     try {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
       const backupPath = `${this.config.database}.backup.${timestamp}`;
-      
+
       if (this.connection?.db) {
         await this.initializer.createBackup(this.connection.db, backupPath);
       }
-      
+
       return backupPath;
     } catch (error) {
       console.error('[SQLite] 백업 생성 실패:', error);
@@ -1215,12 +1270,16 @@ export class SQLiteManager implements IDatabaseManager {
   /**
    * JSON 데이터 마이그레이션
    */
-  async migrateFromJSON(_activityData: any, _roleConfigData: any, _options: any = {}): Promise<boolean> {
+  async migrateFromJSON(
+    _activityData: any,
+    _roleConfigData: any,
+    _options: any = {}
+  ): Promise<boolean> {
     try {
       // 기존 마이그레이션 로직 호출
-      const { DatabaseMigrator } = await import('../database/migrator.js');
+      const { DatabaseMigrator } = await import('../database/migrator');
       const migrator = new DatabaseMigrator();
-      
+
       return await migrator.migrate();
     } catch (error) {
       console.error('[SQLite] JSON 마이그레이션 실패:', error);
@@ -1238,14 +1297,14 @@ export class SQLiteManager implements IDatabaseManager {
       const logCount = await this.get('SELECT COUNT(*) as count FROM activity_logs');
       const afkCount = await this.get('SELECT COUNT(*) as count FROM afk_status WHERE is_afk = 1');
       const mappingCount = await this.get('SELECT COUNT(*) as count FROM voice_channel_mappings');
-      
+
       return {
         totalUsers: userCount?.count || 0,
         totalRoles: roleCount?.count || 0,
         totalLogs: logCount?.count || 0,
         totalAfkUsers: afkCount?.count || 0,
         totalMappings: mappingCount?.count || 0,
-        lastUpdate: new Date()
+        lastUpdate: new Date(),
       };
     } catch (error) {
       console.error('[SQLite] 통계 조회 실패:', error);
@@ -1255,7 +1314,7 @@ export class SQLiteManager implements IDatabaseManager {
         totalLogs: 0,
         totalAfkUsers: 0,
         totalMappings: 0,
-        lastUpdate: new Date()
+        lastUpdate: new Date(),
       };
     }
   }
@@ -1271,13 +1330,13 @@ export class SQLiteManager implements IDatabaseManager {
         ORDER BY reset_timestamp DESC
         LIMIT ?
       `;
-      
+
       const rows = await this.all(sql, [roleName, limit]);
-      return rows.map(row => ({
+      return rows.map((row) => ({
         id: row.id,
         timestamp: row.reset_timestamp,
         reason: JSON.parse(row.backup_data || '{}').reason || 'Unknown',
-        data: JSON.parse(row.backup_data || '{}')
+        data: JSON.parse(row.backup_data || '{}'),
       }));
     } catch (error) {
       console.error('[SQLite] 역할 리셋 히스토리 조회 실패:', error);
@@ -1371,13 +1430,13 @@ export class SQLiteManager implements IDatabaseManager {
       return null;
     } catch (error) {
       console.error('[SQLite] 캐시 조회 실패:', error);
-      
+
       // 에러 발생시 fallback cache만 사용
       const cached = this.fallbackCache.get(key);
       if (cached && Date.now() - cached.timestamp < cached.ttl) {
         return cached.data;
       }
-      
+
       return null;
     }
   }
@@ -1408,7 +1467,7 @@ export class SQLiteManager implements IDatabaseManager {
       }
     } catch (error) {
       console.error('[SQLite] 캐시 저장 실패:', error);
-      
+
       // 에러 발생시 fallback cache만 사용
       this.fallbackCache.set(key, {
         data,
@@ -1432,7 +1491,7 @@ export class SQLiteManager implements IDatabaseManager {
       this.fallbackCache.delete(key);
     } catch (error) {
       console.error('[SQLite] 캐시 무효화 실패:', error);
-      
+
       // 에러 발생시 fallback cache만 삭제
       this.fallbackCache.delete(key);
     }
@@ -1596,10 +1655,10 @@ export class SQLiteManager implements IDatabaseManager {
       // Redis 캐시 클리어 (봇 관련 키만)
       if (this.redis.isConnected()) {
         const keys = await this.redis.keys('user_activity_*');
-        keys.push(...await this.redis.keys('role_config_*'));
-        keys.push(...await this.redis.keys('activity_log_*'));
-        keys.push(...await this.redis.keys('active_users'));
-        
+        keys.push(...(await this.redis.keys('role_config_*')));
+        keys.push(...(await this.redis.keys('activity_log_*')));
+        keys.push(...(await this.redis.keys('active_users')));
+
         for (const key of keys) {
           await this.redis.del(key);
         }
@@ -1610,7 +1669,7 @@ export class SQLiteManager implements IDatabaseManager {
       console.log('[SQLite] Redis 및 fallback 캐시가 클리어되었습니다.');
     } catch (error) {
       console.error('[SQLite] 캐시 클리어 실패:', error);
-      
+
       // 에러 발생시 fallback cache만 클리어
       this.fallbackCache.clear();
       console.log('[SQLite] fallback 캐시가 클리어되었습니다.');
@@ -1624,7 +1683,7 @@ export class SQLiteManager implements IDatabaseManager {
     return {
       hitRate: this.metrics.cacheHitRate,
       size: this.fallbackCache.size, // fallback cache 크기 (Redis 크기는 별도 모니터링)
-      maxSize: 500 // fallback cache 최대 크기
+      maxSize: 500, // fallback cache 최대 크기
     };
   }
 
@@ -1635,14 +1694,14 @@ export class SQLiteManager implements IDatabaseManager {
     try {
       const isConnected = this.connection?.isConnected || false;
       const cacheStats = this.getCacheStats();
-      
+
       if (!isConnected) {
         return {
           status: 'unhealthy',
           details: {
             connected: false,
-            error: 'Database connection is not established'
-          }
+            error: 'Database connection is not established',
+          },
         };
       }
 
@@ -1656,15 +1715,15 @@ export class SQLiteManager implements IDatabaseManager {
           cacheSize: cacheStats.size,
           cacheHitRate: cacheStats.hitRate,
           queryCount: this.metrics.queryCount,
-          averageQueryTime: this.metrics.averageQueryTime
-        }
+          averageQueryTime: this.metrics.averageQueryTime,
+        },
       };
     } catch (error) {
       return {
         status: 'unhealthy',
         details: {
-          error: error instanceof Error ? error.message : String(error)
-        }
+          error: error instanceof Error ? error.message : String(error),
+        },
       };
     }
   }

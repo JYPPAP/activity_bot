@@ -1,7 +1,7 @@
 // src/commands/settingsCommand.ts - 설정 명령어
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 
-import { cleanRoleName } from '../utils/formatters.js';
+import { cleanRoleName } from '../utils/formatters';
 
 import {
   CommandBase,
@@ -9,7 +9,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase.js';
+} from './CommandBase';
 
 // 설정 유효성 검사 인터페이스
 interface ConfigValidation {

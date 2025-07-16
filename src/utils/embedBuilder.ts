@@ -1,11 +1,11 @@
 // src/utils/embedBuilder.ts - 임베드 생성 유틸리티
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
 
-import { COLORS } from '../config/constants.js';
-import { EmbedConfig, EmbedFieldData } from '../types/discord.js';
+import { COLORS } from '../config/constants';
+import { EmbedConfig, EmbedFieldData } from '../types/discord';
 
-import { formatSimpleDate } from './dateUtils.js';
-import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters.js';
+import { formatSimpleDate } from './dateUtils';
+import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters';
 
 // ====================
 // 임베드 데이터 타입

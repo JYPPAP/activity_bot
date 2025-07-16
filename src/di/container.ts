@@ -1,25 +1,25 @@
 // src/di/container.ts - DI Container 설정
 
-import { container } from 'tsyringe';
 import { Client } from 'discord.js';
+import { container } from 'tsyringe';
 
 // 서비스 클래스 임포트
-import { SQLiteManager } from '../services/SQLiteManager.js';
-import { LogService } from '../services/logService.js';
-import { ActivityTracker } from '../services/activityTracker.js';
-import { CalendarLogService } from '../services/calendarLogService.js';
-import { CommandHandler } from '../commands/commandHandler.js';
-import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService.js';
-import { PrometheusMetricsService } from '../services/PrometheusMetricsService.js';
-import { RedisService } from '../services/RedisService.js';
+import { CommandHandler } from '../commands/commandHandler';
+import { config } from '../config/env';
+import { DI_TOKENS } from '../interfaces/index';
+import type { RedisConfig } from '../interfaces/IRedisService';
+import { ActivityTracker } from '../services/activityTracker';
+import { CalendarLogService } from '../services/calendarLogService';
+import { LogService } from '../services/logService';
+import type { LogServiceOptions } from '../services/logService';
+import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
+import { PrometheusMetricsService } from '../services/PrometheusMetricsService';
+import { RedisService } from '../services/RedisService';
 
 // 인터페이스 및 토큰 임포트
-import { DI_TOKENS } from '../interfaces/index.js';
 
 // 설정 임포트
-import { config } from '../config/env.js';
-import type { LogServiceOptions } from '../services/logService.js';
-import type { RedisConfig } from '../interfaces/IRedisService.js';
+import { SQLiteManager } from '../services/SQLiteManager';
 
 /**
  * DI Container 설정 및 서비스 바인딩
@@ -41,7 +41,7 @@ export function configureDIContainer(): void {
     enableConsoleLogging: true,
     includeMetadata: true,
   };
-  
+
   const redisConfig: RedisConfig = {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
@@ -57,7 +57,7 @@ export function configureDIContainer(): void {
     keepAlive: 30000,
     keyPrefix: 'discord_bot:',
   };
-  
+
   container.registerInstance(DI_TOKENS.LogServiceConfig, logServiceConfig);
   container.registerInstance(DI_TOKENS.RedisConfig, redisConfig);
   container.registerInstance(DI_TOKENS.BotConfig, config);
@@ -67,13 +67,16 @@ export function configureDIContainer(): void {
   container.registerSingleton(DI_TOKENS.ILogService, LogService);
   container.registerSingleton(DI_TOKENS.IActivityTracker, ActivityTracker);
   container.registerSingleton(DI_TOKENS.ICalendarLogService, CalendarLogService);
-  
+
   // 인프라 서비스 등록
   container.registerSingleton(DI_TOKENS.IRedisService, RedisService);
 
   // 모니터링 서비스들 등록
   container.registerSingleton(DI_TOKENS.IPrometheusMetricsService, PrometheusMetricsService);
-  container.registerSingleton(DI_TOKENS.IPerformanceMonitoringService, PerformanceMonitoringService);
+  container.registerSingleton(
+    DI_TOKENS.IPerformanceMonitoringService,
+    PerformanceMonitoringService
+  );
 
   // 명령어 핸들러 등록 (의존성이 많으므로 마지막에)
   container.registerSingleton(DI_TOKENS.ICommandHandler, CommandHandler);
@@ -165,5 +168,5 @@ export const DIContainer = {
    */
   reset(): void {
     container.clearInstances();
-  }
+  },
 };

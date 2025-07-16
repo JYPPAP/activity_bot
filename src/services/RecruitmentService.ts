@@ -13,13 +13,13 @@ import {
   Guild,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
-import { DiscordAPIError } from '../types/discord.js';
-import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
-import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { DiscordConstants } from '../config/DiscordConstants';
+import { RecruitmentConfig } from '../config/RecruitmentConfig';
+import { DiscordAPIError } from '../types/discord';
+import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder';
+import { SafeInteraction } from '../utils/SafeInteraction';
 
-import { PermissionService } from './PermissionService.js';
+import { PermissionService } from './PermissionService';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {

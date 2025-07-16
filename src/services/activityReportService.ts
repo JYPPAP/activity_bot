@@ -8,15 +8,15 @@ import {
   ThreadChannel,
 } from 'discord.js';
 
-import { COLORS } from '../config/constants.js';
-import { config } from '../config/env.js';
-import { EnhancedClient } from '../types/discord.js';
-import { UserActivity } from '../types/index.js';
-import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder.js';
-import { formatKoreanDate, formatTime } from '../utils/formatters.js';
+import { COLORS } from '../config/constants';
+import { config } from '../config/env';
+import { EnhancedClient } from '../types/discord';
+import { UserActivity } from '../types/index';
+import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder';
+import { formatKoreanDate, formatTime } from '../utils/formatters';
 
-import { SQLiteManager } from './SQLiteManager.js';
-import { UserClassificationService } from './UserClassificationService.js';
+import { SQLiteManager } from './SQLiteManager';
+import { UserClassificationService } from './UserClassificationService';
 
 // ====================
 // 보고서 관련 타입

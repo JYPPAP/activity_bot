@@ -1,5 +1,5 @@
 // src/utils/dateUtils.ts - 날짜 관련 유틸리티 함수
-import { TIME } from '../config/constants.js';
+import { TIME } from '../config/constants';
 
 // ====================
 // 날짜 형식 타입

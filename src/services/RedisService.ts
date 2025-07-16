@@ -1,10 +1,10 @@
 // src/services/RedisService.ts - Redis 서비스 구현체
 
-import { injectable, inject } from 'tsyringe';
 import Redis from 'ioredis';
+import { injectable, inject } from 'tsyringe';
 
-import { logger } from '../config/logger-termux.js';
-import { DI_TOKENS } from '../interfaces/index.js';
+import { logger } from '../config/logger-termux';
+import { DI_TOKENS } from '../interfaces/index';
 import type {
   IRedisService,
   RedisConfig,
@@ -12,7 +12,7 @@ import type {
   RedisHealthStatus,
   RedisCacheStats,
   RedisMessage,
-} from '../interfaces/IRedisService.js';
+} from '../interfaces/IRedisService';
 
 /**
  * Redis 서비스 구현체
@@ -86,11 +86,19 @@ export class RedisService implements IRedisService {
         ...(this.config.password && { password: this.config.password }),
         ...(this.config.db !== undefined && { db: this.config.db }),
         ...(this.config.username && { username: this.config.username }),
-        ...(this.config.maxRetriesPerRequest !== undefined && { maxRetriesPerRequest: this.config.maxRetriesPerRequest }),
+        ...(this.config.maxRetriesPerRequest !== undefined && {
+          maxRetriesPerRequest: this.config.maxRetriesPerRequest,
+        }),
         ...(this.config.lazyConnect !== undefined && { lazyConnect: this.config.lazyConnect }),
-        ...(this.config.enableOfflineQueue !== undefined && { enableOfflineQueue: this.config.enableOfflineQueue }),
-        ...(this.config.connectTimeout !== undefined && { connectTimeout: this.config.connectTimeout }),
-        ...(this.config.commandTimeout !== undefined && { commandTimeout: this.config.commandTimeout }),
+        ...(this.config.enableOfflineQueue !== undefined && {
+          enableOfflineQueue: this.config.enableOfflineQueue,
+        }),
+        ...(this.config.connectTimeout !== undefined && {
+          connectTimeout: this.config.connectTimeout,
+        }),
+        ...(this.config.commandTimeout !== undefined && {
+          commandTimeout: this.config.commandTimeout,
+        }),
         ...(this.config.family !== undefined && { family: this.config.family }),
         ...(this.config.keepAlive !== undefined && { keepAlive: this.config.keepAlive }),
         ...(this.config.keyPrefix && { keyPrefix: this.config.keyPrefix }),
@@ -222,13 +230,13 @@ export class RedisService implements IRedisService {
     return this.executeWithMetrics('get', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
       const result = await this.client.get(key);
-      
+
       if (result !== null) {
         this.stats.cacheHits++;
       } else {
         this.stats.cacheMisses++;
       }
-      
+
       return result;
     });
   }
@@ -236,14 +244,14 @@ export class RedisService implements IRedisService {
   async set(key: string, value: string, ttl?: number): Promise<boolean> {
     return this.executeWithMetrics('set', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
-      
+
       let result: string;
       if (ttl) {
         result = await this.client.setex(key, ttl, value);
       } else {
         result = await this.client.set(key, value);
       }
-      
+
       return result === 'OK';
     });
   }
@@ -275,12 +283,12 @@ export class RedisService implements IRedisService {
     return this.executeWithMetrics('keys', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
       const keys = await this.client.keys(pattern);
-      
+
       // keyPrefix 제거
       if (this.config.keyPrefix) {
-        return keys.map(key => key.replace(this.config.keyPrefix!, ''));
+        return keys.map((key) => key.replace(this.config.keyPrefix!, ''));
       }
-      
+
       return keys;
     });
   }
@@ -347,28 +355,28 @@ export class RedisService implements IRedisService {
 
   async subscribe(channel: string, callback: (message: RedisMessage) => void): Promise<void> {
     if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
-    
+
     this.subscribers.set(channel, callback);
     await this.subscriberClient.subscribe(channel);
-    
+
     logger.debug(`Redis 채널 구독: ${channel}`);
   }
 
   async unsubscribe(channel: string): Promise<void> {
     if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
-    
+
     this.subscribers.delete(channel);
     await this.subscriberClient.unsubscribe(channel);
-    
+
     logger.debug(`Redis 채널 구독 해제: ${channel}`);
   }
 
   async psubscribe(pattern: string, callback: (message: RedisMessage) => void): Promise<void> {
     if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
-    
+
     this.patternSubscribers.set(pattern, callback);
     await this.subscriberClient.psubscribe(pattern);
-    
+
     logger.debug(`Redis 패턴 구독: ${pattern}`);
   }
 
@@ -379,22 +387,22 @@ export class RedisService implements IRedisService {
   async rateLimit(key: string, limit: number, window: number): Promise<RateLimitResult> {
     return this.executeWithMetrics('rateLimit', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
-      
+
       const now = Date.now();
       const windowStart = Math.floor(now / (window * 1000)) * (window * 1000);
       const rateLimitKey = `${key}:${windowStart}`;
-      
+
       const pipeline = this.client.pipeline();
       pipeline.incr(rateLimitKey);
       pipeline.expire(rateLimitKey, window);
-      
+
       const results = await pipeline.exec();
-      const currentCount = results?.[0]?.[1] as number || 0;
-      
+      const currentCount = (results?.[0]?.[1] as number) || 0;
+
       const allowed = currentCount <= limit;
       const remaining = Math.max(0, limit - currentCount);
-      const resetTime = windowStart + (window * 1000);
-      
+      const resetTime = windowStart + window * 1000;
+
       return {
         allowed,
         remaining,
@@ -404,26 +412,30 @@ export class RedisService implements IRedisService {
     });
   }
 
-  async slidingWindowRateLimit(key: string, limit: number, window: number): Promise<RateLimitResult> {
+  async slidingWindowRateLimit(
+    key: string,
+    limit: number,
+    window: number
+  ): Promise<RateLimitResult> {
     return this.executeWithMetrics('slidingWindowRateLimit', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
-      
+
       const now = Date.now();
-      const windowStart = now - (window * 1000);
-      
+      const windowStart = now - window * 1000;
+
       const pipeline = this.client.pipeline();
       pipeline.zremrangebyscore(key, 0, windowStart);
       pipeline.zadd(key, now, `${now}-${Math.random()}`);
       pipeline.zcard(key);
       pipeline.expire(key, window);
-      
+
       const results = await pipeline.exec();
-      const currentCount = results?.[2]?.[1] as number || 0;
-      
+      const currentCount = (results?.[2]?.[1] as number) || 0;
+
       const allowed = currentCount <= limit;
       const remaining = Math.max(0, limit - currentCount);
-      const resetTime = now + (window * 1000);
-      
+      const resetTime = now + window * 1000;
+
       return {
         allowed,
         remaining,
@@ -514,15 +526,15 @@ export class RedisService implements IRedisService {
     });
   }
 
-  async pipeline(commands: Array<{cmd: string, args: any[]}>): Promise<any[]> {
+  async pipeline(commands: Array<{ cmd: string; args: any[] }>): Promise<any[]> {
     return this.executeWithMetrics('pipeline', async () => {
       if (!this.client) throw new Error('Redis client not initialized');
-      
+
       const pipeline = this.client.pipeline();
       for (const command of commands) {
         (pipeline as any)[command.cmd](...command.args);
       }
-      
+
       const results = await pipeline.exec();
       return results || [];
     });
@@ -536,7 +548,8 @@ export class RedisService implements IRedisService {
     const totalOperations = this.stats.cacheHits + this.stats.cacheMisses;
     const hitRate = totalOperations > 0 ? this.stats.cacheHits / totalOperations : 0;
     const missRate = totalOperations > 0 ? this.stats.cacheMisses / totalOperations : 0;
-    const averageLatency = this.stats.operations > 0 ? this.stats.totalLatency / this.stats.operations : 0;
+    const averageLatency =
+      this.stats.operations > 0 ? this.stats.totalLatency / this.stats.operations : 0;
 
     const memoryUsage = await this.getMemoryUsage();
     const totalKeys = await this.getTotalKeys();
@@ -669,22 +682,22 @@ export class RedisService implements IRedisService {
 
   private async executeWithMetrics<T>(operation: string, fn: () => Promise<T>): Promise<T> {
     const startTime = Date.now();
-    
+
     try {
       const result = await fn();
       const latency = Date.now() - startTime;
-      
+
       this.stats.operations++;
       this.stats.totalLatency += latency;
       this.stats.lastOperation = Date.now();
-      
+
       if (latency > 100) {
         logger.warn(`Redis 느린 쿼리 감지`, {
           operation,
           latency: `${latency}ms`,
         });
       }
-      
+
       return result;
     } catch (error) {
       this.stats.errors++;
@@ -723,7 +736,7 @@ export class RedisService implements IRedisService {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private cleanup(): void {
@@ -731,12 +744,12 @@ export class RedisService implements IRedisService {
       this.client.disconnect();
       this.client = null;
     }
-    
+
     if (this.subscriberClient) {
       this.subscriberClient.disconnect();
       this.subscriberClient = null;
     }
-    
+
     this.isInitialized = false;
     this.subscribers.clear();
     this.patternSubscribers.clear();

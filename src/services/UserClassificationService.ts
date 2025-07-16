@@ -1,10 +1,10 @@
 // src/services/UserClassificationService.ts - 잠수 상태 처리 개선
 import { Collection, GuildMember } from 'discord.js';
 
-import { calculateNextSunday } from '../utils/dateUtils.js';
+import { calculateNextSunday } from '../utils/dateUtils';
 
-import { ActivityTracker } from './activityTracker.js';
-import { SQLiteManager } from './SQLiteManager.js';
+import { ActivityTracker } from './activityTracker';
+import { SQLiteManager } from './SQLiteManager';
 
 // 사용자 데이터 인터페이스
 interface UserData {

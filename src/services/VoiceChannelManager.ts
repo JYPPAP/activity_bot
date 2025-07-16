@@ -1,7 +1,7 @@
 // src/services/VoiceChannelManager.ts - 음성 채널 관리
 import { Client, Channel, VoiceState, GuildMember, ChannelType, Guild } from 'discord.js';
-// import { DiscordConstants } from '../config/DiscordConstants.js'; // 미사용
-// import { RecruitmentConfig } from '../config/RecruitmentConfig.js'; // 미사용
+// import { DiscordConstants } from '../config/DiscordConstants'; // 미사용
+// import { RecruitmentConfig } from '../config/RecruitmentConfig'; // 미사용
 
 // 채널 변경 정보 인터페이스
 interface ChannelChangeInfo {

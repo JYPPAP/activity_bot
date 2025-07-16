@@ -3,11 +3,11 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import fs from 'fs';
 import { MemoryGuard } from 'discord-optimizer';
 
-import { ExtendedClient } from './types/discord.js';
+import { ExtendedClient } from './types/discord';
 
 // DI Container 및 서비스 임포트
-import { DIContainer, setupContainer } from './di/container.js';
-import { DI_TOKENS } from './interfaces/index.js';
+import { DIContainer, setupContainer } from './di/container';
+import { DI_TOKENS } from './interfaces/index';
 import type { 
   IDatabaseManager, 
   ILogService, 
@@ -17,17 +17,17 @@ import type {
   IPerformanceMonitoringService,
   IPrometheusMetricsService,
   IRedisService
-} from './interfaces/index.js';
+} from './interfaces/index';
 
 // 추가 서비스 임포트 (DI Container로 관리되지 않는 서비스들)
-import { EventManager } from './services/eventManager.js';
-import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
-import { EmojiReactionService } from './services/EmojiReactionService.js';
+import { EventManager } from './services/eventManager';
+import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService';
+import { EmojiReactionService } from './services/EmojiReactionService';
 
 // 설정 및 유틸리티 임포트
-import { config } from './config/env.js';
-import { PATHS } from './config/constants.js';
-import { logger } from './config/logger-termux.js';
+import { config } from './config/env';
+import { PATHS } from './config/constants';
+import { logger } from './config/logger-termux';
 
 // 타입 정의
 interface BotServices {

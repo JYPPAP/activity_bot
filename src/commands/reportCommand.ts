@@ -8,9 +8,9 @@ import {
   TextChannel,
 } from 'discord.js';
 
-import { UserClassificationService } from '../services/UserClassificationService.js';
-import { EmbedFactory } from '../utils/embedBuilder.js';
-import { cleanRoleName } from '../utils/formatters.js';
+import { UserClassificationService } from '../services/UserClassificationService';
+import { EmbedFactory } from '../utils/embedBuilder';
+import { cleanRoleName } from '../utils/formatters';
 
 import {
   CommandBase,
@@ -18,7 +18,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase.js';
+} from './CommandBase';
 
 // 명령어 옵션 인터페이스
 interface ReportCommandOptions {
@@ -441,7 +441,6 @@ export class ReportCommand extends CommandBase {
     return { isValid: true };
   }
 
-
   /**
    * 보고서 생성
    * @param role - 역할 이름
@@ -479,7 +478,6 @@ export class ReportCommand extends CommandBase {
     });
   }
 
-
   /**
    * 보고서 전송
    * @param interaction - 상호작용 객체
@@ -506,9 +504,7 @@ export class ReportCommand extends CommandBase {
       const logChannelId = process.env.CALENDAR_LOG_CHANNEL_ID;
       if (logChannelId) {
         try {
-          const logChannel = (await interaction.client.channels.fetch(
-            logChannelId
-          )) as TextChannel;
+          const logChannel = (await interaction.client.channels.fetch(logChannelId)) as TextChannel;
           if (logChannel?.isTextBased()) {
             await logChannel.send({
               content:
@@ -559,7 +555,6 @@ export class ReportCommand extends CommandBase {
       flags: MessageFlags.Ephemeral,
     });
   }
-
 
   /**
    * 캐시 키 생성

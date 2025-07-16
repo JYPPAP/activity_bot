@@ -1,10 +1,12 @@
 // src/services/PerformanceMonitoringService.ts - Discord Bot 성능 모니터링 서비스
-import { Client, Events } from 'discord.js';
 import { performance } from 'perf_hooks';
 
-import { logger } from '../config/logger-termux.js';
-import { TIME } from '../config/constants.js';
-import { PrometheusMetricsService } from './PrometheusMetricsService.js';
+import { Client, Events } from 'discord.js';
+
+import { TIME } from '../config/constants';
+import { logger } from '../config/logger-termux';
+
+import { PrometheusMetricsService } from './PrometheusMetricsService';
 
 // Discord API 레이트 리밋 정보
 interface RateLimitInfo {
@@ -174,7 +176,7 @@ export class PerformanceMonitoringService {
       logger.info('[PerformanceMonitor] WebSocket 연결 재개');
       this.websocketMetrics.reconnectCount++;
       this.websocketMetrics.lastReconnect = new Date();
-      
+
       // Prometheus 메트릭 기록
       if (this.prometheusMetrics) {
         this.prometheusMetrics.recordWebSocketReconnection();
@@ -441,20 +443,20 @@ export class PerformanceMonitoringService {
    */
   getCurrentStatus(): { status: 'healthy' | 'warning' | 'critical'; details: Record<string, any> } {
     this.collectMetrics();
-    
+
     const memoryUsageMB = Math.round(process.memoryUsage().heapUsed / 1024 / 1024);
     const websocketPing = this.websocketMetrics.ping;
-    
+
     // 상태 판정
     let status: 'healthy' | 'warning' | 'critical' = 'healthy';
-    
+
     if (memoryUsageMB > 500 || websocketPing > 500) {
       status = 'warning';
     }
     if (memoryUsageMB > 1000 || websocketPing > 1000) {
       status = 'critical';
     }
-    
+
     return {
       status,
       details: {
@@ -471,7 +473,7 @@ export class PerformanceMonitoringService {
       },
     };
   }
-  
+
   /**
    * 상세 성능 리포트 조회 (기존 getCurrentStatus 기능)
    */

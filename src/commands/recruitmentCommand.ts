@@ -13,7 +13,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase.js';
+} from './CommandBase';
 
 // 구인구직 통계 인터페이스
 interface RecruitmentStats {

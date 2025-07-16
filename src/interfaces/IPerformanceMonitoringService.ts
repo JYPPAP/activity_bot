@@ -48,51 +48,53 @@ export interface IPerformanceMonitoringService {
   start(): void;
   stop(): void;
   isRunning(): boolean;
-  
+
   // 메트릭 수집
   collectMetrics(): PerformanceMetrics;
   getLatestMetrics(): PerformanceMetrics | null;
   getMetricsHistory(limit?: number): PerformanceMetrics[];
-  
+
   // 임계값 관리
   setThresholds(thresholds: Partial<PerformanceThresholds>): void;
   getThresholds(): PerformanceThresholds;
   checkThresholds(metrics: PerformanceMetrics): PerformanceAlert[];
-  
+
   // 경고 시스템
   getActiveAlerts(): PerformanceAlert[];
   getAlertHistory(limit?: number): PerformanceAlert[];
   clearAlerts(): void;
   onAlert(callback: (alert: PerformanceAlert) => void): void;
-  
+
   // Discord 특화 모니터링
   trackRateLimit(endpoint: string, remaining: number, resetTime: Date): void;
   trackWebSocketEvent(eventType: string, processingTime: number): void;
   trackAPICall(endpoint: string, responseTime: number, success: boolean): void;
-  
+
   // 메모리 모니터링
   getMemoryUsage(): NodeJS.MemoryUsage;
   getMemoryTrend(minutes: number): Array<{ timestamp: Date; usage: number }>;
   checkMemoryLeaks(): { detected: boolean; details?: string };
-  
+
   // CPU 모니터링
   getCPUUsage(): Promise<number>;
   getCPUTrend(minutes: number): Array<{ timestamp: Date; usage: number }>;
-  
+
   // 네트워크 모니터링
   getWebSocketLatency(): number;
   getAPILatency(): number;
   getConnectionStatus(): { status: 'connected' | 'disconnected' | 'reconnecting'; uptime: number };
-  
+
   // 이벤트 처리 모니터링
   trackEventProcessing(eventType: string, startTime: number): void;
   getEventProcessingStats(): Record<string, { count: number; avgTime: number; errors: number }>;
-  
+
   // 에러 추적
   trackError(error: Error, context?: Record<string, any>): void;
   getErrorRate(minutes?: number): number;
-  getRecentErrors(limit?: number): Array<{ error: Error; timestamp: Date; context?: Record<string, any> }>;
-  
+  getRecentErrors(
+    limit?: number
+  ): Array<{ error: Error; timestamp: Date; context?: Record<string, any> }>;
+
   // 리포트 생성
   generateHealthReport(): Promise<{
     status: 'healthy' | 'warning' | 'critical';
@@ -101,22 +103,22 @@ export interface IPerformanceMonitoringService {
     alerts: PerformanceAlert[];
     recommendations: string[];
   }>;
-  
+
   // 설정 관리
   setMonitoringInterval(intervalMs: number): void;
   getMonitoringInterval(): number;
   setRetentionPeriod(hours: number): void;
-  
+
   // 데이터 관리
   exportMetrics(startTime: Date, endTime: Date): Promise<string>;
   clearHistory(olderThanHours?: number): void;
-  
+
   // 헬스 체크
   healthCheck(): Promise<{ status: 'healthy' | 'unhealthy'; details: Record<string, any> }>;
-  
+
   // 현재 상태 조회
   getCurrentStatus(): { status: 'healthy' | 'warning' | 'critical'; details: Record<string, any> };
-  
+
   // 상세 성능 리포트 조회
   getDetailedReport(): any;
 }

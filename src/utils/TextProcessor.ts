@@ -1,8 +1,8 @@
 // src/utils/TextProcessor.ts - 텍스트 처리 유틸리티
 import { Guild, Role } from 'discord.js';
 
-import { LIMITS, REGEX } from '../config/constants.js';
-import { DiscordConstants } from '../config/DiscordConstants.js';
+import { LIMITS, REGEX } from '../config/constants';
+import { DiscordConstants } from '../config/DiscordConstants';
 
 // ====================
 // 텍스트 처리 옵션 타입

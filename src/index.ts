@@ -3,13 +3,13 @@ import 'reflect-metadata'; // DI Container (TSyringe) 지원
 import process from 'process';
 
 // ⚠️ 중요: 환경변수를 먼저 로드 후 logger 임포트
-import { config } from './config/env.js';
-import './config/logger-termux.js';
-import { logger } from './config/logger-termux.js';
+import { config } from './config/env';
+import './config/logger-termux';
+import { logger } from './config/logger-termux';
 
-import { Bot } from './bot.js';
+import { Bot } from './bot';
 // @ts-ignore: JS module without declarations
-import { keepAlive } from '../server.js';
+import { keepAlive } from '../server';
 
 // 프로세스 정보 인터페이스
 interface ProcessInfo {

@@ -10,19 +10,19 @@ import {
   MessageFlags,
 } from 'discord.js';
 
-import { config } from '../config/env.js';
-import { ButtonHandler } from '../ui/ButtonHandler.js';
-import { InteractionRouter } from '../ui/InteractionRouter.js';
-import { ModalHandler } from '../ui/ModalHandler.js';
-import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
+import { config } from '../config/env';
+import { ButtonHandler } from '../ui/ButtonHandler';
+import { InteractionRouter } from '../ui/InteractionRouter';
+import { ModalHandler } from '../ui/ModalHandler';
+import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder';
 
-import { SQLiteManager } from './SQLiteManager.js';
-import { ForumPostManager } from './ForumPostManager.js';
-import { MappingService } from './MappingService.js';
-import { ParticipantTracker } from './ParticipantTracker.js';
-import { PermissionService } from './PermissionService.js';
-import { RecruitmentService } from './RecruitmentService.js';
-import { VoiceChannelManager } from './VoiceChannelManager.js';
+import { ForumPostManager } from './ForumPostManager';
+import { MappingService } from './MappingService';
+import { ParticipantTracker } from './ParticipantTracker';
+import { PermissionService } from './PermissionService';
+import { RecruitmentService } from './RecruitmentService';
+import { SQLiteManager } from './SQLiteManager';
+import { VoiceChannelManager } from './VoiceChannelManager';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {

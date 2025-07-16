@@ -1,8 +1,8 @@
 // src/services/ParticipantTracker.ts - 참여자 추적 및 관리
 import { Client, VoiceChannel, GuildMember } from 'discord.js';
 
-import { TextProcessor } from '../utils/TextProcessor.js';
-// import { DiscordConstants } from '../config/DiscordConstants.js'; // 미사용
+import { TextProcessor } from '../utils/TextProcessor';
+// import { DiscordConstants } from '../config/DiscordConstants'; // 미사용
 
 // 참여자 정보 인터페이스
 interface ParticipantInfo {

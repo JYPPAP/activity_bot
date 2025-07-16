@@ -12,14 +12,14 @@ import {
   GuildMember,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { PermissionService } from '../services/PermissionService.js';
-import { RecruitmentService } from '../services/RecruitmentService.js';
-import { DiscordAPIError } from '../types/discord.js';
-import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { DiscordConstants } from '../config/DiscordConstants';
+import { PermissionService } from '../services/PermissionService';
+import { RecruitmentService } from '../services/RecruitmentService';
+import { DiscordAPIError } from '../types/discord';
+import { SafeInteraction } from '../utils/SafeInteraction';
 
-import { ButtonHandler } from './ButtonHandler.js';
-import { ModalHandler } from './ModalHandler.js';
+import { ButtonHandler } from './ButtonHandler';
+import { ModalHandler } from './ModalHandler';
 
 // 인터랙션 통계 인터페이스
 interface InteractionStatistics {

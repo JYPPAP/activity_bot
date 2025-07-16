@@ -1,14 +1,14 @@
 // src/services/calendarLogService.ts - 달력 형태의 로그 서비스 (TypeScript)
 import { EmbedBuilder, Guild, GuildMember, TextChannel, ThreadChannel } from 'discord.js';
 
-import { COLORS } from '../config/constants.js';
-import { config } from '../config/env.js';
-import { EnhancedClient } from '../types/discord.js';
-import { UserActivity } from '../types/index.js';
-import { formatKoreanDate } from '../utils/formatters.js';
+import { COLORS } from '../config/constants';
+import { config } from '../config/env';
+import { EnhancedClient } from '../types/discord';
+import { UserActivity } from '../types/index';
+import { formatKoreanDate } from '../utils/formatters';
 
-import { ActivityReportService, ReportOptions } from './activityReportService.js';
-import { SQLiteManager } from './SQLiteManager.js';
+import { ActivityReportService, ReportOptions } from './activityReportService';
+import { SQLiteManager } from './SQLiteManager';
 
 // ====================
 // 달력 로그 관련 타입
@@ -90,11 +90,7 @@ export class CalendarLogService {
   private calendarChannel: TextChannel | ThreadChannel | null = null;
   // private _isInitialized = false; // Unused
 
-  constructor(
-    client: EnhancedClient,
-    dbManager: SQLiteManager,
-    options: CalendarLogOptions = {}
-  ) {
+  constructor(client: EnhancedClient, dbManager: SQLiteManager, options: CalendarLogOptions = {}) {
     this.client = client;
     this.db = dbManager;
     this.reportService = new ActivityReportService(client, dbManager);

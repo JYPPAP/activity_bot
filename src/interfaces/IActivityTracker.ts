@@ -1,10 +1,8 @@
 // src/interfaces/IActivityTracker.ts - 활동 추적 서비스 인터페이스
 
 import type { VoiceState, GuildMember, Collection, Guild } from 'discord.js';
-import type {
-  UserClassification,
-  ClassifiedUser,
-} from '../services/activityTracker.js';
+
+import type { UserClassification, ClassifiedUser } from '../services/activityTracker';
 
 /**
  * 활동 추적 서비스 인터페이스 (간소화 버전)
@@ -15,18 +13,21 @@ export interface IActivityTracker {
   initializeActivityData(guild: Guild): Promise<void>;
   handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState): Promise<void>;
   handleGuildMemberUpdate(oldMember: GuildMember, newMember: GuildMember): Promise<void>;
-  
+
   // 사용자 분류 (실제 메서드 시그니처에 맞춤)
-  classifyUsersByRole(roleName: string, roleMembers: Collection<string, GuildMember>): Promise<UserClassification>;
-  
+  classifyUsersByRole(
+    roleName: string,
+    roleMembers: Collection<string, GuildMember>
+  ): Promise<UserClassification>;
+
   // 데이터 저장 및 로드
   saveActivityData(): Promise<void>;
   loadActivityData(): Promise<void>;
   loadRoleActivityConfig(): Promise<void>;
-  
+
   // Redis 세션 관리
   restoreActiveSessions(): Promise<void>;
-  
+
   // 활동 데이터 관리
   getActiveMembersData(): Promise<ClassifiedUser[]>;
   clearAndReinitializeActivityData(role: string): Promise<void>;

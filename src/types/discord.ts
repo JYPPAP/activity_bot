@@ -33,7 +33,7 @@ import {
   RESTPostAPIApplicationCommandsJSONBody,
 } from 'discord.js';
 
-import { ServiceDependencies } from './index.js';
+import { ServiceDependencies } from './index';
 
 // ====================
 // 확장된 Discord.js 타입

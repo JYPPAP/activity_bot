@@ -1,7 +1,7 @@
 // src/services/EmojiReactionService.ts - 이모지 반응 처리 서비스
 import { Client, MessageReaction, User, Channel, ChannelType } from 'discord.js';
 
-import { TextProcessor } from '../utils/TextProcessor.js';
+import { TextProcessor } from '../utils/TextProcessor';
 
 // 이모지 반응 통계 인터페이스
 interface EmojiReactionStats {

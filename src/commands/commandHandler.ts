@@ -8,21 +8,21 @@ import {
   GuildMember,
 } from 'discord.js';
 
-import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions.js';
-import { config } from '../config/env.js';
-import { ActivityTracker } from '../services/activityTracker.js';
-import { CalendarLogService } from '../services/calendarLogService.js';
-import { LogService } from '../services/logService.js';
-import { SQLiteManager } from '../services/SQLiteManager.js';
-import { UserClassificationService } from '../services/UserClassificationService.js';
-import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
+import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions';
+import { config } from '../config/env';
+import { ActivityTracker } from '../services/activityTracker';
+import { CalendarLogService } from '../services/calendarLogService';
+import { LogService } from '../services/logService';
+import { SQLiteManager } from '../services/SQLiteManager';
+import { UserClassificationService } from '../services/UserClassificationService';
+import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
 
-import { CommandBase, CommandServices } from './CommandBase.js';
-import { JamsuCommand } from './jamsuCommand.js';
-import { GapCheckCommand } from './gapCheckCommand.js';
-import { SettingsCommand } from './settingsCommand.js';
-import { ReportCommand } from './reportCommand.js';
-import { RecruitmentCommand } from './recruitmentCommand.js';
+import { CommandBase, CommandServices } from './CommandBase';
+import { GapCheckCommand } from './gapCheckCommand';
+import { JamsuCommand } from './jamsuCommand';
+import { RecruitmentCommand } from './recruitmentCommand';
+import { ReportCommand } from './reportCommand';
+import { SettingsCommand } from './settingsCommand';
 
 // 명령어 핸들러 설정
 interface CommandHandlerConfig {

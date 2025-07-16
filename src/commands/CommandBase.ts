@@ -1,10 +1,10 @@
 // src/commands/CommandBase.ts - 모든 명령어의 기본 기능 제공
 import { Client, ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 
-import { ActivityTracker } from '../services/activityTracker.js';
-import { CalendarLogService } from '../services/calendarLogService.js';
-import { LogService } from '../services/logService.js';
-import { SQLiteManager } from '../services/SQLiteManager.js';
+import { ActivityTracker } from '../services/activityTracker';
+import { CalendarLogService } from '../services/calendarLogService';
+import { LogService } from '../services/logService';
+import { SQLiteManager } from '../services/SQLiteManager';
 
 // 서비스 컨테이너 인터페이스
 export interface CommandServices {

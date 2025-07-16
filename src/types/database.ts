@@ -7,13 +7,10 @@ import {
   VoiceChannelMapping,
   UserActivity,
   RoleConfig,
-} from './index.js';
+} from './index';
 
 // Re-export types for interfaces
-export {
-  UserActivity,
-  RoleConfig,
-} from './index.js';
+export { UserActivity, RoleConfig } from './index';
 
 // ====================
 // 추가 데이터베이스 타입

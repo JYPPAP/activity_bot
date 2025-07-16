@@ -1,16 +1,11 @@
 // src/services/PrometheusMetricsService.ts - Prometheus 메트릭 수집 서비스
-import { Client } from 'discord.js';
-import express, { Request, Response } from 'express';
-import {
-  Counter,
-  Gauge,
-  Histogram,
-  collectDefaultMetrics,
-  Registry,
-} from 'prom-client';
 import { Server } from 'http';
 
-import { logger } from '../config/logger-termux.js';
+import { Client } from 'discord.js';
+import express, { Request, Response } from 'express';
+import { Counter, Gauge, Histogram, collectDefaultMetrics, Registry } from 'prom-client';
+
+import { logger } from '../config/logger-termux';
 
 // 메트릭 타입 정의
 interface DiscordBotMetrics {
@@ -433,9 +428,15 @@ export class PrometheusMetricsService {
   /**
    * 명령어 실행 메트릭 기록
    */
-  recordCommand(commandName: string, userId: string, guildId: string, duration: number, success: boolean): void {
+  recordCommand(
+    commandName: string,
+    userId: string,
+    guildId: string,
+    duration: number,
+    success: boolean
+  ): void {
     const status = success ? 'success' : 'error';
-    
+
     this.metrics.commandsTotal.inc({
       command_name: commandName,
       user_id: userId,
@@ -491,7 +492,7 @@ export class PrometheusMetricsService {
    */
   recordDatabaseQuery(operation: string, table: string, duration: number, success: boolean): void {
     const status = success ? 'success' : 'error';
-    
+
     this.metrics.databaseQueries.inc({ operation, table, status });
     this.metrics.databaseQueryDuration.observe({ operation, table }, duration / 1000);
   }

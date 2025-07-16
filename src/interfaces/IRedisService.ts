@@ -71,7 +71,7 @@ export interface IRedisService {
   // ===========================================
   // 연결 관리
   // ===========================================
-  
+
   /**
    * Redis 서버에 연결
    * @returns 연결 성공 여부
@@ -342,7 +342,7 @@ export interface IRedisService {
    * @param commands 명령어 배열
    * @returns 실행 결과
    */
-  pipeline(commands: Array<{cmd: string, args: any[]}>): Promise<any[]>;
+  pipeline(commands: Array<{ cmd: string; args: any[] }>): Promise<any[]>;
 
   // ===========================================
   // 통계 및 모니터링

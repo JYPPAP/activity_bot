@@ -25,7 +25,7 @@ declare module 'lowdb' {
   export default low;
 }
 
-declare module 'lowdb/adapters/FileSync.js' {
+declare module 'lowdb/adapters/FileSync' {
   class FileSync {
     constructor(
       filename: string,

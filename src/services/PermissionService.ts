@@ -1,7 +1,7 @@
 // src/services/PermissionService.ts - 권한 관리 서비스
 import { User, GuildMember, PermissionFlagsBits } from 'discord.js';
 
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig';
 
 // 권한 결과 인터페이스
 interface PermissionResult {

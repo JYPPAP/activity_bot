@@ -5,10 +5,10 @@ import axios from 'axios';
 import errsole from 'errsole';
 import ErrsoleSQLite from 'errsole-sqlite';
 
-import { LogLevel } from '../types/index.js';
+import { LogLevel } from '../types/index';
 
-import { TIME } from './constants.js';
-import { config, isDevelopment } from './env.js';
+import { TIME } from './constants';
+import { config, isDevelopment } from './env';
 
 // SQLite 모듈 동적 임포트 (타입 안전성)
 let sqlite3: any;
@@ -491,27 +491,27 @@ function startHealthMonitoring(): void {
       // Discord 봇 메트릭 수집 (동적 임포트로 순환 참조 방지)
       let discordMetrics: DiscordHealthMetrics | undefined;
       try {
-        const { Bot } = await import('../bot.js');
+        const { Bot } = await import('../bot');
         const botInstance = Bot.getInstance();
-        
+
         if (botInstance && botInstance.isReady()) {
           const performanceStatus = botInstance.services.performanceMonitor.getDetailedReport();
-          
+
           // 성능 이슈 감지
           const performanceIssues: string[] = [];
-          
+
           if (performanceStatus.websocket.ping > 300) {
             performanceIssues.push(`높은 레이턴시: ${performanceStatus.websocket.ping}ms`);
           }
-          
+
           if (performanceStatus.api.rateLimitHits > 20) {
             performanceIssues.push(`레이트 리밋: ${performanceStatus.api.rateLimitHits}회`);
           }
-          
+
           if (performanceStatus.websocket.reconnectCount > 5) {
             performanceIssues.push(`재연결: ${performanceStatus.websocket.reconnectCount}회`);
           }
-          
+
           discordMetrics = {
             websocketPing: performanceStatus.websocket.ping,
             guilds: performanceStatus.discord.guilds,
@@ -527,7 +527,10 @@ function startHealthMonitoring(): void {
         }
       } catch (error) {
         // Discord 메트릭 수집 실패 시 무시 (봇이 아직 초기화되지 않았을 수 있음)
-        console.debug('Discord 메트릭 수집 건너뜀:', error instanceof Error ? error.message : String(error));
+        console.debug(
+          'Discord 메트릭 수집 건너뜀:',
+          error instanceof Error ? error.message : String(error)
+        );
       }
 
       // 헬스체크 데이터

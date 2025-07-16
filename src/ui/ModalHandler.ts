@@ -12,12 +12,12 @@ import {
   User,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
-import { ForumPostManager } from '../services/ForumPostManager.js';
-import { RecruitmentService } from '../services/RecruitmentService.js';
-import { DiscordAPIError } from '../types/discord.js';
-import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { DiscordConstants } from '../config/DiscordConstants';
+import { RecruitmentConfig } from '../config/RecruitmentConfig';
+import { ForumPostManager } from '../services/ForumPostManager';
+import { RecruitmentService } from '../services/RecruitmentService';
+import { DiscordAPIError } from '../types/discord';
+import { SafeInteraction } from '../utils/SafeInteraction';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {

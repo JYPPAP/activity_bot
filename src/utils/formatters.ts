@@ -1,5 +1,5 @@
 // src/utils/formatters.ts - 포맷팅 유틸리티
-import { TIME } from '../config/constants.js';
+import { TIME } from '../config/constants';
 
 // ====================
 // 포맷팅 옵션 타입

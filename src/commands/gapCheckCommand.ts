@@ -1,7 +1,7 @@
 // src/commands/gapCheckCommand.ts - 시간체크 명령어 (수정)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, User } from 'discord.js';
 
-import { formatTime } from '../utils/formatters.js';
+import { formatTime } from '../utils/formatters';
 
 import {
   CommandBase,
@@ -9,7 +9,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase.js';
+} from './CommandBase';
 
 // 날짜 범위 인터페이스
 interface DateRange {
@@ -36,20 +36,28 @@ interface ActivityCheckResult {
 export class GapCheckCommand extends CommandBase {
   public readonly metadata: CommandMetadata = {
     name: '시간체크',
-    description: '사용자의 활동 시간을 조회합니다.',
+    description: '본인의 활동 시간을 조회합니다.',
     category: 'activity',
     cooldown: 3,
     guildOnly: true,
-    usage: '/시간체크 user:<사용자> [start_date:<시작날짜>] [end_date:<종료날짜>]',
-    examples: [
-      '/시간체크 user:@사용자',
-      '/시간체크 user:@사용자 start_date:241201 end_date:241231',
-    ],
+    usage: '/시간체크 start_date:<시작날짜> [end_date:<종료날짜>]',
+    examples: ['/시간체크 start_date:241201', '/시간체크 start_date:241201 end_date:241231'],
     aliases: ['활동시간', 'checktime', 'time'],
   };
 
   constructor(services: CommandServices) {
     super(services);
+  }
+
+  /**
+   * 현재 날짜를 YYMMDD 형식으로 변환
+   */
+  private getCurrentDateAsYYMMDD(): string {
+    const now = new Date();
+    const year = now.getFullYear().toString().slice(-2);
+    const month = (now.getMonth() + 1).toString().padStart(2, '0');
+    const day = now.getDate().toString().padStart(2, '0');
+    return `${year}${month}${day}`;
   }
 
   /**
@@ -59,19 +67,16 @@ export class GapCheckCommand extends CommandBase {
     return new SlashCommandBuilder()
       .setName(this.metadata.name)
       .setDescription(this.metadata.description)
-      .addUserOption((option) =>
-        option.setName('user').setDescription('조회할 사용자').setRequired(true)
-      )
       .addStringOption((option) =>
         option
           .setName('start_date')
           .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
-          .setRequired(false)
+          .setRequired(true)
       )
       .addStringOption((option) =>
         option
           .setName('end_date')
-          .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231)')
+          .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231, 비워두면 현재 날짜)')
           .setRequired(false)
       )
       .addBooleanOption((option) =>
@@ -96,20 +101,23 @@ export class GapCheckCommand extends CommandBase {
   ): Promise<CommandResult> {
     try {
       // 명령어 옵션 가져오기
-      const user = interaction.options.getUser('user');
+      const user = interaction.user;
       const startDateStr = interaction.options.getString('start_date')?.trim();
       const endDateStr = interaction.options.getString('end_date')?.trim();
       const detailed = interaction.options.getBoolean('detailed') || false;
       const isPublic = interaction.options.getBoolean('public') || false;
 
-      if (!user) {
-        throw new Error('사용자를 선택해야 합니다.');
+      if (!startDateStr) {
+        throw new Error('시작 날짜를 입력해야 합니다.');
       }
 
       const userId = user.id;
 
+      // end_date가 없으면 현재 날짜로 설정
+      const finalEndDateStr = endDateStr || this.getCurrentDateAsYYMMDD();
+
       // 캐시 확인
-      const cacheKey = `activity_check_${userId}_${startDateStr || 'all'}_${endDateStr || 'all'}`;
+      const cacheKey = `activity_check_${userId}_${startDateStr}_${finalEndDateStr}`;
       const cached = this.getCached<ActivityCheckResult>(cacheKey);
 
       if (cached) {
@@ -125,39 +133,24 @@ export class GapCheckCommand extends CommandBase {
       await this.activityTracker.saveActivityData();
 
       // 날짜 범위 처리
-      let dateRange: DateRange | undefined;
-      let totalTime: number;
-
-      if (startDateStr && endDateStr) {
-        // 날짜 형식 검증
-        const dateValidation = this.validateDateRange(startDateStr, endDateStr);
-        if (!dateValidation.isValid) {
-          return {
-            success: false,
-            message: dateValidation.error || '날짜 형식이 올바르지 않습니다.',
-          };
-        }
-
-        dateRange = this.parseYYMMDDDates(startDateStr, endDateStr);
-
-        // 특정 기간의 활동 시간 조회
-        totalTime =
-          (await this.dbManager.getUserActivityByDateRange(
-            userId,
-            dateRange.startDate.getTime(),
-            dateRange.endDate.getTime()
-          )) || 0;
-      } else if (startDateStr || endDateStr) {
-        // 시작 날짜 또는 종료 날짜만 제공된 경우
+      // 날짜 형식 검증
+      const dateValidation = this.validateDateRange(startDateStr, finalEndDateStr);
+      if (!dateValidation.isValid) {
         return {
           success: false,
-          message: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.',
+          message: dateValidation.error || '날짜 형식이 올바르지 않습니다.',
         };
-      } else {
-        // 전체 활동 시간 조회
-        const activity = await this.dbManager.getUserActivity(userId);
-        totalTime = activity?.totalTime || 0;
       }
+
+      const dateRange = this.parseYYMMDDDates(startDateStr, finalEndDateStr);
+
+      // 특정 기간의 활동 시간 조회
+      const totalTime =
+        (await this.dbManager.getUserActivityByDateRange(
+          userId,
+          dateRange.startDate.getTime(),
+          dateRange.endDate.getTime()
+        )) || 0;
 
       // 활동 결과 객체 생성
       const result: ActivityCheckResult = {
@@ -190,7 +183,7 @@ export class GapCheckCommand extends CommandBase {
           {
             target: userId,
             totalTime,
-            dateRange: dateRange ? `${dateRange.startDateStr} ~ ${dateRange.endDateStr}` : 'all',
+            dateRange: `${dateRange.startDateStr} ~ ${dateRange.endDateStr}`,
             detailed,
           }
         );
@@ -451,14 +444,13 @@ export class GapCheckCommand extends CommandBase {
 \`${this.metadata.usage}\`
 
 **설명:**
-• 지정된 사용자의 활동 시간을 조회합니다.
+• 본인의 활동 시간을 조회합니다.
 • 날짜 범위를 지정하여 특정 기간의 활동 시간을 확인할 수 있습니다.
 • 상세 정보 옵션으로 일평균, 주평균 등의 통계를 확인할 수 있습니다.
 
 **옵션:**
-• \`user\`: 조회할 사용자 (필수)
-• \`start_date\`: 시작 날짜 (YYMMDD 형식, 선택사항)
-• \`end_date\`: 종료 날짜 (YYMMDD 형식, 선택사항)
+• \`start_date\`: 시작 날짜 (YYMMDD 형식, 필수)
+• \`end_date\`: 종료 날짜 (YYMMDD 형식, 선택사항, 비워두면 현재 날짜)
 • \`detailed\`: 상세 정보 표시 여부 (선택사항)
 • \`public\`: 공개 응답 여부 (선택사항, 기본값: 비공개)
 

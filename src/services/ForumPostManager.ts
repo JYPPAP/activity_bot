@@ -11,10 +11,10 @@ import {
   User,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
-import { formatParticipantList } from '../utils/formatters.js';
-import { TextProcessor } from '../utils/TextProcessor.js';
+import { DiscordConstants } from '../config/DiscordConstants';
+import { RecruitmentConfig } from '../config/RecruitmentConfig';
+import { formatParticipantList } from '../utils/formatters';
+import { TextProcessor } from '../utils/TextProcessor';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {

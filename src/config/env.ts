@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 import dotenv from 'dotenv';
 
-import { Config } from '../types/index.js';
+import { Config } from '../types/index';
 
 // ES 모듈에서 __dirname 구현
 const __filename = fileURLToPath(import.meta.url);
