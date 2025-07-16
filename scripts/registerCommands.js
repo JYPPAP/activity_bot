@@ -92,48 +92,18 @@ commands.push(
     )
     .addStringOption(option =>
       option.setName('start_date')
-            .setDescription('시작 날짜 (YYMMDD 형식, 선택사항)')
-            .setRequired(false)
+            .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
+            .setRequired(true)
     )
     .addStringOption(option =>
       option.setName('end_date')
-            .setDescription('종료 날짜 (YYMMDD 형식, 선택사항)')
-            .setRequired(false)
+            .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231)')
+            .setRequired(true)
     )
     .addBooleanOption(option =>
       option.setName('test_mode')
             .setDescription('테스트 모드 (리셋 시간 기록 안함)')
             .setRequired(false)
-    )
-    .addBooleanOption(option =>
-      option.setName('reset')
-            .setDescription('보고서 생성 후 활동 시간 리셋')
-            .setRequired(false)
-    )
-    .addChannelOption(option =>
-      option.setName('log_channel')
-            .setDescription('보고서를 전송할 채널')
-            .setRequired(false)
-    )
-    .addBooleanOption(option =>
-      option.setName('include_statistics')
-            .setDescription('통계 정보 포함 여부')
-            .setRequired(false)
-    )
-    .addBooleanOption(option =>
-      option.setName('include_charts')
-            .setDescription('차트 생성 여부')
-            .setRequired(false)
-    )
-    .addStringOption(option =>
-      option.setName('export_format')
-            .setDescription('내보내기 형식')
-            .setRequired(false)
-            .addChoices(
-              { name: '임베드', value: 'embed' },
-              { name: 'CSV', value: 'csv' },
-              { name: 'JSON', value: 'json' }
-            )
     )
 );
 

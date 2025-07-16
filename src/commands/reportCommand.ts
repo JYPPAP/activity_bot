@@ -23,14 +23,9 @@ import {
 // 명령어 옵션 인터페이스
 interface ReportCommandOptions {
   role: string;
-  startDateStr?: string;
-  endDateStr?: string;
+  startDateStr: string;
+  endDateStr: string;
   isTestMode: boolean;
-  resetOption: boolean;
-  logChannelId?: string;
-  includeStatistics?: boolean;
-  includeCharts?: boolean;
-  exportFormat?: 'embed' | 'csv' | 'json';
 }
 
 // 날짜 범위 인터페이스
@@ -71,12 +66,10 @@ export class ReportCommand extends CommandBase {
     cooldown: 60,
     adminOnly: true,
     guildOnly: true,
-    usage: '/보고서 role:<역할이름> [start_date:<시작날짜>] [end_date:<종료날짜>]',
+    usage: '/보고서 role:<역할이름> start_date:<시작날짜> end_date:<종료날짜>',
     examples: [
-      '/보고서 role:정규',
-      '/보고서 role:정규 test_mode:true',
       '/보고서 role:정규 start_date:241201 end_date:241231',
-      '/보고서 role:정규 reset:true log_channel:#보고서',
+      '/보고서 role:정규 start_date:241201 end_date:241231 test_mode:true',
     ],
     aliases: ['report', '보고서'],
   };
@@ -100,46 +93,20 @@ export class ReportCommand extends CommandBase {
       .addStringOption((option) =>
         option
           .setName('start_date')
-          .setDescription('시작 날짜 (YYMMDD 형식, 선택사항)')
-          .setRequired(false)
+          .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
+          .setRequired(true)
       )
       .addStringOption((option) =>
         option
           .setName('end_date')
-          .setDescription('종료 날짜 (YYMMDD 형식, 선택사항)')
-          .setRequired(false)
+          .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231)')
+          .setRequired(true)
       )
       .addBooleanOption((option) =>
         option
           .setName('test_mode')
           .setDescription('테스트 모드 (리셋 시간 기록 안함)')
           .setRequired(false)
-      )
-      .addBooleanOption((option) =>
-        option.setName('reset').setDescription('보고서 생성 후 활동 시간 리셋').setRequired(false)
-      )
-      .addChannelOption((option) =>
-        option.setName('log_channel').setDescription('보고서를 전송할 채널').setRequired(false)
-      )
-      .addBooleanOption((option) =>
-        option
-          .setName('include_statistics')
-          .setDescription('통계 정보 포함 여부')
-          .setRequired(false)
-      )
-      .addBooleanOption((option) =>
-        option.setName('include_charts').setDescription('차트 생성 여부').setRequired(false)
-      )
-      .addStringOption((option) =>
-        option
-          .setName('export_format')
-          .setDescription('내보내기 형식')
-          .setRequired(false)
-          .addChoices(
-            { name: '임베드', value: 'embed' },
-            { name: 'CSV', value: 'csv' },
-            { name: 'JSON', value: 'json' }
-          )
       ) as SlashCommandBuilder;
   }
 
@@ -233,11 +200,6 @@ export class ReportCommand extends CommandBase {
         dateValidation.dateRange
       );
 
-      // 통계 생성
-      const statistics = commandOptions.includeStatistics
-        ? await this.generateStatistics(roleMembers, dateValidation.dateRange)
-        : undefined;
-
       // 보고서 결과 생성
       const result: ReportGenerationResult = {
         role: commandOptions.role,
@@ -247,10 +209,6 @@ export class ReportCommand extends CommandBase {
         testMode: commandOptions.isTestMode,
       };
 
-      if (statistics) {
-        result.statistics = statistics;
-      }
-
       // 캐시 저장 (테스트 모드가 아닌 경우만)
       if (!commandOptions.isTestMode) {
         this.setCached(cacheKey, result);
@@ -258,9 +216,6 @@ export class ReportCommand extends CommandBase {
 
       // 보고서 전송
       await this.sendReport(interaction, commandOptions, result);
-
-      // 리셋 처리
-      await this.handleReset(interaction, commandOptions);
 
       // 로그 기록
       if (this.logService) {
@@ -274,7 +229,6 @@ export class ReportCommand extends CommandBase {
             memberCount: roleMembers.size,
             testMode: commandOptions.isTestMode,
             executionTime: result.executionTime,
-            statistics: result.statistics,
           }
         );
       }
@@ -308,26 +262,19 @@ export class ReportCommand extends CommandBase {
    * @param interaction - 상호작용 객체
    */
   private getCommandOptions(interaction: ChatInputCommandInteraction): ReportCommandOptions {
-    const options: ReportCommandOptions = {
-      role: cleanRoleName(interaction.options.getString('role')!),
-      isTestMode: interaction.options.getBoolean('test_mode') ?? false,
-      resetOption: interaction.options.getBoolean('reset') ?? false,
-      includeStatistics: interaction.options.getBoolean('include_statistics') ?? false,
-      includeCharts: interaction.options.getBoolean('include_charts') ?? false,
-      exportFormat:
-        (interaction.options.getString('export_format') as 'embed' | 'csv' | 'json') || 'embed',
-    };
-
     const startDateStr = interaction.options.getString('start_date')?.trim();
     const endDateStr = interaction.options.getString('end_date')?.trim();
-    const logChannelId =
-      interaction.options.getChannel('log_channel')?.id || process.env.CALENDAR_LOG_CHANNEL_ID;
 
-    if (startDateStr) options.startDateStr = startDateStr;
-    if (endDateStr) options.endDateStr = endDateStr;
-    if (logChannelId) options.logChannelId = logChannelId;
+    if (!startDateStr || !endDateStr) {
+      throw new Error('시작 날짜와 종료 날짜는 필수입니다.');
+    }
 
-    return options;
+    return {
+      role: cleanRoleName(interaction.options.getString('role')!),
+      startDateStr,
+      endDateStr,
+      isTestMode: interaction.options.getBoolean('test_mode') ?? false,
+    };
   }
 
   /**
@@ -387,57 +334,42 @@ export class ReportCommand extends CommandBase {
    */
   private async parseDateRange(
     options: ReportCommandOptions,
-    roleConfig: any,
+    _roleConfig: any,
     _interaction: ChatInputCommandInteraction
   ): Promise<DateValidationResult> {
     const { startDateStr, endDateStr } = options;
 
-    // 날짜 옵션이 제공된 경우
-    if (startDateStr && endDateStr) {
-      // 날짜 형식 검증
-      const startValidation = this.validateDateFormat(startDateStr, '시작');
-      if (!startValidation.isValid) {
-        return startValidation;
+    // 날짜 형식 검증
+    const startValidation = this.validateDateFormat(startDateStr, '시작');
+    if (!startValidation.isValid) {
+      return startValidation;
+    }
+
+    const endValidation = this.validateDateFormat(endDateStr, '종료');
+    if (!endValidation.isValid) {
+      return endValidation;
+    }
+
+    try {
+      // 날짜 파싱
+      const dateRange = this.parseYYMMDDDates(startDateStr, endDateStr);
+      console.log('파싱된 날짜:', dateRange.startDate, dateRange.endDate);
+
+      // 날짜 범위 유효성 검사
+      const rangeValidation = this.validateDateRange(dateRange);
+      if (!rangeValidation.isValid) {
+        return rangeValidation;
       }
 
-      const endValidation = this.validateDateFormat(endDateStr, '종료');
-      if (!endValidation.isValid) {
-        return endValidation;
-      }
-
-      try {
-        // 날짜 파싱
-        const dateRange = this.parseYYMMDDDates(startDateStr, endDateStr);
-        console.log('파싱된 날짜:', dateRange.startDate, dateRange.endDate);
-
-        // 날짜 범위 유효성 검사
-        const rangeValidation = this.validateDateRange(dateRange);
-        if (!rangeValidation.isValid) {
-          return rangeValidation;
-        }
-
-        return {
-          isValid: true,
-          dateRange,
-        };
-      } catch (error) {
-        console.error('날짜 파싱 오류:', error);
-        return {
-          isValid: false,
-          error: `날짜 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
-        };
-      }
-    } else if (startDateStr || endDateStr) {
-      // 시작 날짜 또는 종료 날짜만 제공된 경우
-      return {
-        isValid: false,
-        error: '시작 날짜와 종료 날짜를 모두 제공하거나 둘 다 생략해야 합니다.',
-      };
-    } else {
-      // 날짜가 지정되지 않은 경우 기본값 사용
       return {
         isValid: true,
-        dateRange: this.getDefaultDateRange(roleConfig),
+        dateRange,
+      };
+    } catch (error) {
+      console.error('날짜 파싱 오류:', error);
+      return {
+        isValid: false,
+        error: `날짜 처리 중 오류가 발생했습니다: ${error instanceof Error ? error.message : '알 수 없는 오류'}`,
       };
     }
   }
@@ -509,18 +441,6 @@ export class ReportCommand extends CommandBase {
     return { isValid: true };
   }
 
-  /**
-   * 기본 날짜 범위 반환
-   * @param roleConfig - 역할 설정
-   */
-  private getDefaultDateRange(roleConfig: any): DateRange {
-    const startDate = roleConfig.resetTime
-      ? new Date(roleConfig.resetTime)
-      : new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); // 7일 전
-    const endDate = new Date();
-
-    return { startDate, endDate };
-  }
 
   /**
    * 보고서 생성
@@ -559,27 +479,6 @@ export class ReportCommand extends CommandBase {
     });
   }
 
-  /**
-   * 통계 생성
-   * @param roleMembers - 역할 멤버
-   * @param dateRange - 날짜 범위
-   */
-  private async generateStatistics(
-    roleMembers: Collection<string, GuildMember>,
-    _dateRange: DateRange
-  ): Promise<ReportGenerationResult['statistics']> {
-    // 간단한 통계 생성 (실제 구현에서는 더 상세한 통계 생성)
-    const totalMembers = roleMembers.size;
-
-    // 임시 통계 (실제 구현에서는 사용자 분류 결과를 사용)
-    return {
-      totalMembers,
-      activeCount: 0,
-      inactiveCount: 0,
-      afkCount: 0,
-      averageActivity: 0,
-    };
-  }
 
   /**
    * 보고서 전송
@@ -603,19 +502,19 @@ export class ReportCommand extends CommandBase {
         flags: MessageFlags.Ephemeral,
       });
     } else {
-      // 지정된 채널에 전송
-      if (options.logChannelId) {
+      // 고정 채널에 전송
+      const logChannelId = process.env.CALENDAR_LOG_CHANNEL_ID;
+      if (logChannelId) {
         try {
           const logChannel = (await interaction.client.channels.fetch(
-            options.logChannelId
+            logChannelId
           )) as TextChannel;
           if (logChannel?.isTextBased()) {
             await logChannel.send({
               content:
                 `📊 **${options.role} 역할 활동 보고서**\n\n` +
                 `📅 **기간:** ${this.formatDateRange(result.dateRange)}\n` +
-                `⏱️ **생성 시간:** ${result.executionTime}ms\n` +
-                `🔢 **대상 멤버:** ${result.statistics?.totalMembers || 0}명`,
+                `⏱️ **생성 시간:** ${result.executionTime}ms`,
               embeds: result.reportEmbeds,
             });
           }
@@ -630,12 +529,8 @@ export class ReportCommand extends CommandBase {
       successMessage += `📅 **기간:** ${this.formatDateRange(result.dateRange)}\n`;
       successMessage += `⏱️ **생성 시간:** ${result.executionTime}ms\n`;
 
-      if (result.statistics) {
-        successMessage += `👥 **대상 멤버:** ${result.statistics.totalMembers}명\n`;
-      }
-
-      if (options.logChannelId) {
-        successMessage += `📢 **전송 채널:** <#${options.logChannelId}>\n`;
+      if (logChannelId) {
+        successMessage += `📢 **전송 채널:** <#${logChannelId}>\n`;
       }
 
       await interaction.followUp({
@@ -665,44 +560,14 @@ export class ReportCommand extends CommandBase {
     });
   }
 
-  /**
-   * 리셋 처리
-   * @param interaction - 상호작용 객체
-   * @param options - 명령어 옵션
-   */
-  private async handleReset(
-    interaction: ChatInputCommandInteraction,
-    options: ReportCommandOptions
-  ): Promise<void> {
-    // 테스트 모드가 아니고, 리셋 옵션이 켜져 있을 경우에만 리셋 시간 업데이트
-    if (!options.isTestMode && options.resetOption) {
-      try {
-        await this.dbManager.updateRoleResetTime(options.role, Date.now(), '보고서 출력 시 리셋');
-        await interaction.followUp({
-          content: `🔄 **${options.role} 역할의 활동 시간이 리셋되었습니다.**`,
-          flags: MessageFlags.Ephemeral,
-        });
-      } catch (error) {
-        console.error('리셋 처리 실패:', error);
-        await interaction.followUp({
-          content: `❌ **활동 시간 리셋 중 오류가 발생했습니다.**`,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    }
-  }
 
   /**
    * 캐시 키 생성
    * @param options - 명령어 옵션
    */
   private generateCacheKey(options: ReportCommandOptions): string {
-    const dateKey =
-      options.startDateStr && options.endDateStr
-        ? `${options.startDateStr}_${options.endDateStr}`
-        : 'default';
-
-    return `report_${options.role}_${dateKey}_${options.includeStatistics}_${options.includeCharts}`;
+    const dateKey = `${options.startDateStr}_${options.endDateStr}`;
+    return `report_${options.role}_${dateKey}`;
   }
 
   /**
@@ -740,14 +605,9 @@ export class ReportCommand extends CommandBase {
 
 **옵션:**
 • \`role\`: 보고서를 생성할 역할 이름 (필수)
-• \`start_date\`: 시작 날짜 (YYMMDD 형식, 선택사항)
-• \`end_date\`: 종료 날짜 (YYMMDD 형식, 선택사항)
+• \`start_date\`: 시작 날짜 (YYMMDD 형식, 필수)
+• \`end_date\`: 종료 날짜 (YYMMDD 형식, 필수)
 • \`test_mode\`: 테스트 모드 (선택사항)
-• \`reset\`: 보고서 생성 후 활동 시간 리셋 (선택사항)
-• \`log_channel\`: 보고서를 전송할 채널 (선택사항)
-• \`include_statistics\`: 통계 정보 포함 여부 (선택사항)
-• \`include_charts\`: 차트 생성 여부 (선택사항)
-• \`export_format\`: 내보내기 형식 (선택사항)
 
 **예시:**
 ${this.metadata.examples?.map((ex) => `\`${ex}\``).join('\n')}
