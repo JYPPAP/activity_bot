@@ -1,7 +1,7 @@
 // src/commands/gapCheckCommand.ts - 시간체크 명령어 (수정)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, User } from 'discord.js';
 
-import { formatTime } from '../utils/formatters';
+import { formatTime, formatTimeInHours } from '../utils/formatters';
 
 import {
   CommandBase,
@@ -91,6 +91,22 @@ export class GapCheckCommand extends CommandBase {
   }
 
   /**
+   * execute 메서드를 override하여 public 옵션 처리
+   * @param interaction - 상호작용 객체
+   * @param options - 실행 옵션
+   */
+  async execute(
+    interaction: ChatInputCommandInteraction,
+    options: CommandExecutionOptions = {}
+  ): Promise<CommandResult> {
+    // public 옵션 값을 미리 확인
+    const isPublic = interaction.options.getBoolean('public') || false;
+    
+    // executeWithVisibility를 사용하여 public 설정 적용
+    return this.executeWithVisibility(interaction, options, isPublic);
+  }
+
+  /**
    * 시간체크 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
@@ -144,6 +160,20 @@ export class GapCheckCommand extends CommandBase {
 
       const dateRange = this.parseYYMMDDDates(startDateStr, finalEndDateStr);
 
+      // 디버깅: 조회 전 파라미터 확인
+      console.log(`[GapCheckCommand] 활동 시간 조회 시작:`, {
+        userId,
+        username: user.username,
+        dateRange: {
+          startDateStr,
+          finalEndDateStr,
+          startTimestamp: dateRange.startDate.getTime(),
+          endTimestamp: dateRange.endDate.getTime(),
+          startFormatted: dateRange.startDate.toISOString(),
+          endFormatted: dateRange.endDate.toISOString(),
+        },
+      });
+
       // 특정 기간의 활동 시간 조회
       const totalTime =
         (await this.dbManager.getUserActivityByDateRange(
@@ -152,12 +182,21 @@ export class GapCheckCommand extends CommandBase {
           dateRange.endDate.getTime()
         )) || 0;
 
+      // 디버깅: 조회 결과 확인
+      console.log(`[GapCheckCommand] 활동 시간 조회 결과:`, {
+        userId,
+        username: user.username,
+        totalTimeMs: totalTime,
+        totalTimeFormatted: formatTime(totalTime),
+        dateRange: `${dateRange.startDateStr} ~ ${dateRange.endDateStr}`,
+      });
+
       // 활동 결과 객체 생성
       const result: ActivityCheckResult = {
         user,
         totalTime,
         dateRange,
-        formattedTime: formatTime(totalTime),
+        formattedTime: formatTimeInHours(totalTime),
       };
 
       // 상세 정보 생성
@@ -363,7 +402,8 @@ export class GapCheckCommand extends CommandBase {
     result: ActivityCheckResult,
     isPublic: boolean
   ): Promise<void> {
-    let message = `🕐 **${result.user.username}님의 활동 시간**\n\n`;
+    const displayName = interaction.member?.displayName || result.user.username;
+    let message = `🕐 **${displayName}님의 활동 시간**\n\n`;
 
     // 기본 정보
     if (result.dateRange) {
@@ -381,9 +421,9 @@ export class GapCheckCommand extends CommandBase {
     if (result.additionalInfo) {
       const info = result.additionalInfo;
       message += `\n📊 **상세 정보:**\n`;
-      message += `• 일평균 활동: ${formatTime(info.averageDaily || 0)}\n`;
-      message += `• 주평균 활동: ${formatTime(info.weeklyAverage || 0)}\n`;
-      message += `• 최대 일일 활동: ${formatTime(info.peakActivity || 0)}\n`;
+      message += `• 일평균 활동: ${formatTimeInHours(info.averageDaily || 0)}\n`;
+      message += `• 주평균 활동: ${formatTimeInHours(info.weeklyAverage || 0)}\n`;
+      message += `• 최대 일일 활동: ${formatTimeInHours(info.peakActivity || 0)}\n`;
       message += `• 활동한 일수: ${info.activeDays || 0}일\n`;
     }
 

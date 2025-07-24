@@ -37,23 +37,12 @@ interface RecruitmentColors {
   readonly PREMIUM: 0xffd700;
 }
 
-// 역할 태그 카테고리 인터페이스
-interface RoleTagCategories {
-  readonly MOBA: string[];
-  readonly FPS: string[];
-  readonly SURVIVAL: string[];
-  readonly RPG: string[];
-  readonly CASUAL: string[];
-  readonly HORROR: string[];
-  readonly PUZZLE: string[];
-  readonly OTHER: string[];
-}
+// 게임 태그 카테고리는 이제 DB에서 관리됩니다
 
 // 구인구직 설정 인터페이스
 interface RecruitmentSettings {
   enabled: boolean;
   restrictedMode: boolean;
-  allowedUserIds: string[];
   maxSelectedTags: number;
   cleanupInterval: number;
   embedSendDelay: number;
@@ -86,49 +75,43 @@ export class RecruitmentConfig {
   // ========== 구인구직 기능 권한 설정 ==========
   static RECRUITMENT_ENABLED: boolean = true; // 구인구직 기능 활성화 여부
 
-  // 구인구직 기능 접근 허용 사용자 ID 목록
-  static ALLOWED_USER_IDS: string[] = [
-    '592666673627004939', // 특정 사용자 ID
-  ];
+  // ========== 게임 태그 설정 ==========
+  // 게임 태그는 이제 DB에서 관리됩니다
 
-  // ========== 역할 태그 설정 ==========
-  static readonly ROLE_TAG_VALUES: readonly string[] = [
-    '@롤',
-    '@롤체',
-    '@배그',
-    '@발로',
-    '@옵치',
-    '@에펙',
-    '@마크',
-    '@스팀',
-    '@넥슨',
-    '@RPG',
-    '@보드게임',
-    '@기타',
-    '@공포',
-    '@생존',
-    '@퍼즐',
-  ] as const;
-
-  // 역할 태그 카테고리별 분류
-  static readonly ROLE_TAG_CATEGORIES: RoleTagCategories = {
-    MOBA: ['@롤', '@롤체'],
-    FPS: ['@배그', '@발로', '@옵치', '@에펙'],
-    SURVIVAL: ['@생존', '@마크'],
-    RPG: ['@RPG', '@넥슨'],
-    CASUAL: ['@보드게임', '@퍼즐'],
-    HORROR: ['@공포'],
-    PUZZLE: ['@퍼즐'],
-    OTHER: ['@스팀', '@기타'],
-  } as const;
+  // 게임 태그 카테고리는 이제 DB에서 관리됩니다
 
   // 최대 선택 가능한 태그 수
   static readonly MAX_SELECTED_TAGS: number = 5;
 
-  // 버튼 그리드 설정
-  static readonly BUTTON_GRID_ROWS: number = 4;
-  static readonly BUTTON_GRID_COLS: number = 4;
-  static readonly BUTTON_GRID_CONFIG: ButtonGridConfig = {
+  // 버튼 그리드 설정 - 동적 계산
+  /**
+   * 태그 수에 따른 최적의 버튼 그리드 계산
+   * @param tagCount - 태그 수
+   * @returns 최적의 그리드 설정
+   */
+  static calculateOptimalButtonGrid(tagCount: number): ButtonGridConfig {
+    // 최소 2x2, 최대 5x5 그리드
+    if (tagCount <= 0) {
+      return { rows: 2, cols: 2, maxButtons: 4, style: 'compact' };
+    }
+
+    if (tagCount <= 4) {
+      return { rows: 2, cols: 2, maxButtons: 4, style: 'compact' };
+    }
+
+    if (tagCount <= 9) {
+      return { rows: 3, cols: 3, maxButtons: 9, style: 'standard' };
+    }
+
+    if (tagCount <= 16) {
+      return { rows: 4, cols: 4, maxButtons: 16, style: 'standard' };
+    }
+
+    return { rows: 5, cols: 5, maxButtons: 25, style: 'extended' };
+  }
+
+  // 기본 그리드 설정 (폴백용)
+  static readonly DEFAULT_BUTTON_GRID_CONFIG: ButtonGridConfig = {
     rows: 4,
     cols: 4,
     maxButtons: 16,
@@ -137,7 +120,7 @@ export class RecruitmentConfig {
 
   // ========== 타이밍 설정 ==========
   static readonly CLEANUP_INTERVAL: number = 30000; // 30초마다 정리 작업
-  static readonly EMBED_SEND_DELAY: number = 5000; // 5초 후 임베드 전송
+  static readonly EMBED_SEND_DELAY: number = 3000; // 3초 후 임베드 전송
   static readonly AUTO_ARCHIVE_DELAY: number = 3600000; // 1시간 후 자동 아카이브
   static readonly NOTIFICATION_COOLDOWN: number = 300000; // 5분 알림 쿨다운
   static readonly MAX_RECRUITMENT_DURATION: number = 86400000; // 24시간 최대 지속 시간
@@ -217,48 +200,54 @@ export class RecruitmentConfig {
   // ========== 유틸리티 메서드 ==========
 
   /**
-   * 사용자가 허용된 사용자인지 확인
-   * @param userId - 사용자 ID
-   * @returns 허용 여부
-   */
-  static isAllowedUser(userId: string): boolean {
-    return this.ALLOWED_USER_IDS.includes(userId);
-  }
-
-  /**
-   * 허용된 사용자 추가
-   * @param userId - 추가할 사용자 ID
-   * @returns 추가 성공 여부
-   */
-  static addAllowedUser(userId: string): boolean {
-    if (!this.isAllowedUser(userId)) {
-      this.ALLOWED_USER_IDS.push(userId);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * 허용된 사용자 제거
-   * @param userId - 제거할 사용자 ID
-   * @returns 제거 성공 여부
-   */
-  static removeAllowedUser(userId: string): boolean {
-    const index = this.ALLOWED_USER_IDS.indexOf(userId);
-    if (index !== -1) {
-      this.ALLOWED_USER_IDS.splice(index, 1);
-      return true;
-    }
-    return false;
-  }
-
-  /**
-   * 역할 태그가 유효한지 검증
+   * 게임 태그가 유효한지 검증 (이제는 DB에서 확인해야 함)
    * @param tag - 검증할 태그
    * @returns 유효성 여부
+   * @deprecated DB 기반 검증을 사용하세요
    */
   static isValidRoleTag(tag: string): boolean {
-    return this.ROLE_TAG_VALUES.includes(tag);
+    // 더 이상 정적 배열로 검증하지 않음
+    // 호출하는 쪽에서 DB 기반 검증을 사용해야 함
+    console.warn('[RecruitmentConfig] isValidRoleTag is deprecated. Use DB-based validation.');
+    return true; // 일단 모든 태그를 허용
+  }
+
+  /**
+   * DB 기반 게임 태그 검증
+   * @param tags - 검증할 태그 배열
+   * @param guildId - 길드 ID
+   * @returns 검증 결과
+   */
+  static async validateGameTags(
+    tags: string[],
+    guildId: string
+  ): Promise<{
+    valid: boolean;
+    errors: string[];
+  }> {
+    const errors: string[] = [];
+
+    // 태그 수 제한 확인
+    if (tags.length > this.MAX_SELECTED_TAGS) {
+      errors.push(`최대 ${this.MAX_SELECTED_TAGS}개까지만 선택할 수 있습니다.`);
+    }
+
+    // 태그 패턴 검증
+    const invalidTags = tags.filter((tag) => !this.VALIDATION_RULES.allowedTagPattern.test(tag));
+    if (invalidTags.length > 0) {
+      errors.push(`유효하지 않은 태그 형식: ${invalidTags.join(', ')}`);
+    }
+
+    // TODO: 여기서 GuildSettingsManager를 통해 실제 DB 검증 필요
+    // 현재는 기본 검증만 수행
+    console.warn(
+      '[RecruitmentConfig] validateGameTags needs DB integration with GuildSettingsManager'
+    );
+
+    return {
+      valid: errors.length === 0,
+      errors,
+    };
   }
 
   /**
@@ -300,16 +289,40 @@ export class RecruitmentConfig {
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    console.log(`[RecruitmentConfig] 제목 검증 시작: "${title}"`);
+    console.log(`[RecruitmentConfig] 제목 길이: ${title.length}`);
+
     if (title.length < this.VALIDATION_RULES.minTitleLength) {
+      console.log(
+        `[RecruitmentConfig] 제목 길이 부족: ${title.length} < ${this.VALIDATION_RULES.minTitleLength}`
+      );
       errors.push(`제목은 최소 ${this.VALIDATION_RULES.minTitleLength}글자 이상이어야 합니다.`);
     }
 
     if (title.length > this.VALIDATION_RULES.maxTitleLength) {
+      console.log(
+        `[RecruitmentConfig] 제목 길이 초과: ${title.length} > ${this.VALIDATION_RULES.maxTitleLength}`
+      );
       errors.push(`제목은 최대 ${this.VALIDATION_RULES.maxTitleLength}글자까지 가능합니다.`);
     }
 
-    if (!this.VALIDATION_RULES.participantPattern.test(title)) {
-      errors.push('제목에 "현재인원/최대인원" 형식을 포함해주세요. (예: 1/5)');
+    // 참가자 패턴 검증
+    const participantPattern = this.VALIDATION_RULES.participantPattern;
+    const patternMatch = participantPattern.test(title);
+    console.log(`[RecruitmentConfig] 참가자 패턴 검증:`, {
+      pattern: participantPattern.toString(),
+      title,
+      matches: patternMatch,
+      matchResult: title.match(participantPattern),
+    });
+
+    if (!patternMatch) {
+      console.log(
+        `[RecruitmentConfig] 참가자 패턴 매칭 실패 - 제목: "${title}", 패턴: ${participantPattern}`
+      );
+      errors.push('제목에 "현재인원/최대인원" 형식을 포함해주세요. (예: 1/5, 1/N)');
+    } else {
+      console.log(`[RecruitmentConfig] 참가자 패턴 매칭 성공`);
     }
 
     // 금지된 단어 검사
@@ -350,9 +363,7 @@ export class RecruitmentConfig {
         errors.push('MAX_SELECTED_TAGS는 0보다 커야 합니다.');
       }
 
-      if (this.BUTTON_GRID_ROWS * this.BUTTON_GRID_COLS < this.ROLE_TAG_VALUES.length) {
-        warnings.push('버튼 그리드 크기가 태그 수보다 작습니다.');
-      }
+      // 버튼 그리드 검증은 이제 동적으로 처리됨
 
       if (this.CLEANUP_INTERVAL < 10000) {
         warnings.push('CLEANUP_INTERVAL이 너무 짧을 수 있습니다 (권장: 30초 이상)');
@@ -398,9 +409,7 @@ export class RecruitmentConfig {
    */
   static getConfigSummary(): {
     enabled: boolean;
-    allowedUsers: number;
     maxTags: number;
-    totalTags: number;
     intervals: {
       cleanup: number;
       embedDelay: number;
@@ -411,9 +420,7 @@ export class RecruitmentConfig {
   } {
     return {
       enabled: this.RECRUITMENT_ENABLED,
-      allowedUsers: this.ALLOWED_USER_IDS.length,
       maxTags: this.MAX_SELECTED_TAGS,
-      totalTags: this.ROLE_TAG_VALUES.length,
       intervals: {
         cleanup: this.CLEANUP_INTERVAL,
         embedDelay: this.EMBED_SEND_DELAY,
@@ -429,14 +436,12 @@ export class RecruitmentConfig {
 export type {
   RecruitmentMessages,
   RecruitmentColors,
-  RoleTagCategories,
   RecruitmentSettings,
   ButtonGridConfig,
   ValidationRules,
 };
 
 // 상수 값 타입 유틸리티
-export type RoleTagValue = (typeof RecruitmentConfig.ROLE_TAG_VALUES)[number];
 export type ColorKey = keyof typeof RecruitmentConfig.COLORS;
 export type MessageKey = keyof typeof RecruitmentConfig.MESSAGES;
 export type FeatureFlag = keyof typeof RecruitmentConfig.FEATURE_FLAGS;

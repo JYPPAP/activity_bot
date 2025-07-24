@@ -9,20 +9,24 @@ import { Client } from 'discord.js';
 export interface Config {
   // 필수 환경변수
   TOKEN: string;
-  GUILDID: string;
   CLIENT_ID: string;
   LOG_CHANNEL_ID: string;
 
   // 선택적 환경변수
-  EXCLUDED_CHANNELS: string[];
-  EXCLUDED_CHANNELS_FOR_LOGS: string[];
   DEV_ID?: string;
-  CALENDAR_LOG_CHANNEL_ID?: string;
 
-  // 구인구직 포럼 관련
+  // 구인구직 포럼 관련 (DB에서 관리, fallback용)
   FORUM_CHANNEL_ID?: string;
   VOICE_CATEGORY_ID?: string;
   FORUM_TAG_ID?: string;
+
+  // PostgreSQL 데이터베이스 설정 (필수)
+  POSTGRES_HOST: string;
+  POSTGRES_PORT: string;
+  POSTGRES_DB: string;
+  POSTGRES_USER: string;
+  POSTGRES_PASSWORD: string;
+  POSTGRES_SSL?: string;
 
   // Errsole 설정
   NODE_ENV?: string;
@@ -48,9 +52,7 @@ export interface ServiceDependencies {
   dbManager: IDatabaseManager;
   logService?: LogService;
   activityTracker?: ActivityTracker;
-  calendarLogService?: CalendarLogService;
 }
-
 
 export interface LogService {
   log(message: string, data?: any): void;
@@ -62,7 +64,7 @@ export interface LogService {
 
 export interface ActivityTracker {
   loadActivityData(): Promise<void>;
-  loadRoleActivityConfig(): Promise<void>;
+  loadRoleActivityConfig(guildId?: string): Promise<void>;
   getUserActivityTime(userId: string): Promise<number>;
   getRoleActivityConfig(roleName: string): number;
   saveActivityData(): Promise<{ savedUsers: number; dataSize: number }>;
@@ -72,12 +74,6 @@ export interface ActivityTracker {
   getAllActivityData(): Promise<any>;
   handleVoiceStateUpdate(oldState: any, newState: any): Promise<void>;
   handleGuildMemberUpdate(oldMember: any, newMember: any): Promise<void>;
-}
-
-export interface CalendarLogService {
-  getActivityLogs(startDate: Date, endDate: Date): Promise<ActivityLogEntry[]>;
-  formatLogEntry(entry: ActivityLogEntry): string;
-  initialize(): Promise<void>;
 }
 
 // ====================
@@ -109,12 +105,11 @@ export interface RoleConfig {
   minHours: number;
   createdAt: number;
   updatedAt: number;
-  resetTime?: number;
-  reportCycle?: string;
-  enabled?: boolean;
   role?: string;
   warningThreshold?: number;
   allowedAfkDuration?: number;
+  resetTime?: number;
+  reportCycle?: string;
 }
 
 export interface ActivityLogEntry {
@@ -339,7 +334,7 @@ export function isActivityLogEntry(obj: any): obj is ActivityLogEntry {
 }
 
 export function isConfig(obj: any): obj is Config {
-  return obj && typeof obj.TOKEN === 'string' && typeof obj.GUILDID === 'string';
+  return obj && typeof obj.TOKEN === 'string' && typeof obj.CLIENT_ID === 'string';
 }
 
 // ====================

@@ -1,54 +1,20 @@
 // src/services/UserClassificationService.ts - 잠수 상태 처리 개선
 import { Collection, GuildMember } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
+import type { IActivityTracker } from '../interfaces/IActivityTracker';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
+import { DI_TOKENS } from '../interfaces/index';
+import { GuildSettingsManager } from './GuildSettingsManager';
+import type {
+  IUserClassificationService,
+  UserData,
+  RoleSettings,
+  UserClassificationResult,
+  ClassificationStatistics,
+  UserClassificationConfig,
+} from '../interfaces/IUserClassificationService';
 import { calculateNextSunday } from '../utils/dateUtils';
-
-import { ActivityTracker } from './activityTracker';
-import { SQLiteManager } from './SQLiteManager';
-
-// 사용자 데이터 인터페이스
-interface UserData {
-  userId: string;
-  nickname: string;
-  totalTime: number;
-  afkUntil?: number;
-  joinedAt?: number;
-  lastActivity?: number;
-  roles?: string[];
-  averageSessionTime?: number;
-}
-
-// 역할 설정 인터페이스
-interface RoleSettings {
-  minActivityTime: number;
-  resetTime: number | null;
-  reportCycle: string | null;
-  allowedAfkDuration?: number;
-  warningThreshold?: number;
-}
-
-// 사용자 분류 결과
-interface UserClassificationResult {
-  activeUsers: UserData[];
-  inactiveUsers: UserData[];
-  afkUsers: UserData[];
-  resetTime: number | null;
-  minHours: number;
-  reportCycle?: string | null;
-  statistics?: ClassificationStatistics;
-}
-
-// 분류 통계
-interface ClassificationStatistics {
-  totalUsers: number;
-  activePercentage: number;
-  inactivePercentage: number;
-  afkPercentage: number;
-  averageActivityTime: number;
-  medianActivityTime: number;
-  topActiveUsers: UserData[];
-  riskUsers: UserData[];
-}
 
 // 날짜 범위 변환 결과
 interface DateRangeResult {
@@ -64,31 +30,23 @@ interface DateRangeResult {
 //   previousActivity?: number;
 // }
 
-// 서비스 설정
-interface UserClassificationConfig {
-  enableDetailedStats: boolean;
-  trackRiskUsers: boolean;
-  riskThresholdPercentage: number;
-  enableAfkWarnings: boolean;
-  afkWarningDays: number;
-  maxAfkDuration: number;
-  enableActivityTrends: boolean;
-  cacheDuration: number;
-}
-
-export class UserClassificationService {
-  private db: SQLiteManager;
-  // private _activityTracker: ActivityTracker; // Unused
+@injectable()
+export class UserClassificationService implements IUserClassificationService {
+  private db: IDatabaseManager;
+  private guildSettingsManager: GuildSettingsManager;
+  // private _activityTracker: IActivityTracker; // 향후 확장을 위해 보관 - 현재 사용되지 않음
   private config: UserClassificationConfig;
   private classificationCache: Map<string, { result: UserClassificationResult; timestamp: number }>;
 
   constructor(
-    dbManager: SQLiteManager,
-    _activityTracker: ActivityTracker,
+    @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
+    @inject(DI_TOKENS.IActivityTracker) _activityTracker: IActivityTracker,
+    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
     config: Partial<UserClassificationConfig> = {}
   ) {
     this.db = dbManager;
-    // this._activityTracker = activityTracker; // Unused
+    this.guildSettingsManager = guildSettingsManager;
+    // this._activityTracker = activityTracker; // 향후 확장을 위해 보관 - 현재 사용되지 않음
     this.config = {
       enableDetailedStats: true,
       trackRiskUsers: true,
@@ -119,7 +77,13 @@ export class UserClassificationService {
     role: string,
     roleMembers: Collection<string, GuildMember>
   ): Promise<UserClassificationResult> {
-    const cacheKey = `${role}_${roleMembers.size}`;
+    // Extract guild ID from role members
+    const guildId = roleMembers.first()?.guild?.id;
+    if (!guildId) {
+      throw new Error('Guild ID를 찾을 수 없습니다. 역할 멤버가 비어있거나 유효하지 않습니다.');
+    }
+    
+    const cacheKey = `${role}_${roleMembers.size}_${guildId}`;
 
     // 캐시 확인
     if (this.config.cacheDuration > 0) {
@@ -131,7 +95,7 @@ export class UserClassificationService {
 
     try {
       // 역할 설정 가져오기
-      const { minActivityTime, resetTime } = await this.getRoleSettings(role);
+      const { minActivityTime, resetTime } = await this.getRoleSettings(role, guildId);
 
       const activeUsers: UserData[] = [];
       const inactiveUsers: UserData[] = [];
@@ -200,30 +164,129 @@ export class UserClassificationService {
     startDate: Date | number,
     endDate: Date | number
   ): Promise<UserClassificationResult> {
+    // Extract guild ID from role members
+    const guildId = roleMembers.first()?.guild?.id;
+    if (!guildId) {
+      throw new Error('Guild ID를 찾을 수 없습니다. 역할 멤버가 비어있거나 유효하지 않습니다.');
+    }
+    
+    const classificationStartTime = Date.now();
+    console.log(`[분류] 사용자 분류 시작: ${new Date().toISOString()}`);
+    console.log(`[분류] 파라미터:`, {
+      role,
+      guildId,
+      memberCount: roleMembers.size,
+      startDate: startDate instanceof Date ? startDate.toISOString() : new Date(startDate).toISOString(),
+      endDate: endDate instanceof Date ? endDate.toISOString() : new Date(endDate).toISOString()
+    });
+
     try {
       // 역할 설정 가져오기
-      const { minActivityTime, reportCycle } = await this.getRoleSettings(role);
+      console.log(`[분류] 역할 설정 조회 시작: ${role}`);
+      const settingsStartTime = Date.now();
+      const { minActivityTime, reportCycle } = await this.getRoleSettings(role, guildId);
+      console.log(`[분류] 역할 설정 조회 완료: ${Date.now() - settingsStartTime}ms`, {
+        minActivityTime,
+        reportCycle
+      });
 
       // 날짜 변환
+      console.log(`[분류] 날짜 변환 시작`);
       const { startOfDay, endOfDay } = this.convertDatesToTimeRange(startDate, endDate);
+      console.log(`[분류] 날짜 변환 완료:`, {
+        startOfDay: startOfDay.toISOString(),
+        endOfDay: endOfDay.toISOString()
+      });
 
       const activeUsers: UserData[] = [];
       const inactiveUsers: UserData[] = [];
       const afkUsers: UserData[] = [];
 
       // 각 멤버 분류
+      console.log(`[분류] 멤버 처리 시작: ${roleMembers.size}명`);
+      let processedCount = 0;
+      const batchStartTime = Date.now();
+      let cumulativeTime = 0;
+      
       for (const [userId, member] of roleMembers.entries()) {
-        const userData = await this.createUserDataByDateRange(userId, member, startOfDay, endOfDay);
+        const userStartTime = Date.now();
+        processedCount++;
+        
+        // 진행률 및 예상 시간 계산
+        const progressPercent = Math.round((processedCount / roleMembers.size) * 100);
+        const avgTimePerUser = processedCount > 1 ? cumulativeTime / (processedCount - 1) : 0;
+        const estimatedRemaining = avgTimePerUser > 0 
+          ? Math.round((roleMembers.size - processedCount + 1) * avgTimePerUser / 1000) 
+          : 'N/A';
+        
+        console.log(`[분류] 사용자 처리 시작 [${processedCount}/${roleMembers.size}] (${progressPercent}%): ${member.displayName} (${userId})`);
+        console.log(`[분류] 예상 잔여 시간: ${estimatedRemaining}초, 현재까지 평균: ${avgTimePerUser.toFixed(0)}ms/user`);
+        
+        try {
+          const createDataStartTime = Date.now();
+          const userData = await this.createUserDataByDateRange(userId, member, startOfDay, endOfDay);
+          const createDataTime = Date.now() - createDataStartTime;
+          
+          console.log(`[분류] 사용자 데이터 생성 완료: ${member.displayName}, DB 조회시간: ${createDataTime}ms, 활동시간: ${userData.totalTime}ms`);
 
-        // 잠수 역할 확인
-        if (this.hasAfkRole(member)) {
-          const userWithAfkStatus = await this.processAfkUser(userId, member, userData);
-          afkUsers.push(userWithAfkStatus);
-        } else {
-          // 활성/비활성 분류
-          this.classifyUserByActivityTime(userData, minActivityTime, activeUsers, inactiveUsers);
+          // 잠수 역할 확인
+          if (this.hasAfkRole(member)) {
+            console.log(`[분류] 잠수 역할 감지: ${member.displayName}`);
+            const afkStartTime = Date.now();
+            
+            const userWithAfkStatus = await this.processAfkUser(userId, member, userData);
+            const afkProcessTime = Date.now() - afkStartTime;
+            
+            console.log(`[분류] 잠수 처리 완료: ${member.displayName}, 소요시간: ${afkProcessTime}ms`);
+            afkUsers.push(userWithAfkStatus);
+          } else {
+            // 활성/비활성 분류
+            console.log(`[분류] 활성/비활성 분류 중: ${member.displayName}`);
+            this.classifyUserByActivityTime(userData, minActivityTime, activeUsers, inactiveUsers);
+            
+            const isActive = userData.totalTime >= minActivityTime;
+            console.log(`[분류] 분류 완료: ${member.displayName} -> ${isActive ? '활성' : '비활성'} 사용자`);
+          }
+          
+          const totalUserTime = Date.now() - userStartTime;
+          cumulativeTime += totalUserTime;
+          console.log(`[분류] 사용자 처리 완료: ${member.displayName}, 총 소요시간: ${totalUserTime}ms`);
+          
+          // 10명마다 진행 상황 요약
+          if (processedCount % 10 === 0) {
+            const elapsed = Date.now() - batchStartTime;
+            console.log(`[분류] === 진행 상황 요약 ===`);
+            console.log(`[분류] 처리 완료: ${processedCount}/${roleMembers.size}명`);
+            console.log(`[분류] 경과 시간: ${(elapsed / 1000).toFixed(1)}초`);
+            console.log(`[분류] 평균 처리 시간: ${(cumulativeTime / processedCount).toFixed(0)}ms/user`);
+            console.log(`[분류] 현재까지 - 활성: ${activeUsers.length}, 비활성: ${inactiveUsers.length}, AFK: ${afkUsers.length}`);
+            console.log(`[분류] ===================`);
+          }
+          
+        } catch (userError) {
+          const userErrorTime = Date.now() - userStartTime;
+          cumulativeTime += userErrorTime;
+          console.error(`[분류] 사용자 처리 실패: ${member.displayName}, 소요시간: ${userErrorTime}ms`, userError);
+          
+          // 에러가 발생해도 계속 진행
+          inactiveUsers.push({
+            userId,
+            nickname: member.displayName,
+            totalTime: 0,
+          });
         }
       }
+      
+      const totalBatchTime = Date.now() - batchStartTime;
+      console.log(`[분류] 모든 멤버 처리 완료: ${processedCount}명`);
+      console.log(`[분류] 배치 처리 시간: ${(totalBatchTime / 1000).toFixed(1)}초`);
+      console.log(`[분류] 평균 처리 시간: ${(cumulativeTime / processedCount).toFixed(0)}ms/user`);
+      console.log(`[분류] 전체 분류 소요시간: ${Date.now() - classificationStartTime}ms`);
+      console.log(`[분류] 분류 결과:`, {
+        activeCount: activeUsers.length,
+        inactiveCount: inactiveUsers.length,
+        afkCount: afkUsers.length
+      });
 
       // 활동 시간 기준으로 정렬
       this.sortUsersByActivityTime(activeUsers, inactiveUsers, afkUsers);
@@ -256,15 +319,16 @@ export class UserClassificationService {
   /**
    * 역할 설정 가져오기
    * @param role - 역할 이름
+   * @param guildId - 길드 ID
    * @returns 역할 설정 객체
    */
-  async getRoleSettings(role: string): Promise<RoleSettings> {
+  async getRoleSettings(role: string, guildId: string): Promise<RoleSettings> {
     try {
-      const roleConfig = await this.db.getRoleConfig(role);
+      const roleConfig = await this.guildSettingsManager.getRoleActivityTime(guildId, role);
       const minActivityHours = roleConfig?.minHours || 0;
       const minActivityTime = minActivityHours * 60 * 60 * 1000;
-      const resetTime = roleConfig?.resetTime || null;
-      const reportCycle = roleConfig?.reportCycle || null;
+      const resetTime = null; // GuildSettingsManager doesn't have resetTime - using null for now
+      const reportCycle = null; // GuildSettingsManager doesn't have reportCycle - using null for now
 
       return {
         minActivityTime,
@@ -354,12 +418,40 @@ export class UserClassificationService {
     startOfDay: Date,
     endOfDay: Date
   ): Promise<UserData> {
+    const queryStartTime = Date.now();
+    console.log(`[DB쿼리] 활동시간 조회 시작: ${member.displayName} (${userId})`);
+    console.log(`[DB쿼리] 조회 범위: ${startOfDay.toISOString()} ~ ${endOfDay.toISOString()}`);
+    
     try {
-      const activityTime = await this.db.getUserActivityByDateRange(
+      // 타임아웃이 있는 Promise로 DB 쿼리 실행
+      let timeoutId: NodeJS.Timeout;
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          console.error(`[DB쿼리] ⚠️ 타임아웃 발생! 30초 초과: ${member.displayName} (${userId})`);
+          reject(new Error(`DB 쿼리 타임아웃 (30초 초과): ${member.displayName}`));
+        }, 30000);
+      });
+      
+      console.log(`[DB쿼리] getUserActivityByDateRange 호출 중...`);
+      const queryPromise = this.db.getUserActivityByDateRange(
         userId,
         startOfDay.getTime(),
         endOfDay.getTime()
       );
+
+      console.log(`[DB쿼리] Promise.race 시작: ${member.displayName}`);
+      const activityTime = await Promise.race([queryPromise, timeoutPromise]);
+      
+      // 타임아웃 클리어
+      clearTimeout(timeoutId!);
+      
+      const queryTime = Date.now() - queryStartTime;
+      console.log(`[DB쿼리] 활동시간 조회 완료: ${member.displayName}, 소요시간: ${queryTime}ms, 결과: ${activityTime}ms`);
+      
+      // 쿼리 시간이 5초 이상 걸린 경우 경고
+      if (queryTime > 5000) {
+        console.warn(`[DB쿼리] ⚠️ 느린 쿼리 감지: ${member.displayName}, 소요시간: ${queryTime}ms`);
+      }
 
       const userData: UserData = {
         userId,
@@ -369,15 +461,32 @@ export class UserClassificationService {
 
       // 추가 정보 수집
       if (this.config.enableActivityTrends) {
+        console.log(`[DB쿼리] 추가 정보 수집 중: ${member.displayName}`);
         if (member.joinedTimestamp) {
           userData.joinedAt = member.joinedTimestamp;
         }
         userData.roles = member.roles.cache.map((role) => role.name);
+        console.log(`[DB쿼리] 추가 정보 수집 완료: ${member.displayName}`, {
+          joinedAt: userData.joinedAt,
+          rolesCount: userData.roles?.length
+        });
       }
 
+      const totalTime = Date.now() - queryStartTime;
+      console.log(`[DB쿼리] 사용자 데이터 생성 총 완료: ${member.displayName}, 총 소요시간: ${totalTime}ms`);
+      
       return userData;
     } catch (error) {
-      console.error(`[UserClassificationService] 날짜 범위 사용자 데이터 생성 실패:`, error);
+      const errorTime = Date.now() - queryStartTime;
+      console.error(`[DB쿼리] 사용자 데이터 생성 실패: ${member.displayName}, 소요시간: ${errorTime}ms`, {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined,
+        userId,
+        startTime: startOfDay.toISOString(),
+        endTime: endOfDay.toISOString()
+      });
+      
+      // 에러가 발생해도 기본 데이터는 반환
       return {
         userId,
         nickname: member.displayName,
@@ -406,8 +515,10 @@ export class UserClassificationService {
     console.log(`[잠수처리] 시작: userId=${userId}, nickname=${member.displayName}`);
 
     try {
-      // DB 강제 새로고침
-      this.db.forceReload();
+      // DB 강제 새로고침 (선택적 메서드)
+      if (this.db.forceReload) {
+        this.db.forceReload();
+      }
 
       // 별도 테이블에서 잠수 상태 조회
       const afkStatus = await this.db.getUserAfkStatus(userId);

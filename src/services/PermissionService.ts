@@ -94,46 +94,9 @@ export class PermissionService {
         return false;
       }
 
-      // 캐시된 권한 확인
-      const cached = this.getCachedPermissions(user.id);
-      if (cached?.hasRecruitmentPermission !== undefined) {
-        console.log(`[PermissionService] 📋 캐시된 권한 사용: ${user.displayName} (${user.id})`);
-        return cached.hasRecruitmentPermission;
-      }
-
-      // 관리자 권한이 있는 경우 항상 허용
-      if (member && this.hasAdminPermission(member)) {
-        console.log(`[PermissionService] ✅ 관리자 권한: ${user.displayName} (${user.id})`);
-        this.logPermissionCheck(user.id, 'recruitment_access', true, '관리자 권한');
-        return true;
-      }
-
-      // 역할 기반 권한 확인
-      if (member && this.hasRolePermission(member, 'recruitment')) {
-        console.log(`[PermissionService] ✅ 역할 기반 권한: ${user.displayName} (${user.id})`);
-        this.logPermissionCheck(user.id, 'recruitment_access', true, '역할 기반 권한');
-        return true;
-      }
-
-      // 디버깅용: 특정 사용자만 허용하는 모드
-      if (process.env.RECRUITMENT_RESTRICTED_MODE === 'true') {
-        // 허용된 사용자 ID 목록에 있는 경우
-        if (RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id)) {
-          console.log(`[PermissionService] ✅ 허용된 사용자: ${user.displayName} (${user.id})`);
-          this.logPermissionCheck(user.id, 'recruitment_access', true, '허용된 사용자');
-          return true;
-        }
-
-        console.log(
-          `[PermissionService] ❌ 제한 모드에서 허용되지 않은 사용자: ${user.displayName} (${user.id})`
-        );
-        this.logPermissionCheck(user.id, 'recruitment_access', false, '제한 모드');
-        return false;
-      }
-
-      // 구인구직 기능이 활성화된 경우 모든 사용자 접근 허용
+      // 모든 사용자에게 구인구직 기능 허용
       console.log(`[PermissionService] ✅ 구인구직 접근 허용: ${user.displayName} (${user.id})`);
-      this.logPermissionCheck(user.id, 'recruitment_access', true, '기본 허용');
+      this.logPermissionCheck(user.id, 'recruitment_access', true, '모든 사용자 허용');
       return true;
     } catch (error) {
       console.error(`[PermissionService] 구인구직 권한 확인 오류:`, error);
@@ -342,169 +305,6 @@ export class PermissionService {
   }
 
   /**
-   * 허용된 사용자 목록에 사용자 추가
-   * @param userId - 추가할 사용자 ID
-   * @param requestUser - 요청 사용자
-   * @param requestMember - 요청 멤버 객체
-   * @returns 결과
-   */
-  static addAllowedUser(
-    userId: string,
-    requestUser: User,
-    requestMember: GuildMember | null
-  ): PermissionResult {
-    try {
-      // 관리자만 사용자 추가 가능
-      if (!requestMember || !this.hasAdminPermission(requestMember)) {
-        this.logPermissionCheck(requestUser.id, 'add_allowed_user', false, '관리자 권한 없음');
-        return {
-          success: false,
-          message: '❌ 관리자만 허용된 사용자를 추가할 수 있습니다.',
-        };
-      }
-
-      // 입력 검증
-      if (!userId || typeof userId !== 'string' || userId.length < 10) {
-        return {
-          success: false,
-          message: '❌ 유효하지 않은 사용자 ID입니다.',
-        };
-      }
-
-      // 이미 목록에 있는지 확인
-      if (RecruitmentConfig.ALLOWED_USER_IDS.includes(userId)) {
-        return {
-          success: false,
-          message: '⚠️ 해당 사용자는 이미 허용된 목록에 있습니다.',
-        };
-      }
-
-      RecruitmentConfig.ALLOWED_USER_IDS.push(userId);
-
-      // 해당 사용자의 권한 캐시 초기화
-      this.clearUserPermissionCache(userId);
-
-      console.log(
-        `[PermissionService] 허용된 사용자 추가: ${userId} (요청자: ${requestUser.displayName})`
-      );
-      this.logPermissionCheck(requestUser.id, 'add_allowed_user', true, `추가된 사용자: ${userId}`);
-
-      return {
-        success: true,
-        message: `✅ 사용자 <@${userId}>가 허용된 목록에 추가되었습니다.`,
-        data: { addedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length },
-      };
-    } catch (error) {
-      console.error(`[PermissionService] 허용된 사용자 추가 오류:`, error);
-      this.logPermissionCheck(requestUser.id, 'add_allowed_user', false, '오류 발생');
-      return {
-        success: false,
-        message: '❌ 사용자 추가 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 허용된 사용자 목록에서 사용자 제거
-   * @param userId - 제거할 사용자 ID
-   * @param requestUser - 요청 사용자
-   * @param requestMember - 요청 멤버 객체
-   * @returns 결과
-   */
-  static removeAllowedUser(
-    userId: string,
-    requestUser: User,
-    requestMember: GuildMember | null
-  ): PermissionResult {
-    try {
-      // 관리자만 사용자 제거 가능
-      if (!requestMember || !this.hasAdminPermission(requestMember)) {
-        this.logPermissionCheck(requestUser.id, 'remove_allowed_user', false, '관리자 권한 없음');
-        return {
-          success: false,
-          message: '❌ 관리자만 허용된 사용자를 제거할 수 있습니다.',
-        };
-      }
-
-      const index = RecruitmentConfig.ALLOWED_USER_IDS.indexOf(userId);
-      if (index === -1) {
-        return {
-          success: false,
-          message: '⚠️ 해당 사용자는 허용된 목록에 없습니다.',
-        };
-      }
-
-      RecruitmentConfig.ALLOWED_USER_IDS.splice(index, 1);
-
-      // 해당 사용자의 권한 캐시 초기화
-      this.clearUserPermissionCache(userId);
-
-      console.log(
-        `[PermissionService] 허용된 사용자 제거: ${userId} (요청자: ${requestUser.displayName})`
-      );
-      this.logPermissionCheck(
-        requestUser.id,
-        'remove_allowed_user',
-        true,
-        `제거된 사용자: ${userId}`
-      );
-
-      return {
-        success: true,
-        message: `✅ 사용자 <@${userId}>가 허용된 목록에서 제거되었습니다.`,
-        data: { removedUserId: userId, totalAllowed: RecruitmentConfig.ALLOWED_USER_IDS.length },
-      };
-    } catch (error) {
-      console.error(`[PermissionService] 허용된 사용자 제거 오류:`, error);
-      this.logPermissionCheck(requestUser.id, 'remove_allowed_user', false, '오류 발생');
-      return {
-        success: false,
-        message: '❌ 사용자 제거 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
-   * 현재 허용된 사용자 목록 가져오기
-   * @param requestUser - 요청 사용자
-   * @param requestMember - 요청 멤버 객체
-   * @returns 결과
-   */
-  static getAllowedUsers(requestUser: User, requestMember: GuildMember | null): UserListResult {
-    try {
-      // 관리자만 목록 조회 가능
-      if (!requestMember || !this.hasAdminPermission(requestMember)) {
-        this.logPermissionCheck(requestUser.id, 'get_allowed_users', false, '관리자 권한 없음');
-        return {
-          success: false,
-          users: [],
-          message: '❌ 관리자만 허용된 사용자 목록을 조회할 수 있습니다.',
-        };
-      }
-
-      this.logPermissionCheck(requestUser.id, 'get_allowed_users', true, '목록 조회');
-
-      return {
-        success: true,
-        users: [...RecruitmentConfig.ALLOWED_USER_IDS],
-        message: `📋 현재 허용된 사용자: ${RecruitmentConfig.ALLOWED_USER_IDS.length}명`,
-        data: {
-          totalUsers: RecruitmentConfig.ALLOWED_USER_IDS.length,
-          restrictedMode: process.env.RECRUITMENT_RESTRICTED_MODE === 'true',
-        },
-      };
-    } catch (error) {
-      console.error(`[PermissionService] 허용된 사용자 목록 조회 오류:`, error);
-      this.logPermissionCheck(requestUser.id, 'get_allowed_users', false, '오류 발생');
-      return {
-        success: false,
-        users: [],
-        message: '❌ 목록 조회 중 오류가 발생했습니다.',
-      };
-    }
-  }
-
-  /**
    * 권한 요약 정보 생성
    * @param user - 대상 사용자
    * @param member - 길드 멤버 객체
@@ -572,14 +372,6 @@ export class PermissionService {
         warnings.push('멤버 정보를 찾을 수 없습니다.');
       }
 
-      if (
-        process.env.RECRUITMENT_RESTRICTED_MODE === 'true' &&
-        !RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id) &&
-        !isAdmin
-      ) {
-        warnings.push('제한 모드에서 구인구직 기능 접근이 제한됩니다.');
-      }
-
       const summary: PermissionSummary = {
         hasRecruitmentPermission: this.hasRecruitmentPermission(user, member),
         isAdmin,
@@ -591,7 +383,7 @@ export class PermissionService {
         canBanMembers,
         canManageGuild,
         canViewAuditLog,
-        isInAllowedList: RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id),
+        isInAllowedList: false,
         recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED,
         permissions,
         warnings,
@@ -803,7 +595,7 @@ export class PermissionService {
       recentActions,
       successRate: this.auditLogs.length > 0 ? (successCount / this.auditLogs.length) * 100 : 0,
       topUsers,
-      allowedUsersCount: RecruitmentConfig.ALLOWED_USER_IDS.length,
+      allowedUsersCount: 0,
       recruitmentEnabled: RecruitmentConfig.RECRUITMENT_ENABLED,
     };
   }

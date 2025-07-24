@@ -9,17 +9,24 @@ import { config } from '../config/env';
 import { DI_TOKENS } from '../interfaces/index';
 import type { RedisConfig } from '../interfaces/IRedisService';
 import { ActivityTracker } from '../services/activityTracker';
-import { CalendarLogService } from '../services/calendarLogService';
+import { ConditionalServiceWrapper } from '../services/ConditionalServiceWrapper';
+import { EmojiReactionService } from '../services/EmojiReactionService';
+import { EventManager } from '../services/eventManager';
+import { FeatureManagerService } from '../services/FeatureManagerService';
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
 import { LogService } from '../services/logService';
 import type { LogServiceOptions } from '../services/logService';
 import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
+import { PostgreSQLManager } from '../services/PostgreSQLManager';
 import { PrometheusMetricsService } from '../services/PrometheusMetricsService';
 import { RedisService } from '../services/RedisService';
+import { UserClassificationService } from '../services/UserClassificationService';
+import { UserClassificationServiceOptimized } from '../services/UserClassificationServiceOptimized';
+import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
 
 // 인터페이스 및 토큰 임포트
 
 // 설정 임포트
-import { SQLiteManager } from '../services/SQLiteManager';
 
 /**
  * DI Container 설정 및 서비스 바인딩
@@ -46,13 +53,13 @@ export function configureDIContainer(): void {
     host: process.env.REDIS_HOST || 'localhost',
     port: parseInt(process.env.REDIS_PORT || '6379'),
     ...(process.env.REDIS_PASSWORD && { password: process.env.REDIS_PASSWORD }),
-    db: parseInt(process.env.REDIS_DB || '0'),
+    db: parseInt(process.env.REDIS_DB || '1'),
     retryDelayOnFailover: 100,
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: 5,
     lazyConnect: true,
-    enableOfflineQueue: false,
-    connectTimeout: 10000,
-    commandTimeout: 5000,
+    enableOfflineQueue: true,
+    connectTimeout: 15000,
+    commandTimeout: 8000,
     family: 4,
     keepAlive: 30000,
     keyPrefix: 'discord_bot:',
@@ -63,10 +70,19 @@ export function configureDIContainer(): void {
   container.registerInstance(DI_TOKENS.BotConfig, config);
 
   // 핵심 서비스들을 싱글톤으로 등록 (concrete class 등록)
-  container.registerSingleton(DI_TOKENS.IDatabaseManager, SQLiteManager);
+  container.registerSingleton(DI_TOKENS.IDatabaseManager, PostgreSQLManager);
   container.registerSingleton(DI_TOKENS.ILogService, LogService);
   container.registerSingleton(DI_TOKENS.IActivityTracker, ActivityTracker);
-  container.registerSingleton(DI_TOKENS.ICalendarLogService, CalendarLogService);
+  
+  // 🚀 최적화된 사용자 분류 서비스 사용 (30초 → 3초 성능 개선)
+  container.registerSingleton(DI_TOKENS.IUserClassificationService, UserClassificationServiceOptimized);
+
+  // 설정 관리 서비스 등록
+  container.registerSingleton(DI_TOKENS.IGuildSettingsManager, GuildSettingsManager);
+
+  // 기능 관리 서비스 등록
+  container.registerSingleton(FeatureManagerService);
+  container.registerSingleton(ConditionalServiceWrapper);
 
   // 인프라 서비스 등록
   container.registerSingleton(DI_TOKENS.IRedisService, RedisService);
@@ -80,6 +96,14 @@ export function configureDIContainer(): void {
 
   // 명령어 핸들러 등록 (의존성이 많으므로 마지막에)
   container.registerSingleton(DI_TOKENS.ICommandHandler, CommandHandler);
+
+  // UI/Forum 서비스들 등록
+  container.registerSingleton(
+    DI_TOKENS.IVoiceChannelForumIntegrationService,
+    VoiceChannelForumIntegrationService
+  );
+  container.registerSingleton(DI_TOKENS.IEmojiReactionService, EmojiReactionService);
+  container.registerSingleton(DI_TOKENS.IEventManager, EventManager);
 
   console.log('[DI Container] 모든 서비스가 등록되었습니다.');
 }

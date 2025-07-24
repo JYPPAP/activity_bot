@@ -10,6 +10,8 @@ import type { ILogService } from '../interfaces/ILogService';
 import { DI_TOKENS } from '../interfaces/index';
 import type { IRedisService } from '../interfaces/IRedisService';
 import { EnhancedClient } from '../types/discord';
+
+import { GuildSettingsManager } from './GuildSettingsManager';
 // import { UserActivity } from '../types/index'; // 미사용
 
 // ====================
@@ -75,6 +77,7 @@ export class ActivityTracker implements IActivityTracker {
   private readonly db: IDatabaseManager;
   private readonly logService: ILogService;
   private readonly redis: IRedisService;
+  private readonly guildSettingsManager: GuildSettingsManager;
   private readonly options: Required<ActivityTrackerOptions>;
 
   // 활동 데이터 저장소 (Redis 기반 + fallback)
@@ -114,12 +117,14 @@ export class ActivityTracker implements IActivityTracker {
     @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
     @inject(DI_TOKENS.ILogService) logService: ILogService,
     @inject(DI_TOKENS.IRedisService) redis: IRedisService,
+    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
     options: ActivityTrackerOptions = {}
   ) {
     this.client = client;
     this.db = dbManager;
     this.logService = logService;
     this.redis = redis;
+    this.guildSettingsManager = guildSettingsManager;
     this.options = {
       saveDelay: TIME.SAVE_ACTIVITY_DELAY,
       batchSize: 50,
@@ -133,6 +138,120 @@ export class ActivityTracker implements IActivityTracker {
     // 주기적 통계 업데이트
     if (this.options.enableStatistics) {
       this.scheduleStatisticsUpdate();
+    }
+  }
+
+  // ===========================================
+  // 길드 설정 관리
+  // ===========================================
+
+  /**
+   * 길드별 제외 채널 목록을 가져옵니다 (활동 시간 추적용)
+   * @param guildId - 길드 ID
+   * @returns 제외 채널 ID 배열 (완전 제외 + 활동 제한 채널 합친 목록)
+   */
+  private async getExcludedChannels(guildId?: string): Promise<string[]> {
+    if (!guildId) {
+      console.warn('[ActivityTracker] guildId가 제공되지 않음 - 빈 배열 반환');
+      return [];
+    }
+
+    try {
+      const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+      if (excludeChannelsSetting) {
+        // 완전 제외 채널 + 활동 제한 채널 합침 (활동 시간 측정에서는 둘 다 제외)
+        return [
+          ...excludeChannelsSetting.excludedChannels,
+          ...excludeChannelsSetting.activityLimitedChannels,
+        ];
+      }
+      console.log('[ActivityTracker] DB에 제외 채널 설정이 없음 - 빈 배열 반환');
+      return [];
+    } catch (error) {
+      console.error('[ActivityTracker] 길드 제외 채널 설정 조회 실패 - 빈 배열 반환:', error);
+      return [];
+    }
+  }
+
+  /**
+   * 길드별 로그 제외 채널 목록을 가져옵니다
+   * @param guildId - 길드 ID
+   * @returns 로그 제외 채널 ID 배열 (완전 제외 채널만, 활동 제한 채널은 로그 출력함)
+   */
+  private async getExcludedChannelsForLogs(guildId?: string): Promise<string[]> {
+    const startTime = Date.now();
+
+    if (!guildId) {
+      console.warn('[ActivityTracker] guildId가 제공되지 않음 - 빈 배열 반환');
+      return [];
+    }
+
+    try {
+      console.log('[ActivityTracker] DB에서 제외 채널 설정 조회 시작', {
+        guildId,
+        timestamp: new Date().toISOString(),
+      });
+
+      const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+      const queryTime = Date.now() - startTime;
+
+      if (!excludeChannelsSetting) {
+        console.log('[ActivityTracker] DB에서 제외 채널 설정 없음 - 빈 배열 반환', {
+          guildId,
+          queryTime: `${queryTime}ms`,
+        });
+        return [];
+      }
+
+      console.log('[ActivityTracker] DB에서 제외 채널 설정 조회 성공', {
+        guildId,
+        queryTime: `${queryTime}ms`,
+        rawSetting: {
+          excludedChannels: excludeChannelsSetting.excludedChannels || null,
+          excludedChannelsCount: excludeChannelsSetting.excludedChannels?.length || 0,
+          excludedChannelsType: Array.isArray(excludeChannelsSetting.excludedChannels)
+            ? 'array'
+            : typeof excludeChannelsSetting.excludedChannels,
+          activityLimitedChannels: excludeChannelsSetting.activityLimitedChannels || null,
+          activityLimitedChannelsCount: excludeChannelsSetting.activityLimitedChannels?.length || 0,
+          activityLimitedChannelsType: Array.isArray(excludeChannelsSetting.activityLimitedChannels)
+            ? 'array'
+            : typeof excludeChannelsSetting.activityLimitedChannels,
+          lastUpdated: excludeChannelsSetting.lastUpdated,
+        },
+      });
+
+      if (excludeChannelsSetting && Array.isArray(excludeChannelsSetting.excludedChannels)) {
+        const fullyExcludedChannels = excludeChannelsSetting.excludedChannels;
+
+        console.log('[ActivityTracker] ✅ 로그 제외 채널 결정 - 완전 제외 채널만 사용', {
+          guildId,
+          fullyExcludedChannels,
+          fullyExcludedCount: fullyExcludedChannels.length,
+          activityLimitedChannels: excludeChannelsSetting.activityLimitedChannels,
+          activityLimitedCount: excludeChannelsSetting.activityLimitedChannels?.length || 0,
+          note: '완전 제외 채널: 로그 + 활동 추적 모두 제외, 활동 제한 채널: 로그 출력, 활동 추적만 제외',
+        });
+
+        return fullyExcludedChannels;
+      } else {
+        console.warn('[ActivityTracker] 완전 제외 채널 배열이 유효하지 않음 - 빈 배열 반환', {
+          guildId,
+          excludedChannelsValue: excludeChannelsSetting.excludedChannels,
+          excludedChannelsType: typeof excludeChannelsSetting.excludedChannels,
+          isArray: Array.isArray(excludeChannelsSetting.excludedChannels),
+        });
+        return [];
+      }
+    } catch (error) {
+      const queryTime = Date.now() - startTime;
+      console.error('[ActivityTracker] 길드 로그 제외 채널 설정 조회 실패 - 빈 배열 반환', {
+        guildId,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        queryTime: `${queryTime}ms`,
+      });
+      return [];
     }
   }
 
@@ -374,17 +493,24 @@ export class ActivityTracker implements IActivityTracker {
   /**
    * 역할 활동 설정을 DB에서 로드
    */
-  async loadRoleActivityConfig(): Promise<void> {
+  async loadRoleActivityConfig(guildId?: string): Promise<void> {
     try {
-      const configs = await this.db.getAllRoleConfigs();
+      // 길드 ID가 필수적으로 필요합니다
+      if (!guildId) {
+        throw new Error('loadRoleActivityConfig: guildId는 필수 매개변수입니다');
+      }
+      
+      const configs = await this.guildSettingsManager.getAllRoleActivityTimes(guildId);
       this.roleActivityConfig = {};
 
-      for (const config of configs) {
-        this.roleActivityConfig[config.roleName] = config.minHours;
+      // 객체 형태로 반환되는 configs를 처리
+      for (const [roleName, config] of Object.entries(configs)) {
+        this.roleActivityConfig[roleName] = config.minHours;
       }
 
+      const configCount = Object.keys(configs).length;
       if (this.options.enableLogging) {
-        console.log(`[ActivityTracker] ${configs.length}개의 역할 설정을 로드했습니다.`);
+        console.log(`[ActivityTracker] ${configCount}개의 역할 설정을 로드했습니다.`);
       }
     } catch (error) {
       console.error('[ActivityTracker] 역할 설정 로드 오류:', error);
@@ -497,48 +623,163 @@ export class ActivityTracker implements IActivityTracker {
   /**
    * 특정 역할의 활동 데이터 초기화
    */
-  async clearAndReinitializeActivityData(role: string): Promise<void> {
+  async clearAndReinitializeActivityData(role: string, guildId?: string): Promise<void> {
+    const startTime = Date.now();
+    let membersFetched = false;
+    let totalMembers = 0;
+    let processedMembers = 0;
+
     try {
+      console.log('[ActivityTracker] 역할별 활동 데이터 초기화 시작', {
+        role,
+        timestamp: new Date().toISOString(),
+      });
+
       await this.saveActivityData();
 
       const now = Date.now();
-      const guild = this.client.guilds.cache.get(config.GUILDID);
-
-      if (!guild) {
-        throw new Error('길드를 찾을 수 없습니다.');
+      let guild;
+      
+      if (guildId) {
+        guild = this.client.guilds.cache.get(guildId);
+        if (!guild) {
+          throw new Error(`길드를 찾을 수 없습니다: ${guildId}`);
+        }
+      } else {
+        // guildId가 제공되지 않으면 첫 번째 사용 가능한 길드 사용
+        guild = this.client.guilds.cache.first();
+        if (!guild) {
+          throw new Error('사용 가능한 길드가 없습니다');
+        }
+        console.warn(`[ActivityTracker] guildId가 제공되지 않아 기본 길드 사용: ${guild.name} (${guild.id})`);
       }
 
+      console.log('[ActivityTracker] 역할 리셋 시간 업데이트 중', {
+        role,
+        resetTime: now,
+        guildId: guild.id,
+      });
+
       await this.db.updateRoleResetTime(role, now);
-      const members = await guild.members.fetch();
+
+      // Guild members fetch with timeout and retry mechanism
+      let members: Collection<string, GuildMember>;
+      try {
+        console.log('[ActivityTracker] 길드 멤버 조회 시작 (타임아웃: 15초)', {
+          role,
+          guildId: guild.id,
+          cachedMembers: guild.members.cache.size,
+          totalMembers: guild.memberCount,
+        });
+
+        // 15초 타임아웃으로 멤버 조회 시도
+        members = (await Promise.race([
+          guild.members.fetch(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('GuildMembersTimeout')), 15000)
+          ),
+        ])) as Collection<string, GuildMember>;
+
+        membersFetched = true;
+        totalMembers = members.size;
+        console.log('[ActivityTracker] ✅ 길드 멤버 조회 성공', {
+          role,
+          memberCount: totalMembers,
+          fetchTime: `${Date.now() - startTime}ms`,
+        });
+      } catch (fetchError) {
+        const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+        console.warn('[ActivityTracker] ⚠️ 길드 멤버 조회 실패 - 캐시된 멤버로 fallback 시도', {
+          role,
+          error: errorMessage,
+          fetchTime: `${Date.now() - startTime}ms`,
+        });
+
+        // Fallback: 캐시된 멤버만 사용
+        members = guild.members.cache;
+        totalMembers = members.size;
+
+        if (totalMembers === 0) {
+          console.error('[ActivityTracker] ❌ 캐시된 멤버도 없음 - 역할 초기화 실패', {
+            role,
+          });
+          throw new Error(`캐시된 멤버가 없어 역할 '${role}' 초기화를 수행할 수 없습니다.`);
+        }
+
+        console.log('[ActivityTracker] 📋 캐시된 멤버로 초기화 계속', {
+          role,
+          cachedMemberCount: totalMembers,
+        });
+      }
+
+      const excludedChannels = await this.getExcludedChannels(guild.id);
+
+      console.log('[ActivityTracker] 역할 멤버 처리 시작', {
+        role,
+        totalMembers,
+        excludedChannelCount: excludedChannels.length,
+      });
 
       for (const [_, member] of members) {
-        const hasRole = member.roles.cache.some((r) => r.name === role);
+        try {
+          const hasRole = member.roles.cache.some((r: any) => r.name === role);
 
-        if (hasRole) {
-          const userId = member.id;
-          if (this.channelActivityTime.has(userId)) {
-            const userActivity = this.channelActivityTime.get(userId)!;
-            const isInVoiceChannel =
-              member.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId);
+          if (hasRole) {
+            const userId = member.id;
+            if (this.channelActivityTime.has(userId)) {
+              const userActivity = this.channelActivityTime.get(userId)!;
+              const isInVoiceChannel =
+                member.voice?.channelId && !excludedChannels.includes(member.voice.channelId);
 
-            if (isInVoiceChannel) {
-              userActivity.startTime = now;
-              userActivity.totalTime = 0;
-            } else {
-              userActivity.startTime = null;
-              userActivity.totalTime = 0;
+              if (isInVoiceChannel) {
+                userActivity.startTime = now;
+                userActivity.totalTime = 0;
+              } else {
+                userActivity.startTime = null;
+                userActivity.totalTime = 0;
+              }
+
+              await this.db.updateUserActivity(
+                userId,
+                0,
+                userActivity.startTime,
+                member.displayName
+              );
+              processedMembers++;
             }
-
-            await this.db.updateUserActivity(userId, 0, userActivity.startTime, member.displayName);
           }
+        } catch (memberError) {
+          console.warn('[ActivityTracker] 멤버 처리 실패', {
+            role,
+            userId: member.id,
+            memberDisplayName: member?.displayName || 'Unknown',
+            error: memberError instanceof Error ? memberError.message : String(memberError),
+          });
+          // 개별 멤버 처리 실패는 전체 초기화를 중단하지 않음
         }
       }
 
-      if (this.options.enableLogging) {
-        console.log(`[ActivityTracker] 역할 '${role}'의 활동 데이터가 초기화되었습니다.`);
-      }
+      const initTime = Date.now() - startTime;
+      console.log('[ActivityTracker] ✅ 역할별 활동 데이터 초기화 완료', {
+        role,
+        totalInitTime: `${initTime}ms`,
+        membersFetched,
+        totalMembers,
+        processedMembers,
+        avgProcessingTimePerMember:
+          totalMembers > 0 ? `${(initTime / totalMembers).toFixed(2)}ms` : 'N/A',
+      });
     } catch (error) {
-      console.error('[ActivityTracker] 활동 데이터 초기화 오류:', error);
+      const initTime = Date.now() - startTime;
+      console.error('[ActivityTracker] 역할별 활동 데이터 초기화 오류', {
+        role,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        initTime: `${initTime}ms`,
+        membersFetched,
+        totalMembers,
+        processedMembers,
+      });
       throw error;
     }
   }
@@ -547,36 +788,138 @@ export class ActivityTracker implements IActivityTracker {
    * 길드의 활동 데이터 초기화
    */
   async initializeActivityData(guild: Guild): Promise<void> {
+    const startTime = Date.now();
+    let membersFetched = false;
+    let totalMembers = 0;
+    let processedMembers = 0;
+
     try {
-      await this.loadRoleActivityConfig();
+      console.log('[ActivityTracker] 활동 데이터 초기화 시작', {
+        guildId: guild.id,
+        guildName: guild.name,
+        cachedMemberCount: guild.memberCount,
+      });
+
+      await this.loadRoleActivityConfig(guild.id);
       await this.loadActivityData();
 
-      const members = await guild.members.fetch();
-      const roleConfigs = await this.db.getAllRoleConfigs();
-      const trackedRoles = roleConfigs.map((config) => config.roleName);
+      const roleConfigs = await this.guildSettingsManager.getAllRoleActivityTimes(guild.id);
+      const trackedRoles = Object.keys(roleConfigs);
 
-      for (const [userId, member] of members) {
-        const userRoles = member.roles.cache.map((role) => role.name);
-        const hasTrackedRole = userRoles.some((role) => trackedRoles.includes(role));
+      console.log('[ActivityTracker] 추적 대상 역할:', {
+        trackedRoles,
+        roleConfigCount: Object.keys(roleConfigs).length,
+      });
 
-        if (hasTrackedRole && !this.channelActivityTime.has(userId)) {
-          this.channelActivityTime.set(userId, {
-            startTime: null,
-            totalTime: 0,
-            displayName: member.displayName,
+      // 추적 대상 역할이 없으면 멤버 조회 생략
+      if (trackedRoles.length === 0) {
+        console.log('[ActivityTracker] ⚠️ 추적 대상 역할이 없어 멤버 조회 생략');
+        this.isInitialized = true;
+        return;
+      }
+
+      // Guild members fetch with timeout and retry mechanism
+      let members: Collection<string, GuildMember>;
+      
+      // 캐시된 멤버가 충분하면 fetch 생략
+      const cachedMembers = guild.members.cache;
+      if (cachedMembers.size > 0) {
+        console.log('[ActivityTracker] 📋 캐시된 멤버 사용 (fetch 생략)', {
+          cachedMemberCount: cachedMembers.size,
+        });
+        members = cachedMembers;
+        totalMembers = members.size;
+        membersFetched = false;
+      } else {
+        try {
+          console.log('[ActivityTracker] 길드 멤버 조회 시작 (타임아웃: 15초)');
+
+          // 15초로 타임아웃 단축
+          members = (await Promise.race([
+            guild.members.fetch(),
+            new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('GuildMembersTimeout')), 15000)
+            ),
+          ])) as Collection<string, GuildMember>;
+
+          membersFetched = true;
+          totalMembers = members.size;
+          console.log('[ActivityTracker] ✅ 길드 멤버 조회 성공', {
+            memberCount: totalMembers,
+            fetchTime: `${Date.now() - startTime}ms`,
+          });
+        } catch (fetchError) {
+          const errorMessage = fetchError instanceof Error ? fetchError.message : String(fetchError);
+          console.warn('[ActivityTracker] ⚠️ 길드 멤버 조회 실패 - 제한된 초기화', {
+            error: errorMessage,
+            fetchTime: `${Date.now() - startTime}ms`,
           });
 
-          await this.db.updateUserActivity(userId, 0, null, member.displayName);
+          // 멤버 정보 없이 제한된 초기화
+          this.isInitialized = true;
+          console.log('[ActivityTracker] ⚠️ 멤버 정보 없이 제한된 초기화 완료');
+          return;
+        }
+      }
+
+      // 멤버 처리
+      console.log('[ActivityTracker] 멤버 처리 시작', {
+        totalMembers,
+        trackedRolesCount: trackedRoles.length,
+      });
+
+      for (const [userId, member] of members) {
+        try {
+          const userRoles = member.roles.cache.map((role: any) => role.name);
+          const hasTrackedRole = userRoles.some((role: any) => trackedRoles.includes(role));
+
+          if (hasTrackedRole && !this.channelActivityTime.has(userId)) {
+            this.channelActivityTime.set(userId, {
+              startTime: null,
+              totalTime: 0,
+              displayName: member.displayName,
+            });
+
+            await this.db.updateUserActivity(userId, 0, null, member.displayName);
+            processedMembers++;
+          }
+        } catch (memberError) {
+          console.warn('[ActivityTracker] 멤버 처리 실패', {
+            userId,
+            memberDisplayName: member?.displayName || 'Unknown',
+            error: memberError instanceof Error ? memberError.message : String(memberError),
+          });
+          // 개별 멤버 처리 실패는 전체 초기화를 중단하지 않음
         }
       }
 
       this.isInitialized = true;
 
-      if (this.options.enableLogging) {
-        console.log('[ActivityTracker] ✔ 활동 정보가 초기화되었습니다.');
-      }
+      const initTime = Date.now() - startTime;
+      console.log('[ActivityTracker] ✅ 활동 정보 초기화 완료', {
+        totalInitTime: `${initTime}ms`,
+        membersFetched,
+        totalMembers,
+        processedMembers,
+        trackedRolesCount: trackedRoles.length,
+        avgProcessingTimePerMember:
+          totalMembers > 0 ? `${(initTime / totalMembers).toFixed(2)}ms` : 'N/A',
+      });
     } catch (error) {
-      console.error('[ActivityTracker] 활동 데이터 초기화 오류:', error);
+      const initTime = Date.now() - startTime;
+      console.error('[ActivityTracker] 활동 데이터 초기화 오류:', {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        initTime: `${initTime}ms`,
+        membersFetched,
+        totalMembers,
+        processedMembers,
+      });
+
+      // 초기화 실패 시에도 기본 상태로 설정하여 봇이 계속 동작할 수 있도록 함
+      this.isInitialized = true;
+      console.log('[ActivityTracker] ⚠️ 오류 발생했지만 제한된 초기화로 봇 동작 계속');
+
       throw error;
     }
   }
@@ -654,8 +997,11 @@ export class ActivityTracker implements IActivityTracker {
     member: GuildMember,
     now: number
   ): Promise<void> {
+    const guildId = member.guild.id;
+    const excludedChannels = await this.getExcludedChannels(guildId);
+
     const isExcluded = (channelId: string | null) =>
-      channelId && config.EXCLUDED_CHANNELS.includes(channelId);
+      channelId && excludedChannels.includes(channelId);
 
     if (change.type === 'join' && !isExcluded(change.newChannelId)) {
       await this.startActivityTracking(userId, member, now, change.newChannelId!);
@@ -753,11 +1099,43 @@ export class ActivityTracker implements IActivityTracker {
       if (activityData && activityData.startTime !== null) {
         // 세션 시간 계산
         const sessionDuration = now - activityData.startTime;
+        const originalStartTime = activityData.startTime; // 원래 startTime 보존
+
         activityData.totalTime += sessionDuration;
         activityData.startTime = null;
 
         // Redis에 업데이트된 활동 데이터 저장
         await this.setActivityData(userId, activityData);
+
+        // 세션 종료 기록을 activity_log에 저장 (duration 포함)
+        try {
+          await this.db.run(
+            `
+            INSERT INTO activity_log (user_id, action, channel_id, timestamp, duration, user_name, additional_data)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `,
+            [
+              userId,
+              'SESSION_END',
+              sessionData?.channelId || 'unknown',
+              now,
+              sessionDuration,
+              activityData.displayName || userId,
+              JSON.stringify({
+                sessionStartTime: originalStartTime,
+                sessionEndTime: now,
+                sessionDurationMs: sessionDuration,
+                totalTimeMs: activityData.totalTime,
+              }),
+            ]
+          );
+
+          console.log(
+            `[ActivityTracker] 세션 종료 DB 기록: ${userId} - 세션 시간: ${sessionDuration}ms`
+          );
+        } catch (dbError) {
+          console.error('[ActivityTracker] 세션 종료 DB 기록 실패:', dbError);
+        }
 
         // 실시간 알림 발송
         if (this.redis.isConnected()) {
@@ -814,28 +1192,135 @@ export class ActivityTracker implements IActivityTracker {
    * 채널 입장 처리
    */
   private async handleChannelJoin(newState: VoiceState, member: GuildMember): Promise<void> {
-    if (!newState.channel || config.EXCLUDED_CHANNELS_FOR_LOGS.includes(newState.channelId!)) {
+    const joinStartTime = Date.now();
+
+    console.log('[ActivityTracker] 📥 채널 입장 처리 시작', {
+      userId: newState.id,
+      userDisplayName: member.displayName,
+      channelId: newState.channelId,
+      channelName: newState.channel?.name,
+      guildId: member.guild.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!newState.channel) {
+      console.warn('[ActivityTracker] ⚠️ 채널 입장 처리 중단: newState.channel이 null', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+      });
+      return;
+    }
+
+    const guildId = member.guild.id;
+    const channelId = newState.channelId!;
+    const channelName = newState.channel.name;
+
+    console.log('[ActivityTracker] 🔍 제외 채널 확인 중', {
+      userId: newState.id,
+      userDisplayName: member.displayName,
+      channelId,
+      channelName,
+      guildId,
+    });
+
+    const excludedChannelsForLogs = await this.getExcludedChannelsForLogs(guildId);
+    const isExcluded = excludedChannelsForLogs.includes(channelId);
+
+    console.log('[ActivityTracker] 🎯 제외 채널 확인 결과', {
+      userId: newState.id,
+      userDisplayName: member.displayName,
+      channelId,
+      channelName,
+      excludedChannelsForLogs,
+      excludedChannelCount: excludedChannelsForLogs.length,
+      isExcluded,
+      decision: isExcluded
+        ? '로그 차단 (완전 제외 채널)'
+        : '로그 진행 (일반 채널 또는 활동 제한 채널)',
+      note: isExcluded
+        ? '완전 제외 채널은 로그와 활동 추적 모두 제외'
+        : '활동 제한 채널은 로그 출력됨',
+    });
+
+    if (isExcluded) {
+      console.log('[ActivityTracker] 🚫 채널 입장 로그 차단됨 (완전 제외 채널)', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        reason: '완전 제외 채널',
+      });
       return;
     }
 
     try {
+      console.log('[ActivityTracker] 👥 채널 멤버 목록 조회 중', {
+        userId: newState.id,
+        channelId,
+        channelName,
+      });
+
       const membersInChannel = await this.logService.getVoiceChannelMembers(
         newState.channel as VoiceChannel
       );
-      const channelName = newState.channel.name;
+
+      console.log('[ActivityTracker] ✅ 채널 멤버 목록 조회 완료', {
+        userId: newState.id,
+        channelId,
+        channelName,
+        memberCount: membersInChannel.length,
+        members: membersInChannel,
+      });
+
       const logMessage = `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${channelName} \`에 입장했습니다.`;
 
-      this.logService.logActivity(logMessage, membersInChannel, 'JOIN');
+      console.log('[ActivityTracker] 📝 로그 메시지 생성 및 전송 중', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        logMessage,
+        memberCount: membersInChannel.length,
+      });
+
+      this.logService.logActivity(logMessage, membersInChannel, 'JOIN', { guildId });
+
+      console.log('[ActivityTracker] 💾 상세 활동 DB 기록 중', {
+        userId: newState.id,
+        action: 'JOIN',
+        channelId,
+        channelName,
+        memberCount: membersInChannel.length,
+      });
 
       await this.db.logDetailedActivity(
         newState.id,
         'JOIN',
-        newState.channelId!,
+        channelId,
         channelName,
         membersInChannel
       );
+
+      const processingTime = Date.now() - joinStartTime;
+      console.log('[ActivityTracker] ✅ 채널 입장 처리 완료', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        processingTime: `${processingTime}ms`,
+        success: true,
+      });
     } catch (error) {
-      console.error('[ActivityTracker] 채널 입장 처리 오류:', error);
+      const processingTime = Date.now() - joinStartTime;
+      console.error('[ActivityTracker] ❌ 채널 입장 처리 오류', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        processingTime: `${processingTime}ms`,
+      });
     }
   }
 
@@ -843,28 +1328,135 @@ export class ActivityTracker implements IActivityTracker {
    * 채널 퇴장 처리
    */
   private async handleChannelLeave(oldState: VoiceState, member: GuildMember): Promise<void> {
-    if (!oldState.channel || config.EXCLUDED_CHANNELS_FOR_LOGS.includes(oldState.channelId!)) {
+    const leaveStartTime = Date.now();
+
+    console.log('[ActivityTracker] 📤 채널 퇴장 처리 시작', {
+      userId: oldState.id,
+      userDisplayName: member.displayName,
+      channelId: oldState.channelId,
+      channelName: oldState.channel?.name,
+      guildId: member.guild.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!oldState.channel) {
+      console.warn('[ActivityTracker] ⚠️ 채널 퇴장 처리 중단: oldState.channel이 null', {
+        userId: oldState.id,
+        userDisplayName: member.displayName,
+      });
+      return;
+    }
+
+    const guildId = member.guild.id;
+    const channelId = oldState.channelId!;
+    const channelName = oldState.channel.name;
+
+    console.log('[ActivityTracker] 🔍 제외 채널 확인 중', {
+      userId: oldState.id,
+      userDisplayName: member.displayName,
+      channelId,
+      channelName,
+      guildId,
+    });
+
+    const excludedChannelsForLogs = await this.getExcludedChannelsForLogs(guildId);
+    const isExcluded = excludedChannelsForLogs.includes(channelId);
+
+    console.log('[ActivityTracker] 🎯 제외 채널 확인 결과', {
+      userId: oldState.id,
+      userDisplayName: member.displayName,
+      channelId,
+      channelName,
+      excludedChannelsForLogs,
+      excludedChannelCount: excludedChannelsForLogs.length,
+      isExcluded,
+      decision: isExcluded
+        ? '로그 차단 (완전 제외 채널)'
+        : '로그 진행 (일반 채널 또는 활동 제한 채널)',
+      note: isExcluded
+        ? '완전 제외 채널은 로그와 활동 추적 모두 제외'
+        : '활동 제한 채널은 로그 출력됨',
+    });
+
+    if (isExcluded) {
+      console.log('[ActivityTracker] 🚫 채널 퇴장 로그 차단됨 (완전 제외 채널)', {
+        userId: oldState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        reason: '완전 제외 채널',
+      });
       return;
     }
 
     try {
+      console.log('[ActivityTracker] 👥 채널 멤버 목록 조회 중', {
+        userId: oldState.id,
+        channelId,
+        channelName,
+      });
+
       const membersInChannel = await this.logService.getVoiceChannelMembers(
         oldState.channel as VoiceChannel
       );
-      const channelName = oldState.channel.name;
+
+      console.log('[ActivityTracker] ✅ 채널 멤버 목록 조회 완료', {
+        userId: oldState.id,
+        channelId,
+        channelName,
+        memberCount: membersInChannel.length,
+        members: membersInChannel,
+      });
+
       const logMessage = `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${channelName} \`에서 퇴장했습니다.`;
 
-      this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
+      console.log('[ActivityTracker] 📝 로그 메시지 생성 및 전송 중', {
+        userId: oldState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        logMessage,
+        memberCount: membersInChannel.length,
+      });
+
+      this.logService.logActivity(logMessage, membersInChannel, 'LEAVE', { guildId });
+
+      console.log('[ActivityTracker] 💾 상세 활동 DB 기록 중', {
+        userId: oldState.id,
+        action: 'LEAVE',
+        channelId,
+        channelName,
+        memberCount: membersInChannel.length,
+      });
 
       await this.db.logDetailedActivity(
         oldState.id,
         'LEAVE',
-        oldState.channelId!,
+        channelId,
         channelName,
         membersInChannel
       );
+
+      const processingTime = Date.now() - leaveStartTime;
+      console.log('[ActivityTracker] ✅ 채널 퇴장 처리 완료', {
+        userId: oldState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        processingTime: `${processingTime}ms`,
+        success: true,
+      });
     } catch (error) {
-      console.error('[ActivityTracker] 채널 퇴장 처리 오류:', error);
+      const processingTime = Date.now() - leaveStartTime;
+      console.error('[ActivityTracker] ❌ 채널 퇴장 처리 오류', {
+        userId: oldState.id,
+        userDisplayName: member.displayName,
+        channelId,
+        channelName,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        processingTime: `${processingTime}ms`,
+      });
     }
   }
 
@@ -930,7 +1522,10 @@ export class ActivityTracker implements IActivityTracker {
       } else {
         // 정상 상태 복귀 - 음성 채널에 있으면 활동 시간 기록 재개
         const voiceState = member.voice;
-        if (voiceState?.channelId && !config.EXCLUDED_CHANNELS.includes(voiceState.channelId)) {
+        const guildId = member.guild.id;
+        const excludedChannels = await this.getExcludedChannels(guildId);
+
+        if (voiceState?.channelId && !excludedChannels.includes(voiceState.channelId)) {
           if (!userActivity) {
             this.channelActivityTime.set(userId, {
               startTime: now,
@@ -1016,11 +1611,27 @@ export class ActivityTracker implements IActivityTracker {
   /**
    * 활동 멤버 데이터 조회
    */
-  async getActiveMembersData(): Promise<ClassifiedUser[]> {
+  async getActiveMembersData(guildId?: string): Promise<ClassifiedUser[]> {
     try {
       const activities = await this.db.getAllUserActivity();
       const activeMembers: ClassifiedUser[] = [];
-      const guild = this.client.guilds.cache.get(config.GUILDID);
+      let guild;
+      
+      if (guildId) {
+        guild = this.client.guilds.cache.get(guildId);
+        if (!guild) {
+          console.warn(`[ActivityTracker] 길드를 찾을 수 없습니다: ${guildId}`);
+          return [];
+        }
+      } else {
+        // guildId가 제공되지 않으면 첫 번째 사용 가능한 길드 사용
+        guild = this.client.guilds.cache.first();
+        if (!guild) {
+          console.warn('[ActivityTracker] 사용 가능한 길드가 없습니다');
+          return [];
+        }
+        console.warn(`[ActivityTracker] guildId가 제공되지 않아 기본 길드 사용: ${guild.name} (${guild.id})`);
+      }
 
       for (const activity of activities) {
         if (activity.totalTime <= 0) continue;

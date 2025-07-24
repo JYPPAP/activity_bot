@@ -270,17 +270,83 @@ export class SafeInteraction {
         `[SafeInteraction] 인터랙션 상태: replied=${state.replied}, deferred=${state.deferred}`
       );
 
+      // 상태 일관성 검증
+      if (state.expired) {
+        console.warn('[SafeInteraction] 인터랙션이 만료되었습니다.');
+        return null;
+      }
+
       let result: any;
 
-      if (interaction.replied) {
+      // 상태 기반 응답 처리 (state 객체 사용으로 일관성 보장)
+      if (state.replied) {
         // 이미 응답한 경우 followUp 사용
+        console.log('[SafeInteraction] 이미 응답됨 - followUp 사용');
         result = await interaction.followUp(normalizedOptions);
-      } else if (interaction.deferred) {
+      } else if (state.deferred) {
         // 지연된 경우 editReply 사용
-        result = await interaction.editReply(normalizedOptions);
+        console.log('[SafeInteraction] 지연됨 - editReply 사용');
+        try {
+          // 실시간 상태 재확인 (Discord API 상태 변화 감지)
+          const currentReplied = interaction.replied;
+          const currentDeferred = interaction.deferred;
+          console.log(
+            `[SafeInteraction] editReply 전 실시간 상태 확인: replied=${currentReplied}, deferred=${currentDeferred}`
+          );
+
+          if (currentReplied) {
+            console.log('[SafeInteraction] 실시간 확인: 이미 응답됨 - followUp으로 변경');
+            result = await interaction.followUp(normalizedOptions);
+          } else if (currentDeferred) {
+            result = await interaction.editReply(normalizedOptions);
+          } else {
+            console.log('[SafeInteraction] 실시간 확인: 상태 변화 감지 - reply로 변경');
+            result = await interaction.reply(normalizedOptions);
+          }
+        } catch (editError: any) {
+          // editReply가 실패한 경우 followUp으로 대체
+          console.warn('[SafeInteraction] editReply 실패, followUp으로 대체:', {
+            error: editError.message,
+            code: editError.code,
+            status: editError.status,
+          });
+
+          try {
+            result = await interaction.followUp(normalizedOptions);
+          } catch (followUpError: any) {
+            console.error('[SafeInteraction] followUp도 실패:', {
+              error: followUpError.message,
+              code: followUpError.code,
+              status: followUpError.status,
+            });
+            throw followUpError;
+          }
+        }
       } else {
         // 첫 응답
-        result = await interaction.reply(normalizedOptions);
+        console.log('[SafeInteraction] 첫 응답 - reply 사용');
+        try {
+          result = await interaction.reply(normalizedOptions);
+        } catch (replyError: any) {
+          console.warn('[SafeInteraction] reply 실패, 상태 재확인 후 재시도:', {
+            error: replyError.message,
+            code: replyError.code,
+          });
+
+          // reply 실패 시 상태 재확인 후 적절한 메서드 선택
+          const retryState = this.getInteractionState(interaction);
+          console.log(
+            `[SafeInteraction] 재시도를 위한 상태 확인: replied=${retryState.replied}, deferred=${retryState.deferred}`
+          );
+
+          if (retryState.replied) {
+            result = await interaction.followUp(normalizedOptions);
+          } else if (retryState.deferred) {
+            result = await interaction.editReply(normalizedOptions);
+          } else {
+            throw replyError; // 상태가 변하지 않았으면 원래 에러 던지기
+          }
+        }
       }
 
       this.statistics.successfulReplies++;
@@ -321,6 +387,22 @@ export class SafeInteraction {
         return null;
       }
 
+      // 상태 확인
+      const state = this.getInteractionState(interaction);
+      console.log(
+        `[SafeInteraction] 업데이트 상태: replied=${state.replied}, deferred=${state.deferred}`
+      );
+
+      if (state.expired) {
+        console.warn('[SafeInteraction] 인터랙션이 만료되어 업데이트를 건너뜁니다.');
+        return null;
+      }
+
+      if (state.replied) {
+        console.log('[SafeInteraction] 이미 응답된 인터랙션 - 업데이트 대신 followUp 사용');
+        return await this.safeReply(interaction, options);
+      }
+
       const normalizedOptions = this.normalizeReplyOptions(options);
       const result = await interaction.update(normalizedOptions);
 
@@ -332,7 +414,7 @@ export class SafeInteraction {
       // 업데이트 실패 시 응답으로 대체
       return await this.safeReply(interaction, {
         content: '❌ 업데이트 중 오류가 발생했습니다.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
   }
@@ -367,7 +449,7 @@ export class SafeInteraction {
 
       await this.safeReply(interaction as RepliableInteraction, {
         content: '❌ 모달 표시 중 오류가 발생했습니다.',
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       });
     }
   }
@@ -380,7 +462,7 @@ export class SafeInteraction {
    */
   static async safeDeferReply(
     interaction: RepliableInteraction,
-    options: { ephemeral?: boolean } = {}
+    options: { ephemeral?: boolean; flags?: MessageFlags } = {}
   ): Promise<InteractionResponse | null> {
     try {
       // 인터랙션 유효성 검사
@@ -390,10 +472,51 @@ export class SafeInteraction {
         return null;
       }
 
-      if (!interaction.deferred && !interaction.replied) {
-        const result = await interaction.deferReply(options);
-        this.statistics.deferredReplies++;
-        return result;
+      // 상태 확인
+      const state = this.getInteractionState(interaction);
+      console.log(
+        `[SafeInteraction] defer 상태: replied=${state.replied}, deferred=${state.deferred}`
+      );
+
+      if (state.expired) {
+        console.warn('[SafeInteraction] 인터랙션이 만료되어 defer를 건너뜁니다.');
+        return null;
+      }
+
+      // 실시간 상태 재확인
+      const currentReplied = interaction.replied;
+      const currentDeferred = interaction.deferred;
+      console.log(
+        `[SafeInteraction] defer 실시간 상태 확인: replied=${currentReplied}, deferred=${currentDeferred}`
+      );
+
+      if (!currentDeferred && !currentReplied) {
+        try {
+          // ephemeral을 flags로 변환
+          const deferOptions: any = { ...options };
+          if (options.ephemeral && !options.flags) {
+            deferOptions.flags = MessageFlags.Ephemeral;
+          }
+          delete deferOptions.ephemeral; // ephemeral 속성 제거
+
+          const result = await interaction.deferReply(deferOptions);
+          this.statistics.deferredReplies++;
+          console.log('[SafeInteraction] defer 성공');
+          return result;
+        } catch (deferError: any) {
+          console.error('[SafeInteraction] defer 실패:', {
+            error: deferError.message,
+            code: deferError.code,
+            status: deferError.status,
+          });
+
+          // defer 실패 시에도 통계 업데이트 안 함
+          throw deferError;
+        }
+      } else {
+        console.log(
+          `[SafeInteraction] defer 건너뜀 - 현재 상태: replied=${currentReplied}, deferred=${currentDeferred}`
+        );
       }
 
       return null;
@@ -542,7 +665,6 @@ export class SafeInteraction {
     return {
       content: this.getErrorMessage(Number(error.code) || 0),
       flags: MessageFlags.Ephemeral,
-      ephemeral: true,
     };
   }
 

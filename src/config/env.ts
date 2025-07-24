@@ -11,8 +11,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../..');
 
-// .env 파일 경로 명시적 지정
-dotenv.config({ path: path.join(rootDir, '.env') });
+// 환경에 따른 .env 파일 선택
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.development';
+
+// 환경별 .env 파일만 로드 (DB 기반 설정 시스템 사용)
+dotenv.config({ path: path.join(rootDir, envFile) });
 
 // 환경변수 유효성 검증 함수
 function validateEnvVar(varName: string, value: string | undefined): string {
@@ -30,10 +33,15 @@ function getOptionalEnvVar(varName: string): string | undefined {
 // 환경변수 설정 확인 및 기본값 제공
 // 선택적 환경변수 임시 변수
 const devId = getOptionalEnvVar('DEV_ID');
-const calendarLogChannelId = getOptionalEnvVar('CALENDAR_LOG_CHANNEL_ID');
 const forumChannelId = getOptionalEnvVar('FORUM_CHANNEL_ID');
 const voiceCategoryId = getOptionalEnvVar('VOICE_CATEGORY_ID');
 const forumTagId = getOptionalEnvVar('FORUM_TAG_ID');
+const postgresHost = getOptionalEnvVar('POSTGRES_HOST');
+const postgresPort = getOptionalEnvVar('POSTGRES_PORT');
+const postgresDb = getOptionalEnvVar('POSTGRES_DB');
+const postgresUser = getOptionalEnvVar('POSTGRES_USER');
+const postgresPassword = getOptionalEnvVar('POSTGRES_PASSWORD');
+const postgresSsl = getOptionalEnvVar('POSTGRES_SSL');
 const nodeEnv = getOptionalEnvVar('NODE_ENV');
 const errsoleHost = getOptionalEnvVar('ERRSOLE_HOST');
 const errsolePort = getOptionalEnvVar('ERRSOLE_PORT');
@@ -46,33 +54,26 @@ const phoneIp = getOptionalEnvVar('PHONE_IP');
 export const config: Config = {
   // 필수 환경변수
   TOKEN: validateEnvVar('TOKEN', process.env.TOKEN),
-  GUILDID: validateEnvVar('GUILDID', process.env.GUILDID),
   CLIENT_ID: validateEnvVar('CLIENT_ID', process.env.CLIENT_ID),
   LOG_CHANNEL_ID: validateEnvVar('LOG_CHANNEL_ID', process.env.LOG_CHANNEL_ID),
 
-  // 제외할 채널 ID 배열 (활동 시간 추적용)
-  EXCLUDED_CHANNELS: [
-    process.env.EXCLUDE_CHANNELID_1,
-    process.env.EXCLUDE_CHANNELID_2,
-    process.env.EXCLUDE_CHANNELID_3,
-    process.env.EXCLUDE_CHANNELID_4,
-    process.env.EXCLUDE_CHANNELID_5,
-    process.env.EXCLUDE_CHANNELID_6,
-  ].filter((id): id is string => Boolean(id)),
-
-  // 제외할 채널 ID 배열 (로그 출력용)
-  EXCLUDED_CHANNELS_FOR_LOGS: [
-    process.env.EXCLUDE_CHANNELID_1,
-    process.env.EXCLUDE_CHANNELID_2,
-    process.env.EXCLUDE_CHANNELID_3,
-  ].filter((id): id is string => Boolean(id)),
+  // 주의: GUILDID, EXCLUDED_CHANNELS는 이제 GuildSettingsManager를 통해 DB에서 관리됩니다
 
   // 선택적 환경변수 (조건부 할당)
   ...(devId && { DEV_ID: devId }),
-  ...(calendarLogChannelId && { CALENDAR_LOG_CHANNEL_ID: calendarLogChannelId }),
+  // 주의: 아래 채널 ID들은 이제 데이터베이스에서 우선 관리되며, 환경변수는 fallback용입니다
   ...(forumChannelId && { FORUM_CHANNEL_ID: forumChannelId }),
   ...(voiceCategoryId && { VOICE_CATEGORY_ID: voiceCategoryId }),
   ...(forumTagId && { FORUM_TAG_ID: forumTagId }),
+
+  // PostgreSQL 설정 (필수 환경변수)
+  POSTGRES_HOST: validateEnvVar('POSTGRES_HOST', postgresHost),
+  POSTGRES_PORT: validateEnvVar('POSTGRES_PORT', postgresPort),
+  POSTGRES_DB: validateEnvVar('POSTGRES_DB', postgresDb),
+  POSTGRES_USER: validateEnvVar('POSTGRES_USER', postgresUser),
+  POSTGRES_PASSWORD: validateEnvVar('POSTGRES_PASSWORD', postgresPassword),
+  POSTGRES_SSL: postgresSsl || 'false',
+
   ...(nodeEnv && { NODE_ENV: nodeEnv }),
   ...(errsoleHost && { ERRSOLE_HOST: errsoleHost }),
   ...(errsolePort && { ERRSOLE_PORT: errsolePort }),
@@ -87,16 +88,26 @@ export const config: Config = {
 if (process.env.NODE_ENV === 'development') {
   console.log('환경변수 설정 완료:', {
     TOKEN: config.TOKEN ? '설정됨' : '미설정',
-    GUILDID: config.GUILDID ? '설정됨' : '미설정',
     CLIENT_ID: config.CLIENT_ID ? '설정됨' : '미설정',
     LOG_CHANNEL_ID: config.LOG_CHANNEL_ID ? '설정됨' : '미설정',
-    EXCLUDED_CHANNELS_COUNT: config.EXCLUDED_CHANNELS.length,
-    EXCLUDED_CHANNELS_FOR_LOGS_COUNT: config.EXCLUDED_CHANNELS_FOR_LOGS.length,
     DEV_ID: config.DEV_ID ? '설정됨' : '미설정',
-    CALENDAR_LOG_CHANNEL_ID: config.CALENDAR_LOG_CHANNEL_ID ? '설정됨' : '미설정',
-    FORUM_CHANNEL_ID: config.FORUM_CHANNEL_ID ? '설정됨' : '미설정',
-    VOICE_CATEGORY_ID: config.VOICE_CATEGORY_ID ? '설정됨' : '미설정',
-    FORUM_TAG_ID: config.FORUM_TAG_ID ? '설정됨' : '미설정',
+    // PostgreSQL 설정 (필수)
+    POSTGRES_HOST: config.POSTGRES_HOST ? '설정됨' : '미설정',
+    POSTGRES_PORT: config.POSTGRES_PORT ? '설정됨' : '미설정',
+    POSTGRES_DB: config.POSTGRES_DB ? '설정됨' : '미설정',
+    POSTGRES_USER: config.POSTGRES_USER ? '설정됨' : '미설정',
+    POSTGRES_PASSWORD: config.POSTGRES_PASSWORD ? '설정됨' : '미설정',
+    POSTGRES_SSL: config.POSTGRES_SSL || 'false',
+    // 주의: 아래 값들은 이제 데이터베이스에서 관리되며 환경변수는 fallback용입니다
+    FORUM_CHANNEL_ID: config.FORUM_CHANNEL_ID
+      ? '환경변수 설정됨 (fallback)'
+      : 'DB에서 관리 (환경변수 미설정)',
+    VOICE_CATEGORY_ID: config.VOICE_CATEGORY_ID
+      ? '환경변수 설정됨 (fallback)'
+      : 'DB에서 관리 (환경변수 미설정)',
+    FORUM_TAG_ID: config.FORUM_TAG_ID
+      ? '환경변수 설정됨 (fallback)'
+      : 'DB에서 관리 (환경변수 미설정)',
     NODE_ENV: config.NODE_ENV || 'development',
     ERRSOLE_HOST: config.ERRSOLE_HOST ? '설정됨' : '미설정',
     ERRSOLE_PORT: config.ERRSOLE_PORT ? '설정됨' : '미설정',
@@ -106,11 +117,24 @@ if (process.env.NODE_ENV === 'development') {
     SLACK_MIN_LEVEL: config.SLACK_MIN_LEVEL ? '설정됨' : '미설정',
     PHONE_IP: config.PHONE_IP ? '설정됨' : '미설정',
   });
+
+  // 데이터베이스 우선 설정에 대한 안내
+  console.log('');
+  console.log('📋 설정 관리 방식:');
+  console.log(
+    '   ✅ GUILDID, EXCLUDED_CHANNELS는 이제 GuildSettingsManager를 통해 DB에서 관리됩니다'
+  );
+  console.log(
+    '   ✅ FORUM_CHANNEL_ID, VOICE_CATEGORY_ID, FORUM_TAG_ID는 GuildSettingsManager를 통해 DB에서 관리됩니다'
+  );
+  console.log('   📝 /설정 명령어로 길드별 채널 설정을 변경할 수 있습니다');
+  console.log('   🔄 환경변수는 fallback 용도로만 사용됩니다');
+  console.log('');
 }
 
 // 환경변수 검증 함수
 export function validateConfig(): boolean {
-  const requiredEnvVars: Array<keyof Config> = ['TOKEN', 'GUILDID', 'LOG_CHANNEL_ID'];
+  const requiredEnvVars: Array<keyof Config> = ['TOKEN', 'CLIENT_ID', 'LOG_CHANNEL_ID', 'POSTGRES_HOST', 'POSTGRES_PORT', 'POSTGRES_DB', 'POSTGRES_USER', 'POSTGRES_PASSWORD'];
 
   const missingEnvVars = requiredEnvVars.filter((varName) => !config[varName]);
 

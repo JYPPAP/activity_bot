@@ -190,23 +190,7 @@ export class RecruitmentService {
         userId: interaction.user.id,
       });
 
-      // 권한 확인
-      if (
-        !PermissionService.hasRecruitmentPermission(
-          interaction.user,
-          interaction.member as GuildMember
-        )
-      ) {
-        await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.NO_PERMISSION,
-          flags: MessageFlags.Ephemeral,
-        });
-        this.recordEvent('permission_denied', false, {
-          userId: interaction.user.id,
-          action: 'voice_connect',
-        });
-        return;
-      }
+      // 권한 확인 제거 - 모든 사용자가 구인구직 기능 사용 가능
 
       // 음성 채널 정보 가져오기
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
@@ -276,7 +260,8 @@ export class RecruitmentService {
     }
 
     // 기존 포스트 목록 가져오기
-    const existingPosts = await this.forumPostManager.getExistingPosts(7);
+    const guildId = interaction.guild?.id;
+    const existingPosts = await this.forumPostManager.getExistingPosts(7, false, guildId);
 
     // 연동 방법 선택 UI 생성
     const embed = RecruitmentUIBuilder.createMethodSelectionEmbed(voiceChannelInfo.name);
@@ -308,13 +293,14 @@ export class RecruitmentService {
       });
 
       if (selectedValue === DiscordConstants.METHOD_VALUES.NEW_FORUM) {
-        // 새 포럼 생성: 역할 태그 선택 UI로 전환
+        // 새 포럼 생성: 게임 태그 선택 UI로 전환
         const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
-        const components = RecruitmentUIBuilder.createRoleTagButtons(
+        const components = await RecruitmentUIBuilder.createRoleTagButtons(
           [],
           voiceChannelId,
           selectedValue,
-          false
+          false,
+          interaction.guild?.id || null
         );
 
         await SafeInteraction.safeUpdate(interaction, {
@@ -351,6 +337,39 @@ export class RecruitmentService {
   }
 
   /**
+   * 기존 포스트 선택 처리
+   * @param interaction - 셀렉트 메뉴 인터랙션
+   */
+  async handleExistingPostSelection(interaction: StringSelectMenuInteraction): Promise<void> {
+    try {
+      const voiceChannelId = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.EXISTING_POST_SELECT,
+        ''
+      );
+      const selectedPostId = interaction.values[0];
+
+      this.recordEvent('existing_post_selection', true, {
+        voiceChannelId,
+        selectedPostId,
+        userId: interaction.user.id,
+      });
+
+      // 기존 포스트에 연동 처리
+      await this.linkToExistingForum(interaction, voiceChannelId, selectedPostId, []);
+    } catch (error) {
+      console.error('[RecruitmentService] 기존 포스트 선택 처리 오류:', error);
+      this.recordEvent('existing_post_selection', false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 기존 포스트 선택 처리 중 오류가 발생했습니다.',
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+
+  /**
    * 음성 채널 연동 구인구직 생성
    * @param recruitmentData - 구인구직 데이터
    * @param voiceChannelId - 음성 채널 ID
@@ -363,12 +382,22 @@ export class RecruitmentService {
     linkerId: string
   ): Promise<RecruitmentCreateResult> {
     try {
-      // 입력 검증
-      if (!recruitmentData.title || !recruitmentData.description) {
+      // 입력 검증 - 제목만 필수 (설명은 선택사항)
+      if (!recruitmentData.title) {
         return {
           success: false,
-          message: '❌ 제목과 설명을 모두 입력해주세요.',
-          error: 'Missing required fields',
+          message: '❌ 제목을 입력해주세요.',
+          error: 'Missing title',
+        };
+      }
+
+      // 제목 유효성 검증 (길이, 패턴 등)
+      const titleValidation = RecruitmentConfig.validateRecruitmentTitle(recruitmentData.title);
+      if (!titleValidation.valid) {
+        return {
+          success: false,
+          message: `❌ ${titleValidation.errors.join(', ')}`,
+          error: 'Invalid title',
         };
       }
 
@@ -467,7 +496,7 @@ export class RecruitmentService {
    * @param interaction - 인터랙션 객체
    * @param voiceChannelId - 음성 채널 ID
    * @param existingPostId - 기존 포스트 ID
-   * @param selectedRoles - 선택된 역할 태그 배열
+   * @param selectedRoles - 선택된 게임 태그 배열
    */
   async linkToExistingForum(
     interaction: RepliableInteraction,
@@ -477,7 +506,7 @@ export class RecruitmentService {
   ): Promise<void> {
     try {
       // 즉시 defer 처리하여 3초 제한시간 해결
-      await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
       // 병렬로 정보 가져오기
       const [voiceChannelInfo, postInfo] = await Promise.allSettled([
@@ -613,7 +642,10 @@ export class RecruitmentService {
 
       console.log(`[RecruitmentService] 음성 상태 변경 감지: ${memberName} (${userId})`);
 
-      const stateChange = this.voiceChannelManager.analyzeVoiceStateChange(oldState, newState);
+      const stateChange = await this.voiceChannelManager.analyzeVoiceStateChange(
+        oldState,
+        newState
+      );
       console.log(`[RecruitmentService] 상태 변경 분석:`, {
         isTargetCategory: stateChange.isTargetCategory,
         wasTargetCategory: stateChange.wasTargetCategory,
@@ -791,7 +823,7 @@ export class RecruitmentService {
    */
   async handleChannelCreate(channel: Channel): Promise<void> {
     try {
-      if (!this.voiceChannelManager.isTargetVoiceChannel(channel)) {
+      if (!(await this.voiceChannelManager.isTargetVoiceChannel(channel))) {
         return;
       }
 
@@ -834,7 +866,7 @@ export class RecruitmentService {
    */
   async handleChannelDelete(channel: Channel): Promise<void> {
     try {
-      if (!this.voiceChannelManager.shouldHandleChannelDeletion(channel)) {
+      if (!(await this.voiceChannelManager.shouldHandleChannelDeletion(channel))) {
         return;
       }
 
@@ -890,42 +922,14 @@ export class RecruitmentService {
    */
   async checkAndSendRecruitmentEmbed(voiceChannel: VoiceChannel): Promise<void> {
     try {
-      // 이미 임베드를 전송한 채널인지 확인
-      if (this.sentEmbedChannels.has(voiceChannel.id)) {
+      // 이미 임베드를 전송한 채널인지 확인 (null 체크 강화)
+      if (this.sentEmbedChannels?.has(voiceChannel.id)) {
         console.log(`[RecruitmentService] 이미 임베드를 전송한 채널: ${voiceChannel.name}`);
         return;
       }
 
-      // 채널이 삭제되었는지 확인
-      try {
-        await voiceChannel.fetch();
-      } catch (error) {
-        console.log(`[RecruitmentService] 채널이 삭제되어 임베드 전송 취소: ${voiceChannel.id}`);
-        return;
-      }
-
-      // 권한이 있는 사용자가 채널에 있는지 확인
-      let hasPermittedUser = false;
-      let permittedUsers = 0;
-
-      for (const member of voiceChannel.members.values()) {
-        if (PermissionService.hasRecruitmentPermission(member.user, member)) {
-          hasPermittedUser = true;
-          permittedUsers++;
-        }
-      }
-
-      if (!hasPermittedUser) {
-        console.log(
-          `[RecruitmentService] 권한 있는 사용자가 없어서 임베드 전송 안함: ${voiceChannel.name}`
-        );
-        this.recordEvent('embed_send_skipped', false, {
-          channelId: voiceChannel.id,
-          reason: 'No permitted users',
-          totalMembers: voiceChannel.members.size,
-        });
-        return;
-      }
+      // 권한 체크 제거 - 구인구직 연동 버튼에서 권한 체크를 제거했으므로 일관성 확보
+      // 모든 음성 채널에 구인구직 연동 메시지 전송
 
       // 구인구직 연동 임베드 전송
       const embed = RecruitmentUIBuilder.createInitialEmbed(voiceChannel.name);
@@ -941,14 +945,13 @@ export class RecruitmentService {
       this.stats.embedsSent++;
 
       console.log(
-        `[RecruitmentService] 구인구직 임베드 전송 완료: ${voiceChannel.name} (권한 있는 사용자: ${permittedUsers}명)`
+        `[RecruitmentService] 구인구직 임베드 전송 완료: ${voiceChannel.name} (총 멤버: ${voiceChannel.members.size}명)`
       );
 
       this.recordEvent('embed_sent', true, {
         channelId: voiceChannel.id,
         channelName: voiceChannel.name,
         messageId: message.id,
-        permittedUsers,
         totalMembers: voiceChannel.members.size,
       });
     } catch (error) {

@@ -110,10 +110,10 @@ function logStartupInfo(processInfo: ProcessInfo): void {
       },
     },
     config: {
-      guildId: config.GUILDID,
       logChannelId: config.LOG_CHANNEL_ID,
       forumChannelId: config.FORUM_CHANNEL_ID,
       voiceCategoryId: config.VOICE_CATEGORY_ID,
+      // guildId는 이제 데이터베이스에서 관리됩니다
     },
   });
 }
@@ -260,8 +260,8 @@ async function main(): Promise<void> {
     logger.botActivity(`봇이 성공적으로 시작되었습니다: ${startTimeKST}`, {
       startTime: startTimeKST,
       timezone: 'Asia/Seoul',
-      guildId: config.GUILDID,
       platform: 'Termux Android',
+      // guildId는 이제 데이터베이스에서 관리됩니다
       startupStats: {
         initializationTime: `${startupStats.initializationTime}ms`,
         loginTime: `${startupStats.loginTime}ms`,

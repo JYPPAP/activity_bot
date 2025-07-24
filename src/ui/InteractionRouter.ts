@@ -221,7 +221,7 @@ export class InteractionRouter {
       this.interactionStats.recruitmentInteractions++;
       await this.recruitmentService.handleVoiceConnectButton(interaction);
     }
-    // 역할 태그 및 음성 채널 관련 버튼
+    // 게임 태그 및 음성 채널 관련 버튼
     else {
       await this.buttonHandler.routeButtonInteraction(interaction);
     }
@@ -244,10 +244,7 @@ export class InteractionRouter {
     // 기존 포스트 선택
     else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.EXISTING_POST_SELECT)) {
       this.interactionStats.recruitmentInteractions++;
-      // TODO: handleExistingPostSelection 메서드 구현 필요
-      console.warn(
-        `[InteractionRouter] handleExistingPostSelection 메서드가 구현되지 않음: ${customId}`
-      );
+      await this.recruitmentService.handleExistingPostSelection(interaction);
     } else {
       console.warn(`[InteractionRouter] 처리되지 않은 셀렉트 메뉴: ${customId}`);
     }

@@ -3,26 +3,26 @@ import { Client, GatewayIntentBits, Events } from 'discord.js';
 import fs from 'fs';
 import { MemoryGuard } from 'discord-optimizer';
 
-import { ExtendedClient } from './types/discord';
+// ExtendedClient 제거됨 - 표준 Client 사용
 
 // DI Container 및 서비스 임포트
 import { DIContainer, setupContainer } from './di/container';
 import { DI_TOKENS } from './interfaces/index';
+// import { FeatureManagerService, Features } from './services/FeatureManagerService';
 import type { 
   IDatabaseManager, 
   ILogService, 
   IActivityTracker, 
-  ICalendarLogService,
   ICommandHandler,
   IPerformanceMonitoringService,
   IPrometheusMetricsService,
   IRedisService
 } from './interfaces/index';
 
-// 추가 서비스 임포트 (DI Container로 관리되지 않는 서비스들)
-import { EventManager } from './services/eventManager';
-import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService';
-import { EmojiReactionService } from './services/EmojiReactionService';
+// 추가 서비스 임포트 (DI Container로 관리되지 않는 서비스들 - 타입 정의용)
+// import { EventManager } from './services/eventManager';
+// import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService';
+// import { EmojiReactionService } from './services/EmojiReactionService';
 
 // 설정 및 유틸리티 임포트
 import { config } from './config/env';
@@ -34,12 +34,11 @@ interface BotServices {
   redisService: IRedisService;
   dbManager: IDatabaseManager;
   logService: ILogService;
-  calendarLogService: ICalendarLogService;
   activityTracker: IActivityTracker;
-  voiceForumService: VoiceChannelForumIntegrationService;
-  emojiReactionService: EmojiReactionService;
+  voiceForumService: any; // VoiceChannelForumIntegrationService
+  emojiReactionService: any; // EmojiReactionService
   commandHandler: ICommandHandler;
-  eventManager: EventManager;
+  eventManager: any; // EventManager
   performanceMonitor: IPerformanceMonitoringService;
   prometheusMetrics: IPrometheusMetricsService;
 }
@@ -70,7 +69,6 @@ interface InitializationResult {
     database: boolean;
     eventManager: boolean;
     activityTracker: boolean;
-    calendarLog: boolean;
     voiceForumMapping: boolean;
   };
   errors: string[];
@@ -92,16 +90,37 @@ export class Bot {
   private isInitialized: boolean = false;
   private isShuttingDown: boolean = false;
 
-  // 상수
-  private static readonly CLIENT_OPTIONS = {
-    intents: [
+  // 인텐트 동적 결정
+  private static getClientOptions(): { intents: GatewayIntentBits[] } {
+    const baseIntents = [
       GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMembers,
-      GatewayIntentBits.GuildPresences,
       GatewayIntentBits.GuildVoiceStates,
       GatewayIntentBits.GuildMessageReactions,
-    ],
-  };
+    ];
+
+    // 환경변수로 Privileged Intent 제어
+    const enableMembersIntent = process.env.ENABLE_GUILD_MEMBERS_INTENT === 'true';
+    const enablePresencesIntent = process.env.ENABLE_GUILD_PRESENCES_INTENT === 'true';
+    const enableMessageContentIntent = process.env.ENABLE_MESSAGE_CONTENT_INTENT === 'true';
+
+    if (enableMembersIntent) {
+      baseIntents.push(GatewayIntentBits.GuildMembers);
+      logger.info('GuildMembers Intent 활성화됨');
+    }
+
+    if (enablePresencesIntent) {
+      baseIntents.push(GatewayIntentBits.GuildPresences);
+      logger.info('GuildPresences Intent 활성화됨');
+    }
+
+    if (enableMessageContentIntent) {
+      baseIntents.push(GatewayIntentBits.MessageContent);
+      logger.info('MessageContent Intent 활성화됨');
+    }
+
+    logger.info(`총 ${baseIntents.length}개 인텐트 사용됨`);
+    return { intents: baseIntents };
+  }
 
   constructor(token: string) {
     if (Bot.instance) {
@@ -116,7 +135,7 @@ export class Bot {
     this.token = token;
 
     // Discord Client 생성 및 Discord-Optimizer로 메모리 관리 최적화
-    const baseClient = new Client(Bot.CLIENT_OPTIONS);
+    const baseClient = new Client(Bot.getClientOptions());
     this.client = MemoryGuard.wrap(baseClient, {
       maxMemory: 256, // 256MB 메모리 제한 (Termux 환경 고려)
       autoRestart: false, // PM2가 재시작을 담당하므로 비활성화
@@ -185,27 +204,21 @@ export class Bot {
       const redisService = DIContainer.get<IRedisService>(DI_TOKENS.IRedisService);
       const dbManager = DIContainer.get<IDatabaseManager>(DI_TOKENS.IDatabaseManager);
       const logService = DIContainer.get<ILogService>(DI_TOKENS.ILogService);
-      const calendarLogService = DIContainer.get<ICalendarLogService>(DI_TOKENS.ICalendarLogService);
       const activityTracker = DIContainer.get<IActivityTracker>(DI_TOKENS.IActivityTracker);
       const commandHandler = DIContainer.get<ICommandHandler>(DI_TOKENS.ICommandHandler);
       const performanceMonitor = DIContainer.get<IPerformanceMonitoringService>(DI_TOKENS.IPerformanceMonitoringService);
       const prometheusMetrics = DIContainer.get<IPrometheusMetricsService>(DI_TOKENS.IPrometheusMetricsService);
 
-      // DI Container로 관리되지 않는 서비스들 (수동 생성)
-      // TODO: 향후 이들도 DI Container로 이관할 예정
-      const voiceForumService = new VoiceChannelForumIntegrationService(
-        this.client as unknown as ExtendedClient,
-        config.FORUM_CHANNEL_ID || '',
-        config.VOICE_CATEGORY_ID || '',
-        dbManager as any // 임시 타입 캐스팅
-      );
+      // UI/Forum 서비스들도 DI Container에서 가져오기
+      const voiceForumService = DIContainer.get<any>(DI_TOKENS.IVoiceChannelForumIntegrationService);
+      const emojiReactionService = DIContainer.get<any>(DI_TOKENS.IEmojiReactionService);
+      const eventManager = DIContainer.get<any>(DI_TOKENS.IEventManager);
 
-      const emojiReactionService = new EmojiReactionService(
-        this.client,
-        voiceForumService.forumPostManager
-      );
+      // EmojiReactionService에 ForumPostManager 주입
+      emojiReactionService.setForumPostManager(voiceForumService.forumPostManager);
 
-      const eventManager = new EventManager(this.client as unknown as ExtendedClient);
+      // CommandHandler에 VoiceChannelForumIntegrationService 주입
+      (commandHandler as any).setVoiceForumService(voiceForumService);
 
       logger.info('DI Container 서비스 조회 완료');
 
@@ -213,7 +226,6 @@ export class Bot {
         redisService,
         dbManager,
         logService,
-        calendarLogService,
         activityTracker,
         voiceForumService,
         emojiReactionService,
@@ -243,7 +255,6 @@ export class Bot {
         database: false,
         eventManager: false,
         activityTracker: false,
-        calendarLog: false,
         voiceForumMapping: false,
       },
       errors: [],
@@ -345,17 +356,36 @@ export class Bot {
         // 통계 업데이트
         this.updateStats();
 
-        // 활동 추적 초기화
-        const guild = readyClient.guilds.cache.get(config.GUILDID);
-        if (guild) {
+        // 활동 추적 초기화 (모든 길드에 대해)
+        const guilds = readyClient.guilds.cache;
+        if (guilds.size === 0) {
+          const errorMsg = '봇이 속한 길드가 없습니다';
+          initResult.errors.push(errorMsg);
+          logger.error(errorMsg);
+        } else {
           try {
-            logger.info('활동 추적 초기화 시작', {
-              guildId: guild.id,
-              guildName: guild.name,
-              memberCount: guild.memberCount,
+            logger.info(`활동 추적 초기화 시작 (총 ${guilds.size}개 길드)`, {
+              guildCount: guilds.size,
+              guildNames: guilds.map(g => g.name),
             });
 
-            await this.services.activityTracker.initializeActivityData(guild);
+            // 각 길드에 대해 활동 추적 초기화
+            for (const [guildId, guild] of guilds) {
+              try {
+                logger.info(`길드 초기화: ${guild.name} (${guildId})`, {
+                  guildId: guild.id,
+                  guildName: guild.name,
+                  memberCount: guild.memberCount,
+                });
+
+                await this.services.activityTracker.initializeActivityData(guild);
+                logger.info(`✅ ${guild.name} 활동 추적 초기화 완료`);
+              } catch (error) {
+                const errorMsg = `길드 ${guild.name} 활동 추적 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
+                initResult.errors.push(errorMsg);
+                logger.error(errorMsg);
+              }
+            }
             
             // Redis 세션 복구 (Redis가 연결된 경우에만)
             if (this.services.redisService.isConnected()) {
@@ -363,29 +393,14 @@ export class Bot {
             }
             
             initResult.services.activityTracker = true;
-            logger.info('✅ 활동 추적 초기화 완료');
+            logger.info('✅ 모든 길드 활동 추적 초기화 완료');
           } catch (error) {
             const errorMsg = `활동 추적 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
             initResult.errors.push(errorMsg);
             logger.error(errorMsg);
           }
-        } else {
-          const errorMsg = `길드를 찾을 수 없습니다: ${config.GUILDID}`;
-          initResult.errors.push(errorMsg);
-          logger.error(errorMsg);
         }
 
-        // 달력 로그 서비스 초기화
-        try {
-          logger.info('달력 로그 서비스 초기화 시작');
-          await this.services.calendarLogService.initialize();
-          initResult.services.calendarLog = true;
-          logger.info('✅ 달력 로그 서비스 초기화 완료');
-        } catch (error) {
-          const errorMsg = `달력 로그 서비스 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
-          initResult.errors.push(errorMsg);
-          logger.error(errorMsg);
-        }
 
         // VoiceChannelForumIntegrationService 매핑 초기화
         try {
@@ -428,13 +443,11 @@ export class Bot {
 
         logger.info('🎉 봇이 완전히 준비되었습니다!', {
           successfulServices: `${successfulServices}/${totalServices}`,
-          guild: guild
-            ? {
-                id: guild.id,
-                name: guild.name,
-                memberCount: guild.memberCount,
-              }
-            : null,
+          guilds: {
+            count: readyClient.guilds.cache.size,
+            names: readyClient.guilds.cache.map(g => g.name),
+            totalMembers: readyClient.guilds.cache.reduce((total, g) => total + g.memberCount, 0),
+          },
           stats: this.getBasicStats(),
           monitoring: {
             discordOptimizer: 'enabled',

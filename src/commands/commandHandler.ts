@@ -7,14 +7,16 @@ import {
   MessageFlags,
   GuildMember,
 } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
 import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions';
 import { config } from '../config/env';
-import { ActivityTracker } from '../services/activityTracker';
-import { CalendarLogService } from '../services/calendarLogService';
-import { LogService } from '../services/logService';
-import { SQLiteManager } from '../services/SQLiteManager';
-import { UserClassificationService } from '../services/UserClassificationService';
+import type { IActivityTracker } from '../interfaces/IActivityTracker';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
+import type { ILogService } from '../interfaces/ILogService';
+import { DI_TOKENS } from '../interfaces/index';
+import type { IUserClassificationService } from '../interfaces/IUserClassificationService';
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
 import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
 
 import { CommandBase, CommandServices } from './CommandBase';
@@ -58,17 +60,19 @@ interface CommandHandlerStatistics {
 
 // 명령어 인터페이스 확장
 interface ExtendedCommand extends CommandBase {
-  setUserClassificationService?(service: UserClassificationService): void;
+  setUserClassificationService?(service: IUserClassificationService): void;
+  setGuildSettingsManager?(manager: GuildSettingsManager): void;
 }
 
+@injectable()
 export class CommandHandler {
   private client: Client;
-  private activityTracker: ActivityTracker;
-  private dbManager: SQLiteManager;
-  private calendarLogService: CalendarLogService;
-  private voiceForumService: VoiceChannelForumIntegrationService;
-  private logService: LogService | undefined;
-  private userClassificationService: UserClassificationService;
+  private activityTracker: IActivityTracker;
+  private dbManager: IDatabaseManager;
+  private voiceForumService?: VoiceChannelForumIntegrationService;
+  private logService: ILogService;
+  private userClassificationService: IUserClassificationService;
+  private guildSettingsManager: GuildSettingsManager;
   private config: CommandHandlerConfig;
 
   // 명령어 관리
@@ -82,20 +86,21 @@ export class CommandHandler {
   private activeCommands: Set<string>;
 
   constructor(
-    client: Client,
-    activityTracker: ActivityTracker,
-    dbManager: SQLiteManager,
-    calendarLogService: CalendarLogService,
-    voiceForumService: VoiceChannelForumIntegrationService,
-    logService?: LogService,
+    @inject(DI_TOKENS.DiscordClient) client: Client,
+    @inject(DI_TOKENS.IActivityTracker) activityTracker: IActivityTracker,
+    @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
+    @inject(DI_TOKENS.ILogService) logService: ILogService,
+    @inject(DI_TOKENS.IUserClassificationService)
+    userClassificationService: IUserClassificationService,
+    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
     config: Partial<CommandHandlerConfig> = {}
   ) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
-    this.calendarLogService = calendarLogService;
-    this.voiceForumService = voiceForumService;
     this.logService = logService;
+    this.guildSettingsManager = guildSettingsManager;
+    this.userClassificationService = userClassificationService;
 
     // 설정 초기화
     this.config = {
@@ -109,12 +114,6 @@ export class CommandHandler {
       logLevel: 'info',
       ...config,
     };
-
-    // UserClassificationService 인스턴스 생성
-    this.userClassificationService = new UserClassificationService(
-      this.dbManager,
-      this.activityTracker
-    );
 
     // 맵 초기화
     this.commands = new Map();
@@ -134,11 +133,18 @@ export class CommandHandler {
       userCommandCount: {},
     };
 
-    // 명령어 초기화
-    this.initializeCommands();
-
     // 정리 타이머
     setInterval(() => this.cleanup(), 60000); // 1분마다 정리
+  }
+
+  /**
+   * VoiceChannelForumIntegrationService 설정
+   * @param service - VoiceChannelForumIntegrationService 인스턴스
+   */
+  setVoiceForumService(service: VoiceChannelForumIntegrationService): void {
+    this.voiceForumService = service;
+    // VoiceChannelForumIntegrationService가 설정된 후에 명령어 초기화
+    this.initializeCommands();
   }
 
   /**
@@ -151,8 +157,8 @@ export class CommandHandler {
         client: this.client,
         activityTracker: this.activityTracker,
         dbManager: this.dbManager,
-        calendarLogService: this.calendarLogService,
         logService: this.logService,
+        guildSettingsManager: this.guildSettingsManager,
       };
 
       // 명령어 인스턴스 생성
@@ -162,12 +168,17 @@ export class CommandHandler {
       const gapCheckCommand = new GapCheckCommand(services);
       const recruitmentCommand = new RecruitmentCommand({
         ...services,
-        voiceForumService: this.voiceForumService,
+        voiceForumService: this.voiceForumService!,
       });
 
       // UserClassificationService 의존성 주입
       if (reportCommand.setUserClassificationService) {
         reportCommand.setUserClassificationService(this.userClassificationService);
+      }
+
+      // GuildSettingsManager 의존성 주입
+      if (reportCommand.setGuildSettingsManager) {
+        reportCommand.setGuildSettingsManager(this.guildSettingsManager);
       }
 
       // 명령어 맵에 등록
@@ -232,13 +243,13 @@ export class CommandHandler {
         return;
       }
 
-      // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
+      // 설정 관련 인터랙션 처리
       if (
         interaction.isButton() ||
         interaction.isStringSelectMenu() ||
         interaction.isModalSubmit()
       ) {
-        await this.voiceForumService.handleInteraction(interaction);
+        await this.handleSettingsInteraction(interaction);
         return;
       }
     } catch (error) {
@@ -251,6 +262,245 @@ export class CommandHandler {
           interaction: interaction.type,
         });
       }
+    }
+  }
+
+  /**
+   * 설정 관련 인터랙션 처리
+   * @param interaction - 인터랙션 객체
+   */
+  private async handleSettingsInteraction(interaction: Interaction): Promise<void> {
+    // 설정 관련 custom ID 패턴 확인
+    const settingsRelatedIds = [
+      'settings_activity_time',
+      'settings_game_list',
+      'settings_exclude_channels',
+      'settings_management_channels',
+      'activity_time_add',
+      'activity_time_edit',
+      'activity_time_delete',
+      'activity_time_role_toggle',
+      'activity_time_delete_confirm',
+      'activity_time_delete_cancel',
+      'activity_time_add_modal',
+      'activity_time_edit_modal',
+      'game_list_edit',
+      'game_list_clear',
+      'game_list_add_modal',
+      'game_list_edit_modal',
+      'exclude_channels_edit',
+      'exclude_channels_clear',
+      'exclude_channels_add_modal',
+      'exclude_channels_edit_modal',
+      'management_channels_edit',
+      'management_channels_clear',
+      'management_channels_add_modal',
+      'management_channels_edit_modal',
+      'settings_back_main',
+    ];
+
+    let customId = '';
+    if (interaction.isButton()) {
+      customId = interaction.customId;
+    } else if (interaction.isModalSubmit()) {
+      customId = interaction.customId;
+    } else if (interaction.isStringSelectMenu()) {
+      customId = interaction.customId;
+    }
+
+    // 설정 관련 인터랙션인지 확인
+    const isSettingsInteraction = settingsRelatedIds.some((id) => customId.includes(id));
+
+    if (isSettingsInteraction) {
+      // 설정 명령어 가져오기
+      const settingsCommand = this.commands.get('설정') as SettingsCommand;
+      if (settingsCommand) {
+        await this.routeSettingsInteraction(interaction, settingsCommand);
+        return;
+      }
+    }
+
+    // 설정 관련이 아닌 경우 voiceForumService로 전달
+    if (this.voiceForumService) {
+      await this.voiceForumService.handleInteraction(interaction);
+    }
+  }
+
+  /**
+   * 설정 인터랙션을 적절한 핸들러로 라우팅
+   * @param interaction - 인터랙션 객체
+   * @param settingsCommand - 설정 명령어 인스턴스
+   */
+  private async routeSettingsInteraction(
+    interaction: Interaction,
+    settingsCommand: SettingsCommand
+  ): Promise<void> {
+    try {
+      if (interaction.isButton()) {
+        await this.handleSettingsButtonInteraction(interaction, settingsCommand);
+      } else if (interaction.isModalSubmit()) {
+        await this.handleSettingsModalInteraction(interaction, settingsCommand);
+      }
+    } catch (error) {
+      console.error('설정 인터랙션 라우팅 오류:', error);
+
+      // 에러 로깅
+      if (this.logService) {
+        this.logService.logActivity('설정 인터랙션 처리 오류', [], 'settings_interaction_error', {
+          error: error instanceof Error ? error.message : String(error),
+          customId: interaction.isButton()
+            ? interaction.customId
+            : interaction.isModalSubmit()
+              ? interaction.customId
+              : 'unknown',
+        });
+      }
+    }
+  }
+
+  /**
+   * 설정 버튼 인터랙션 처리
+   * @param interaction - 버튼 인터랙션 객체
+   * @param settingsCommand - 설정 명령어 인스턴스
+   */
+  private async handleSettingsButtonInteraction(
+    interaction: any,
+    settingsCommand: SettingsCommand
+  ): Promise<void> {
+    const { customId } = interaction;
+
+    switch (customId) {
+      // 메인 카테고리 버튼들
+      case 'settings_activity_time':
+        await settingsCommand.handleActivityTimeButton(interaction);
+        break;
+      case 'settings_game_list':
+        await settingsCommand.handleGameListButton(interaction);
+        break;
+      case 'settings_exclude_channels':
+        await settingsCommand.handleExcludeChannelsButton(interaction);
+        break;
+      case 'settings_management_channels':
+        await settingsCommand.handleManagementChannelsButton(interaction);
+        break;
+
+      // 활동시간 관리 버튼들
+      case 'activity_time_add':
+        await (settingsCommand as any).showActivityTimeModal(interaction, false);
+        break;
+      case 'activity_time_edit':
+        // 수정할 역할 선택 인터페이스를 위한 추가 구현 필요
+        break;
+      case 'activity_time_delete':
+        await (settingsCommand as any).handleActivityTimeDeleteButton(interaction);
+        break;
+
+      // 게임 목록 관리 버튼들
+      case 'game_list_edit':
+        const guildId1 = interaction.guild?.id;
+        if (guildId1) {
+          const gameListSetting = await (settingsCommand as any).guildSettingsManager.getGameList(
+            guildId1
+          );
+          if (gameListSetting) {
+            await (settingsCommand as any).showGameListModal(
+              interaction,
+              true,
+              gameListSetting.games
+            );
+          }
+        }
+        break;
+
+      // 제외 채널 관리 버튼들
+      case 'exclude_channels_edit':
+        const guildId2 = interaction.guild?.id;
+        if (guildId2) {
+          const excludeChannelsSetting = await (
+            settingsCommand as any
+          ).guildSettingsManager.getExcludeChannels(guildId2);
+          if (excludeChannelsSetting) {
+            await (settingsCommand as any).showExcludeChannelsModal(
+              interaction,
+              true,
+              excludeChannelsSetting
+            );
+          }
+        }
+        break;
+
+      // 관리 채널 관리 버튼들
+      case 'management_channels_edit':
+        const guildId3 = interaction.guild?.id;
+        if (guildId3) {
+          const channelManagementSetting = await (
+            settingsCommand as any
+          ).guildSettingsManager.getChannelManagement(guildId3);
+          if (channelManagementSetting) {
+            await (settingsCommand as any).showManagementChannelsModal(
+              interaction,
+              true,
+              channelManagementSetting
+            );
+          }
+        }
+        break;
+
+      // 메인으로 돌아가기
+      case 'settings_back_main':
+        // 메인 인터페이스로 돌아가기
+        await (settingsCommand as any).showMainSettingsInterface(interaction);
+        break;
+
+      default:
+        // 활동시간 역할 선택/삭제 관련 버튼들 처리
+        if (customId.startsWith('activity_time_role_toggle_')) {
+          await (settingsCommand as any).handleActivityTimeRoleToggle(interaction);
+          return;
+        } else if (customId === 'activity_time_delete_confirm') {
+          await (settingsCommand as any).handleActivityTimeDeleteConfirm(interaction);
+          return;
+        } else if (customId === 'activity_time_delete_cancel') {
+          await (settingsCommand as any).handleActivityTimeDeleteCancel(interaction);
+          return;
+        }
+
+        console.log('처리되지 않은 설정 버튼:', customId);
+        break;
+    }
+  }
+
+  /**
+   * 설정 모달 인터랙션 처리
+   * @param interaction - 모달 인터랙션 객체
+   * @param settingsCommand - 설정 명령어 인스턴스
+   */
+  private async handleSettingsModalInteraction(
+    interaction: any,
+    settingsCommand: SettingsCommand
+  ): Promise<void> {
+    const { customId } = interaction;
+
+    switch (customId) {
+      case 'activity_time_add_modal':
+      case 'activity_time_edit_modal':
+        await settingsCommand.handleActivityTimeModalSubmit(interaction);
+        break;
+      case 'game_list_add_modal':
+      case 'game_list_edit_modal':
+        await settingsCommand.handleGameListModalSubmit(interaction);
+        break;
+      case 'exclude_channels_add_modal':
+      case 'exclude_channels_edit_modal':
+        await settingsCommand.handleExcludeChannelsModalSubmit(interaction);
+        break;
+      case 'management_channels_add_modal':
+      case 'management_channels_edit_modal':
+        await settingsCommand.handleManagementChannelsModalSubmit(interaction);
+        break;
+      default:
+        console.log('처리되지 않은 설정 모달:', customId);
+        break;
     }
   }
 

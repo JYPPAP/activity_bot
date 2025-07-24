@@ -42,4 +42,13 @@ export interface ILogService {
   // 배치 처리
   flush(): Promise<void>;
   cleanup(): Promise<void>;
+
+  // 캐시 관리
+  clearChannelCache(guildId: string): void;
+  clearAllChannelCache(): void;
+  getCacheStats(): {
+    size: number;
+    entries: Array<{ guildId: string; channelId: string; age: number }>;
+  };
+  updateLogChannel(guildId: string, channelId: string): Promise<void>;
 }

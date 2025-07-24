@@ -80,3 +80,51 @@ coverage/
 
 # Prettier cache
 .prettiercache
+/.env.backup
+/.env.development
+/.env.production
+/activity_bot.sqlite-shm
+/activity_bot.sqlite-wal
+/get-docker.sh
+/src/database/guild_settings_schema.sql
+
+logs
+dev-debug.log
+# Dependency directories
+node_modules/
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task files
+# tasks.json
+# tasks/ 
+/.claude/
+/.clinerules/
+/.cursor/
+/.gemini/
+/.husky/
+/.idea/
+/.jest-cache/
+/.roo/
+/.taskmaster/
+/.trae/
+/.vscode/
+/.windsurf/
+/coverage/
+/database/
+/logs/
+/node_modules/
+/tests/
+/.env
+/.env.backup
+/.env.development
+/.env.example
+/.env.production

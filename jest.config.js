@@ -6,11 +6,6 @@ export default {
   
   // ES Modules 지원
   extensionsToTreatAsEsm: ['.ts'],
-  globals: {
-    'ts-jest': {
-      useESM: true
-    }
-  },
   
   // 테스트 파일 패턴
   testMatch: [
@@ -26,7 +21,7 @@ export default {
   },
   
   // 모듈 해석 설정
-  moduleNameMapping: {
+  moduleNameMapper: {
     '^(\\.{1,2}/.*)\\.js$': '$1'
   },
   

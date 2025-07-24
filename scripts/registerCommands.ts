@@ -1,11 +1,11 @@
-// scripts/registerCommands.js - 슬래시 명령어 등록 스크립트
+// scripts/registerCommands.ts - 슬래시 명령어 등록 스크립트
 import { REST } from '@discordjs/rest';
 import { Routes } from 'discord-api-types/v10';
 import { SlashCommandBuilder } from '@discordjs/builders';
-import { config } from '../src/config/env.js';
+import { config } from '../src/config/env';
 
 // 명령어 정의 배열 생성
-const commands = [];
+const commands: SlashCommandBuilder[] = [];
 
 // 잠수 명령어 (기존 gap_afk)
 commands.push(
@@ -45,39 +45,7 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('설정')
-    .setDescription('역할별 최소 활동시간을 설정합니다.')
-    .addStringOption(option =>
-      option.setName('role')
-            .setDescription('설정할 역할 이름')
-            .setRequired(true)
-    )
-    .addIntegerOption(option =>
-      option.setName('hours')
-            .setDescription('최소 활동시간 (시간)')
-            .setRequired(true)
-            .setMinValue(0)
-            .setMaxValue(168)
-    )
-    .addStringOption(option =>
-      option.setName('reset_time')
-            .setDescription('리셋 시간 (선택사항, 형식: YYYY-MM-DD HH:MM)')
-            .setRequired(false)
-    )
-    .addStringOption(option =>
-      option.setName('report_cycle')
-            .setDescription('보고 주기 (선택사항)')
-            .setRequired(false)
-            .addChoices(
-              { name: '일간', value: 'daily' },
-              { name: '주간', value: 'weekly' },
-              { name: '월간', value: 'monthly' }
-            )
-    )
-    .addBooleanOption(option =>
-      option.setName('enabled')
-            .setDescription('역할 활성화 여부 (선택사항)')
-            .setRequired(false)
-    )
+    .setDescription('역할별 최소 활동시간 설정 관리 인터페이스를 표시합니다.')
 );
 
 // 보고서 명령어 (기존 gap_report)
@@ -107,24 +75,29 @@ commands.push(
     )
 );
 
-// 시간체크 명령어 (그대로 유지)
+// 시간체크 명령어
 commands.push(
   new SlashCommandBuilder()
     .setName('시간체크')
-    .setDescription('특정 사용자의 활동 시간을 확인합니다.')
-    .addUserOption(option =>
-      option.setName('user')
-            .setDescription('확인할 사용자')
+    .setDescription('본인의 활동 시간을 조회합니다.')
+    .addStringOption(option =>
+      option.setName('start_date')
+            .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
             .setRequired(true)
     )
     .addStringOption(option =>
-      option.setName('start_date')
-            .setDescription('시작 날짜 (YYMMDD 형식, 예: 250413)')
+      option.setName('end_date')
+            .setDescription('종료 날짜 (YYMMDD 형식, 예: 241231, 비워두면 현재 날짜)')
             .setRequired(false)
     )
-    .addStringOption(option =>
-      option.setName('end_date')
-            .setDescription('종료 날짜 (YYMMDD 형식, 예: 250420)')
+    .addBooleanOption(option =>
+      option.setName('detailed')
+            .setDescription('상세 정보 표시 여부')
+            .setRequired(false)
+    )
+    .addBooleanOption(option =>
+      option.setName('public')
+            .setDescription('공개 응답 여부 (기본값: 비공개)')
             .setRequired(false)
     )
 );
@@ -139,19 +112,34 @@ commands.push(
 // REST 클라이언트 생성
 const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 
-(async () => {
+// 길드 ID 확인 (명령줄 인수 또는 환경변수에서)
+const guildId = process.argv[2] || process.env.REGISTER_GUILD_ID;
+if (!guildId) {
+  console.error('❌ 길드 ID가 필요합니다.');
+  console.error('사용법: npm run register-commands <GUILD_ID>');
+  console.error('또는 REGISTER_GUILD_ID 환경변수를 설정하세요.');
+  process.exit(1);
+}
+
+(async (): Promise<void> => {
     try {
-        console.log('슬래시 명령어 등록을 시작합니다...');
+        console.log(`슬래시 명령어 등록을 시작합니다... (Guild ID: ${guildId})`);
 
         await rest.put(
           Routes.applicationGuildCommands(
             config.CLIENT_ID,
-            config.GUILDID
+            guildId
           ),
           { body: commands.map(command => command.toJSON()) }
         );
 
-        console.log('슬래시 명령어가 성공적으로 등록되었습니다!');
+        console.log('\n✅ 슬래시 명령어가 성공적으로 등록되었습니다!');
+        console.log('\n📋 등록된 명령어 목록:');
+        commands.forEach((command, index) => {
+            const commandData = command.toJSON();
+            console.log(`   ${index + 1}. /${commandData.name} - ${commandData.description}`);
+        });
+        console.log(`\n총 ${commands.length}개의 명령어가 등록되었습니다.\n`);
     } catch (error) {
         console.error('명령어 등록 중 오류 발생:', error);
     }

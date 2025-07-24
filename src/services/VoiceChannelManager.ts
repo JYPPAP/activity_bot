@@ -1,5 +1,7 @@
 // src/services/VoiceChannelManager.ts - 음성 채널 관리
 import { Client, Channel, VoiceState, GuildMember, ChannelType, Guild } from 'discord.js';
+
+import type { GuildSettingsManager } from './GuildSettingsManager';
 // import { DiscordConstants } from '../config/DiscordConstants'; // 미사용
 // import { RecruitmentConfig } from '../config/RecruitmentConfig'; // 미사용
 
@@ -113,7 +115,7 @@ interface ChannelStatistics {
 
 export class VoiceChannelManager {
   private readonly client: Client;
-  private readonly voiceCategoryId: string;
+  private readonly guildSettingsManager: GuildSettingsManager;
 
   // 통계 및 모니터링
   private operationStats: {
@@ -132,11 +134,11 @@ export class VoiceChannelManager {
   private channelCache: Map<string, { info: VoiceChannelInfo; timestamp: number }> = new Map();
   private readonly cacheTimeout: number = 2 * 60 * 1000; // 2분
 
-  constructor(client: Client, voiceCategoryId: string) {
+  constructor(client: Client, guildSettingsManager: GuildSettingsManager) {
     this.client = client;
-    this.voiceCategoryId = voiceCategoryId;
+    this.guildSettingsManager = guildSettingsManager;
 
-    console.log(`[VoiceChannelManager] 초기화됨 - 대상 카테고리 ID: ${this.voiceCategoryId}`);
+    console.log(`[VoiceChannelManager] 초기화됨 - 음성 카테고리 ID는 DB에서 동적으로 조회됩니다`);
 
     // 정기적으로 캐시 정리
     setInterval(
@@ -148,17 +150,53 @@ export class VoiceChannelManager {
   }
 
   /**
-   * 음성 채널 생성 이벤트 처리
+   * 음성 채널 생성 이벤트 처리 (비동기)
    * @param channel - 생성된 채널
    * @returns 처리 대상 여부
    */
-  isTargetVoiceChannel(channel: Channel): boolean {
+  async isTargetVoiceChannel(channel: Channel): Promise<boolean> {
     try {
-      return (
-        channel.type === ChannelType.GuildVoice &&
-        'parentId' in channel &&
-        channel.parentId === this.voiceCategoryId
+      // 음성 채널인지 먼저 확인
+      if (channel.type !== ChannelType.GuildVoice || !('parentId' in channel)) {
+        console.log(`[VoiceChannelManager] 대상 채널 체크: 음성 채널이 아님 (${channel.type})`);
+        return false;
+      }
+
+      // 길드 ID 가져오기
+      const guildId = channel.guild?.id;
+      if (!guildId) {
+        console.warn('[VoiceChannelManager] 대상 채널 체크: 길드 ID를 찾을 수 없음');
+        return false;
+      }
+
+      // 데이터베이스에서 음성 카테고리 ID 조회
+      const channelManagementSettings =
+        await this.guildSettingsManager.getChannelManagement(guildId);
+      const voiceCategoryId = channelManagementSettings?.voiceCategoryId;
+
+      console.log(`[VoiceChannelManager] 대상 채널 체크:`, {
+        channelId: channel.id,
+        channelName: 'name' in channel ? channel.name : 'Unknown',
+        channelParentId: channel.parentId,
+        dbVoiceCategoryId: voiceCategoryId,
+        isConfigured: !!voiceCategoryId,
+      });
+
+      // 음성 카테고리 ID가 설정되지 않은 경우
+      if (!voiceCategoryId) {
+        console.log(
+          `[VoiceChannelManager] 대상 채널 체크: DB에 음성 카테고리 ID가 설정되지 않음 - 메시지 전송 안함`
+        );
+        return false;
+      }
+
+      // 채널의 부모 카테고리와 DB 설정값 비교
+      const isTargetCategory = channel.parentId === voiceCategoryId;
+      console.log(
+        `[VoiceChannelManager] 대상 채널 체크 결과: ${isTargetCategory ? '✅ 대상 채널' : '❌ 대상 아님'}`
       );
+
+      return isTargetCategory;
     } catch (error) {
       console.error('[VoiceChannelManager] 대상 채널 확인 오류:', error);
       return false;
@@ -170,11 +208,11 @@ export class VoiceChannelManager {
    * @param channel - 삭제된 채널
    * @returns 처리 대상 여부
    */
-  shouldHandleChannelDeletion(channel: Channel): boolean {
+  async shouldHandleChannelDeletion(channel: Channel): Promise<boolean> {
     try {
       // 캐시에서 제거
       this.channelCache.delete(channel.id);
-      return this.isTargetVoiceChannel(channel);
+      return await this.isTargetVoiceChannel(channel);
     } catch (error) {
       console.error('[VoiceChannelManager] 채널 삭제 처리 확인 오류:', error);
       return false;
@@ -187,9 +225,9 @@ export class VoiceChannelManager {
    * @param newChannel - 변경 후 채널
    * @returns 변경 정보
    */
-  detectChannelChanges(oldChannel: Channel, newChannel: Channel): ChannelChangeInfo {
+  async detectChannelChanges(oldChannel: Channel, newChannel: Channel): Promise<ChannelChangeInfo> {
     try {
-      const isTarget = this.isTargetVoiceChannel(newChannel);
+      const isTarget = await this.isTargetVoiceChannel(newChannel);
 
       // 기본 변경 정보
       let nameChanged = false;
@@ -253,12 +291,15 @@ export class VoiceChannelManager {
   }
 
   /**
-   * 음성 상태 변경 이벤트 분석
+   * 음성 상태 변경 이벤트 분석 (비동기)
    * @param oldState - 변경 전 음성 상태
    * @param newState - 변경 후 음성 상태
    * @returns 상태 변경 정보
    */
-  analyzeVoiceStateChange(oldState: VoiceState, newState: VoiceState): VoiceStateChangeInfo {
+  async analyzeVoiceStateChange(
+    oldState: VoiceState,
+    newState: VoiceState
+  ): Promise<VoiceStateChangeInfo> {
     const result: VoiceStateChangeInfo = {
       actionType: null,
       channelId: null,
@@ -271,18 +312,35 @@ export class VoiceChannelManager {
     };
 
     try {
+      // 길드 ID 가져오기
+      const guildId = newState.guild?.id || oldState.guild?.id;
+      if (!guildId) {
+        console.warn('[VoiceChannelManager] 음성 상태 변경 분석: 길드 ID를 찾을 수 없음');
+        return result;
+      }
+
+      // 데이터베이스에서 음성 카테고리 ID 조회
+      const channelManagementSettings =
+        await this.guildSettingsManager.getChannelManagement(guildId);
+      const voiceCategoryId = channelManagementSettings?.voiceCategoryId;
+
+      console.log(
+        `[VoiceChannelManager] 음성 상태 변경 분석 - DB 카테고리 ID: ${voiceCategoryId || '미설정'}`
+      );
+
       // 채널 입장
       if (!oldState.channel && newState.channel) {
         result.actionType = 'join';
         result.channelId = newState.channel.id;
         result.channelName = newState.channel.name;
-        result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
+        result.isTargetCategory =
+          !!voiceCategoryId && newState.channel.parentId === voiceCategoryId;
 
         console.log(
           `[VoiceChannelManager] 음성 채널 입장 분석: ${result.memberName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`
         );
         console.log(
-          `[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, 설정된 voiceCategoryId: ${this.voiceCategoryId}`
+          `[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, DB voiceCategoryId: ${voiceCategoryId || '미설정'}`
         );
       }
       // 채널 퇴장
@@ -291,7 +349,8 @@ export class VoiceChannelManager {
         result.oldChannelId = oldState.channel.id;
         result.channelId = oldState.channel.id; // 퇴장한 채널을 channelId로도 설정
         result.oldChannelName = oldState.channel.name;
-        result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
+        result.wasTargetCategory =
+          !!voiceCategoryId && oldState.channel.parentId === voiceCategoryId;
         result.isTargetCategory = result.wasTargetCategory; // 호환성을 위해
 
         console.log(
@@ -309,8 +368,10 @@ export class VoiceChannelManager {
         result.oldChannelId = oldState.channel.id;
         result.channelName = newState.channel.name;
         result.oldChannelName = oldState.channel.name;
-        result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
-        result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
+        result.isTargetCategory =
+          !!voiceCategoryId && newState.channel.parentId === voiceCategoryId;
+        result.wasTargetCategory =
+          !!voiceCategoryId && oldState.channel.parentId === voiceCategoryId;
 
         console.log(
           `[VoiceChannelManager] 음성 채널 이동 분석: ${result.memberName} ${oldState.channel.name} -> ${newState.channel.name} (이전 카테고리: ${result.wasTargetCategory}, 현재 카테고리: ${result.isTargetCategory})`
@@ -325,7 +386,8 @@ export class VoiceChannelManager {
         result.actionType = 'update';
         result.channelId = newState.channel.id;
         result.channelName = newState.channel.name;
-        result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
+        result.isTargetCategory =
+          !!voiceCategoryId && newState.channel.parentId === voiceCategoryId;
 
         // 상태 변경은 일반적으로 참여자 수에 영향을 주지 않으므로 로그를 최소화
         console.log(
@@ -361,6 +423,21 @@ export class VoiceChannelManager {
       }
 
       const voiceChannel = channel;
+
+      // 데이터베이스에서 음성 카테고리 ID 조회 (isTargetCategory 계산용)
+      let isTargetCategory = false;
+      try {
+        const guildId = voiceChannel.guild?.id;
+        if (guildId) {
+          const channelManagementSettings =
+            await this.guildSettingsManager.getChannelManagement(guildId);
+          const voiceCategoryId = channelManagementSettings?.voiceCategoryId;
+          isTargetCategory = !!voiceCategoryId && voiceChannel.parentId === voiceCategoryId;
+        }
+      } catch (error) {
+        console.warn(`[VoiceChannelManager] isTargetCategory 계산 실패 for ${channelId}:`, error);
+      }
+
       const channelInfo: VoiceChannelInfo = {
         id: voiceChannel.id,
         name: voiceChannel.name,
@@ -368,7 +445,7 @@ export class VoiceChannelManager {
         userLimit: voiceChannel.userLimit || 0,
         memberCount: voiceChannel.members.size,
         members: Array.from(voiceChannel.members.values()),
-        isTargetCategory: voiceChannel.parentId === this.voiceCategoryId,
+        isTargetCategory,
         guild: voiceChannel.guild,
         bitrate: voiceChannel.bitrate,
         categoryName: voiceChannel.parent?.name || 'Unknown',
@@ -722,13 +799,30 @@ export class VoiceChannelManager {
         throw new Error('길드를 찾을 수 없음');
       }
 
+      // 데이터베이스에서 음성 카테고리 ID 조회
+      const channelManagementSettings = await this.guildSettingsManager.getChannelManagement(
+        guild.id
+      );
+      const voiceCategoryId = channelManagementSettings?.voiceCategoryId;
+
+      console.log(
+        `[VoiceChannelManager] 채널 통계 조회 - DB 카테고리 ID: ${voiceCategoryId || '미설정'}`
+      );
+
       const allChannels = guild.channels.cache.filter(
         (channel) => channel.type === ChannelType.GuildVoice
       );
 
-      const targetCategoryChannels = allChannels.filter(
-        (channel) => 'parentId' in channel && channel.parentId === this.voiceCategoryId
-      );
+      // 음성 카테고리 ID가 설정되지 않은 경우 빈 통계 반환
+      let targetCategoryChannels;
+      if (!voiceCategoryId) {
+        console.log(`[VoiceChannelManager] 음성 카테고리 ID가 설정되지 않음 - 빈 통계 반환`);
+        targetCategoryChannels = new Map(); // 빈 컬렉션
+      } else {
+        targetCategoryChannels = allChannels.filter(
+          (channel) => 'parentId' in channel && channel.parentId === voiceCategoryId
+        );
+      }
 
       let totalMembers = 0;
       let channelsWithMembers = 0;

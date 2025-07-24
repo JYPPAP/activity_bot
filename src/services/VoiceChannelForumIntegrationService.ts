@@ -6,22 +6,28 @@ import {
   GuildMember,
   Interaction,
   ButtonInteraction,
+  ChatInputCommandInteraction,
   User,
   MessageFlags,
 } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
 import { config } from '../config/env';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
+import { DI_TOKENS } from '../interfaces/index';
 import { ButtonHandler } from '../ui/ButtonHandler';
 import { InteractionRouter } from '../ui/InteractionRouter';
 import { ModalHandler } from '../ui/ModalHandler';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder';
 
+import { FeatureManagerService, Features } from './FeatureManagerService';
 import { ForumPostManager } from './ForumPostManager';
+import { GuildSettingsManager } from './GuildSettingsManager';
 import { MappingService } from './MappingService';
 import { ParticipantTracker } from './ParticipantTracker';
 import { PermissionService } from './PermissionService';
 import { RecruitmentService } from './RecruitmentService';
-import { SQLiteManager } from './SQLiteManager';
+// SQLiteManager 제거됨 - PostgreSQLManager 사용
 import { VoiceChannelManager } from './VoiceChannelManager';
 
 // 구인구직 데이터 인터페이스
@@ -113,6 +119,7 @@ interface ServiceStatistics {
   lastActivity: Date;
 }
 
+@injectable()
 export class VoiceChannelForumIntegrationService {
   // private readonly _client: Client; // Unused
   // private readonly _forumChannelId: string; // Unused
@@ -142,23 +149,29 @@ export class VoiceChannelForumIntegrationService {
   private responseTimeSum: number = 0;
 
   constructor(
-    _client: Client,
-    _forumChannelId: string,
-    _voiceCategoryId: string,
-    _databaseManager: SQLiteManager | null = null
+    @inject(DI_TOKENS.DiscordClient) _client: Client,
+    @inject(DI_TOKENS.BotConfig) private configService: typeof config,
+    @inject(DI_TOKENS.IDatabaseManager) _databaseManager: IDatabaseManager,
+    @inject(FeatureManagerService) private featureManager: FeatureManagerService,
+    @inject(DI_TOKENS.IGuildSettingsManager) private guildSettingsManager: GuildSettingsManager
   ) {
     // this._client = _client; // Unused
     // this._forumChannelId = _forumChannelId; // Unused
     // this._voiceCategoryId = _voiceCategoryId; // Unused
     // this._databaseManager = _databaseManager; // Unused
 
+    // 환경변수를 fallback으로 사용
+    const _forumChannelId = this.configService.FORUM_CHANNEL_ID || '';
+    // _voiceCategoryId는 더 이상 사용하지 않음 - DB에서 동적으로 조회
+
     // Core Services 초기화
-    this.voiceChannelManager = new VoiceChannelManager(_client, _voiceCategoryId);
+    this.voiceChannelManager = new VoiceChannelManager(_client, this.guildSettingsManager);
     this.forumPostManager = new ForumPostManager(
       _client,
       _forumChannelId,
-      config.FORUM_TAG_ID || '',
-      _databaseManager
+      this.configService.FORUM_TAG_ID || '',
+      _databaseManager as any, // 임시 타입 캐스팅
+      this.guildSettingsManager
     );
     this.participantTracker = new ParticipantTracker(_client);
     this.mappingService = new MappingService(
@@ -182,7 +195,8 @@ export class VoiceChannelForumIntegrationService {
     this.buttonHandler = new ButtonHandler(
       this.voiceChannelManager,
       this.recruitmentService,
-      this.modalHandler
+      this.modalHandler,
+      this.guildSettingsManager
     );
     this.interactionRouter = new InteractionRouter(
       this.buttonHandler,
@@ -241,6 +255,11 @@ export class VoiceChannelForumIntegrationService {
    * @param newState - 변경 후 음성 상태
    */
   async handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState): Promise<void> {
+    // 포럼 통합 기능 확인
+    if (!this.featureManager.isFeatureEnabled(Features.FORUM_INTEGRATION)) {
+      return;
+    }
+
     try {
       await this.recruitmentService.handleVoiceStateUpdate(oldState, newState);
       this.recordSuccessfulInteraction();
@@ -312,7 +331,7 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * 역할 태그 버튼 처리 (하위 호환성을 위해 유지)
+   * 게임 태그 버튼 처리 (하위 호환성을 위해 유지)
    * @param interaction - 버튼 인터랙션
    */
   async handleRoleTagButtons(interaction: ButtonInteraction): Promise<void> {
@@ -320,7 +339,7 @@ export class VoiceChannelForumIntegrationService {
       await this.buttonHandler.handleRoleTagButtons(interaction);
       this.recordSuccessfulInteraction();
     } catch (error) {
-      console.error('[VoiceForumService] 역할 태그 버튼 처리 오류:', error);
+      console.error('[VoiceForumService] 게임 태그 버튼 처리 오류:', error);
       this.recordFailedInteraction();
     }
   }
@@ -330,30 +349,30 @@ export class VoiceChannelForumIntegrationService {
    */
 
   /**
-   * 독립 구인구직 시작 - 역할 태그 선택 화면 표시
+   * 독립 구인구직 시작 - 게임 태그 선택 화면 표시
    * @param interaction - 인터랙션 객체
    */
-  async showStandaloneRecruitmentModal(interaction: Interaction): Promise<void> {
+  async showStandaloneRecruitmentModal(interaction: ChatInputCommandInteraction): Promise<void> {
     try {
-      // 권한 체크는 이미 RecruitmentCommand에서 했지만 추가 보안을 위해 다시 체크
-      if (
-        !this.hasRecruitmentPermission(interaction.user, interaction.member as GuildMember | null)
-      ) {
-        if (interaction.isRepliable()) {
-          await interaction.reply({
-            content:
-              '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
-            flags: MessageFlags.Ephemeral,
-          });
-        }
-        return;
-      }
+      // 권한 체크 제거 - 모든 사용자가 구인구직 기능 사용 가능
 
-      // 역할 태그 선택 화면 표시
+      // 게임 태그 선택 화면 표시
       const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], true);
-      const components = RecruitmentUIBuilder.createRoleTagButtons([], null, null, true);
+      const components = await RecruitmentUIBuilder.createRoleTagButtons(
+        [],
+        null,
+        null,
+        true,
+        interaction.guild?.id || null
+      );
 
-      if (interaction.isRepliable()) {
+      if (interaction.deferred && !interaction.replied) {
+        await interaction.followUp({
+          embeds: [embed],
+          components,
+          flags: MessageFlags.Ephemeral,
+        });
+      } else if (interaction.isRepliable()) {
         await interaction.reply({
           embeds: [embed],
           components,
@@ -365,6 +384,11 @@ export class VoiceChannelForumIntegrationService {
 
       if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
         await interaction.reply({
+          content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
+          flags: MessageFlags.Ephemeral,
+        });
+      } else if (interaction.deferred && !interaction.replied) {
+        await interaction.followUp({
           content: '❌ 오류가 발생했습니다. 다시 시도해주세요.',
           flags: MessageFlags.Ephemeral,
         });

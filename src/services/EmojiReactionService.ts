@@ -1,7 +1,12 @@
 // src/services/EmojiReactionService.ts - 이모지 반응 처리 서비스
 import { Client, MessageReaction, User, Channel, ChannelType } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
+import { DI_TOKENS } from '../interfaces/index';
 import { TextProcessor } from '../utils/TextProcessor';
+
+import { FeatureManagerService, Features } from './FeatureManagerService';
+import type { ForumPostManager } from './ForumPostManager';
 
 // 이모지 반응 통계 인터페이스
 interface EmojiReactionStats {
@@ -60,29 +65,40 @@ interface ForumThreadInfo {
   isActive: boolean;
 }
 
+@injectable()
 export class EmojiReactionService {
   private client: Client;
-  private forumPostManager: any;
+  private forumPostManager?: ForumPostManager;
   private config: EmojiConfig;
   private reactionStats: Map<string, EmojiReactionStats> = new Map();
   private participantCache: Map<string, ParticipantInfo[]> = new Map();
   private reactionHistory: ReactionEvent[] = [];
   private maxHistorySize: number = 1000;
 
-  constructor(client: Client, forumPostManager: any) {
+  constructor(
+    @inject(DI_TOKENS.DiscordClient) client: Client,
+    @inject(FeatureManagerService) private featureManager: FeatureManagerService
+  ) {
     this.client = client;
-    this.forumPostManager = forumPostManager;
 
-    // 기본 이모지 설정
+    // 기본 이모지 설정 - 표준 이모지 우선, 커스텀 이모지는 fallback
     this.config = {
-      targetEmojiId: '1319891512573689917',
+      targetEmojiId: '1319891512573689917', // 커스텀 이모지 (fallback 용도)
       alternativeEmojis: [],
-      enableUnicodeEmojis: false,
-      unicodeEmojis: ['👍', '✅', '🙋‍♂️', '🙋‍♀️'],
+      enableUnicodeEmojis: true, // 표준 이모지 활성화
+      unicodeEmojis: ['🎯', '👍', '✅', '🙋‍♂️', '🙋‍♀️'], // 🎯를 주요 이모지로 추가
     };
 
     // 통계 초기화
     this.initializeStats();
+  }
+
+  /**
+   * ForumPostManager 설정
+   * @param forumPostManager - ForumPostManager 인스턴스
+   */
+  setForumPostManager(forumPostManager: ForumPostManager): void {
+    this.forumPostManager = forumPostManager;
   }
 
   /**
@@ -91,6 +107,11 @@ export class EmojiReactionService {
    * @param user - 반응한 사용자
    */
   async handleMessageReactionAdd(reaction: MessageReaction, user: User): Promise<void> {
+    // 기능 활성화 확인
+    if (!this.featureManager.isFeatureEnabled(Features.EMOJI_REACTIONS)) {
+      return;
+    }
+
     try {
       // 봇 자신의 반응은 무시
       if (user.bot) {
@@ -107,8 +128,11 @@ export class EmojiReactionService {
         return;
       }
 
+      // starter message 확인
+      const isStarterMessage = this.isForumStarterMessage(reaction);
+
       console.log(
-        `[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'}`
+        `[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'} (starter: ${isStarterMessage})`
       );
 
       // 반응 이벤트 기록
@@ -124,11 +148,13 @@ export class EmojiReactionService {
       this.updateReactionStats(reaction.message.channel.id, participants);
 
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
-      await this.forumPostManager.sendEmojiParticipantUpdate(
-        reaction.message.channel.id,
-        participants.map((p) => p.cleanedName),
-        '참가'
-      );
+      if (this.forumPostManager) {
+        await this.forumPostManager.sendEmojiParticipantUpdate(
+          reaction.message.channel.id,
+          participants.map((p) => p.cleanedName),
+          '참가'
+        );
+      }
 
       // 참가자 알림 처리
       await this.handleParticipantNotification(reaction, user, 'join');
@@ -159,8 +185,11 @@ export class EmojiReactionService {
         return;
       }
 
+      // starter message 확인
+      const isStarterMessage = this.isForumStarterMessage(reaction);
+
       console.log(
-        `[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'}`
+        `[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'DM'} (starter: ${isStarterMessage})`
       );
 
       // 반응 이벤트 기록
@@ -176,11 +205,13 @@ export class EmojiReactionService {
       this.updateReactionStats(reaction.message.channel.id, participants);
 
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
-      await this.forumPostManager.sendEmojiParticipantUpdate(
-        reaction.message.channel.id,
-        participants.map((p) => p.cleanedName),
-        '참가'
-      );
+      if (this.forumPostManager) {
+        await this.forumPostManager.sendEmojiParticipantUpdate(
+          reaction.message.channel.id,
+          participants.map((p) => p.cleanedName),
+          '참가'
+        );
+      }
 
       // 참가자 알림 처리
       await this.handleParticipantNotification(reaction, user, 'leave');
@@ -226,6 +257,16 @@ export class EmojiReactionService {
   }
 
   /**
+   * 포럼 포스트의 starter message인지 확인
+   * @param reaction - 반응 객체
+   * @returns starter message 여부
+   */
+  private isForumStarterMessage(reaction: MessageReaction): boolean {
+    // 포럼 스레드에서 메시지 ID와 채널 ID가 같으면 starter message
+    return reaction.message.id === reaction.message.channel.id;
+  }
+
+  /**
    * 해당 이모지에 반응한 참가자들 가져오기
    * @param reaction - 반응 객체
    * @returns 참가자 정보 배열
@@ -239,9 +280,11 @@ export class EmojiReactionService {
 
       // 반응한 사용자들 가져오기
       const users = await reaction.users.fetch();
+      console.log(`[EmojiReactionService] 총 반응한 사용자 수: ${users.size}`);
 
       // 봇 제외하고 사용자들만 필터링
       const realUsers = users.filter((user) => !user.bot);
+      console.log(`[EmojiReactionService] 봇 제외 사용자 수: ${realUsers.size}`);
 
       // 길드 멤버 정보를 가져와서 참가자 정보 구성
       const guild = reaction.message.guild;
@@ -316,6 +359,12 @@ export class EmojiReactionService {
         return null;
       }
 
+      // starter message 확인
+      const isStarterMessage = message.id === channelId;
+      console.log(
+        `[EmojiReactionService] 메시지 타입 확인 - messageId: ${messageId}, channelId: ${channelId}, isStarter: ${isStarterMessage}`
+      );
+
       // 해당 이모지 반응 찾기
       const targetReaction = message.reactions.cache.find((reaction) =>
         this.isTargetEmoji(reaction)
@@ -327,6 +376,7 @@ export class EmojiReactionService {
       }
 
       const participants = await this.getReactionParticipants(targetReaction);
+      console.log(`[EmojiReactionService] 최종 참가자 수: ${participants.length}`);
       return participants.map((p) => p.cleanedName);
     } catch (error) {
       console.error('[EmojiReactionService] 메시지에서 참가자 가져오기 오류:', error);
@@ -402,7 +452,7 @@ export class EmojiReactionService {
     action: 'join' | 'leave'
   ): Promise<void> {
     try {
-      if (!this.forumPostManager.shouldSendNotification) {
+      if (!this.forumPostManager?.sendNotification) {
         return;
       }
 
@@ -411,11 +461,13 @@ export class EmojiReactionService {
 
       const notificationMessage = `${emoji} **${user.displayName || user.username}**님이 ${actionText}!`;
 
-      await this.forumPostManager.sendNotification(
-        reaction.message.channel.id,
-        notificationMessage,
-        'participant_update'
-      );
+      if (this.forumPostManager) {
+        await this.forumPostManager.sendNotification(
+          reaction.message.channel.id,
+          notificationMessage,
+          'participant_update'
+        );
+      }
     } catch (error) {
       console.error('[EmojiReactionService] 참가자 알림 처리 오류:', error);
     }

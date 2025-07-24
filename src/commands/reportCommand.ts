@@ -8,7 +8,9 @@ import {
   TextChannel,
 } from 'discord.js';
 
-import { UserClassificationService } from '../services/UserClassificationService';
+// import { UserClassificationService } from '../services/UserClassificationService';
+import { UserClassificationServiceOptimized as UserClassificationService } from '../services/UserClassificationServiceOptimized';
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
 import { EmbedFactory } from '../utils/embedBuilder';
 import { cleanRoleName } from '../utils/formatters';
 
@@ -75,6 +77,7 @@ export class ReportCommand extends CommandBase {
   };
 
   private userClassificationService: UserClassificationService | null = null;
+  private guildSettingsManager: GuildSettingsManager | null = null;
 
   constructor(services: CommandServices) {
     super(services);
@@ -119,6 +122,14 @@ export class ReportCommand extends CommandBase {
   }
 
   /**
+   * 의존성 주입을 위한 메서드
+   * @param guildSettingsManager - 길드 설정 관리자
+   */
+  setGuildSettingsManager(guildSettingsManager: GuildSettingsManager): void {
+    this.guildSettingsManager = guildSettingsManager;
+  }
+
+  /**
    * 보고서 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    * @param options - 실행 옵션
@@ -128,21 +139,39 @@ export class ReportCommand extends CommandBase {
     _options: CommandExecutionOptions
   ): Promise<CommandResult> {
     const startTime = Date.now();
+    console.log(`[보고서] 명령어 시작: ${new Date().toISOString()}`);
+
+    let commandOptions: ReportCommandOptions | undefined;
 
     try {
       // 서비스 의존성 확인
       if (!this.userClassificationService) {
+        console.error(`[보고서] UserClassificationService가 초기화되지 않음`);
         throw new Error('UserClassificationService가 초기화되지 않았습니다.');
       }
+      if (!this.guildSettingsManager) {
+        console.error(`[보고서] GuildSettingsManager가 초기화되지 않음`);
+        throw new Error('GuildSettingsManager가 초기화되지 않았습니다.');
+      }
+      console.log(`[보고서] 서비스 의존성 확인 완료`);
 
       // 명령어 옵션 가져오기
-      const commandOptions = this.getCommandOptions(interaction);
+      commandOptions = this.getCommandOptions(interaction);
+      console.log(`[보고서] 옵션 파싱 완료:`, {
+        role: commandOptions.role,
+        startDate: commandOptions.startDateStr,
+        endDate: commandOptions.endDateStr,
+        testMode: commandOptions.isTestMode,
+      });
 
       // 캐시 확인
+      console.log(`[보고서] 캐시 확인 시작`);
       const cacheKey = this.generateCacheKey(commandOptions);
       const cached = this.getCached<ReportGenerationResult>(cacheKey);
+      console.log(`[보고서] 캐시 키: ${cacheKey}, 캐시 존재: ${!!cached}`);
 
       if (cached && !commandOptions.isTestMode) {
+        console.log(`[보고서] 캐시된 데이터 사용`);
         await this.sendCachedReport(interaction, cached);
         return {
           success: true,
@@ -152,11 +181,59 @@ export class ReportCommand extends CommandBase {
       }
 
       // 최신 데이터로 갱신
+      console.log(`[보고서] 활동 데이터 저장 시작`);
       await this.activityTracker.saveActivityData();
+      console.log(`[보고서] 활동 데이터 저장 완료`);
 
       // 역할 설정 가져오기
-      const roleConfig = await this.dbManager.getRoleConfig(commandOptions.role);
+      console.log(`[보고서] 역할 설정 조회 시작: "${commandOptions.role}"`);
+      console.log(`[보고서] 역할 이름 상세 정보:`, {
+        original: interaction.options.getString('role'),
+        cleaned: commandOptions.role,
+        length: commandOptions.role.length,
+        charCodes: [...commandOptions.role].map((c) => c.charCodeAt(0)),
+        hasSpaces: commandOptions.role.includes(' '),
+        trimmed: commandOptions.role.trim(),
+      });
+
+      const roleConfigStartTime = Date.now();
+      const roleConfig = await this.guildSettingsManager.getRoleActivityTime(
+        interaction.guildId!,
+        commandOptions.role
+      );
+      const roleConfigTime = Date.now() - roleConfigStartTime;
+
+      console.log(`[보고서] 역할 설정 조회 완료: ${roleConfigTime}ms`);
+      console.log(
+        `[보고서] 조회된 설정:`,
+        roleConfig
+          ? {
+              roleName: roleConfig.roleName || commandOptions.role,
+              minHours: roleConfig.minHours,
+              hasConfig: true,
+            }
+          : { hasConfig: false, result: null }
+      );
+
+      // 전체 역할 설정 목록도 확인 (디버깅용)
+      try {
+        console.log(`[보고서] 전체 역할 설정 조회 시작 (디버깅)`);
+        const allRoleConfigs = await this.guildSettingsManager.getAllRoleActivityTimes(
+          interaction.guildId!
+        );
+        console.log(
+          `[보고서] 전체 역할 설정 목록:`,
+          Object.entries(allRoleConfigs).map(([roleName, config]) => ({
+            roleName: roleName,
+            minHours: config.minHours,
+          }))
+        );
+      } catch (debugError) {
+        console.warn(`[보고서] 전체 역할 설정 조회 실패:`, debugError);
+      }
+
       if (!this.validateRoleConfig(roleConfig, commandOptions.role, interaction)) {
+        console.error(`[보고서] 역할 설정 검증 실패: ${commandOptions.role}`);
         return {
           success: false,
           message: `역할 "${commandOptions.role}"에 대한 설정을 찾을 수 없습니다.`,
@@ -164,8 +241,12 @@ export class ReportCommand extends CommandBase {
       }
 
       // 현재 역할을 가진 멤버 가져오기
+      console.log(`[보고서] 역할 멤버 조회 시작: ${commandOptions.role}`);
       const roleMembers = await this.getRoleMembers(interaction.guild!, commandOptions.role);
+      console.log(`[보고서] 역할 멤버 조회 완료: ${roleMembers.size}명`);
+
       if (roleMembers.size === 0) {
+        console.warn(`[보고서] 해당 역할 멤버 없음: ${commandOptions.role}`);
         return {
           success: false,
           message: `역할 "${commandOptions.role}"을 가진 멤버가 없습니다.`,
@@ -173,8 +254,21 @@ export class ReportCommand extends CommandBase {
       }
 
       // 날짜 범위 설정
+      console.log(`[보고서] 날짜 범위 파싱 시작`);
       const dateValidation = await this.parseDateRange(commandOptions, roleConfig, interaction);
+      console.log(`[보고서] 날짜 범위 파싱 완료:`, {
+        isValid: dateValidation.isValid,
+        dateRange: dateValidation.dateRange
+          ? {
+              start: dateValidation.dateRange.startDate.toISOString(),
+              end: dateValidation.dateRange.endDate.toISOString(),
+            }
+          : null,
+        error: dateValidation.error,
+      });
+
       if (!dateValidation.isValid || !dateValidation.dateRange) {
+        console.error(`[보고서] 날짜 범위 검증 실패:`, dateValidation.error);
         return {
           success: false,
           message: dateValidation.error || '날짜 범위 설정에 실패했습니다.',
@@ -182,6 +276,7 @@ export class ReportCommand extends CommandBase {
       }
 
       // 진행 상황 알림
+      console.log(`[보고서] 진행 상황 알림 전송`);
       await interaction.followUp({
         content:
           `📊 **보고서 생성 중...**\n\n` +
@@ -194,10 +289,24 @@ export class ReportCommand extends CommandBase {
       });
 
       // 사용자 분류 및 보고서 생성
+      console.log(`[보고서] 보고서 생성 시작: ${new Date().toISOString()}`);
+      console.log(`[보고서] 생성 파라미터:`, {
+        role: commandOptions.role,
+        memberCount: roleMembers.size,
+        startDate: dateValidation.dateRange.startDate.toISOString(),
+        endDate: dateValidation.dateRange.endDate.toISOString(),
+      });
+      const reportStartTime = Date.now();
+
       const reportEmbeds = await this.generateReport(
         commandOptions.role,
         roleMembers,
         dateValidation.dateRange
+      );
+
+      const reportEndTime = Date.now();
+      console.log(
+        `[보고서] 보고서 생성 완료: ${new Date().toISOString()}, 소요시간: ${reportEndTime - reportStartTime}ms`
       );
 
       // 보고서 결과 생성
@@ -217,21 +326,7 @@ export class ReportCommand extends CommandBase {
       // 보고서 전송
       await this.sendReport(interaction, commandOptions, result);
 
-      // 로그 기록
-      if (this.logService) {
-        this.logService.logActivity(
-          `활동 보고서 생성: ${commandOptions.role}`,
-          [interaction.user.id],
-          'report_generation',
-          {
-            role: commandOptions.role,
-            dateRange: this.formatDateRange(dateValidation.dateRange),
-            memberCount: roleMembers.size,
-            testMode: commandOptions.isTestMode,
-            executionTime: result.executionTime,
-          }
-        );
-      }
+      // 로그 기록 제거됨 - 음성 채널 활동과 관련 없는 보고서 생성 로그
 
       return {
         success: true,
@@ -239,13 +334,42 @@ export class ReportCommand extends CommandBase {
         data: result,
       };
     } catch (error) {
-      console.error('보고서 명령어 실행 오류:', error);
+      const errorDetails = {
+        message: error instanceof Error ? error.message : '알 수 없는 오류',
+        stack: error instanceof Error ? error.stack : undefined,
+        timestamp: new Date().toISOString(),
+        executionTime: Date.now() - startTime,
+        role: commandOptions?.role,
+        memberCount: undefined as number | undefined,
+        dateRange: undefined as any,
+      };
+
+      try {
+        // 추가 컨텍스트 정보 수집
+        if (commandOptions) {
+          errorDetails.role = commandOptions.role;
+          const roleMembers = await this.getRoleMembers(interaction.guild!, commandOptions.role);
+          errorDetails.memberCount = roleMembers.size;
+        }
+      } catch (contextError) {
+        console.warn('[보고서] 에러 컨텍스트 수집 실패:', contextError);
+      }
+
+      console.error('보고서 명령어 실행 오류:', errorDetails);
 
       const errorMessage =
         error instanceof Error ? error.message : '보고서 생성 중 오류가 발생했습니다.';
 
+      // Discord에 상세한 에러 정보 전송
       await interaction.followUp({
-        content: `❌ ${errorMessage}`,
+        content:
+          `❌ **보고서 생성 실패**\n\n` +
+          `**오류:** ${errorMessage}\n` +
+          `**시간:** ${errorDetails.timestamp}\n` +
+          `**소요시간:** ${errorDetails.executionTime}ms\n` +
+          `**역할:** ${errorDetails.role || 'N/A'}\n` +
+          `**멤버수:** ${errorDetails.memberCount || 'N/A'}\n\n` +
+          `콘솔 로그를 확인해주세요.`,
         flags: MessageFlags.Ephemeral,
       });
 
@@ -307,8 +431,98 @@ export class ReportCommand extends CommandBase {
     guild: NonNullable<ChatInputCommandInteraction['guild']>,
     role: string
   ): Promise<Collection<string, GuildMember>> {
-    const members = await guild.members.fetch();
-    return members.filter((member) => member.roles.cache.some((r) => r.name === role));
+    const startTime = Date.now();
+    console.log(`[보고서] getRoleMembers 시작: ${new Date().toISOString()}`);
+    console.log(`[보고서] 대상 역할: "${role}"`);
+    console.log(`[보고서] 길드 ID: ${guild.id}`);
+    console.log(`[보고서] 현재 캐시된 멤버 수: ${guild.members.cache.size}`);
+
+    let members: Collection<string, GuildMember>;
+
+    // 단계별 fetch 전략
+    try {
+      // 1단계: 캐시 충분성 확인 (작은 서버는 캐시만으로도 충분할 수 있음)
+      if (
+        guild.members.cache.size > 0 &&
+        guild.memberCount &&
+        guild.members.cache.size >= guild.memberCount * 0.8
+      ) {
+        console.log(
+          `[보고서] 캐시 충분성 확인: ${guild.members.cache.size}/${guild.memberCount} (${Math.round((guild.members.cache.size / guild.memberCount) * 100)}%)`
+        );
+        members = guild.members.cache;
+        console.log(`[보고서] 캐시된 데이터로 충분 - fetch 생략`);
+      } else {
+        // 2단계: 전체 fetch 시도 (GuildMembers Intent 필요)
+        const fetchStartTime = Date.now();
+        console.log(`[보고서] 전체 멤버 fetch 시도 - 20초 타임아웃 설정`);
+
+        const fetchPromise = Promise.race([
+          guild.members.fetch(),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Member fetch timeout after 20 seconds')), 20000)
+          ),
+        ]);
+
+        try {
+          members = await fetchPromise;
+          const fetchEndTime = Date.now();
+          console.log(
+            `[보고서] 전체 fetch 성공: ${fetchEndTime - fetchStartTime}ms, 총 멤버 수: ${members.size}`
+          );
+        } catch (fullFetchError) {
+          console.warn(`[보고서] 전체 fetch 실패, 부분 fetch 시도:`, fullFetchError);
+
+          // 3단계: 부분 fetch 시도 (제한된 수)
+          try {
+            members = await Promise.race([
+              guild.members.fetch({ limit: 1000 }),
+              new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error('Partial fetch timeout after 10 seconds')), 10000)
+              ),
+            ]);
+            console.log(`[보고서] 부분 fetch 성공: ${members.size}명`);
+          } catch (partialFetchError) {
+            console.warn(`[보고서] 부분 fetch도 실패, 캐시 사용:`, partialFetchError);
+
+            // 4단계: 캐시 사용 (최후의 수단)
+            if (guild.members.cache.size > 0) {
+              members = guild.members.cache;
+              console.log(`[보고서] 캐시된 멤버 사용: ${members.size}명 (불완전할 수 있음)`);
+            } else {
+              throw new Error(
+                `멤버 정보를 가져올 수 없습니다. GuildMembers Intent가 활성화되어 있는지 확인하세요.`
+              );
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error(`[보고서] 멤버 조회 완전 실패:`, error);
+      throw error;
+    }
+
+    // 역할 필터링 시작
+    const filterStartTime = Date.now();
+    console.log(`[보고서] 역할 필터링 시작: "${role}"`);
+
+    const filteredMembers = members.filter((member) => {
+      try {
+        const hasRole = member.roles.cache.some((r) => r.name === role);
+        return hasRole;
+      } catch (roleError) {
+        console.warn(`[보고서] 멤버 ${member.id} 역할 확인 실패:`, roleError);
+        return false;
+      }
+    });
+
+    const filterEndTime = Date.now();
+
+    console.log(`[보고서] 역할 필터링 완료: ${filterEndTime - filterStartTime}ms`);
+    console.log(`[보고서] 필터링 결과: ${filteredMembers.size}명 (전체: ${members.size}명 중)`);
+    console.log(`[보고서] getRoleMembers 전체 소요시간: ${Date.now() - startTime}ms`);
+
+    return filteredMembers;
   }
 
   /**
@@ -452,20 +666,37 @@ export class ReportCommand extends CommandBase {
     roleMembers: Collection<string, GuildMember>,
     dateRange: DateRange
   ): Promise<any[]> {
+    const startTime = Date.now();
+    console.log(`[보고서] generateReport 시작: ${new Date().toISOString()}`);
+    console.log(`[보고서] 역할: "${role}", 멤버 수: ${roleMembers.size}`);
+
     const { startDate, endDate } = dateRange;
+    console.log(`[보고서] 날짜 범위: ${startDate.toISOString()} ~ ${endDate.toISOString()}`);
 
     // 사용자 분류 서비스로 사용자 분류 (날짜 범위 기준)
+    const classificationStartTime = Date.now();
+    console.log(`[보고서] UserClassificationService.classifyUsersByDateRange 호출 시작`);
     const classificationResult = await this.userClassificationService!.classifyUsersByDateRange(
       role,
       roleMembers,
       startDate,
       endDate
     );
+    const classificationEndTime = Date.now();
+    console.log(
+      `[보고서] UserClassificationService.classifyUsersByDateRange 완료: ${classificationEndTime - classificationStartTime}ms`
+    );
 
     const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } = classificationResult;
+    console.log(
+      `[보고서] 분류 결과 - 활성: ${activeUsers.length}명, 비활성: ${inactiveUsers.length}명, AFK: ${afkUsers.length}명`
+    );
+    console.log(`[보고서] 최소 활동 시간: ${minHours}시간, 보고 주기: ${reportCycle || 'N/A'}`);
 
     // 보고서 임베드 생성
-    return EmbedFactory.createActivityEmbeds({
+    const embedStartTime = Date.now();
+    console.log(`[보고서] EmbedFactory.createActivityEmbeds 호출 시작`);
+    const embeds = EmbedFactory.createActivityEmbeds({
       role,
       activeUsers,
       inactiveUsers,
@@ -476,6 +707,14 @@ export class ReportCommand extends CommandBase {
       reportCycle: reportCycle ? parseInt(reportCycle) : null,
       title: '활동 보고서',
     });
+    const embedEndTime = Date.now();
+    console.log(
+      `[보고서] EmbedFactory.createActivityEmbeds 완료: ${embedEndTime - embedStartTime}ms`
+    );
+    console.log(`[보고서] 생성된 임베드 수: ${embeds.length}`);
+    console.log(`[보고서] generateReport 전체 소요시간: ${Date.now() - startTime}ms`);
+
+    return embeds;
   }
 
   /**
@@ -501,7 +740,7 @@ export class ReportCommand extends CommandBase {
       });
     } else {
       // 고정 채널에 전송
-      const logChannelId = process.env.CALENDAR_LOG_CHANNEL_ID;
+      const logChannelId = process.env.REPORT_CHANNEL_ID;
       if (logChannelId) {
         try {
           const logChannel = (await interaction.client.channels.fetch(logChannelId)) as TextChannel;

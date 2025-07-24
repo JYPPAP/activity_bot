@@ -10,7 +10,11 @@ import {
 } from 'discord.js';
 
 import { DiscordConstants } from '../config/DiscordConstants';
+import { isDevelopment } from '../config/env';
 import { RecruitmentConfig } from '../config/RecruitmentConfig';
+import { DIContainer } from '../di/container';
+import { DI_TOKENS } from '../interfaces/index';
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
 
 // 기존 포스트 정보 인터페이스
 interface ExistingPost {
@@ -106,8 +110,10 @@ export class RecruitmentUIBuilder {
   static createInitialEmbed(voiceChannelName: string): EmbedBuilder {
     this.recordBuild('embed', 'initial');
 
+    const title = isDevelopment() ? '🎮 [DEV] 구인구직 포럼 연동' : '🎮 구인구직 포럼 연동';
+
     return new EmbedBuilder()
-      .setTitle('🎮 구인구직 포럼 연동')
+      .setTitle(title)
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
           '• 👁️ **관전**: 별명에 [관전] 태그 추가\n' +
@@ -163,8 +169,10 @@ export class RecruitmentUIBuilder {
   static createMethodSelectionEmbed(voiceChannelName: string): EmbedBuilder {
     this.recordBuild('embed', 'methodSelection');
 
+    const title = isDevelopment() ? '🎮 [DEV] 구인구직 포럼 연동' : '🎮 구인구직 포럼 연동';
+
     return new EmbedBuilder()
-      .setTitle('🎮 구인구직 포럼 연동')
+      .setTitle(title)
       .setDescription(
         `음성 채널 **${voiceChannelName}**에서 구인구직을 시작하세요!\n\n` +
           '📌 **연동 방법**\n' +
@@ -229,7 +237,7 @@ export class RecruitmentUIBuilder {
   }
 
   /**
-   * 역할 태그 선택 임베드 생성
+   * 게임 태그 선택 임베드 생성
    * @param selectedTags - 선택된 태그 목록
    * @param isStandalone - 독립 모드 여부
    * @returns 생성된 임베드
@@ -244,9 +252,9 @@ export class RecruitmentUIBuilder {
     const modeText = isStandalone ? '독립 구인구직' : '음성 채널 연동';
 
     return new EmbedBuilder()
-      .setTitle('🏷️ 역할 태그 선택')
+      .setTitle('🎮 게임 태그 선택')
       .setDescription(
-        `**${modeText}**을 위한 역할 태그를 선택하세요.\n\n` +
+        `**${modeText}**을 위한 게임 태그를 선택하세요.\n\n` +
           `선택된 태그: **${selectedTagsText}**\n\n` +
           `💡 최대 ${RecruitmentConfig.MAX_SELECTED_TAGS}개까지 선택할 수 있습니다.\n` +
           '✅ 선택이 완료되면 "선택 완료" 버튼을 클릭하세요.'
@@ -255,31 +263,56 @@ export class RecruitmentUIBuilder {
   }
 
   /**
-   * 역할 태그 버튼 그리드 생성
+   * 게임 태그 버튼 그리드 생성
    * @param selectedTags - 선택된 태그 목록
    * @param voiceChannelId - 음성 채널 ID (선택사항)
    * @param methodValue - 메서드 값 (선택사항)
    * @param isStandalone - 독립 모드 여부
    * @returns 버튼 그리드 액션 로우 배열
    */
-  static createRoleTagButtons(
+  static async createRoleTagButtons(
     selectedTags: string[] = [],
     voiceChannelId: string | null = null,
     methodValue: string | null = null,
-    isStandalone: boolean = false
-  ): ActionRowBuilder<ButtonBuilder>[] {
+    isStandalone: boolean = false,
+    guildId: string | null = null
+  ): Promise<ActionRowBuilder<ButtonBuilder>[]> {
     this.recordBuild('button', 'roleTagGrid');
 
     const components: ActionRowBuilder<ButtonBuilder>[] = [];
 
-    // 4행 4열 버튼 그리드 생성 (15개 태그만 표시)
-    for (let row = 0; row < RecruitmentConfig.BUTTON_GRID_ROWS; row++) {
+    // 길드 게임 목록 가져오기
+    let gameTags: string[] = [];
+    if (guildId) {
+      try {
+        const guildSettingsManager = DIContainer.get<GuildSettingsManager>(
+          DI_TOKENS.IGuildSettingsManager
+        );
+        const gameList = await guildSettingsManager.getGameList(guildId);
+        if (gameList && gameList.games.length > 0) {
+          gameTags = gameList.games.map((game) => `@${game}`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch guild game list:', error);
+      }
+    }
+
+    // 게임 태그가 없으면 빈 배열 반환
+    if (gameTags.length === 0) {
+      console.warn('[RecruitmentUIBuilder] No game tags found for guild:', guildId);
+      return [];
+    }
+
+    // 동적 버튼 그리드 생성
+    const gridConfig = RecruitmentConfig.calculateOptimalButtonGrid(gameTags.length);
+
+    for (let row = 0; row < gridConfig.rows; row++) {
       const actionRow = new ActionRowBuilder<ButtonBuilder>();
       let hasButtons = false;
 
-      for (let col = 0; col < RecruitmentConfig.BUTTON_GRID_COLS; col++) {
-        const tagIndex = row * RecruitmentConfig.BUTTON_GRID_COLS + col;
-        const tag = RecruitmentConfig.ROLE_TAG_VALUES[tagIndex];
+      for (let col = 0; col < gridConfig.cols; col++) {
+        const tagIndex = row * gridConfig.cols + col;
+        const tag = gameTags[tagIndex];
 
         // 태그가 존재할 때만 버튼 생성
         if (tag) {
@@ -345,10 +378,10 @@ export class RecruitmentUIBuilder {
       .setDescription(
         '새로운 구인구직 포럼을 생성합니다.\n\n' +
           '📌 **단계**\n' +
-          '1. 🏷️ **역할 태그 선택** (현재 단계)\n' +
+          '1. 🏷️ **게임 태그 선택** (현재 단계)\n' +
           '2. 📝 **구인구직 정보 입력**\n' +
           '3. 🎯 **포럼 포스트 생성**\n\n' +
-          '💡 역할 태그를 선택하면 해당 역할의 멤버들이 알림을 받습니다.'
+          '💡 게임 태그를 선택하면 해당 게임의 멤버들이 알림을 받습니다.'
       )
       .setColor(RecruitmentConfig.COLORS.INFO)
       .setFooter({ text: '(장기 컨텐츠는 연동X)' });

@@ -1,7 +1,11 @@
 // src/services/eventManager.ts - 이벤트 관리 서비스 (TypeScript)
 import { EventEmitter } from 'events';
 
-import { EnhancedClient } from '../types/discord';
+import { Client } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
+
+import { DI_TOKENS } from '../interfaces/index';
+// EnhancedClient 제거됨 - 표준 Client 사용
 
 // ====================
 // 이벤트 관련 타입
@@ -61,14 +65,15 @@ interface EventHandlerInfo<T extends any[] = any[]> {
 // 이벤트 관리자 클래스
 // ====================
 
+@injectable()
 export class EventManager extends EventEmitter {
-  private readonly client: EnhancedClient;
+  private readonly client: Client;
   private readonly handlers: Map<string, EventHandlerInfo[]> = new Map();
   private readonly options: EventManagerOptions;
   private readonly eventStats: Map<string, EventStats> = new Map();
   private nextId: number = 1;
 
-  constructor(client: EnhancedClient, options: EventManagerOptions = {}) {
+  constructor(@inject(DI_TOKENS.DiscordClient) client: Client, options: EventManagerOptions = {}) {
     super();
     this.client = client;
     this.options = {

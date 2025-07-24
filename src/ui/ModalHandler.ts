@@ -22,10 +22,9 @@ import { SafeInteraction } from '../utils/SafeInteraction';
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
   title: string;
-  tags: string;
+  tags: string[]; // 배열로 변경하여 ForumPostManager와 타입 일치
   description: string;
   author: GuildMember | User;
-  tagsArray?: string[];
   maxParticipants?: number;
   category?: string;
 }
@@ -77,6 +76,25 @@ export class ModalHandler {
   private readonly recruitmentService: RecruitmentService;
   private readonly forumPostManager: ForumPostManager;
 
+  // 재시도 설정
+  private static readonly RETRY_CONFIG = {
+    maxRetries: 3,
+    baseDelay: 1000, // 1초
+    maxDelay: 5000, // 5초
+    backoffMultiplier: 2,
+    retryableErrors: [
+      'ENOTFOUND',
+      'ETIMEDOUT',
+      'ECONNRESET',
+      'ECONNREFUSED',
+      'rate_limit',
+      'server_error',
+      'timeout',
+      'network_error',
+    ],
+    retryableCodes: [500, 502, 503, 504, 429], // 서버 오류, 레이트 리미트
+  };
+
   // 통계 및 모니터링
   private modalStats: ModalStatistics = {
     totalSubmissions: 0,
@@ -106,10 +124,158 @@ export class ModalHandler {
   }
 
   /**
+   * 재시도 메커니즘을 적용한 함수 실행
+   * @param operation - 실행할 비동기 함수
+   * @param context - 컨텍스트 (로그용)
+   * @returns 실행 결과
+   */
+  private async withRetry<T>(operation: () => Promise<T>, context: string): Promise<T> {
+    let lastError: any;
+    let attempt = 0;
+
+    while (attempt <= ModalHandler.RETRY_CONFIG.maxRetries) {
+      try {
+        if (attempt > 0) {
+          // 재시도 간격 계산 (지수 백오프)
+          const delay = Math.min(
+            ModalHandler.RETRY_CONFIG.baseDelay *
+              Math.pow(ModalHandler.RETRY_CONFIG.backoffMultiplier, attempt - 1),
+            ModalHandler.RETRY_CONFIG.maxDelay
+          );
+          console.log(
+            `[ModalHandler] ${context} 재시도 ${attempt}/${ModalHandler.RETRY_CONFIG.maxRetries} - ${delay}ms 대기`
+          );
+          await this.sleep(delay);
+        }
+
+        console.log(
+          `[ModalHandler] ${context} 시도 ${attempt + 1}/${ModalHandler.RETRY_CONFIG.maxRetries + 1}`
+        );
+        const result = await operation();
+
+        if (attempt > 0) {
+          console.log(`[ModalHandler] ${context} 재시도 성공 (시도 횟수: ${attempt + 1})`);
+        }
+
+        return result;
+      } catch (error: any) {
+        lastError = error;
+        attempt++;
+
+        const shouldRetry = this.shouldRetryError(error, attempt);
+        console.log(`[ModalHandler] ${context} 오류 발생:`, {
+          error: error.message,
+          code: error.code,
+          status: error.status,
+          attempt,
+          maxRetries: ModalHandler.RETRY_CONFIG.maxRetries,
+          shouldRetry,
+        });
+
+        if (!shouldRetry || attempt > ModalHandler.RETRY_CONFIG.maxRetries) {
+          console.error(`[ModalHandler] ${context} 최종 실패 (시도 횟수: ${attempt})`, error);
+          throw error;
+        }
+      }
+    }
+
+    throw lastError;
+  }
+
+  /**
+   * 오류가 재시도 가능한지 판단
+   * @param error - 발생한 오류
+   * @param attempt - 현재 시도 횟수
+   * @returns 재시도 가능 여부
+   */
+  private shouldRetryError(error: any, attempt: number): boolean {
+    // 최대 재시도 횟수 초과
+    if (attempt > ModalHandler.RETRY_CONFIG.maxRetries) {
+      return false;
+    }
+
+    // Discord API 특정 오류 코드들
+    const discordErrorCode = error.code;
+    if (discordErrorCode) {
+      // 재시도 불가능한 Discord 오류들
+      const nonRetryableDiscordCodes = [
+        10003, // Unknown Channel
+        10008, // Unknown Message
+        10013, // Unknown User
+        10062, // Unknown Interaction
+        40060, // Interaction has already been acknowledged
+        50013, // Missing Permissions
+        50035, // Invalid Form Body
+      ];
+
+      if (nonRetryableDiscordCodes.includes(discordErrorCode)) {
+        console.log(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 불가`);
+        return false;
+      }
+
+      // 재시도 가능한 Discord 오류들
+      const retryableDiscordCodes = [
+        0, // 일반적인 네트워크 오류
+        429, // Rate Limited
+        500, // Internal Server Error
+        502, // Bad Gateway
+        503, // Service Unavailable
+        504, // Gateway Timeout
+      ];
+
+      if (retryableDiscordCodes.includes(discordErrorCode)) {
+        console.log(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 가능`);
+        return true;
+      }
+    }
+
+    // HTTP 상태 코드 확인
+    if (error.status && ModalHandler.RETRY_CONFIG.retryableCodes.includes(error.status)) {
+      console.log(`[ModalHandler] HTTP 상태 ${error.status}는 재시도 가능`);
+      return true;
+    }
+
+    // 오류 메시지 패턴 확인
+    const errorMessage = (error.message || '').toLowerCase();
+    const hasRetryablePattern = ModalHandler.RETRY_CONFIG.retryableErrors.some((pattern) =>
+      errorMessage.includes(pattern.toLowerCase())
+    );
+
+    if (hasRetryablePattern) {
+      console.log(`[ModalHandler] 오류 메시지 패턴이 재시도 가능: ${error.message}`);
+      return true;
+    }
+
+    // 유효성 검사 오류는 재시도하지 않음
+    if (
+      errorMessage.includes('validation') ||
+      errorMessage.includes('invalid') ||
+      errorMessage.includes('잘못된') ||
+      errorMessage.includes('형식') ||
+      errorMessage.includes('필수')
+    ) {
+      console.log(`[ModalHandler] 유효성 검사 오류는 재시도 안함: ${error.message}`);
+      return false;
+    }
+
+    // 기본적으로 재시도 안함
+    console.log(`[ModalHandler] 알 수 없는 오류 - 재시도 안함: ${error.message}`);
+    return false;
+  }
+
+  /**
+   * 지정된 시간만큼 대기
+   * @param ms - 대기 시간 (밀리초)
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
    * 구인구직 모달 생성 및 표시
    * @param interaction - 인터랙션 객체
    * @param voiceChannelId - 음성 채널 ID
-   * @param selectedRoles - 선택된 역할 태그 배열
+   * @param selectedRoles - 선택된 게임 태그 배열
    */
   async showRecruitmentModal(
     interaction: RepliableInteraction,
@@ -148,7 +314,7 @@ export class ModalHandler {
   /**
    * 독립 구인구직 모달 생성 및 표시
    * @param interaction - 인터랙션 객체
-   * @param selectedRoles - 선택된 역할 태그 배열
+   * @param selectedRoles - 선택된 게임 태그 배열
    */
   async showStandaloneRecruitmentModal(
     interaction: RepliableInteraction,
@@ -185,7 +351,7 @@ export class ModalHandler {
 
   /**
    * 모달 필드 구성 생성
-   * @param selectedRoles - 선택된 역할 태그 배열
+   * @param selectedRoles - 선택된 게임 태그 배열
    * @returns 모달 필드 구성 배열
    */
   private createModalFields(selectedRoles: string[]): ModalFieldConfig[] {
@@ -203,7 +369,7 @@ export class ModalHandler {
       },
       {
         customId: 'recruitment_tags',
-        label: '역할 태그 (수정 가능)',
+        label: '게임 태그 (수정 가능)',
         placeholder: '예: 롤, 배그, 옵치, 발로, 스팀',
         style: TextInputStyle.Short,
         required: false,
@@ -346,9 +512,7 @@ export class ModalHandler {
   private extractModalData(interaction: ModalSubmitInteraction): RecruitmentData {
     const title = interaction.fields.getTextInputValue('recruitment_title');
     const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
-    const description =
-      interaction.fields.getTextInputValue('recruitment_description') ||
-      '상세 설명이 제공되지 않았습니다.';
+    const description = interaction.fields.getTextInputValue('recruitment_description') || '';
 
     // 태그 배열 생성
     const tagsArray = tags
@@ -369,10 +533,9 @@ export class ModalHandler {
 
     return {
       title: title.trim(),
-      tags: tags.trim(),
+      tags: tagsArray, // 배열로 변경하여 ForumPostManager와 타입 일치
       description: description.trim(),
       author: (interaction.member as GuildMember) || interaction.user,
-      tagsArray,
       ...(maxParticipants !== undefined && { maxParticipants }),
     };
   }
@@ -387,10 +550,30 @@ export class ModalHandler {
     recruitmentData: RecruitmentData
   ): Promise<ModalHandleResult> {
     try {
-      await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+      console.log(`[ModalHandler] 독립 구인구직 시작 - 제목: "${recruitmentData.title}"`);
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
-      // 독립 포럼 포스트 생성
-      const createResult = await this.forumPostManager.createForumPost(recruitmentData as any);
+      // 독립 포럼 포스트 생성 (재시도 메커니즘 적용)
+      console.log(`[ModalHandler] ForumPostManager.createForumPost 호출 중...`);
+      console.log(`[ModalHandler] 구인구직 데이터:`, {
+        title: recruitmentData.title,
+        description: recruitmentData.description,
+        tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
+        maxParticipants: (recruitmentData as any).maxParticipants,
+        author: recruitmentData.author.displayName || recruitmentData.author.username,
+      });
+
+      const createResult = await this.withRetry(
+        () => this.forumPostManager.createForumPost(recruitmentData as any),
+        '독립 포럼 포스트 생성'
+      );
+
+      console.log(`[ModalHandler] ForumPostManager.createForumPost 결과:`, {
+        success: createResult.success,
+        postId: createResult.postId,
+        error: createResult.error,
+        warnings: createResult.warnings,
+      });
 
       if (createResult.success && createResult.postId) {
         await SafeInteraction.safeReply(interaction, {
@@ -409,8 +592,36 @@ export class ModalHandler {
           message: '독립 구인구직 생성 성공',
         };
       } else {
+        console.error(`[ModalHandler] 포럼 포스트 생성 실패:`, {
+          error: createResult.error,
+          errorDetails: createResult.errorDetails,
+          warnings: createResult.warnings,
+          title: recruitmentData.title,
+        });
+
+        // 상세 오류 정보가 있으면 활용
+        let errorMessage = createResult.error
+          ? `❌ 구인구직 생성 실패: ${createResult.error}`
+          : RecruitmentConfig.MESSAGES.LINK_FAILED;
+
+        // 유효성 검사 오류인 경우 더 자세한 정보 제공
+        if (createResult.errorDetails?.validationRule === 'participantPattern') {
+          errorMessage +=
+            `\n\n💡 **제목 형식 안내:**\n` +
+            `• 올바른 형식: "게임명 1/5" 또는 "게임명 1/N"\n` +
+            `• 입력하신 제목: "${createResult.errorDetails.value}"\n` +
+            `• 현재인원/최대인원 형식이 포함되어야 합니다.`;
+        } else if (createResult.errorDetails?.field === 'forumChannelId') {
+          // 포럼 채널 설정 관련 오류
+          errorMessage +=
+            `\n\n⚙️ **설정 확인 필요:**\n` +
+            `• 관리자가 포럼 채널을 설정하지 않았습니다.\n` +
+            `• \`/설정\` → **관리 채널 지정** → **구인구직 포럼** 설정 필요\n` +
+            `• 설정 후 다시 시도해주세요.`;
+        }
+
         await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.LINK_FAILED,
+          content: errorMessage,
           flags: MessageFlags.Ephemeral,
         });
 
@@ -458,14 +669,39 @@ export class ModalHandler {
     voiceChannelId: string
   ): Promise<ModalHandleResult> {
     try {
-      await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
-
-      // 음성 채널 연동 포럼 포스트 생성
-      const result = await this.recruitmentService.createLinkedRecruitment(
-        recruitmentData as any,
-        voiceChannelId,
-        interaction.user.id
+      console.log(
+        `[ModalHandler] 음성 채널 연동 구인구직 시작 - 제목: "${recruitmentData.title}", 음성 채널: ${voiceChannelId}`
       );
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+
+      // 음성 채널 연동 포럼 포스트 생성 (재시도 메커니즘 적용)
+      console.log(`[ModalHandler] RecruitmentService.createLinkedRecruitment 호출 중...`);
+      console.log(`[ModalHandler] 구인구직 데이터:`, {
+        title: recruitmentData.title,
+        description: recruitmentData.description,
+        tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
+        maxParticipants: (recruitmentData as any).maxParticipants,
+        author: recruitmentData.author.displayName || recruitmentData.author.username,
+        voiceChannelId,
+      });
+
+      const result = await this.withRetry(
+        () =>
+          this.recruitmentService.createLinkedRecruitment(
+            recruitmentData as any,
+            voiceChannelId,
+            interaction.user.id
+          ),
+        '음성 채널 연동 포럼 포스트 생성'
+      );
+
+      console.log(`[ModalHandler] RecruitmentService.createLinkedRecruitment 결과:`, {
+        success: result.success,
+        postId: result.postId,
+        message: result.message,
+        error: result.error,
+        data: result.data,
+      });
 
       if (result.success && result.postId) {
         await SafeInteraction.safeReply(interaction, {
@@ -485,8 +721,35 @@ export class ModalHandler {
           data: result.data,
         };
       } else {
+        console.error(`[ModalHandler] 음성 채널 연동 구인구직 생성 실패:`, {
+          message: result.message,
+          error: result.error,
+          errorDetails: result.errorDetails,
+          title: recruitmentData.title,
+          voiceChannelId,
+        });
+
+        // 상세 오류 정보 활용
+        let errorMessage = result.message || RecruitmentConfig.MESSAGES.LINK_FAILED;
+
+        // 유효성 검사 오류인 경우 더 자세한 정보 제공
+        if (result.errorDetails?.validationRule === 'participantPattern') {
+          errorMessage +=
+            `\n\n💡 **제목 형식 안내:**\n` +
+            `• 올바른 형식: "게임명 1/5" 또는 "게임명 1/N"\n` +
+            `• 입력하신 제목: "${result.errorDetails.value}"\n` +
+            `• 현재인원/최대인원 형식이 포함되어야 합니다.`;
+        } else if (result.errorDetails?.field === 'forumChannelId') {
+          // 포럼 채널 설정 관련 오류
+          errorMessage +=
+            `\n\n⚙️ **설정 확인 필요:**\n` +
+            `• 관리자가 포럼 채널을 설정하지 않았습니다.\n` +
+            `• \`/설정\` → **관리 채널 지정** → **구인구직 포럼** 설정 필요\n` +
+            `• 설정 후 다시 시도해주세요.`;
+        }
+
         await SafeInteraction.safeReply(interaction, {
-          content: result.message || RecruitmentConfig.MESSAGES.LINK_FAILED,
+          content: errorMessage,
           flags: MessageFlags.Ephemeral,
         });
 
@@ -559,12 +822,9 @@ export class ModalHandler {
     }
 
     // 태그 검증
-    if (
-      recruitmentData.tagsArray &&
-      recruitmentData.tagsArray.length > RecruitmentConfig.MAX_SELECTED_TAGS
-    ) {
+    if (recruitmentData.tags && recruitmentData.tags.length > RecruitmentConfig.MAX_SELECTED_TAGS) {
       errors.push(
-        `역할 태그는 최대 ${RecruitmentConfig.MAX_SELECTED_TAGS}개까지 선택할 수 있습니다.`
+        `게임 태그는 최대 ${RecruitmentConfig.MAX_SELECTED_TAGS}개까지 선택할 수 있습니다.`
       );
     }
 

@@ -308,33 +308,37 @@ export class TextProcessor {
       format = 'medium',
     } = options;
 
+    // dateStyle/timeStyle 사용 (개별 옵션과 함께 사용 불가)
     const formatOptions: Intl.DateTimeFormatOptions = {
       timeZone,
-      year: includeDate ? 'numeric' : undefined,
-      month: includeDate ? '2-digit' : undefined,
-      day: includeDate ? '2-digit' : undefined,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: includeSeconds ? '2-digit' : undefined,
     };
 
     // 포맷 스타일 적용
     switch (format) {
       case 'short':
-        formatOptions.dateStyle = includeDate ? 'short' : undefined;
+        if (includeDate) formatOptions.dateStyle = 'short';
         formatOptions.timeStyle = 'short';
         break;
       case 'medium':
-        formatOptions.dateStyle = includeDate ? 'medium' : undefined;
+        if (includeDate) formatOptions.dateStyle = 'medium';
         formatOptions.timeStyle = 'medium';
         break;
       case 'long':
-        formatOptions.dateStyle = includeDate ? 'long' : undefined;
+        if (includeDate) formatOptions.dateStyle = 'long';
         formatOptions.timeStyle = 'long';
         break;
       case 'full':
-        formatOptions.dateStyle = includeDate ? 'full' : undefined;
+        if (includeDate) formatOptions.dateStyle = 'full';
         formatOptions.timeStyle = 'full';
+        break;
+      default:
+        // 개별 옵션 사용 (dateStyle/timeStyle 대신)
+        formatOptions.year = includeDate ? 'numeric' : undefined;
+        formatOptions.month = includeDate ? '2-digit' : undefined;
+        formatOptions.day = includeDate ? '2-digit' : undefined;
+        formatOptions.hour = '2-digit';
+        formatOptions.minute = '2-digit';
+        formatOptions.second = includeSeconds ? '2-digit' : undefined;
         break;
     }
 

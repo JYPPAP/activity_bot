@@ -1,4 +1,4 @@
-// src/config/logger-termux.ts - Termux 환경용 Errsole 설정 (SQLite 사용)
+// src/config/logger-termux.ts - Termux 환경용 Errsole 설정 (PostgreSQL + SQLite 로그 저장)
 import path from 'path';
 
 import axios from 'axios';
@@ -10,13 +10,7 @@ import { LogLevel } from '../types/index';
 import { TIME } from './constants';
 import { config, isDevelopment } from './env';
 
-// SQLite 모듈 동적 임포트 (타입 안전성)
-let sqlite3: any;
-try {
-  sqlite3 = await import('sqlite3');
-} catch (error) {
-  console.warn('⚠️ SQLite3 모듈을 로드할 수 없습니다. 일부 기능이 제한될 수 있습니다.');
-}
+// Errsole은 로그 저장을 위해 SQLite를 사용하지만 애플리케이션 데이터는 PostgreSQL 사용
 
 // ====================
 // 타입 정의
@@ -122,72 +116,6 @@ const errsoleHost: string = config.ERRSOLE_HOST || '0.0.0.0';
 const errsolePort: number = parseInt(config.ERRSOLE_PORT || '8002', 10);
 
 // ====================
-// SQLite 데이터베이스 최적화 함수
-// ====================
-
-async function optimizeSQLiteDatabase(dbPath: string): Promise<void> {
-  if (!sqlite3) {
-    console.warn('⚠️ SQLite3 모듈이 없어 데이터베이스 최적화를 건너뜁니다.');
-    return;
-  }
-
-  return new Promise((resolve, reject) => {
-    const db = new sqlite3.Database(dbPath, (err: Error | null) => {
-      if (err) {
-        console.error('❌ SQLite 데이터베이스 연결 실패:', err.message);
-        reject(err);
-        return;
-      }
-
-      console.log('🔧 SQLite 데이터베이스 최적화 시작...');
-
-      // WAL 모드 활성화 및 최적화 설정
-      db.serialize(() => {
-        // WAL 모드 활성화 (동시 읽기/쓰기 성능 향상)
-        db.run('PRAGMA journal_mode = WAL;', (err: Error | null) => {
-          if (err) console.error('❌ WAL 모드 설정 실패:', err.message);
-          else console.log('✅ WAL 모드 활성화 완료');
-        });
-
-        // Synchronous 모드 최적화 (WAL과 함께 사용할 때 NORMAL이 최적)
-        db.run('PRAGMA synchronous = NORMAL;', (err: Error | null) => {
-          if (err) console.error('❌ Synchronous 모드 설정 실패:', err.message);
-          else console.log('✅ Synchronous 모드 NORMAL 설정 완료');
-        });
-
-        // 타임아웃 설정 (10초)
-        db.run('PRAGMA busy_timeout = 10000;', (err: Error | null) => {
-          if (err) console.error('❌ Timeout 설정 실패:', err.message);
-          else console.log('✅ Busy timeout 10초 설정 완료');
-        });
-
-        // 캐시 크기 최적화 (Termux 환경에 맞게 조정)
-        db.run('PRAGMA cache_size = -64000;', (err: Error | null) => {
-          if (err) console.error('❌ Cache 크기 설정 실패:', err.message);
-          else console.log('✅ Cache 크기 64MB 설정 완료');
-        });
-
-        // WAL 자동 체크포인트 설정 (1000 페이지마다)
-        db.run('PRAGMA wal_autocheckpoint = 1000;', (err: Error | null) => {
-          if (err) console.error('❌ WAL 체크포인트 설정 실패:', err.message);
-          else console.log('✅ WAL 자동 체크포인트 설정 완료');
-        });
-      });
-
-      db.close((err: Error | null) => {
-        if (err) {
-          console.error('❌ SQLite 데이터베이스 닫기 실패:', err.message);
-          reject(err);
-        } else {
-          console.log('✅ SQLite 데이터베이스 최적화 완료');
-          resolve();
-        }
-      });
-    });
-  });
-}
-
-// ====================
 // 로거 설정
 // ====================
 
@@ -264,11 +192,6 @@ if (isDevelopment()) {
     console.log(`🔕 Slack 알림 비활성화`);
   }
 }
-
-// SQLite 최적화 실행
-optimizeSQLiteDatabase(loggerConfig.logsFile).catch((err: Error) => {
-  console.error('⚠️ SQLite 최적화 중 오류 발생:', err.message);
-});
 
 if (errsoleHost === '0.0.0.0') {
   console.log(`🌐 외부 접속 모드 활성화 - 같은 네트워크의 다른 기기에서 접속 가능`);
@@ -392,23 +315,7 @@ function setupErrorHandlers(): void {
   process.on('uncaughtException', (error: Error) => {
     console.error('💥 치명적 오류 발생:', error.message);
 
-    // SQLite 관련 에러 특별 처리
-    if (
-      error.message &&
-      (error.message.includes('database is locked') ||
-        error.message.includes('SQLITE_BUSY') ||
-        error.message.includes('SQLITE_LOCKED'))
-    ) {
-      console.error('🔒 SQLite 데이터베이스 잠금 에러 감지 - 프로세스 재시작 권장');
-      errsole.error('SQLite Database Lock Error - Process Restart Required', {
-        error: error.message,
-        stack: error.stack,
-        timestamp: new Date().toISOString(),
-        restartRecommended: true,
-      });
-    } else {
-      errsole.error('Uncaught Exception:', error);
-    }
+    errsole.error('Uncaught Exception:', error);
 
     // 강제 가비지 컬렉션 (메모리 정리)
     if (global.gc) {
@@ -425,23 +332,7 @@ function setupErrorHandlers(): void {
   process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
     console.error('❌ 처리되지 않은 Promise 거부:', reason);
 
-    // SQLite 관련 Promise 거부 특별 처리
-    if (
-      reason?.message &&
-      (reason.message.includes('database is locked') ||
-        reason.message.includes('SQLITE_BUSY') ||
-        reason.message.includes('SQLITE_LOCKED'))
-    ) {
-      console.error('🔒 SQLite Promise 거부 - 데이터베이스 접근 재시도 필요');
-      errsole.error('SQLite Promise Rejection - Database Access Retry Needed', {
-        reason: reason.message,
-        stack: reason.stack,
-        timestamp: new Date().toISOString(),
-        retryNeeded: true,
-      });
-    } else {
-      errsole.error('Unhandled Rejection at:', promise, 'reason:', reason);
-    }
+    errsole.error('Unhandled Rejection at:', promise, 'reason:', reason);
   });
 
   // 메모리 사용량 모니터링

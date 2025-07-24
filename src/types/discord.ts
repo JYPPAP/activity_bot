@@ -50,7 +50,7 @@ export type EnhancedClient = ExtendedClient;
 export interface ExtendedGuild extends Guild {
   getBotMember(): GuildMember | null;
   getLogChannel(): TextChannel | null;
-  getCalendarLogChannel(): TextChannel | null;
+  getReportChannel(): TextChannel | null;
   getForumChannel(): ForumChannel | null;
   getVoiceCategory(): CategoryChannel | null;
 }
@@ -285,7 +285,7 @@ export type TextInputStyle = 'Short' | 'Paragraph';
 
 export interface ExtendedTextChannel extends TextChannel {
   sendActivityLog(content: string): Promise<Message>;
-  sendCalendarLog(content: string): Promise<Message>;
+  sendReportLog(content: string): Promise<Message>;
   sendNotification(content: string): Promise<Message>;
   hasPermissionToSend(): boolean;
 }

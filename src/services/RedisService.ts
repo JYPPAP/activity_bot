@@ -41,14 +41,18 @@ export class RedisService implements IRedisService {
   private subscribers: Map<string, (message: RedisMessage) => void> = new Map();
   private patternSubscribers: Map<string, (message: RedisMessage) => void> = new Map();
 
+  // Fallback 메모리 캐시 (Redis 서버 없을 때 사용)
+  private fallbackCache: Map<string, { value: any; expiry?: number }> = new Map();
+  private fallbackCacheCleanupTimer: NodeJS.Timeout | null = null;
+
   constructor(@inject(DI_TOKENS.RedisConfig) config: RedisConfig) {
     this.config = {
       retryDelayOnFailover: 100,
-      maxRetriesPerRequest: 3,
+      maxRetriesPerRequest: 5,
       lazyConnect: true,
-      enableOfflineQueue: false,
-      connectTimeout: 10000,
-      commandTimeout: 5000,
+      enableOfflineQueue: true,
+      connectTimeout: 15000,
+      commandTimeout: 8000,
       family: 4,
       keepAlive: 30000,
       keyPrefix: 'discord_bot:',
@@ -60,6 +64,14 @@ export class RedisService implements IRedisService {
       port: this.config.port,
       db: this.config.db || 0,
     });
+
+    // Fallback 캐시 cleanup 타이머 설정 (5분마다 만료된 항목 정리)
+    this.fallbackCacheCleanupTimer = setInterval(
+      () => {
+        this.cleanupFallbackCache();
+      },
+      5 * 60 * 1000
+    );
   }
 
   // ===========================================
@@ -80,12 +92,11 @@ export class RedisService implements IRedisService {
       });
 
       // 메인 클라이언트 생성 (ioredis 호환 옵션만 사용)
-      this.client = new Redis({
+      const redisConfig: any = {
         host: this.config.host,
         port: this.config.port,
-        ...(this.config.password && { password: this.config.password }),
-        ...(this.config.db !== undefined && { db: this.config.db }),
-        ...(this.config.username && { username: this.config.username }),
+        family: this.config.family,
+        keepAlive: this.config.keepAlive,
         ...(this.config.maxRetriesPerRequest !== undefined && {
           maxRetriesPerRequest: this.config.maxRetriesPerRequest,
         }),
@@ -99,21 +110,29 @@ export class RedisService implements IRedisService {
         ...(this.config.commandTimeout !== undefined && {
           commandTimeout: this.config.commandTimeout,
         }),
-        ...(this.config.family !== undefined && { family: this.config.family }),
-        ...(this.config.keepAlive !== undefined && { keepAlive: this.config.keepAlive }),
-        ...(this.config.keyPrefix && { keyPrefix: this.config.keyPrefix }),
-      });
-
-      // Pub/Sub용 별도 클라이언트 생성
-      this.subscriberClient = new Redis({
-        host: this.config.host,
-        port: this.config.port,
         ...(this.config.password && { password: this.config.password }),
         ...(this.config.db !== undefined && { db: this.config.db }),
         ...(this.config.username && { username: this.config.username }),
-        ...(this.config.lazyConnect !== undefined && { lazyConnect: this.config.lazyConnect }),
         ...(this.config.keyPrefix && { keyPrefix: this.config.keyPrefix }),
+      };
+
+      logger.info('Redis 클라이언트 생성 설정:', {
+        enableOfflineQueue: redisConfig.enableOfflineQueue,
+        connectTimeout: redisConfig.connectTimeout,
+        commandTimeout: redisConfig.commandTimeout,
+        maxRetriesPerRequest: redisConfig.maxRetriesPerRequest,
       });
+
+      this.client = new Redis(redisConfig);
+
+      // Pub/Sub용 별도 클라이언트 생성
+      const subscriberConfig: any = {
+        ...redisConfig,
+      };
+      // keyPrefix 제거 (Pub/Sub용)
+      delete subscriberConfig.keyPrefix;
+
+      this.subscriberClient = new Redis(subscriberConfig);
 
       // 이벤트 핸들러 설정
       this.setupEventHandlers();
@@ -140,7 +159,8 @@ export class RedisService implements IRedisService {
       });
 
       if (this.connectionAttempts >= this.maxConnectionAttempts) {
-        logger.error('Redis 최대 연결 시도 횟수 초과. 연결을 포기합니다.');
+        logger.warn('Redis 최대 연결 시도 횟수 초과. fallback 캐시 모드로 전환합니다.');
+        logger.info('💡 Redis 서버를 시작하려면: redis-server 명령어를 실행하세요.');
         this.cleanup();
         return false;
       }
@@ -228,7 +248,17 @@ export class RedisService implements IRedisService {
 
   async get(key: string): Promise<string | null> {
     return this.executeWithMetrics('get', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback 캐시 사용
+        const result = this.getFallbackCache(key);
+        if (result !== null) {
+          this.stats.cacheHits++;
+        } else {
+          this.stats.cacheMisses++;
+        }
+        return result;
+      }
+
       const result = await this.client.get(key);
 
       if (result !== null) {
@@ -243,7 +273,11 @@ export class RedisService implements IRedisService {
 
   async set(key: string, value: string, ttl?: number): Promise<boolean> {
     return this.executeWithMetrics('set', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback 캐시 사용
+        this.setFallbackCache(key, value, ttl);
+        return true;
+      }
 
       let result: string;
       if (ttl) {
@@ -258,14 +292,24 @@ export class RedisService implements IRedisService {
 
   async del(key: string): Promise<number> {
     return this.executeWithMetrics('del', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback 캐시 사용
+        const existed = this.getFallbackCache(key) !== null;
+        this.deleteFallbackCache(key);
+        return existed ? 1 : 0;
+      }
+
       return await this.client.del(key);
     });
   }
 
   async exists(key: string): Promise<boolean> {
     return this.executeWithMetrics('exists', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback 캐시 사용
+        return this.getFallbackCache(key) !== null;
+      }
+
       const result = await this.client.exists(key);
       return result === 1;
     });
@@ -273,7 +317,15 @@ export class RedisService implements IRedisService {
 
   async expire(key: string, ttl: number): Promise<boolean> {
     return this.executeWithMetrics('expire', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Update existing fallback cache item's expiry
+        const item = this.fallbackCache.get(key);
+        if (item) {
+          item.expiry = Date.now() + ttl * 1000;
+          return true;
+        }
+        return false;
+      }
       const result = await this.client.expire(key, ttl);
       return result === 1;
     });
@@ -281,7 +333,17 @@ export class RedisService implements IRedisService {
 
   async keys(pattern: string): Promise<string[]> {
     return this.executeWithMetrics('keys', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Simple pattern matching on fallback cache keys
+        const allKeys = Array.from(this.fallbackCache.keys());
+        if (pattern === '*') {
+          return allKeys;
+        }
+        // Simple glob pattern matching (basic implementation)
+        const regex = new RegExp(pattern.replace(/\*/g, '.*').replace(/\?/g, '.'));
+        return allKeys.filter((key) => regex.test(key));
+      }
+
       const keys = await this.client.keys(pattern);
 
       // keyPrefix 제거
@@ -299,7 +361,13 @@ export class RedisService implements IRedisService {
 
   async hset(key: string, field: string, value: string): Promise<boolean> {
     return this.executeWithMetrics('hset', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Store as nested object in fallback cache
+        const existing = this.getFallbackCache(key) || {};
+        existing[field] = value;
+        this.setFallbackCache(key, existing);
+        return true;
+      }
       const result = await this.client.hset(key, field, value);
       return result >= 0;
     });
@@ -307,7 +375,13 @@ export class RedisService implements IRedisService {
 
   async hmset(key: string, fieldValues: Record<string, string>): Promise<boolean> {
     return this.executeWithMetrics('hmset', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Store as object in fallback cache
+        const existing = this.getFallbackCache(key) || {};
+        Object.assign(existing, fieldValues);
+        this.setFallbackCache(key, existing);
+        return true;
+      }
       const result = await this.client.hmset(key, fieldValues);
       return result === 'OK';
     });
@@ -315,28 +389,52 @@ export class RedisService implements IRedisService {
 
   async hget(key: string, field: string): Promise<string | null> {
     return this.executeWithMetrics('hget', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Get field from object in fallback cache
+        const obj = this.getFallbackCache(key);
+        if (obj && typeof obj === 'object' && obj[field] !== undefined) {
+          return obj[field];
+        }
+        return null;
+      }
       return await this.client.hget(key, field);
     });
   }
 
   async hgetall(key: string): Promise<Record<string, string>> {
     return this.executeWithMetrics('hgetall', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Get entire object from fallback cache
+        const obj = this.getFallbackCache(key);
+        return obj && typeof obj === 'object' ? obj : {};
+      }
       return await this.client.hgetall(key);
     });
   }
 
   async hdel(key: string, field: string): Promise<number> {
     return this.executeWithMetrics('hdel', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Delete field from object in fallback cache
+        const obj = this.getFallbackCache(key);
+        if (obj && typeof obj === 'object' && obj[field] !== undefined) {
+          delete obj[field];
+          this.setFallbackCache(key, obj);
+          return 1;
+        }
+        return 0;
+      }
       return await this.client.hdel(key, field);
     });
   }
 
   async hexists(key: string, field: string): Promise<boolean> {
     return this.executeWithMetrics('hexists', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Check if field exists in object in fallback cache
+        const obj = this.getFallbackCache(key);
+        return obj && typeof obj === 'object' && obj[field] !== undefined;
+      }
       const result = await this.client.hexists(key, field);
       return result === 1;
     });
@@ -348,13 +446,25 @@ export class RedisService implements IRedisService {
 
   async publish(channel: string, message: string): Promise<number> {
     return this.executeWithMetrics('publish', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Pub/Sub is not supported in fallback mode
+        logger.warn('Pub/Sub publish operation skipped - Redis not connected', {
+          channel,
+          messageLength: message.length,
+        });
+        return 0;
+      }
       return await this.client.publish(channel, message);
     });
   }
 
   async subscribe(channel: string, callback: (message: RedisMessage) => void): Promise<void> {
-    if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
+    if (!this.subscriberClient) {
+      logger.warn('Pub/Sub subscribe operation skipped - Redis not connected', {
+        channel,
+      });
+      return;
+    }
 
     this.subscribers.set(channel, callback);
     await this.subscriberClient.subscribe(channel);
@@ -363,7 +473,12 @@ export class RedisService implements IRedisService {
   }
 
   async unsubscribe(channel: string): Promise<void> {
-    if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
+    if (!this.subscriberClient) {
+      logger.warn('Pub/Sub unsubscribe operation skipped - Redis not connected', {
+        channel,
+      });
+      return;
+    }
 
     this.subscribers.delete(channel);
     await this.subscriberClient.unsubscribe(channel);
@@ -372,7 +487,12 @@ export class RedisService implements IRedisService {
   }
 
   async psubscribe(pattern: string, callback: (message: RedisMessage) => void): Promise<void> {
-    if (!this.subscriberClient) throw new Error('Redis subscriber client not initialized');
+    if (!this.subscriberClient) {
+      logger.warn('Pub/Sub pattern subscribe operation skipped - Redis not connected', {
+        pattern,
+      });
+      return;
+    }
 
     this.patternSubscribers.set(pattern, callback);
     await this.subscriberClient.psubscribe(pattern);
@@ -386,7 +506,26 @@ export class RedisService implements IRedisService {
 
   async rateLimit(key: string, limit: number, window: number): Promise<RateLimitResult> {
     return this.executeWithMetrics('rateLimit', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Simple rate limiting with fallback cache
+        const now = Date.now();
+        const windowStart = Math.floor(now / (window * 1000)) * (window * 1000);
+        const rateLimitKey = `${key}:${windowStart}`;
+
+        const currentCount = (this.getFallbackCache(rateLimitKey) || 0) + 1;
+        this.setFallbackCache(rateLimitKey, currentCount, window);
+
+        const allowed = currentCount <= limit;
+        const remaining = Math.max(0, limit - currentCount);
+        const resetTime = windowStart + window * 1000;
+
+        return {
+          allowed,
+          remaining,
+          resetTime,
+          totalHits: currentCount,
+        };
+      }
 
       const now = Date.now();
       const windowStart = Math.floor(now / (window * 1000)) * (window * 1000);
@@ -418,7 +557,35 @@ export class RedisService implements IRedisService {
     window: number
   ): Promise<RateLimitResult> {
     return this.executeWithMetrics('slidingWindowRateLimit', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Simplified sliding window using fallback cache
+        const now = Date.now();
+        const windowStart = now - window * 1000;
+
+        // Get existing timestamps
+        const timestamps = (this.getFallbackCache(key) || []) as number[];
+
+        // Remove old timestamps
+        const validTimestamps = timestamps.filter((ts) => ts > windowStart);
+
+        // Add current timestamp
+        validTimestamps.push(now);
+
+        // Store updated timestamps
+        this.setFallbackCache(key, validTimestamps, window);
+
+        const currentCount = validTimestamps.length;
+        const allowed = currentCount <= limit;
+        const remaining = Math.max(0, limit - currentCount);
+        const resetTime = now + window * 1000;
+
+        return {
+          allowed,
+          remaining,
+          resetTime,
+          totalHits: currentCount,
+        };
+      }
 
       const now = Date.now();
       const windowStart = now - window * 1000;
@@ -451,28 +618,49 @@ export class RedisService implements IRedisService {
 
   async lpush(key: string, value: string): Promise<number> {
     return this.executeWithMetrics('lpush', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use array in fallback cache
+        const list = (this.getFallbackCache(key) || []) as string[];
+        list.unshift(value);
+        this.setFallbackCache(key, list);
+        return list.length;
+      }
       return await this.client.lpush(key, value);
     });
   }
 
   async rpop(key: string): Promise<string | null> {
     return this.executeWithMetrics('rpop', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use array in fallback cache
+        const list = (this.getFallbackCache(key) || []) as string[];
+        if (list.length === 0) return null;
+        const value = list.pop();
+        this.setFallbackCache(key, list);
+        return value || null;
+      }
       return await this.client.rpop(key);
     });
   }
 
   async llen(key: string): Promise<number> {
     return this.executeWithMetrics('llen', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use array in fallback cache
+        const list = (this.getFallbackCache(key) || []) as string[];
+        return list.length;
+      }
       return await this.client.llen(key);
     });
   }
 
   async lrange(key: string, start: number, stop: number): Promise<string[]> {
     return this.executeWithMetrics('lrange', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use array in fallback cache
+        const list = (this.getFallbackCache(key) || []) as string[];
+        return list.slice(start, stop + 1);
+      }
       return await this.client.lrange(key, start, stop);
     });
   }
@@ -483,21 +671,38 @@ export class RedisService implements IRedisService {
 
   async sadd(key: string, member: string): Promise<number> {
     return this.executeWithMetrics('sadd', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use Set in fallback cache
+        const set = new Set(this.getFallbackCache(key) || []);
+        const sizeBefore = set.size;
+        set.add(member);
+        this.setFallbackCache(key, Array.from(set));
+        return set.size - sizeBefore;
+      }
       return await this.client.sadd(key, member);
     });
   }
 
   async srem(key: string, member: string): Promise<number> {
     return this.executeWithMetrics('srem', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use Set in fallback cache
+        const set = new Set(this.getFallbackCache(key) || []);
+        const removed = set.delete(member);
+        this.setFallbackCache(key, Array.from(set));
+        return removed ? 1 : 0;
+      }
       return await this.client.srem(key, member);
     });
   }
 
   async sismember(key: string, member: string): Promise<boolean> {
     return this.executeWithMetrics('sismember', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use Set in fallback cache
+        const set = new Set(this.getFallbackCache(key) || []);
+        return set.has(member);
+      }
       const result = await this.client.sismember(key, member);
       return result === 1;
     });
@@ -505,7 +710,11 @@ export class RedisService implements IRedisService {
 
   async smembers(key: string): Promise<string[]> {
     return this.executeWithMetrics('smembers', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Use Set in fallback cache
+        const members = this.getFallbackCache(key) || [];
+        return Array.from(new Set(members));
+      }
       return await this.client.smembers(key);
     });
   }
@@ -515,12 +724,31 @@ export class RedisService implements IRedisService {
   // ===========================================
 
   multi(): any {
-    if (!this.client) throw new Error('Redis client not initialized');
+    if (!this.client) {
+      // Fallback: Return a mock multi object that queues operations
+      logger.warn('Multi/transaction operations not supported in fallback mode');
+      return {
+        exec: async () => [],
+        get: () => this,
+        set: () => this,
+        del: () => this,
+        hset: () => this,
+        hget: () => this,
+        sadd: () => this,
+        srem: () => this,
+        lpush: () => this,
+        rpop: () => this,
+      };
+    }
     return this.client.multi();
   }
 
   async exec(multi: any): Promise<any[]> {
     return this.executeWithMetrics('multi_exec', async () => {
+      if (!this.client) {
+        // Fallback: Return empty results for mock multi
+        return [];
+      }
       const results = await multi.exec();
       return results || [];
     });
@@ -528,7 +756,22 @@ export class RedisService implements IRedisService {
 
   async pipeline(commands: Array<{ cmd: string; args: any[] }>): Promise<any[]> {
     return this.executeWithMetrics('pipeline', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Execute commands sequentially
+        logger.warn(
+          'Pipeline operations not fully supported in fallback mode - executing sequentially'
+        );
+        const results = [];
+        for (const command of commands) {
+          try {
+            const result = await (this as any)[command.cmd](...command.args);
+            results.push([null, result]);
+          } catch (error) {
+            results.push([error, null]);
+          }
+        }
+        return results;
+      }
 
       const pipeline = this.client.pipeline();
       for (const command of commands) {
@@ -576,7 +819,10 @@ export class RedisService implements IRedisService {
   }
 
   async info(section?: string): Promise<string> {
-    if (!this.client) throw new Error('Redis client not initialized');
+    if (!this.client) {
+      // Fallback: Return mock info
+      return `# Fallback mode\r\nfallback_mode:1\r\nfallback_cache_size:${this.fallbackCache.size}\r\n`;
+    }
     return section ? await this.client.info(section) : await this.client.info();
   }
 
@@ -586,7 +832,11 @@ export class RedisService implements IRedisService {
 
   async flushall(): Promise<number> {
     return this.executeWithMetrics('flushall', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Clear fallback cache
+        this.fallbackCache.clear();
+        return 1;
+      }
       await this.client.flushall();
       return 1;
     });
@@ -594,7 +844,11 @@ export class RedisService implements IRedisService {
 
   async flushdb(): Promise<number> {
     return this.executeWithMetrics('flushdb', async () => {
-      if (!this.client) throw new Error('Redis client not initialized');
+      if (!this.client) {
+        // Fallback: Clear fallback cache
+        this.fallbackCache.clear();
+        return 1;
+      }
       await this.client.flushdb();
       return 1;
     });
@@ -750,8 +1004,57 @@ export class RedisService implements IRedisService {
       this.subscriberClient = null;
     }
 
+    if (this.fallbackCacheCleanupTimer) {
+      clearInterval(this.fallbackCacheCleanupTimer);
+      this.fallbackCacheCleanupTimer = null;
+    }
+
     this.isInitialized = false;
     this.subscribers.clear();
     this.patternSubscribers.clear();
+  }
+
+  // ===========================================
+  // Fallback 캐시 관련 메서드
+  // ===========================================
+
+  private cleanupFallbackCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+
+    for (const [key, item] of this.fallbackCache.entries()) {
+      if (item.expiry && item.expiry < now) {
+        this.fallbackCache.delete(key);
+        cleanedCount++;
+      }
+    }
+
+    if (cleanedCount > 0) {
+      logger.debug(`Fallback 캐시 정리 완료: ${cleanedCount}개 항목 삭제`);
+    }
+  }
+
+  private setFallbackCache(key: string, value: any, ttlSeconds?: number): void {
+    const item: { value: any; expiry?: number } = { value };
+    if (ttlSeconds) {
+      item.expiry = Date.now() + ttlSeconds * 1000;
+    }
+    this.fallbackCache.set(key, item);
+  }
+
+  private getFallbackCache(key: string): any | null {
+    const item = this.fallbackCache.get(key);
+    if (!item) return null;
+
+    if (item.expiry && item.expiry < Date.now()) {
+      this.fallbackCache.delete(key);
+      return null;
+    }
+
+    return item.value;
+  }
+
+  private deleteFallbackCache(key: string): void {
+    this.fallbackCache.delete(key);
   }
 }

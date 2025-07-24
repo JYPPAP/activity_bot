@@ -10,12 +10,12 @@ import {
 
 import { COLORS } from '../config/constants';
 import { config } from '../config/env';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
 import { EnhancedClient } from '../types/discord';
 import { UserActivity } from '../types/index';
 import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder';
 import { formatKoreanDate, formatTime } from '../utils/formatters';
 
-import { SQLiteManager } from './SQLiteManager';
 import { UserClassificationService } from './UserClassificationService';
 
 // ====================
@@ -109,10 +109,10 @@ export interface ReportTrends {
 
 export class ActivityReportService {
   private readonly client: EnhancedClient;
-  private readonly db: SQLiteManager;
+  private readonly db: IDatabaseManager;
   private userClassificationService?: UserClassificationService;
 
-  constructor(client: EnhancedClient, dbManager: SQLiteManager) {
+  constructor(client: EnhancedClient, dbManager: IDatabaseManager) {
     this.client = client;
     this.db = dbManager;
   }
@@ -372,7 +372,7 @@ export class ActivityReportService {
   /**
    * 주간 요약 데이터 수집
    */
-  async getWeeklySummaryData(startTime: number, endTime: number): Promise<WeeklySummaryData> {
+  async getWeeklySummaryData(startTime: number, endTime: number, guildId: string): Promise<WeeklySummaryData> {
     try {
       const dailyStats = await this.db.getDailyActivityStats(startTime, endTime);
 
@@ -387,7 +387,7 @@ export class ActivityReportService {
       }
 
       const activeUsers = await this.db.getAllUserActivity();
-      const topUsers = await this.processTopUsers(activeUsers, 5);
+      const topUsers = await this.processTopUsers(activeUsers, 5, guildId);
       const activeChannelStats = await this.getMostActiveChannels(startTime, endTime, 5);
 
       return {
@@ -412,8 +412,8 @@ export class ActivityReportService {
   /**
    * 상위 사용자 처리
    */
-  private async processTopUsers(activeUsers: UserActivity[], limit: number): Promise<TopUser[]> {
-    const guild = this.client.guilds.cache.get(config.GUILDID);
+  private async processTopUsers(activeUsers: UserActivity[], limit: number, guildId: string): Promise<TopUser[]> {
+    const guild = this.client.guilds.cache.get(guildId);
 
     if (guild) {
       for (const user of activeUsers) {
@@ -584,7 +584,7 @@ export class ActivityReportService {
           endDate: new Date(new Date(stat.date).getTime() + 24 * 60 * 60 * 1000),
         });
 
-        const activeMembers = [...new Set(dayLogs.map((log) => log.userId))];
+        const activeMembers = [...new Set(dayLogs.map((log: any) => log.userId))] as string[];
         const topChannels = await this.getMostActiveChannels(
           new Date(stat.date).getTime(),
           new Date(stat.date).getTime() + 24 * 60 * 60 * 1000,
@@ -794,10 +794,10 @@ export class ActivityReportService {
       });
 
       const totalUsers = allUsers.length;
-      const activeUsers = allUsers.filter((user) => user.totalTime > 0);
+      const activeUsers = allUsers.filter((user: any) => user.totalTime > 0);
       const activePercentage = totalUsers > 0 ? (activeUsers.length / totalUsers) * 100 : 0;
 
-      const totalTime = activeUsers.reduce((sum, user) => sum + user.totalTime, 0);
+      const totalTime = activeUsers.reduce((sum: number, user: any) => sum + user.totalTime, 0);
       const averageActivityTime = activeUsers.length > 0 ? totalTime / activeUsers.length : 0;
 
       // 일별 활동 분석

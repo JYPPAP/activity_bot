@@ -8,8 +8,8 @@ import {
 } from 'discord.js';
 
 import { DiscordConstants } from '../config/DiscordConstants';
-import { config } from '../config/env';
 import { RecruitmentConfig } from '../config/RecruitmentConfig';
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
 import { RecruitmentService } from '../services/RecruitmentService';
 import { VoiceChannelManager } from '../services/VoiceChannelManager';
 import { DiscordAPIError } from '../types/discord';
@@ -74,6 +74,7 @@ export class ButtonHandler {
   private readonly voiceChannelManager: VoiceChannelManager;
   private readonly recruitmentService: RecruitmentService;
   private readonly modalHandler: ModalHandler;
+  private readonly guildSettingsManager: GuildSettingsManager;
 
   // 통계 및 모니터링
   private buttonStats: ButtonStatistics = {
@@ -100,15 +101,17 @@ export class ButtonHandler {
   constructor(
     voiceChannelManager: VoiceChannelManager,
     recruitmentService: RecruitmentService,
-    modalHandler: ModalHandler
+    modalHandler: ModalHandler,
+    guildSettingsManager: GuildSettingsManager
   ) {
     this.voiceChannelManager = voiceChannelManager;
     this.recruitmentService = recruitmentService;
     this.modalHandler = modalHandler;
+    this.guildSettingsManager = guildSettingsManager;
   }
 
   /**
-   * 역할 태그 버튼 처리 (다중 선택 지원)
+   * 게임 태그 버튼 처리 (다중 선택 지원)
    * @param interaction - 버튼 인터랙션
    */
   async handleRoleTagButtons(interaction: ButtonInteraction): Promise<ButtonHandleResult> {
@@ -134,7 +137,7 @@ export class ButtonHandler {
         toggleResult
       );
     } catch (error) {
-      console.error('[ButtonHandler] 역할 태그 버튼 처리 오류:', error);
+      console.error('[ButtonHandler] 게임 태그 버튼 처리 오류:', error);
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
 
       await SafeInteraction.safeReply(
@@ -333,11 +336,12 @@ export class ButtonHandler {
     const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed(selectedTags, isStandalone);
 
     // 버튼 업데이트
-    const components = RecruitmentUIBuilder.createRoleTagButtons(
+    const components = await RecruitmentUIBuilder.createRoleTagButtons(
       selectedTags,
       voiceChannelId || null,
       methodValue || null,
-      isStandalone
+      isStandalone,
+      interaction.guild?.id || null
     );
 
     await SafeInteraction.safeUpdate(interaction, {
@@ -450,7 +454,7 @@ export class ButtonHandler {
     interaction: ButtonInteraction
   ): Promise<NicknameChangeResult> {
     // 즉시 defer하여 3초 제한 해결
-    await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
     const customId = interaction.customId;
     let channelInfo = '';
@@ -503,7 +507,7 @@ export class ButtonHandler {
    */
   private async handleConnectButton(interaction: ButtonInteraction): Promise<NicknameChangeResult> {
     // 즉시 defer하여 3초 제한 해결
-    await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
     const voiceChannelId = interaction.customId.split('_')[2];
     let voiceChannel: VoiceChannel | null = null;
@@ -546,7 +550,7 @@ export class ButtonHandler {
    */
   private async handleWaitButton(interaction: ButtonInteraction): Promise<NicknameChangeResult> {
     // 즉시 defer하여 3초 제한 해결
-    await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
     const customId = interaction.customId;
     let channelInfo = '';
@@ -599,7 +603,7 @@ export class ButtonHandler {
    */
   private async handleResetButton(interaction: ButtonInteraction): Promise<NicknameChangeResult> {
     // 즉시 defer하여 3초 제한 해결
-    await SafeInteraction.safeDeferReply(interaction, { ephemeral: true });
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
     const customId = interaction.customId;
     let channelInfo = '';
@@ -661,7 +665,7 @@ export class ButtonHandler {
     this.updateButtonTypeStats(customId);
 
     try {
-      // 역할 태그 관련 버튼
+      // 게임 태그 관련 버튼
       if (this.isRoleTagButton(customId)) {
         return await this.handleRoleTagButtons(interaction);
       }
@@ -689,9 +693,9 @@ export class ButtonHandler {
   }
 
   /**
-   * 역할 태그 버튼인지 확인
+   * 게임 태그 버튼인지 확인
    * @param customId - 커스텀 ID
-   * @returns 역할 태그 버튼 여부
+   * @returns 게임 태그 버튼 여부
    */
   isRoleTagButton(customId: string): boolean {
     return (
@@ -745,12 +749,29 @@ export class ButtonHandler {
     // 버튼 customId에서 채널 ID 추출 (recruitment_options_${channelId} 형식)
     const channelId = customId.split('_')[2];
 
-    // 제외 채널 확인
-    if (config.EXCLUDED_CHANNELS.includes(channelId)) {
-      // 제외 채널에서 오는 버튼은 조용히 무시
-      return this.recordInteractionResult(interaction, 'excludedChannel', true, startTime, {
-        message: '제외 채널에서 온 요청 무시',
+    // 길드 ID 확인
+    if (!interaction.guild?.id) {
+      console.warn('[ButtonHandler] 길드 정보가 없는 인터랙션');
+      return this.recordInteractionResult(interaction, 'noGuild', false, startTime, {
+        error: '길드 정보가 없습니다',
       });
+    }
+
+    // DB에서 제외 채널 설정 확인
+    try {
+      const excludeSettings = await this.guildSettingsManager.getExcludeChannels(interaction.guild.id);
+      const excludedChannels = excludeSettings?.excludedChannels || [];
+      const activityLimitedChannels = excludeSettings?.activityLimitedChannels || [];
+      
+      // 완전 제외 또는 활동 제한 채널에서 오는 버튼은 조용히 무시
+      if (excludedChannels.includes(channelId) || activityLimitedChannels.includes(channelId)) {
+        return this.recordInteractionResult(interaction, 'excludedChannel', true, startTime, {
+          message: '제외 채널에서 온 요청 무시',
+        });
+      }
+    } catch (error) {
+      console.error('[ButtonHandler] 제외 채널 설정 조회 실패:', error);
+      // DB 오류 시 안전하게 계속 진행
     }
 
     // 제외 채널이 아닌 경우 처리되지 않은 버튼으로 분류

@@ -1,19 +1,19 @@
 // src/commands/CommandBase.ts - 모든 명령어의 기본 기능 제공
 import { Client, ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder } from 'discord.js';
 
-import { ActivityTracker } from '../services/activityTracker';
-import { CalendarLogService } from '../services/calendarLogService';
-import { LogService } from '../services/logService';
-import { SQLiteManager } from '../services/SQLiteManager';
+import type { IActivityTracker } from '../interfaces/IActivityTracker';
+import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
+import type { ILogService } from '../interfaces/ILogService';
+import type { GuildSettingsManager } from '../services/GuildSettingsManager';
 
 // 서비스 컨테이너 인터페이스
 export interface CommandServices {
-  activityTracker: ActivityTracker;
-  dbManager: SQLiteManager;
-  calendarLogService: CalendarLogService;
+  activityTracker: IActivityTracker;
+  dbManager: IDatabaseManager;
   client: Client;
-  logService: LogService | undefined;
+  logService?: ILogService;
   voiceForumService?: any;
+  guildSettingsManager: GuildSettingsManager;
 }
 
 // 명령어 메타데이터 인터페이스
@@ -73,11 +73,10 @@ export interface CommandConfig {
 }
 
 export abstract class CommandBase {
-  protected activityTracker: ActivityTracker;
-  protected dbManager: SQLiteManager;
-  protected calendarLogService: CalendarLogService;
+  protected activityTracker: IActivityTracker;
+  protected dbManager: IDatabaseManager;
   protected client: Client;
-  protected logService: LogService | undefined;
+  protected logService: ILogService | undefined;
 
   // 명령어 메타데이터
   public abstract readonly metadata: CommandMetadata;
@@ -102,7 +101,6 @@ export abstract class CommandBase {
     // 서비스 초기화
     this.activityTracker = services.activityTracker;
     this.dbManager = services.dbManager;
-    this.calendarLogService = services.calendarLogService;
     this.client = services.client;
     this.logService = services.logService || undefined;
 
@@ -153,6 +151,20 @@ export abstract class CommandBase {
     interaction: ChatInputCommandInteraction,
     options: CommandExecutionOptions = {}
   ): Promise<CommandResult> {
+    return this.executeWithVisibility(interaction, options, false);
+  }
+
+  /**
+   * 가시성 설정을 지원하는 명령어 실행 메서드
+   * @param interaction - 상호작용 객체
+   * @param options - 실행 옵션
+   * @param isPublic - 공개 여부 (true: 모든 사용자가 볼 수 있음, false: 명령어 실행자만 볼 수 있음)
+   */
+  async executeWithVisibility(
+    interaction: ChatInputCommandInteraction,
+    options: CommandExecutionOptions = {},
+    isPublic: boolean = false
+  ): Promise<CommandResult> {
     const startTime = Date.now();
 
     // 명령어 비활성화 확인
@@ -164,7 +176,12 @@ export abstract class CommandBase {
       };
     }
 
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    // public 설정에 따른 deferReply 처리
+    if (isPublic) {
+      await interaction.deferReply(); // 공개 응답
+    } else {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral }); // 비공개 응답
+    }
 
     try {
       // 권한 검사
@@ -196,6 +213,14 @@ export abstract class CommandBase {
 
       // 실제 명령어 실행
       const result = await this.executeWithRetry(interaction, options);
+
+      // 명령어 결과에 따른 응답 처리
+      if (result.message && interaction.deferred && !interaction.replied) {
+        await interaction.followUp({
+          content: result.success ? `✅ ${result.message}` : `❌ ${result.message}`,
+          flags: MessageFlags.Ephemeral,
+        });
+      }
 
       // 통계 업데이트
       if (this.config.enableStatistics) {
@@ -381,21 +406,62 @@ export abstract class CommandBase {
     // 오류 로깅
     console.error('Command execution error:', error.message, error.stack);
 
+    await this.safeInteractionResponse(interaction, {
+      content: errorMessage,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  /**
+   * 안전한 인터랙션 응답 처리
+   * @param interaction - 인터랙션 객체
+   * @param options - 응답 옵션
+   */
+  protected async safeInteractionResponse(
+    interaction: ChatInputCommandInteraction,
+    options: { content: string; flags?: MessageFlags; embeds?: any[]; components?: any[] }
+  ): Promise<void> {
     try {
+      // MessageFlags 타입을 BitFieldResolvable로 변환
+      const responseOptions: any = {
+        content: options.content,
+        ...(options.flags && { flags: options.flags }),
+        ...(options.embeds && { embeds: options.embeds }),
+        ...(options.components && { components: options.components }),
+      };
+
       if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: errorMessage,
-          flags: MessageFlags.Ephemeral,
-        });
+        // 아직 응답하지 않았고 지연되지 않은 경우 - reply 사용
+        await interaction.reply(responseOptions);
+      } else if (interaction.deferred && !interaction.replied) {
+        // 지연되었지만 아직 응답하지 않은 경우 - followUp 사용
+        await interaction.followUp(responseOptions);
       } else {
-        await interaction.followUp({
-          content: errorMessage,
-          flags: MessageFlags.Ephemeral,
-        });
+        // 이미 응답한 경우 - 추가 followUp 사용
+        await interaction.followUp(responseOptions);
       }
     } catch (responseError) {
-      console.error('오류 응답 전송 실패:', responseError);
+      console.error('안전한 인터랙션 응답 실패:', responseError);
     }
+  }
+
+  /**
+   * 인터랙션 상태 검증
+   * @param interaction - 인터랙션 객체
+   * @returns 인터랙션 상태 정보
+   */
+  protected getInteractionState(interaction: ChatInputCommandInteraction): {
+    canReply: boolean;
+    canFollowUp: boolean;
+    isDeferred: boolean;
+    isReplied: boolean;
+  } {
+    return {
+      canReply: !interaction.replied && !interaction.deferred,
+      canFollowUp: interaction.deferred || interaction.replied,
+      isDeferred: interaction.deferred,
+      isReplied: interaction.replied,
+    };
   }
 
   /**
@@ -449,14 +515,8 @@ export abstract class CommandBase {
       console.log(`[Command] ${JSON.stringify(logData)}`);
     }
 
-    if (this.logService) {
-      this.logService.logActivity(
-        `명령어 실행: ${this.metadata.name}`,
-        [interaction.user.id],
-        'command_execution',
-        logData
-      );
-    }
+    // Discord 채널 로그 제거됨 - 음성 채널 활동과 관련 없는 명령어 실행 로그
+    // 콘솔/파일 로그는 유지됨
   }
 
   /**

@@ -7,6 +7,8 @@ import {
   GuildMember,
 } from 'discord.js';
 
+import { GuildSettingsManager } from '../services/GuildSettingsManager';
+
 import {
   CommandBase,
   CommandServices,
@@ -76,10 +78,12 @@ export class RecruitmentCommand extends CommandBase {
   };
 
   private voiceForumService: any;
+  private guildSettingsManager: GuildSettingsManager;
 
   constructor(services: CommandServices) {
     super(services);
     this.voiceForumService = services.voiceForumService;
+    this.guildSettingsManager = services.guildSettingsManager;
   }
 
   /**
@@ -137,21 +141,7 @@ export class RecruitmentCommand extends CommandBase {
     _options: CommandExecutionOptions
   ): Promise<CommandResult> {
     try {
-      // 권한 체크
-      if (
-        !this.hasRecruitmentPermission(interaction.user, interaction.member as GuildMember | null)
-      ) {
-        await interaction.followUp({
-          content:
-            '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
-          flags: MessageFlags.Ephemeral,
-        });
-
-        return {
-          success: false,
-          message: '구인구직 기능 접근 권한이 없습니다.',
-        };
-      }
+      // 권한 체크 제거 - 모든 사용자가 구인구직 기능 사용 가능
 
       const action = interaction.options.getString('action') || 'create';
       const category = interaction.options.getString('category') ?? undefined;
@@ -215,6 +205,35 @@ export class RecruitmentCommand extends CommandBase {
     category?: string
   ): Promise<CommandResult> {
     try {
+      const guildId = interaction.guild?.id;
+      if (!guildId) {
+        await interaction.followUp({
+          content: '❌ 길드 정보를 찾을 수 없습니다.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return { success: false, message: '길드 정보를 찾을 수 없습니다.' };
+      }
+
+      // 구인구직 기능 활성화 상태 확인
+      const channelManagement = await this.guildSettingsManager.getChannelManagement(guildId);
+      if (!channelManagement?.forumChannelId) {
+        await interaction.followUp({
+          content: `❌ **구인구직 기능이 비활성화되어 있습니다.**
+
+\`/설정\` 명령어의 **관리 채널 지정**에서 구인구직 포럼 채널을 설정해주세요.
+
+📝 **설정 방법:**
+1. \`/설정\` 명령어 실행
+2. **관리 채널 지정** 버튼 클릭
+3. **구인구직 활성화** 필드에 포럼 채널 ID 입력`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return {
+          success: false,
+          message: '구인구직 기능이 비활성화되어 있습니다.',
+        };
+      }
+
       // 모달 표시를 위해 defer 하지 않고 바로 실행
       await this.voiceForumService.showStandaloneRecruitmentModal(interaction, { category });
 

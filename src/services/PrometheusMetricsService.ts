@@ -4,8 +4,11 @@ import { Server } from 'http';
 import { Client } from 'discord.js';
 import express, { Request, Response } from 'express';
 import { Counter, Gauge, Histogram, collectDefaultMetrics, Registry } from 'prom-client';
+import { injectable, inject } from 'tsyringe';
 
+import { config, isDevelopment } from '../config/env';
 import { logger } from '../config/logger-termux';
+import { DI_TOKENS } from '../interfaces/index';
 
 // 메트릭 타입 정의
 interface DiscordBotMetrics {
@@ -54,6 +57,7 @@ interface MetricsServerConfig {
   defaultMetricsInterval: number;
 }
 
+@injectable()
 export class PrometheusMetricsService {
   private client: Client;
   private app: express.Application;
@@ -70,7 +74,7 @@ export class PrometheusMetricsService {
     defaultMetricsInterval: 30000, // 30초
   };
 
-  constructor(client: Client) {
+  constructor(@inject(DI_TOKENS.DiscordClient) client: Client) {
     this.client = client;
     this.app = express();
     this.registry = new Registry();
@@ -94,6 +98,50 @@ export class PrometheusMetricsService {
       host: this.config.host,
       path: this.config.path,
     });
+  }
+
+  /**
+   * 환경에 따른 접속 가능한 URL 생성
+   */
+  private generateAccessibleUrls(): { metricsUrl: string; healthUrl: string; displayInfo: string } {
+    const port = this.config.port;
+
+    if (isDevelopment()) {
+      // 개발 환경: localhost 및 핸드폰IP 제공
+      const errsoleHost = config.ERRSOLE_HOST || 'localhost';
+      const phoneIp = config.PHONE_IP;
+
+      let accessHost: string;
+      let displayInfo: string;
+
+      if (errsoleHost === '0.0.0.0' && phoneIp) {
+        // Errsole이 0.0.0.0으로 설정된 경우, 핸드폰IP 우선 사용
+        accessHost = phoneIp;
+        displayInfo = `💻 컴퓨터에서 접속: http://localhost:${port}\n🌐 외부 접속: http://${phoneIp}:${port}`;
+      } else if (errsoleHost === '0.0.0.0') {
+        // 핸드폰IP가 없는 경우 localhost 사용
+        accessHost = 'localhost';
+        displayInfo = `💻 로컬 접속: http://localhost:${port}`;
+      } else {
+        // Errsole 호스트 설정 따라가기
+        accessHost = errsoleHost === 'localhost' ? 'localhost' : errsoleHost;
+        displayInfo = `📊 메트릭 접속: http://${accessHost}:${port}`;
+      }
+
+      return {
+        metricsUrl: `http://${accessHost}:${port}${this.config.path}`,
+        healthUrl: `http://${accessHost}:${port}/health`,
+        displayInfo,
+      };
+    } else {
+      // 운영 환경: 서버 IP 또는 localhost
+      const accessHost = 'localhost'; // 운영환경에서는 보통 localhost나 실제 서버 IP
+      return {
+        metricsUrl: `http://${accessHost}:${port}${this.config.path}`,
+        healthUrl: `http://${accessHost}:${port}/health`,
+        displayInfo: `📊 메트릭 서비스: http://${accessHost}:${port}`,
+      };
+    }
   }
 
   /**
@@ -382,12 +430,30 @@ export class PrometheusMetricsService {
     return new Promise((resolve, reject) => {
       try {
         this.server = this.app.listen(this.config.port, this.config.host, () => {
-          logger.info('[PrometheusMetrics] Prometheus 메트릭 서버 시작', {
-            port: this.config.port,
-            host: this.config.host,
-            metricsEndpoint: `http://${this.config.host}:${this.config.port}${this.config.path}`,
-            healthEndpoint: `http://${this.config.host}:${this.config.port}/health`,
-          });
+          const { metricsUrl, healthUrl, displayInfo } = this.generateAccessibleUrls();
+
+          if (isDevelopment()) {
+            // 개발 환경: Errsole과 동일한 형태로 상세 정보 제공
+            logger.info('[PrometheusMetrics] Prometheus 메트릭 서버 시작 완료');
+            console.log('📊 Prometheus 메트릭 서비스');
+            console.log(`   - 메트릭: ${metricsUrl}`);
+            console.log(`   - 헬스체크: ${healthUrl}`);
+            console.log('');
+            console.log(displayInfo);
+
+            if (config.PHONE_IP && config.ERRSOLE_HOST === '0.0.0.0') {
+              console.log('💡 같은 네트워크의 다른 기기에서도 접속 가능');
+            }
+          } else {
+            // 운영 환경: 간단한 로그
+            logger.info('[PrometheusMetrics] Prometheus 메트릭 서버 시작', {
+              port: this.config.port,
+              host: this.config.host,
+              metricsEndpoint: metricsUrl,
+              healthEndpoint: healthUrl,
+            });
+          }
+
           resolve();
         });
 
@@ -545,12 +611,16 @@ export class PrometheusMetricsService {
    * 서버 상태 조회
    */
   async getStatus() {
+    const { metricsUrl, healthUrl } = this.generateAccessibleUrls();
+
     return {
       enabled: this.isEnabled,
       serverRunning: this.server !== null,
       port: this.config.port,
-      host: this.config.host,
+      bindHost: this.config.host,
       metricsPath: this.config.path,
+      metricsUrl,
+      healthUrl,
       registeredMetrics: (await this.registry.getMetricsAsJSON()).length,
     };
   }

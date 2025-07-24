@@ -293,7 +293,7 @@ export class EmbedFactory {
       colorCode = COLORS.LOG,
       timestamp = new Date(),
       channelName,
-      action,
+      action: _action,
     } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
@@ -305,9 +305,7 @@ export class EmbedFactory {
       embed.addFields({ name: '채널', value: channelName, inline: true });
     }
 
-    if (action) {
-      embed.addFields({ name: '동작', value: action, inline: true });
-    }
+    // "동작" 필드 제거 - 불필요한 출력 제거
 
     // 현재 음성 채널의 인원 목록
     if (opts.includeMembers !== false) {

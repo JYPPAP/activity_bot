@@ -2,9 +2,11 @@
 import { performance } from 'perf_hooks';
 
 import { Client, Events } from 'discord.js';
+import { injectable, inject } from 'tsyringe';
 
 import { TIME } from '../config/constants';
 import { logger } from '../config/logger-termux';
+import { DI_TOKENS } from '../interfaces/index';
 
 import { PrometheusMetricsService } from './PrometheusMetricsService';
 
@@ -66,10 +68,11 @@ interface PerformanceReport {
   };
 }
 
+@injectable()
 export class PerformanceMonitoringService {
   private client: Client;
   private isEnabled: boolean = true;
-  private prometheusMetrics: PrometheusMetricsService | undefined;
+  private prometheusMetrics: PrometheusMetricsService;
 
   // 메트릭 저장소
   private websocketMetrics: WebSocketMetrics;
@@ -89,7 +92,10 @@ export class PerformanceMonitoringService {
     enableDetailedLogging: true,
   };
 
-  constructor(client: Client, prometheusMetrics?: PrometheusMetricsService) {
+  constructor(
+    @inject(DI_TOKENS.DiscordClient) client: Client,
+    @inject(DI_TOKENS.IPrometheusMetricsService) prometheusMetrics: PrometheusMetricsService
+  ) {
     this.client = client;
     this.prometheusMetrics = prometheusMetrics;
 
@@ -178,9 +184,7 @@ export class PerformanceMonitoringService {
       this.websocketMetrics.lastReconnect = new Date();
 
       // Prometheus 메트릭 기록
-      if (this.prometheusMetrics) {
-        this.prometheusMetrics.recordWebSocketReconnection();
-      }
+      this.prometheusMetrics.recordWebSocketReconnection();
     });
 
     this.client.on('shardDisconnect', () => {
@@ -242,9 +246,7 @@ export class PerformanceMonitoringService {
     this.apiMetrics.lastRateLimit = rateLimitInfo;
 
     // Prometheus 메트릭 기록
-    if (this.prometheusMetrics) {
-      this.prometheusMetrics.recordRateLimit(rateLimitInfo.route, rateLimitInfo.bucket);
-    }
+    this.prometheusMetrics.recordRateLimit(rateLimitInfo.route, rateLimitInfo.bucket);
 
     logger.discordRateLimit('[PerformanceMonitor] API 레이트 리밋 도달', {
       route: rateLimitInfo.route,
@@ -300,9 +302,7 @@ export class PerformanceMonitoringService {
     metrics.lastExecution = new Date();
 
     // Prometheus 메트릭 기록
-    if (this.prometheusMetrics) {
-      this.prometheusMetrics.recordEvent(eventName, executionTime);
-    }
+    this.prometheusMetrics.recordEvent(eventName, executionTime);
 
     // 느린 이벤트 처리 경고
     if (executionTime > 1000) {

@@ -34,6 +34,8 @@ export interface ParticipantListOptions {
   emptyText?: string;
   separator?: string;
   wrapInBackticks?: boolean;
+  forumTagId?: string;
+  useForumTag?: boolean;
 }
 
 // ====================
@@ -141,7 +143,12 @@ export function formatRelativeTime(timestamp: number, now: number = Date.now()):
  */
 export function formatKoreanDate(date: Date | number): string {
   const dateObj = date instanceof Date ? date : new Date(date);
-  return dateObj.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+  return dateObj.toLocaleTimeString('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
 }
 
 /**
@@ -321,6 +328,8 @@ export function formatParticipantList(
     emptyText = '없음',
     separator = ',',
     wrapInBackticks = true,
+    forumTagId,
+    useForumTag = false,
   } = options;
 
   const count = participants?.length || 0;
@@ -329,17 +338,30 @@ export function formatParticipantList(
     return showHeader ? `## 👥 **참가자(0명)**: ${emptyText}` : emptyText;
   }
 
-  const formattedNames = participants
-    .map((name) => (wrapInBackticks ? ` \` ${name} \` ` : name))
-    .join(separator);
+  // 포럼 태그 사용 시 Discord 포럼 태그 형식으로 포맷팅
+  let formattedNames: string;
+  if (useForumTag && forumTagId) {
+    // Discord 포럼 태그 형식: <id:tag_id>
+    const taggedParticipants = participants.map((name) => `<id:${forumTagId}>${name}`);
+    formattedNames = taggedParticipants.join(separator + ' ');
+  } else {
+    // 기존 백틱 형식
+    formattedNames = participants
+      .map((name) => (wrapInBackticks ? ` \` ${name} \` ` : name))
+      .join(separator);
+  }
 
   if (!showHeader) {
     return formattedNames;
   }
 
+  // 포럼 태그 사용 시 헤더에 태그 표시 추가
+  const headerPrefix = useForumTag && forumTagId ? '🏷️ ' : '👥 ';
+  const headerSuffix = useForumTag && forumTagId ? ` (태그: ${forumTagId})` : '';
+
   return showCount
-    ? `## 👥 **참가자(${count}명)**: ${formattedNames}`
-    : `## 👥 **참가자**: ${formattedNames}`;
+    ? `## ${headerPrefix}**참가자(${count}명)**${headerSuffix}: ${formattedNames}`
+    : `## ${headerPrefix}**참가자**${headerSuffix}: ${formattedNames}`;
 }
 
 // ====================
@@ -659,4 +681,18 @@ export function safeString(value: any, defaultValue: string = ''): string {
   }
 
   return String(value);
+}
+
+/**
+ * 밀리초를 소수점 시간 형식으로 변환합니다.
+ * @param totalTime - 밀리초 단위의 시간
+ * @returns "X.X시간" 형식의 문자열
+ */
+export function formatTimeInHours(totalTime: number): string {
+  if (totalTime <= 0) {
+    return '0시간';
+  }
+  
+  const hours = totalTime / (60 * 60 * 1000);
+  return `${hours.toFixed(1)}시간`;
 }

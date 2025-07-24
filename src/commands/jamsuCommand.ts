@@ -259,7 +259,7 @@ export class JamsuCommand extends CommandBase {
       }
 
       // DB에 잠수 정보 저장
-      const untilTimestamp = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30일 후
+      const untilTimestamp = untilDate.getTime(); // 사용자가 입력한 날짜 사용
       await this.dbManager.setUserAfkStatus(targetUser.id, targetUser.username, untilTimestamp);
 
       // 저장 확인 (디버깅용)
