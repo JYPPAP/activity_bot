@@ -9,15 +9,8 @@ export const PUBLIC_COMMANDS = ['구직'];
 
 // 특정 역할이 필요한 명령어들
 export const ROLE_BASED_PERMISSIONS = {
-  'gap_list': SUPER_ADMIN_ROLES,
-  'gap_config': SUPER_ADMIN_ROLES,
-  'gap_reset': SUPER_ADMIN_ROLES,
-  'gap_save': SUPER_ADMIN_ROLES,
-  'gap_report': SUPER_ADMIN_ROLES,
-  'gap_cycle': SUPER_ADMIN_ROLES,
-  'gap_afk': SUPER_ADMIN_ROLES,
-  'gap_calendar': SUPER_ADMIN_ROLES,
-  'gap_stats': SUPER_ADMIN_ROLES,
+  '보고서': SUPER_ADMIN_ROLES,
+  '잠수': SUPER_ADMIN_ROLES,
   '시간체크': SUPER_ADMIN_ROLES,
 };
 

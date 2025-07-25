@@ -49,9 +49,6 @@ export class GapReportCommand extends CommandBase {
 
     // 보고서 전송
     await this.sendReport(interaction, options, reportEmbeds);
-
-    // 리셋 처리
-    await this.handleReset(interaction, options);
   }
 
   // 명령어 옵션 가져오기
@@ -61,7 +58,6 @@ export class GapReportCommand extends CommandBase {
       startDateStr: interaction.options.getString("start_date")?.trim(),
       endDateStr: interaction.options.getString("end_date")?.trim(),
       isTestMode: interaction.options.getBoolean("test_mode") ?? false,
-      resetOption: interaction.options.getBoolean("reset") ?? false,
       logChannelId: interaction.options.getChannel("log_channel")?.id || process.env.CALENDAR_LOG_CHANNEL_ID
     };
   }
@@ -70,7 +66,7 @@ export class GapReportCommand extends CommandBase {
   validateRoleConfig(roleConfig, role, interaction) {
     if (!roleConfig) {
       interaction.followUp({
-        content: `역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
+        content: `역할 "${role}"에 대한 설정을 찾을 수 없습니다. 관리자에게 문의해주세요.`,
         flags: MessageFlags.Ephemeral,
       });
       return false;
@@ -209,15 +205,4 @@ export class GapReportCommand extends CommandBase {
     }
   }
 
-  // 리셋 처리
-  async handleReset(interaction, options) {
-    // 테스트 모드가 아니고, 리셋 옵션이 켜져 있을 경우에만 리셋 시간 업데이트
-    if (!options.isTestMode && options.resetOption) {
-      await this.dbManager.updateRoleResetTime(options.role, Date.now(), '보고서 출력 시 리셋');
-      await interaction.followUp({
-        content: `✅ ${options.role} 역할의 활동 시간이 리셋되었습니다.`,
-        flags: MessageFlags.Ephemeral,
-      });
-    }
-  }
 }

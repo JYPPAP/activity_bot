@@ -16,8 +16,8 @@ export class GapCheckCommand {
     await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
-      // 명령어 옵션 가져오기
-      const user = interaction.options.getUser("user");
+      // 명령어 실행자의 정보 사용
+      const user = interaction.user;
       const userId = user.id;
       const startDateStr = interaction.options.getString("start_date")?.trim();
       const endDateStr = interaction.options.getString("end_date")?.trim();
@@ -69,9 +69,12 @@ export class GapCheckCommand {
       // 총 활동 시간 포맷팅
       const formattedTime = formatTime(totalTime);
 
+      // 사용자 별명 가져오기
+      const userDisplayName = interaction.member?.displayName || interaction.user.displayName || interaction.user.username;
+
       // 응답 전송
       await interaction.followUp({
-        content: `${user.username}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
+        content: `${userDisplayName}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
