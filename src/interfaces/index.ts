@@ -19,6 +19,18 @@ export type {
   UserClassificationConfig,
 } from './IUserClassificationService';
 
+// Discord Member Fetch 최적화 서비스
+export type {
+  IMemberFetchService,
+  MemberFetchResult,
+  RoleMemberFetchResult,
+  FetchProgress,
+  MemberFetchServiceConfig,
+  MemberFetchStatistics,
+  ProgressCallback,
+  MemberFilter
+} from './IMemberFetchService';
+
 // 모니터링 서비스 인터페이스
 export type {
   IPerformanceMonitoringService,
@@ -26,6 +38,48 @@ export type {
   PerformanceAlert,
   PerformanceThresholds,
 } from './IPerformanceMonitoringService';
+
+// 신뢰성 있는 임베드 전송 서비스
+export type {
+  IReliableEmbedSender,
+  EmbedSendResult,
+  EmbedSendProgress,
+  ReportSectionData,
+  ThreeSectionReport,
+  ReliableEmbedSendOptions,
+  EmbedValidationError,
+  EmbedSendError,
+  EmbedChunkingError
+} from './IReliableEmbedSender';
+
+// 활동 보고서 템플릿 시스템
+export type {
+  IActivityReportTemplateService,
+  ActivityReportTemplate,
+  ReportSectionTemplate,
+  PaginatedSection,
+  TemplateConfig,
+  TemplateFormattingOptions,
+  TemplateValidationError,
+  TemplateFormattingError,
+  TemplatePaginationError
+} from './IActivityReportTemplate';
+
+// Discord 임베드 청킹 시스템
+export type {
+  IEmbedChunkingSystem,
+  EmbedChunkingConfig,
+  EmbedChunk,
+  ChunkingResult,
+  NavigationState,
+  FileAttachmentData,
+  ChunkingProgress,
+  ChunkingStrategy,
+  AttachmentFormat,
+  EmbedChunkingError,
+  NavigationError,
+  FileFallbackError
+} from './IEmbedChunkingSystem';
 
 export type {
   IPrometheusMetricsService,
@@ -54,6 +108,23 @@ export const DI_TOKENS = {
 
   // 설정 관리 서비스
   IGuildSettingsManager: Symbol.for('IGuildSettingsManager'),
+  
+  // Discord 최적화 서비스
+  IMemberFetchService: Symbol.for('IMemberFetchService'),
+  
+  // 스트리밍 보고서 서비스
+  IStreamingReportEngine: Symbol.for('IStreamingReportEngine'),
+  IDiscordStreamingService: Symbol.for('IDiscordStreamingService'),
+  IIncrementalDataProcessor: Symbol.for('IIncrementalDataProcessor'),
+
+  // 신뢰성 있는 임베드 전송 서비스
+  IReliableEmbedSender: Symbol.for('IReliableEmbedSender'),
+
+  // 활동 보고서 템플릿 시스템
+  IActivityReportTemplateService: Symbol.for('IActivityReportTemplateService'),
+
+  // Discord 임베드 청킹 시스템
+  IEmbedChunkingSystem: Symbol.for('IEmbedChunkingSystem'),
 
   // 모니터링 서비스
   IPerformanceMonitoringService: Symbol.for('IPerformanceMonitoringService'),
@@ -76,6 +147,7 @@ export const DI_TOKENS = {
   CommandHandlerConfig: Symbol.for('CommandHandlerConfig'),
   MetricsConfig: Symbol.for('MetricsConfig'),
   RedisConfig: Symbol.for('RedisConfig'),
+  StreamingReportConfig: Symbol.for('StreamingReportConfig'),
 } as const;
 
 // 타입 가드 함수들

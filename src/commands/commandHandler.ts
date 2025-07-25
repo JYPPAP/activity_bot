@@ -18,6 +18,8 @@ import { DI_TOKENS } from '../interfaces/index';
 import type { IUserClassificationService } from '../interfaces/IUserClassificationService';
 import { GuildSettingsManager } from '../services/GuildSettingsManager';
 import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
+import type { IStreamingReportEngine } from '../interfaces/IStreamingReportEngine';
+import type { DiscordStreamingService } from '../services/DiscordStreamingService';
 
 import { CommandBase, CommandServices } from './CommandBase';
 import { GapCheckCommand } from './gapCheckCommand';
@@ -62,6 +64,8 @@ interface CommandHandlerStatistics {
 interface ExtendedCommand extends CommandBase {
   setUserClassificationService?(service: IUserClassificationService): void;
   setGuildSettingsManager?(manager: GuildSettingsManager): void;
+  setStreamingReportEngine?(engine: IStreamingReportEngine): void;
+  setDiscordStreamingService?(service: DiscordStreamingService): void;
 }
 
 @injectable()
@@ -73,6 +77,8 @@ export class CommandHandler {
   private logService: ILogService;
   private userClassificationService: IUserClassificationService;
   private guildSettingsManager: GuildSettingsManager;
+  private streamingReportEngine: IStreamingReportEngine;
+  private discordStreamingService: DiscordStreamingService;
   private config: CommandHandlerConfig;
 
   // 명령어 관리
@@ -93,6 +99,8 @@ export class CommandHandler {
     @inject(DI_TOKENS.IUserClassificationService)
     userClassificationService: IUserClassificationService,
     @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
+    @inject(DI_TOKENS.IStreamingReportEngine) streamingReportEngine: IStreamingReportEngine,
+    @inject(DI_TOKENS.IDiscordStreamingService) discordStreamingService: DiscordStreamingService,
     config: Partial<CommandHandlerConfig> = {}
   ) {
     this.client = client;
@@ -101,6 +109,8 @@ export class CommandHandler {
     this.logService = logService;
     this.guildSettingsManager = guildSettingsManager;
     this.userClassificationService = userClassificationService;
+    this.streamingReportEngine = streamingReportEngine;
+    this.discordStreamingService = discordStreamingService;
 
     // 설정 초기화
     this.config = {
@@ -179,6 +189,15 @@ export class CommandHandler {
       // GuildSettingsManager 의존성 주입
       if (reportCommand.setGuildSettingsManager) {
         reportCommand.setGuildSettingsManager(this.guildSettingsManager);
+      }
+
+      // 스트리밍 서비스 의존성 주입
+      if (reportCommand.setStreamingReportEngine) {
+        reportCommand.setStreamingReportEngine(this.streamingReportEngine);
+      }
+
+      if (reportCommand.setDiscordStreamingService) {
+        reportCommand.setDiscordStreamingService(this.discordStreamingService);
       }
 
       // 명령어 맵에 등록

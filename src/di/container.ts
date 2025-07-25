@@ -23,6 +23,18 @@ import { RedisService } from '../services/RedisService';
 import { UserClassificationService } from '../services/UserClassificationService';
 import { UserClassificationServiceOptimized } from '../services/UserClassificationServiceOptimized';
 import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
+import { MemberFetchService } from '../services/MemberFetchService';
+import { StreamingReportEngine } from '../services/StreamingReportEngine';
+import { DiscordStreamingService } from '../services/DiscordStreamingService';
+import { IncrementalDataProcessor } from '../services/IncrementalDataProcessor';
+import { ReliableEmbedSender } from '../services/ReliableEmbedSender';
+import { ActivityReportTemplateService } from '../services/ActivityReportTemplateService';
+import { EmbedChunkingSystem } from '../services/EmbedChunkingSystem';
+import { IntegratedReportChunkingService } from '../services/IntegratedReportChunkingService';
+import { ReportGenerationValidator } from '../services/ReportGenerationValidator';
+import { OptimizedMemberFetchService } from '../services/OptimizedMemberFetchService';
+import { ReportCommandIntegration } from '../services/ReportCommandIntegration';
+import { DEFAULT_STREAMING_CONFIG } from '../interfaces/IStreamingReportEngine';
 
 // 인터페이스 및 토큰 임포트
 
@@ -68,6 +80,7 @@ export function configureDIContainer(): void {
   container.registerInstance(DI_TOKENS.LogServiceConfig, logServiceConfig);
   container.registerInstance(DI_TOKENS.RedisConfig, redisConfig);
   container.registerInstance(DI_TOKENS.BotConfig, config);
+  container.registerInstance(DI_TOKENS.StreamingReportConfig, DEFAULT_STREAMING_CONFIG);
 
   // 핵심 서비스들을 싱글톤으로 등록 (concrete class 등록)
   container.registerSingleton(DI_TOKENS.IDatabaseManager, PostgreSQLManager);
@@ -79,6 +92,35 @@ export function configureDIContainer(): void {
 
   // 설정 관리 서비스 등록
   container.registerSingleton(DI_TOKENS.IGuildSettingsManager, GuildSettingsManager);
+
+  // 🚀 Discord Member Fetch 최적화 서비스 등록
+  container.registerSingleton(DI_TOKENS.IMemberFetchService, MemberFetchService);
+
+  // 🚀 스트리밍 보고서 서비스 등록
+  container.registerSingleton(DI_TOKENS.IStreamingReportEngine, StreamingReportEngine);
+  container.registerSingleton(DI_TOKENS.IDiscordStreamingService, DiscordStreamingService);
+  container.registerSingleton(DI_TOKENS.IIncrementalDataProcessor, IncrementalDataProcessor);
+
+  // 🚀 신뢰성 있는 임베드 전송 서비스 등록
+  container.registerSingleton(DI_TOKENS.IReliableEmbedSender, ReliableEmbedSender);
+
+  // 🚀 활동 보고서 템플릿 시스템 등록
+  container.registerSingleton(DI_TOKENS.IActivityReportTemplateService, ActivityReportTemplateService);
+
+  // 🚀 Discord 임베드 청킹 시스템 등록
+  container.registerSingleton(DI_TOKENS.IEmbedChunkingSystem, EmbedChunkingSystem);
+
+  // 🚀 통합 보고서 청킹 서비스 등록
+  container.registerSingleton(IntegratedReportChunkingService);
+
+  // 🔍 보고서 생성 검증 시스템 등록
+  container.registerSingleton(ReportGenerationValidator);
+
+  // ⚡ 최적화된 멤버 가져오기 서비스 등록
+  container.registerSingleton(OptimizedMemberFetchService);
+
+  // 🔧 보고서 명령어 통합 서비스 등록
+  container.registerSingleton(ReportCommandIntegration);
 
   // 기능 관리 서비스 등록
   container.registerSingleton(FeatureManagerService);
