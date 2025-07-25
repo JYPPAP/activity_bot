@@ -1,0 +1,61 @@
+{
+  "name": "discord-bot-postgres-migration",
+  "version": "2.0.0",
+  "description": "Comprehensive PostgreSQL migration scripts for Discord Activity Bot",
+  "type": "module",
+  "main": "src/migrate.js",
+  "scripts": {
+    "migrate": "node src/migrate.js",
+    "migrate:dry-run": "node src/migrate.js --dry-run",
+    "migrate:validate": "node src/validate.js",
+    "migrate:rollback": "node src/rollback.js",
+    "migrate:backup": "node src/backup.js",
+    "migrate:schema": "node src/schema.js",
+    "migrate:test": "node src/test-migration.js",
+    "migrate:monitor": "node src/monitor.js",
+    "dev": "node --watch src/migrate.js --dry-run",
+    "test": "jest --testMatch='**/*.test.js'",
+    "lint": "eslint src/**/*.js",
+    "docs": "jsdoc src/**/*.js -d docs"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "commander": "^11.1.0",
+    "chalk": "^5.3.0",
+    "ora": "^7.0.1",
+    "cli-progress": "^3.12.0",
+    "winston": "^3.11.0",
+    "joi": "^17.11.0",
+    "uuid": "^9.0.1",
+    "semver": "^7.5.4",
+    "p-limit": "^4.0.0",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.55.0",
+    "jsdoc": "^4.0.2",
+    "@types/pg": "^8.10.9"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "discord",
+    "postgresql",
+    "migration",
+    "database",
+    "lowdb",
+    "bot"
+  ],
+  "author": "Discord Bot Migration Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/discord-activity-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/discord-activity-bot/issues"
+  },
+  "homepage": "https://github.com/your-username/discord-activity-bot#readme"
+}

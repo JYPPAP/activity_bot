@@ -1,0 +1,52 @@
+{
+  "name": "discord-bot-postgres-migration",
+  "version": "1.0.0",
+  "description": "PostgreSQL migration toolkit for Discord Activity Bot",
+  "type": "module",
+  "main": "02-migrate-data.js",
+  "scripts": {
+    "setup": "node scripts/setup-database.js",
+    "migrate": "node 02-migrate-data.js",
+    "backup": "node 05-backup-rollback.js backup",
+    "list-backups": "node 05-backup-rollback.js list",
+    "rollback-lowdb": "node 05-backup-rollback.js rollback-lowdb",
+    "test-connection": "node scripts/test-connection.js",
+    "analyze-performance": "node scripts/analyze-performance.js",
+    "health-check": "node scripts/health-check.js",
+    "schema-apply": "psql -h $POSTGRES_HOST -U $POSTGRES_USER -d $POSTGRES_DB -f 01-schema.sql",
+    "validate-migration": "node scripts/validate-migration.js"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "@types/pg": "^8.10.9"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/your-username/discord-activity-bot.git"
+  },
+  "keywords": [
+    "discord",
+    "bot",
+    "postgresql",
+    "migration",
+    "lowdb",
+    "database"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "files": [
+    "01-schema.sql",
+    "02-migrate-data.js",
+    "03-postgres-database-manager.js",
+    "04-performance-config.js",
+    "05-backup-rollback.js",
+    "README.md",
+    "scripts/"
+  ]
+}
