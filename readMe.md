@@ -110,7 +110,6 @@
 ### 사용자 경험 개선
 - **명령어 간소화**: 복잡한 설정을 슬래시 커맨드 3개로 단순화
 - **실시간 피드백**: 음성 채널 입장 즉시 포럼 포스트 업데이트
-- **다국어 지원**: 한국어 기반 자연스러운 UX 설계
 
 ---
 
@@ -349,7 +348,6 @@ npm run postgres:logs     # DB 로그 확인
 
 - **Issues**: GitHub Issues를 통한 버그 리포트 및 기능 제안
 - **Documentation**: [프로젝트 위키](docs/README.md)에서 상세 가이드 확인
-- **License**: MIT License
 
 ---
 
