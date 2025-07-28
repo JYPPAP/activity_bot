@@ -7,7 +7,7 @@ import {
   VoiceChannelMapping,
   UserActivity,
   RoleConfig,
-} from './index';
+} from './index.js';
 
 // Re-export types for interfaces
 export { UserActivity, RoleConfig } from './index';

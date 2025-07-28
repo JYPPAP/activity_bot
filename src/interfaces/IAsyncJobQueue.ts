@@ -2,10 +2,7 @@
 
 import { EventEmitter } from 'events';
 import { 
-  Interaction, 
-  CommandInteraction, 
-  ButtonInteraction, 
-  ModalSubmitInteraction 
+  Interaction
 } from 'discord.js';
 
 // Job status enumeration
@@ -118,7 +115,7 @@ export interface JobQueueStatistics {
 }
 
 // Job handler function type
-export type JobHandler<TPayload = any, TResult = any> = (
+export type JobHandler<TResult = any> = (
   job: Job,
   context: JobContext,
   progressCallback: (progress: JobProgress) => Promise<void>
@@ -242,9 +239,9 @@ export interface IAsyncJobQueue extends EventEmitter {
   retryJob(jobId: string, newConfig?: Partial<JobConfig>): Promise<boolean>;
   
   // Job handler registration
-  registerHandler<TPayload = any, TResult = any>(
+  registerHandler<TResult = any>(
     type: string,
-    handler: JobHandler<TPayload, TResult>,
+    handler: JobHandler<TResult>,
     defaultConfig?: Partial<JobConfig>
   ): void;
   

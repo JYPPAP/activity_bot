@@ -8,15 +8,14 @@ import {
   ThreadChannel,
 } from 'discord.js';
 
-import { COLORS } from '../config/constants';
-import { config } from '../config/env';
+import { COLORS } from '../config/constants.js';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
-import { EnhancedClient } from '../types/discord';
-import { UserActivity } from '../types/index';
-import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder';
-import { formatKoreanDate, formatTime } from '../utils/formatters';
+import { EnhancedClient } from '../types/discord.js';
+import { UserActivity } from '../types/index.js';
+import { EmbedFactory, ActivityEmbedsData } from '../utils/embedBuilder.js';
+import { formatKoreanDate, formatTime } from '../utils/formatters.js';
 
-import { UserClassificationService } from './UserClassificationService';
+import { UserClassificationService } from './UserClassificationService.js';
 
 // ====================
 // 보고서 관련 타입
@@ -353,7 +352,7 @@ export class ActivityReportService {
     options: ReportOptions = {}
   ): Promise<void> {
     try {
-      const summary = await this.getWeeklySummaryData(startTime, endTime);
+      const summary = await this.getWeeklySummaryData(startTime, endTime, channel.guild.id);
       const embed = this.createWeeklySummaryEmbed(
         summary,
         new Date(startTime),
@@ -556,7 +555,7 @@ export class ActivityReportService {
       const startTime = startDate.getTime();
       const endTime = endDate.getTime();
 
-      const reportData = await this.getDateRangeReportData(startTime, endTime);
+      const reportData = await this.getDateRangeReportData(startTime, endTime, channel.guild.id);
       const embed = this.createDateRangeEmbed(reportData, options);
 
       await channel.send({ embeds: [embed] });
@@ -572,7 +571,8 @@ export class ActivityReportService {
    */
   private async getDateRangeReportData(
     startTime: number,
-    endTime: number
+    endTime: number,
+    guildId: string
   ): Promise<DateRangeReport> {
     try {
       const dailyStats = await this.db.getDailyActivityStats(startTime, endTime);
@@ -602,7 +602,7 @@ export class ActivityReportService {
         });
       }
 
-      const totalStatistics = await this.getWeeklySummaryData(startTime, endTime);
+      const totalStatistics = await this.getWeeklySummaryData(startTime, endTime, guildId);
       const trends = this.calculateTrends(summaries);
 
       return {
@@ -906,10 +906,11 @@ export class ActivityReportService {
   async exportReportData(
     startTime: number,
     endTime: number,
+    guildId: string,
     format: 'csv' | 'json' = 'json'
   ): Promise<string> {
     try {
-      const data = await this.getWeeklySummaryData(startTime, endTime);
+      const data = await this.getWeeklySummaryData(startTime, endTime, guildId);
 
       if (format === 'json') {
         return JSON.stringify(data, null, 2);

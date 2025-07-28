@@ -1,5 +1,5 @@
 // src/utils/SecurityValidator.ts - 보안 검증 유틸리티
-import { logger } from '../config/logger-termux';
+import { logger } from '../config/logger-termux.js';
 
 export interface ValidationResult {
   isValid: boolean;

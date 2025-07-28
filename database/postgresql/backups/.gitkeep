@@ -1,0 +1,21 @@
+# 백업 파일 저장소
+
+이 디렉토리는 PostgreSQL 백업 파일을 저장하는 용도입니다.
+
+## 자동 생성되는 파일들:
+- `backup_full_YYYYMMDD_HHMMSS.sql` - 전체 백업
+- `backup_data_YYYYMMDD_HHMMSS.sql` - 데이터만 백업
+- `backup_schema_YYYYMMDD_HHMMSS.sql` - 스키마만 백업
+- `*.sql.gz` - 압축된 백업 파일
+
+## 사용법:
+```bash
+# 백업 생성
+../backup.sh backup
+
+# 백업 목록 확인
+../backup.sh list
+
+# 백업 복원
+../backup.sh restore --file backup_20250717_143022.sql
+```

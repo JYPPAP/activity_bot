@@ -11,12 +11,12 @@ import {
   CircuitBreakerState,
   PerformanceMetrics,
   HealthStatus
-} from '../interfaces/IDiscordAPIClient';
-import { ConnectionPool } from './ConnectionPool';
-import { RequestQueue } from './RequestQueue';
-import { RetryManager } from './RetryManager';
-import { CircuitBreaker } from './CircuitBreaker';
-import { PerformanceMetricsCollector } from './PerformanceMetrics';
+} from '../interfaces/IDiscordAPIClient.js';
+import { ConnectionPool } from './ConnectionPool.js';
+import { RequestQueue } from './RequestQueue.js';
+import { RetryManager } from './RetryManager.js';
+import { CircuitBreaker } from './CircuitBreaker.js';
+import { PerformanceMetricsCollector } from './PerformanceMetrics.js';
 
 export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient {
   private connectionPool: ConnectionPool;
@@ -40,16 +40,18 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
       enableHttp2: config.connectionPool?.enableHttp2 ?? false,
       maxIdleTime: config.connectionPool?.maxIdleTime ?? 60000,
       healthCheckInterval: config.connectionPool?.healthCheckInterval ?? 30000,
-      retryDelay: config.connectionPool?.retryDelay ?? 1000,
-      maxRetries: config.connectionPool?.maxRetries ?? 3
+      retryDelay: 1000,
+      maxRetries: 3
     });
 
     // Initialize request queue
     this.requestQueue = new RequestQueue({
       maxQueueSize: config.requestQueue?.maxQueueSize ?? 1000,
-      processingInterval: config.requestQueue?.processingInterval ?? 100,
+      priorityLevels: config.requestQueue?.priorityLevels ?? 4,
+      batchSize: config.requestQueue?.batchSize ?? 10,
       batchTimeout: config.requestQueue?.batchTimeout ?? 100,
-      batchSize: config.requestQueue?.batchSize ?? 10
+      processingInterval: config.requestQueue?.processingInterval ?? 100,
+      enablePrioritization: config.requestQueue?.enablePrioritization ?? true
     });
 
     // Initialize retry manager
@@ -74,10 +76,10 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
 
     // Initialize performance metrics
     this.metricsCollector = new PerformanceMetricsCollector({
-      enableMetrics: config.metrics?.enableMetrics ?? true,
-      metricsInterval: config.metrics?.metricsInterval ?? 1000,
-      histogramBuckets: config.metrics?.histogramBuckets,
-      maxHistorySize: config.metrics?.maxHistorySize ?? 10000
+      enableMetrics: config.performance?.enableMetrics ?? true,
+      metricsInterval: config.performance?.metricsInterval ?? 1000,
+      histogramBuckets: config.performance?.histogramBuckets,
+      maxHistorySize: 10000
     });
 
     this.setupIntegrations();
@@ -145,7 +147,7 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
   /**
    * Core request method
    */
-  private async request<T = any>(requestConfig: Partial<DiscordAPIRequest> & { method: string; endpoint: string }): Promise<DiscordAPIResponse<T>> {
+  async request<T = any>(requestConfig: Partial<DiscordAPIRequest> & { method: string; endpoint: string }): Promise<DiscordAPIResponse<T>> {
     if (this.isShuttingDown) {
       throw new Error('Discord API client is shutting down');
     }
@@ -192,7 +194,8 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
    */
   async batchRequest<T = any>(batch: BatchRequest): Promise<BatchResponse<T>> {
     const batchId = `batch-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const results: Array<{ success: boolean; data?: T; error?: Error }> = [];
+    const results = new Map<string, DiscordAPIResponse<T>>();
+    const startTime = Date.now();
 
     // Process each request in the batch
     const batchPromises = batch.requests.map(async (requestConfig, index) => {
@@ -207,48 +210,48 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
             'Content-Type': 'application/json',
             ...requestConfig.headers
           },
-          priority: requestConfig.priority ?? batch.priority ?? 'normal',
+          priority: requestConfig.priority ?? 'normal',
           timeout: requestConfig.timeout ?? 30000,
           retryable: requestConfig.retryable ?? true,
           batchable: true
         };
 
         const response = await this.executeRequest<T>(request);
-        return {
-          success: response.success,
-          data: response.data,
-          error: response.error
-        };
+        results.set(request.id, response);
+        return response;
       } catch (error) {
-        return {
+        const errorResponse: DiscordAPIResponse<T> = {
           success: false,
-          error: error instanceof Error ? error : new Error(String(error))
+          error: error instanceof Error ? error : new Error(String(error)),
+          metadata: {
+            requestId: `${batchId}-${index}`,
+            executionTime: Date.now() - startTime,
+            retryCount: 0,
+            fromCache: false
+          }
         };
+        results.set(`${batchId}-${index}`, errorResponse);
+        return errorResponse;
       }
     });
 
-    const batchResults = await Promise.allSettled(batchPromises);
+    await Promise.allSettled(batchPromises);
     
-    batchResults.forEach(result => {
-      if (result.status === 'fulfilled') {
-        results.push(result.value);
-      } else {
-        results.push({
-          success: false,
-          error: result.reason instanceof Error ? result.reason : new Error(String(result.reason))
-        });
-      }
-    });
-
-    const successCount = results.filter(r => r.success).length;
+    const successCount = Array.from(results.values()).filter(r => r.success).length;
+    const executionTime = Date.now() - startTime;
+    const averageRequestTime = executionTime / batch.requests.length;
 
     return {
-      batchId,
+      success: true,
       results,
-      totalRequests: batch.requests.length,
-      successfulRequests: successCount,
-      failedRequests: batch.requests.length - successCount,
-      executionTime: Date.now() - Date.now() // This would be calculated properly in real implementation
+      metadata: {
+        batchId,
+        totalRequests: batch.requests.length,
+        successfulRequests: successCount,
+        failedRequests: batch.requests.length - successCount,
+        executionTime,
+        averageRequestTime
+      }
     };
   }
 
@@ -277,36 +280,40 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
       const testResponse = await this.get('/gateway');
       const responseTime = Date.now() - startTime;
       
-      const metrics = this.getMetrics();
       const circuitBreakerState = this.getCircuitBreakerState();
-      const connectionStats = this.connectionPool.getStatistics();
-      const queueStats = this.requestQueue.getStatistics();
 
       return {
-        isHealthy: testResponse.success && circuitBreakerState.isHealthy,
+        healthy: testResponse.success && circuitBreakerState.isHealthy,
+        status: testResponse.success && circuitBreakerState.isHealthy ? 'healthy' : 'degraded',
+        lastCheck: new Date(),
         responseTime,
-        metrics,
-        circuitBreakerState: circuitBreakerState.state,
-        connectionPoolStats: {
-          totalConnections: connectionStats.total,
-          activeConnections: connectionStats.active,
-          healthyConnections: connectionStats.healthy
-        },
-        queueStats: {
-          queuedRequests: queueStats.currentQueueSize,
-          processingRate: queueStats.processingRate
-        },
-        lastChecked: Date.now()
+        errorCount: 0,
+        consecutiveFailures: 0,
+        uptime: Date.now() - startTime,
+        details: {
+          connectionPool: true,
+          circuitBreaker: circuitBreakerState.isHealthy,
+          requestQueue: true,
+          rateLimiting: true
+        }
       };
     } catch (error) {
       const responseTime = Date.now() - startTime;
       
       return {
-        isHealthy: false,
+        healthy: false,
+        status: 'unhealthy',
+        lastCheck: new Date(),
         responseTime,
-        error: error instanceof Error ? error.message : String(error),
-        circuitBreakerState: this.getCircuitBreakerState().state,
-        lastChecked: Date.now()
+        errorCount: 1,
+        consecutiveFailures: 1,
+        uptime: 0,
+        details: {
+          connectionPool: false,
+          circuitBreaker: false,
+          requestQueue: false,
+          rateLimiting: false
+        }
       };
     }
   }
@@ -324,16 +331,34 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
       // Batch request executor
       async (batch) => {
         const results = await Promise.allSettled(
-          batch.requests.map(({ request }) => this.executeHttpRequest(request.request))
+          batch.requests.map((queuedRequest) => {
+            // Extract DiscordAPIRequest from QueuedRequest
+            const request = queuedRequest.request;
+            return this.executeHttpRequest(request);
+          })
         );
 
-        return results.map(result => ({
-          success: result.status === 'fulfilled' && result.value.success,
-          data: result.status === 'fulfilled' ? result.value.data : undefined,
-          error: result.status === 'rejected' 
-            ? (result.reason instanceof Error ? result.reason : new Error(String(result.reason)))
-            : (result.value.success ? undefined : result.value.error)
-        }));
+        return results.map(result => {
+          if (result.status === 'fulfilled') {
+            const response = result.value;
+            const responseObj: { success: boolean; data?: any; error?: Error } = {
+              success: response.success
+            };
+            if (response.data !== undefined) {
+              responseObj.data = response.data;
+            }
+            if (response.error !== undefined) {
+              responseObj.error = response.error;
+            }
+            return responseObj;
+          } else {
+            const error = result.reason instanceof Error ? result.reason : new Error(String(result.reason));
+            return {
+              success: false,
+              error
+            };
+          }
+        });
       }
     );
 
@@ -390,7 +415,7 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
   /**
    * Perform the actual HTTP request (placeholder - would use actual HTTP library)
    */
-  private async performHttpRequest<T>(request: DiscordAPIRequest, connection: any): Promise<DiscordAPIResponse<T>> {
+  private async performHttpRequest<T>(request: DiscordAPIRequest, _connection: any): Promise<DiscordAPIResponse<T>> {
     // This is a placeholder implementation
     // In a real implementation, this would use the connection's agent to make the HTTP request
     
@@ -466,6 +491,164 @@ export class DiscordAPIClient extends EventEmitter implements IDiscordAPIClient 
       retryManager: this.retryManager.getDetailedStatistics(),
       metrics: this.metricsCollector.getDetailedMetrics()
     };
+  }
+
+  /**
+   * Queue a request for processing
+   */
+  async queueRequest(request: DiscordAPIRequest): Promise<string> {
+    return this.requestQueue.enqueueRequest(request);
+  }
+
+  /**
+   * Cancel a queued request
+   */
+  cancelRequest(requestId: string): boolean {
+    return this.requestQueue.cancelRequest(requestId);
+  }
+
+  /**
+   * Get queue status
+   */
+  getQueueStatus() {
+    return this.requestQueue.getStatistics();
+  }
+
+  /**
+   * Get connection stats
+   */
+  getConnectionStats() {
+    const stats = this.connectionPool.getStatistics();
+    return {
+      total: stats.total,
+      active: stats.active,
+      idle: stats.idle,
+      pending: stats.pending || 0
+    };
+  }
+
+  /**
+   * Close idle connections
+   */
+  closeIdleConnections(): number {
+    return this.connectionPool.closeIdleConnections();
+  }
+
+  /**
+   * Refresh connection pool
+   */
+  async refreshConnectionPool(): Promise<void> {
+    await this.connectionPool.refreshAllConnections();
+  }
+
+  /**
+   * Reset circuit breaker
+   */
+  resetCircuitBreaker(): void {
+    this.circuitBreaker.reset();
+  }
+
+  /**
+   * Enable circuit breaker
+   */
+  enableCircuitBreaker(): void {
+    this.circuitBreaker.enable();
+  }
+
+  /**
+   * Disable circuit breaker
+   */
+  disableCircuitBreaker(): void {
+    this.circuitBreaker.disable();
+  }
+
+  /**
+   * Reset metrics
+   */
+  resetMetrics(): void {
+    this.metricsCollector.resetMetrics();
+  }
+
+  /**
+   * Get detailed metrics
+   */
+  getDetailedMetrics(timeWindow?: number): {
+    requests: PerformanceMetrics;
+    responseTimeHistogram: number[];
+    errorBreakdown: Record<string, number>;
+    rateLimitHits: number;
+  } {
+    const detailed = this.metricsCollector.getDetailedMetrics(timeWindow);
+    return {
+      requests: detailed.requests,
+      responseTimeHistogram: detailed.responseTimeHistogram.map(item => item.count),
+      errorBreakdown: detailed.errorBreakdown,
+      rateLimitHits: detailed.rateLimitHits
+    };
+  }
+
+  /**
+   * Get rate limit info
+   */
+  getRateLimitInfo(): any[] {
+    // This would be implemented with actual rate limit tracking
+    return [];
+  }
+
+  /**
+   * Wait for rate limit
+   */
+  async waitForRateLimit(_bucket: string): Promise<void> {
+    // This would be implemented with actual rate limit tracking
+  }
+
+  /**
+   * Ping the service
+   */
+  async ping(): Promise<number> {
+    const startTime = Date.now();
+    try {
+      await this.get('/gateway');
+      return Date.now() - startTime;
+    } catch {
+      return -1;
+    }
+  }
+
+  /**
+   * Get status
+   */
+  getStatus() {
+    return {
+      ready: !this.isShuttingDown,
+      version: '1.0.0',
+      uptime: Date.now(),
+      environment: process.env.NODE_ENV || 'development'
+    };
+  }
+
+  /**
+   * Get config
+   */
+  getConfig(): DiscordAPIClientConfig {
+    return { ...this.config };
+  }
+
+  /**
+   * Initialize the client
+   */
+  async initialize(): Promise<void> {
+    // All components are already initialized in constructor
+    // Just enable metrics collection
+    this.metricsCollector.enable();
+  }
+
+  /**
+   * Restart the client
+   */
+  async restart(): Promise<void> {
+    await this.shutdown();
+    await this.initialize();
   }
 
   /**

@@ -3,22 +3,15 @@
 import { EventEmitter } from 'events';
 import { injectable, inject } from 'tsyringe';
 import {
-  Client,
   EmbedBuilder,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
-  ComponentType,
-  InteractionResponse,
-  CommandInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction
+  ButtonStyle
 } from 'discord.js';
 import {
   IAsyncJobQueue,
   Job,
   JobStatus,
-  JobPriority,
   JobProgress,
   JobConfig,
   JobContext,
@@ -34,10 +27,9 @@ import {
   JobHandlerMap,
   IJobResultCache,
   IWebhookDeliveryService
-} from '../interfaces/IAsyncJobQueue';
-import { DI_TOKENS } from '../interfaces/index';
+} from '../interfaces/IAsyncJobQueue.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type { ILogService } from '../interfaces/ILogService';
-import type { IRedisService } from '../interfaces/IRedisService';
 
 // Job result cache implementation
 class JobResultCache implements IJobResultCache {
@@ -216,12 +208,17 @@ class WebhookDeliveryService implements IWebhookDeliveryService {
       }
     }
 
-    this.deliveryStatus.set(deliveryId, {
+    const failedStatus: any = {
       status: 'failed',
       attempts: maxRetries,
-      lastAttempt: new Date(),
-      error: lastError?.message
-    });
+      lastAttempt: new Date()
+    };
+    
+    if (lastError?.message) {
+      failedStatus.error = lastError.message;
+    }
+    
+    this.deliveryStatus.set(deliveryId, failedStatus);
 
     return false;
   }
@@ -255,9 +252,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   private startTime = Date.now();
 
   constructor(
-    @inject(DI_TOKENS.DiscordClient) private client: Client,
     @inject(DI_TOKENS.ILogService) private logService: ILogService,
-    @inject(DI_TOKENS.IRedisService) private redisService: IRedisService,
     private config: AsyncJobQueueConfig = DEFAULT_ASYNC_JOB_QUEUE_CONFIG
   ) {
     super();
@@ -425,13 +420,13 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       job.config = { ...job.config, ...newConfig };
     }
 
-    // Reset job state
+    // Reset job state for exactOptionalPropertyTypes compatibility
     job.status = JobStatus.PENDING;
-    job.startedAt = undefined;
-    job.completedAt = undefined;
-    job.result = undefined;
-    job.progress = undefined;
-    job.lastError = undefined;
+    delete job.startedAt;
+    delete job.completedAt;
+    delete job.result;
+    delete job.progress;
+    delete job.lastError;
     job.retryCount = 0;
     job.version++;
     job.logs.push('Job manually retried');
@@ -448,12 +443,16 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   }
 
   // Job handler registration
-  registerHandler<TPayload = any, TResult = any>(
+  registerHandler<TResult = any>(
     type: string,
-    handler: JobHandler<TPayload, TResult>,
+    handler: JobHandler<TResult>,
     defaultConfig?: Partial<JobConfig>
   ): void {
-    this.jobHandlers.set(type, { handler, defaultConfig });
+    const handlerInfo: any = { handler };
+    if (defaultConfig) {
+      handlerInfo.defaultConfig = defaultConfig;
+    }
+    this.jobHandlers.set(type, handlerInfo);
     this.logService.logActivity(`Job handler registered: ${type}`, [], 'handler_registered', { type });
   }
 
@@ -542,7 +541,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   async sendProgressUpdate(
     job: Job,
     progress: JobProgress,
-    config?: DiscordProgressConfig
+    _config?: DiscordProgressConfig
   ): Promise<void> {
     const interaction = job.context.interaction;
     if (!interaction || !interaction.isRepliable()) return;
@@ -1140,5 +1139,30 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     });
 
     return cleared;
+  }
+
+  /**
+   * Shutdown the job queue and cleanup resources
+   */
+  shutdown(): void {
+    // Clear all timers
+    if (this.processingTimer) {
+      clearInterval(this.processingTimer);
+      this.processingTimer = null;
+    }
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+    if (this.metricsTimer) {
+      clearInterval(this.metricsTimer);
+      this.metricsTimer = null;
+    }
+    if (this.healthCheckTimer) {
+      clearInterval(this.healthCheckTimer);
+      this.healthCheckTimer = null;
+    }
+    
+    this.logService.logActivity('Job queue shutdown completed', [], 'queue_shutdown');
   }
 }

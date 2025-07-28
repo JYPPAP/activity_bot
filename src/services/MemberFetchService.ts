@@ -11,7 +11,7 @@ import {
   MemberFetchStatistics,
   ProgressCallback,
   MemberFilter
-} from '../interfaces/IMemberFetchService';
+} from '../interfaces/IMemberFetchService.js';
 
 // 캐시 엔트리 인터페이스
 interface CacheEntry<T> {
@@ -1016,14 +1016,29 @@ export class MemberFetchService implements IMemberFetchService {
     } else if (failureRate > 0.2) {
       status = 'degraded';
     }
+
+    const cacheStatus: 'healthy' | 'full' | 'error' = stats.size > this.config.cache.maxCacheSize * 0.9 ? 'full' : 'healthy';
+    const rateLimitStatus: 'normal' | 'throttled' | 'blocked' = 'normal'; // Rate limiter 상태는 내부 구현에 따라 결정
     
-    return {
+    const result: {
+      status: 'healthy' | 'degraded' | 'unhealthy';
+      cacheStatus: 'healthy' | 'full' | 'error';
+      rateLimitStatus: 'normal' | 'throttled' | 'blocked';
+      lastSuccessfulFetch?: number;
+      errorCount: number;
+    } = {
       status,
-      cacheStatus: stats.size > this.config.cache.maxCacheSize * 0.9 ? 'full' : 'healthy',
-      rateLimitStatus: 'normal', // Rate limiter 상태는 내부 구현에 따라 결정
-      lastSuccessfulFetch: this.statistics.totalRequests > 0 ? now : undefined,
+      cacheStatus,
+      rateLimitStatus,
       errorCount: this.statistics.failedRequests
     };
+
+    // Add lastSuccessfulFetch conditionally for exactOptionalPropertyTypes
+    if (this.statistics.totalRequests > 0) {
+      result.lastSuccessfulFetch = now;
+    }
+
+    return result;
   }
 
   getActiveOperations(): FetchProgress[] {

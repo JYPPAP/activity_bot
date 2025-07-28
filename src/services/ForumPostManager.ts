@@ -11,13 +11,13 @@ import {
   User,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { isDevelopment } from '../config/env';
-import { RecruitmentConfig } from '../config/RecruitmentConfig';
-import { formatParticipantList } from '../utils/formatters';
-import { TextProcessor } from '../utils/TextProcessor';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { isDevelopment } from '../config/env.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { formatParticipantList } from '../utils/formatters.js';
+import { TextProcessor } from '../utils/TextProcessor.js';
 
-import { GuildSettingsManager } from './GuildSettingsManager';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
@@ -199,24 +199,43 @@ export class ForumPostManager {
    * 포럼 포스트 생성
    * @param recruitmentData - 구인구직 데이터
    * @param voiceChannelId - 음성 채널 ID (선택사항)
+   * @param guildId - 길드 ID (선택사항, 상호작용 컨텍스트에서 제공)
    * @returns 생성된 포스트 ID
    */
   async createForumPost(
     recruitmentData: RecruitmentData,
-    voiceChannelId?: string
+    voiceChannelId?: string,
+    guildId?: string
   ): Promise<CreatePostResult> {
     try {
-      // 길드 정보 추출
-      const guildId = recruitmentData.author.guild?.id;
-      console.log(`[ForumPostManager] 길드 ID 추출: ${guildId}`);
+      // 길드 ID 추출: 매개변수로 제공된 것을 우선 사용, 없으면 포럼 채널에서 추출
+      let resolvedGuildId: string | null = guildId || null;
+      console.log(`[ForumPostManager] 길드 ID 추출 시도 중... (제공된 길드 ID: ${guildId || 'none'})`);
 
       // 길드별 설정 가져오기 (동적 로딩)
       let effectiveForumChannelId = this.forumChannelId; // 기본값
       let effectiveForumTagId = this.forumTagId; // 기본값
 
-      if (guildId) {
+      // 제공된 길드 ID가 없으면 포럼 채널을 통해 길드 ID 추출 시도
+      if (!resolvedGuildId) {
         try {
-          const guildSettings = await this.getGuildSettings(guildId);
+          if (this.forumChannelId) {
+            const channel = await this.client.channels.fetch(this.forumChannelId);
+            if (channel && 'guild' in channel && channel.guild) {
+              resolvedGuildId = channel.guild.id;
+              console.log(`[ForumPostManager] 포럼 채널에서 길드 ID 추출: ${resolvedGuildId}`);
+            }
+          }
+        } catch (channelFetchError) {
+          console.warn(`[ForumPostManager] 포럼 채널을 통한 길드 ID 추출 실패:`, channelFetchError);
+        }
+      } else {
+        console.log(`[ForumPostManager] 제공된 길드 ID 사용: ${resolvedGuildId}`);
+      }
+
+      if (resolvedGuildId) {
+        try {
+          const guildSettings = await this.getGuildSettings(resolvedGuildId);
           console.log(`[ForumPostManager] 길드 설정 조회 결과:`, {
             forumChannelId: guildSettings.forumChannelId,
             forumTagId: guildSettings.forumTagId,
@@ -247,7 +266,7 @@ export class ForumPostManager {
       // 포럼 채널 ID 검증
       if (!effectiveForumChannelId) {
         console.error(`[ForumPostManager] 유효한 포럼 채널 ID가 없음:`, {
-          guildId,
+          guildId: resolvedGuildId,
           effectiveForumChannelId,
           defaultForumChannelId: this.forumChannelId,
         });
@@ -255,13 +274,6 @@ export class ForumPostManager {
           success: false,
           error:
             '포럼 채널 ID가 설정되지 않았습니다. 관리자에게 `/설정` 명령어로 포럼 채널을 설정하도록 요청해주세요.',
-          errorDetails: {
-            field: 'forumChannelId',
-            value: effectiveForumChannelId,
-            validationRule: 'required',
-            expectedFormat: '유효한 포럼 채널 ID',
-            context: 'Guild settings check',
-          },
         };
       }
 
@@ -281,15 +293,6 @@ export class ForumPostManager {
         return {
           success: false,
           error: `포럼 채널을 찾을 수 없습니다. (ID: ${effectiveForumChannelId})`,
-          errorDetails: {
-            field: 'forumChannelId',
-            value: effectiveForumChannelId,
-            validationRule: 'channelExists',
-            expectedFormat: '유효한 포럼 채널 ID',
-            originalError: fetchError.message,
-            errorCode: fetchError.code,
-            context: 'Discord channel fetch',
-          },
         };
       }
 
@@ -463,14 +466,6 @@ export class ForumPostManager {
       return {
         success: false,
         error: this.formatErrorMessage(error),
-        errorDetails: {
-          originalError: error.message,
-          errorCode: error.code,
-          errorStatus: error.status,
-          errorType: error.name || error.constructor?.name,
-          timestamp: new Date().toISOString(),
-          context: 'ForumPostManager.createForumPost',
-        },
       };
     }
   }
@@ -593,7 +588,6 @@ export class ForumPostManager {
           value: data.title,
           validationRule: 'participantPattern',
           expectedFormat: '현재인원/최대인원 형식 (예: 1/5, 1/N)',
-          validationErrors: titleValidation.errors,
         },
       };
     }

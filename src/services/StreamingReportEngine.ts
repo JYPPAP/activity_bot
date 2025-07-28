@@ -1,7 +1,7 @@
 // src/services/StreamingReportEngine.ts - Core Streaming Report Engine
 
 import { EventEmitter } from 'events';
-import { Collection, GuildMember, EmbedBuilder } from 'discord.js';
+import { Collection, GuildMember } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -12,17 +12,16 @@ import type {
   PartialReportResult,
   StreamingProgress,
   StreamingError,
-  StreamingStage,
   DateRange,
   ReportStatistics,
   MemoryStats,
-  MemoryManagementOptions,
   DiscordStreamingOptions
 } from '../interfaces/IStreamingReportEngine';
+import { StreamingStage } from '../interfaces/IStreamingReportEngine.js';
 
 import type { IUserClassificationService } from '../interfaces/IUserClassificationService';
-import { DI_TOKENS } from '../interfaces/index';
-import { EmbedFactory } from '../utils/embedBuilder';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { EmbedFactory } from '../utils/embedBuilder.js';
 
 /**
  * Operation context for tracking streaming operations
@@ -88,11 +87,11 @@ export class StreamingReportEngine extends EventEmitter implements IStreamingRep
 
   constructor(
     @inject(DI_TOKENS.IUserClassificationService) userClassificationService: IUserClassificationService,
-    @inject(DI_TOKENS.StreamingReportConfig) defaultConfig: StreamingReportConfig,
-    customConfig: Partial<StreamingReportConfig> = {}
+    @inject(DI_TOKENS.StreamingReportConfig) defaultConfig: StreamingReportConfig
   ) {
     super();
     
+    const customConfig: Partial<StreamingReportConfig> = {};
     this.userClassificationService = userClassificationService;
     this.config = { ...defaultConfig, ...customConfig };
     this.bufferPool = new MemoryBufferPool(10, 1024 * 1024);
@@ -404,13 +403,13 @@ export class StreamingReportEngine extends EventEmitter implements IStreamingRep
    * Process a batch with error recovery
    */
   private async processBatchWithRecovery(
-    context: OperationContext,
+    _context: OperationContext,
     batch: Collection<string, GuildMember>,
     role: string,
     startDate: Date,
     endDate: Date,
-    batchNumber: number,
-    totalBatches: number
+    _batchNumber: number,
+    _totalBatches: number
   ): Promise<{ activeUsers: any[]; inactiveUsers: any[]; afkUsers: any[] }> {
     const maxRetries = 3;
     let retryCount = 0;
@@ -458,7 +457,7 @@ export class StreamingReportEngine extends EventEmitter implements IStreamingRep
     dateRange: DateRange,
     currentBatch: number,
     totalBatches: number,
-    discordOptions?: DiscordStreamingOptions
+    _discordOptions?: DiscordStreamingOptions
   ): Promise<void> {
     context.stage = StreamingStage.GENERATING_PARTIAL;
 

@@ -48,8 +48,7 @@ export type {
   ThreeSectionReport,
   ReliableEmbedSendOptions,
   EmbedValidationError,
-  EmbedSendError,
-  EmbedChunkingError
+  EmbedSendError
 } from './IReliableEmbedSender';
 
 // 활동 보고서 템플릿 시스템

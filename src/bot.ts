@@ -1,13 +1,13 @@
 // src/bot.ts - 봇 클래스 정의 (TypeScript 버전)
 import { Client, GatewayIntentBits, Events } from 'discord.js';
 import fs from 'fs';
-import { MemoryGuard } from 'discord-optimizer';
+// import { MemoryGuard } from 'discord-optimizer';
 
 // ExtendedClient 제거됨 - 표준 Client 사용
 
 // DI Container 및 서비스 임포트
-import { DIContainer, setupContainer } from './di/container';
-import { DI_TOKENS } from './interfaces/index';
+import { DIContainer, setupContainer } from './di/container.js';
+import { DI_TOKENS } from './interfaces/index.js';
 // import { FeatureManagerService, Features } from './services/FeatureManagerService';
 import type { 
   IDatabaseManager, 
@@ -25,9 +25,8 @@ import type {
 // import { EmojiReactionService } from './services/EmojiReactionService';
 
 // 설정 및 유틸리티 임포트
-import { config } from './config/env';
-import { PATHS } from './config/constants';
-import { logger } from './config/logger-termux';
+import { PATHS } from './config/constants.js';
+import { logger } from './config/logger-termux.js';
 
 // 타입 정의
 interface BotServices {
@@ -134,12 +133,15 @@ export class Bot {
 
     this.token = token;
 
-    // Discord Client 생성 및 Discord-Optimizer로 메모리 관리 최적화
-    const baseClient = new Client(Bot.getClientOptions());
-    this.client = MemoryGuard.wrap(baseClient, {
-      maxMemory: 256, // 256MB 메모리 제한 (Termux 환경 고려)
-      autoRestart: false, // PM2가 재시작을 담당하므로 비활성화
-    });
+    // Discord Client 생성 (MemoryGuard 임시 비활성화)
+    // const baseClient = new Client(Bot.getClientOptions());
+    // this.client = MemoryGuard.wrap(baseClient, {
+    //   maxMemory: 256, // 256MB 메모리 제한 (Termux 환경 고려)
+    //   autoRestart: false, // PM2가 재시작을 담당하므로 비활성화
+    // });
+    
+    // 직접 Client 생성
+    this.client = new Client(Bot.getClientOptions());
 
     // 통계 초기화
     this.stats = {
@@ -262,32 +264,40 @@ export class Bot {
     };
 
     try {
+      console.log('[Bot] 봇 초기화 프로세스 시작');
       logger.info('봇 초기화 프로세스 시작');
 
       // 1. Redis 연결 초기화
+      console.log('[Bot] Redis 연결 초기화 시작...');
       try {
         const redisConnected = await this.services.redisService.connect();
         result.services.redis = redisConnected;
         
         if (redisConnected) {
+          console.log('[Bot] ✅ Redis 연결 초기화 완료');
           logger.info('✅ Redis 연결 초기화 완료');
         } else {
+          console.log('[Bot] ⚠️ Redis 연결 실패 - fallback 캐시 사용');
           logger.warn('⚠️ Redis 연결 실패 - fallback 캐시 사용');
         }
       } catch (error) {
         const errorMsg = `Redis 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
         result.errors.push(errorMsg);
+        console.log(`[Bot] ⚠️ ${errorMsg} - fallback 캐시 사용`);
         logger.warn(`⚠️ ${errorMsg} - fallback 캐시 사용`);
       }
 
       // 2. 데이터베이스 초기화
+      console.log('[Bot] 데이터베이스 초기화 시작...');
       try {
         await this.services.dbManager.initialize();
         result.services.database = true;
+        console.log('[Bot] ✅ 데이터베이스 초기화 완료');
         logger.info('✅ 데이터베이스 초기화 완료');
       } catch (error) {
         const errorMsg = `데이터베이스 초기화 실패: ${error instanceof Error ? error.message : String(error)}`;
         result.errors.push(errorMsg);
+        console.log(`[Bot] ❌ ${errorMsg}`);
         logger.error(errorMsg);
       }
 

@@ -9,17 +9,15 @@ import {
   ButtonInteraction,
   StringSelectMenuInteraction,
   User,
-  GuildMember,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { PermissionService } from '../services/PermissionService';
-import { RecruitmentService } from '../services/RecruitmentService';
-import { DiscordAPIError } from '../types/discord';
-import { SafeInteraction } from '../utils/SafeInteraction';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentService } from '../services/RecruitmentService.js';
+import { DiscordAPIError } from '../types/discord.js';
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 
-import { ButtonHandler } from './ButtonHandler';
-import { ModalHandler } from './ModalHandler';
+import { ButtonHandler } from './ButtonHandler.js';
+import { ModalHandler } from './ModalHandler.js';
 
 // 인터랙션 통계 인터페이스
 interface InteractionStatistics {
@@ -307,35 +305,19 @@ export class InteractionRouter {
   /**
    * 권한이 있는 인터랙션인지 확인
    * @param interaction - Discord 인터랙션
-   * @param permissionService - 권한 서비스
    * @returns 권한 체크 결과
    */
   static async checkPermission(
-    interaction: Interaction,
-    permissionService: typeof PermissionService
+    interaction: Interaction
   ): Promise<PermissionCheckResult> {
     try {
       const isRecruitmentInteraction = this.isRecruitmentInteraction(interaction);
 
-      // 구인구직 관련 인터랙션이 아니면 허용
-      if (!isRecruitmentInteraction) {
-        return {
-          allowed: true,
-          reason: '구인구직 관련 인터랙션이 아님',
-          isRecruitmentInteraction: false,
-        };
-      }
-
-      // 권한 체크
-      const hasPermission = permissionService.hasRecruitmentPermission(
-        interaction.user,
-        interaction.member as GuildMember | null
-      );
-
+      // 모든 사용자가 구인구직 기능을 사용할 수 있음 (Discord 네이티브 권한 사용)
       return {
-        allowed: hasPermission,
-        reason: hasPermission ? '권한 있음' : '권한 없음',
-        isRecruitmentInteraction: true,
+        allowed: true,
+        reason: isRecruitmentInteraction ? '구인구직 인터랙션 허용' : '일반 인터랙션 허용',
+        isRecruitmentInteraction,
       };
     } catch (error) {
       console.error('[InteractionRouter] 권한 확인 오류:', error);
@@ -350,33 +332,29 @@ export class InteractionRouter {
   /**
    * 레거시 권한 체크 메서드 (하위 호환성)
    * @param interaction - Discord 인터랙션
-   * @param permissionService - 권한 서비스
    * @returns 권한 여부
    */
   static async hasPermission(
-    interaction: Interaction,
-    permissionService: typeof PermissionService
+    interaction: Interaction
   ): Promise<boolean> {
-    const result = await this.checkPermission(interaction, permissionService);
+    const result = await this.checkPermission(interaction);
     return result.allowed;
   }
 
   /**
    * 인터랙션 전처리 (로깅, 권한 체크 등)
    * @param interaction - Discord 인터랙션
-   * @param permissionService - 권한 서비스
    * @returns 전처리 결과
    */
   static async preprocessInteraction(
-    interaction: RepliableInteraction,
-    permissionService: typeof PermissionService
+    interaction: RepliableInteraction
   ): Promise<boolean> {
     try {
       // 인터랙션 로깅
       // const logEntry = this.logInteraction(interaction); // Unused
 
       // 권한 체크
-      const permissionCheck = await this.checkPermission(interaction, permissionService);
+      const permissionCheck = await this.checkPermission(interaction);
 
       if (!permissionCheck.allowed) {
         await SafeInteraction.safeReply(interaction, {

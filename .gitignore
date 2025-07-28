@@ -105,7 +105,7 @@ node_modules/
 
 # Task files
 # tasks.json
-# tasks/ 
+# tasks/
 /.claude/
 /.clinerules/
 /.cursor/
@@ -118,13 +118,8 @@ node_modules/
 /.trae/
 /.vscode/
 /.windsurf/
-/coverage/
-/database/
+
 /logs/
 /node_modules/
 /tests/
-/.env
-/.env.backup
-/.env.development
-/.env.example
-/.env.production
+/.env*

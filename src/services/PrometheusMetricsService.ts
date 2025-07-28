@@ -6,9 +6,9 @@ import express, { Request, Response } from 'express';
 import { Counter, Gauge, Histogram, collectDefaultMetrics, Registry } from 'prom-client';
 import { injectable, inject } from 'tsyringe';
 
-import { config, isDevelopment } from '../config/env';
-import { logger } from '../config/logger-termux';
-import { DI_TOKENS } from '../interfaces/index';
+import { config, isDevelopment } from '../config/env.js';
+import { logger } from '../config/logger-termux.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 // 메트릭 타입 정의
 interface DiscordBotMetrics {

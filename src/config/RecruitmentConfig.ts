@@ -205,7 +205,7 @@ export class RecruitmentConfig {
    * @returns 유효성 여부
    * @deprecated DB 기반 검증을 사용하세요
    */
-  static isValidRoleTag(tag: string): boolean {
+  static isValidRoleTag(_tag: string): boolean {
     // 더 이상 정적 배열로 검증하지 않음
     // 호출하는 쪽에서 DB 기반 검증을 사용해야 함
     console.warn('[RecruitmentConfig] isValidRoleTag is deprecated. Use DB-based validation.');
@@ -220,7 +220,7 @@ export class RecruitmentConfig {
    */
   static async validateGameTags(
     tags: string[],
-    guildId: string
+    _guildId: string
   ): Promise<{
     valid: boolean;
     errors: string[];

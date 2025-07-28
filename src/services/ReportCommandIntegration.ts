@@ -7,8 +7,8 @@ import {
 } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { OptimizedMemberFetchService } from './OptimizedMemberFetchService';
-import { ReportGenerationValidator } from './ReportGenerationValidator';
+import { OptimizedMemberFetchService } from './OptimizedMemberFetchService.js';
+import { ReportGenerationValidator } from './ReportGenerationValidator.js';
 import type { ReportValidationReport } from './ReportGenerationValidator';
 
 interface ReportCommandResult {
@@ -30,8 +30,8 @@ export class ReportCommandIntegration {
   private validator: ReportGenerationValidator;
 
   constructor(
-    optimizedFetch: OptimizedMemberFetchService,
-    validator: ReportGenerationValidator
+    @inject(OptimizedMemberFetchService) optimizedFetch: OptimizedMemberFetchService,
+    @inject(ReportGenerationValidator) validator: ReportGenerationValidator
   ) {
     this.optimizedFetch = optimizedFetch;
     this.validator = validator;
@@ -42,7 +42,7 @@ export class ReportCommandIntegration {
    */
   async prepareReportGeneration(
     interaction: ChatInputCommandInteraction,
-    role: string,
+    target: string,
     startDate: Date,
     endDate: Date,
     options: {
@@ -54,35 +54,33 @@ export class ReportCommandIntegration {
     const startTime = Date.now();
     const guild = interaction.guild!;
     
-    console.log(`[ReportIntegration] 보고서 생성 준비 시작: ${role}`);
+    console.log(`[ReportIntegration] 보고서 생성 준비 시작: ${target}`);
     console.log(`[ReportIntegration] 옵션:`, options);
 
     try {
-      // 1. 캐시 워밍업 시작 (백그라운드)
-      if (options.enableCacheWarming) {
-        console.log(`[ReportIntegration] 캐시 워밍업 시작...`);
-        // 백그라운드에서 실행하므로 await 하지 않음
-        this.optimizedFetch.startCacheWarming(guild, [role]).catch(error => {
-          console.warn(`[ReportIntegration] 캐시 워밍업 실패:`, error);
-        });
-      }
+      // 1. 전체 길드 멤버 가져오기 (캐시 워밍업 생략)
+      console.log(`[ReportIntegration] 전체 길드 멤버 가져오기...`);
 
       // 2. 최적화된 멤버 가져오기
       console.log(`[ReportIntegration] 멤버 가져오기 시작...`);
       const fetchStartTime = Date.now();
       
-      const roleMembers = await this.optimizedFetch.getRoleMembers(guild, role, {
-        forceRefresh: options.forceRefresh
-      });
+      const fetchOptions: any = {};
+      // Add forceRefresh conditionally for exactOptionalPropertyTypes
+      if (options.forceRefresh !== undefined) {
+        fetchOptions.forceRefresh = options.forceRefresh;
+      }
+      
+      const guildMembers = await this.optimizedFetch.getAllGuildMembers(guild, fetchOptions);
 
       const fetchDuration = Date.now() - fetchStartTime;
-      console.log(`[ReportIntegration] 멤버 가져오기 완료: ${roleMembers.size}명 (${fetchDuration}ms)`);
+      console.log(`[ReportIntegration] 멤버 가져오기 완료: ${guildMembers.size}명 (${fetchDuration}ms)`);
 
       // 멤버가 없는 경우 조기 반환
-      if (roleMembers.size === 0) {
+      if (guildMembers.size === 0) {
         return {
           success: false,
-          error: `역할 '${role}'에 속한 멤버를 찾을 수 없습니다.`,
+          error: `길드에서 멤버를 찾을 수 없습니다.`,
           metrics: {
             memberFetchTime: fetchDuration,
             memberCount: 0,
@@ -101,8 +99,8 @@ export class ReportCommandIntegration {
         try {
           validationReport = await this.validator.validateReportGeneration(
             interaction,
-            role,
-            roleMembers,
+            target,
+            guildMembers,
             startDate,
             endDate,
             (step) => {
@@ -121,7 +119,7 @@ export class ReportCommandIntegration {
               validationReport,
               metrics: {
                 memberFetchTime: fetchDuration,
-                memberCount: roleMembers.size,
+                memberCount: guildMembers.size,
                 cacheUsed: this.wasCacheUsed(),
                 strategy: this.getLastUsedStrategy()
               }
@@ -156,17 +154,23 @@ export class ReportCommandIntegration {
       const totalDuration = Date.now() - startTime;
       console.log(`[ReportIntegration] 준비 완료: ${totalDuration}ms`);
 
-      return {
+      const result: any = {
         success: true,
-        roleMembers,
-        validationReport,
+        roleMembers: guildMembers,
         metrics: {
           memberFetchTime: fetchDuration,
-          memberCount: roleMembers.size,
+          memberCount: guildMembers.size,
           cacheUsed: this.wasCacheUsed(),
           strategy: this.getLastUsedStrategy()
         }
       };
+      
+      // Add validationReport conditionally for exactOptionalPropertyTypes
+      if (validationReport) {
+        result.validationReport = validationReport;
+      }
+      
+      return result;
 
     } catch (error) {
       const totalDuration = Date.now() - startTime;
@@ -224,22 +228,20 @@ export class ReportCommandIntegration {
    */
   async handleFetchFailure(
     guild: Guild,
-    role: string,
+    _target: string,
     originalError: Error
   ): Promise<Collection<string, GuildMember> | null> {
     console.log(`[ReportIntegration] 실패 복구 시도: ${originalError.message}`);
 
     try {
-      // 1. 타임아웃 오류인 경우 캐시 워밍업 후 재시도
+      // 1. 타임아웃 오류인 경우 재시도
       if (originalError.message.includes('timeout')) {
-        console.log(`[ReportIntegration] 타임아웃 복구: 캐시 워밍업 시도`);
-        
-        await this.optimizedFetch.startCacheWarming(guild, [role]);
+        console.log(`[ReportIntegration] 타임아웃 복구: 재시도`);
         
         // 잠시 대기 후 재시도
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        return await this.optimizedFetch.getRoleMembers(guild, role);
+        return await this.optimizedFetch.getAllGuildMembers(guild, {});
       }
 
       // 2. 권한 오류인 경우 부분 데이터로 시도
@@ -247,7 +249,7 @@ export class ReportCommandIntegration {
           originalError.message.includes('GuildMembers Intent')) {
         console.log(`[ReportIntegration] 권한 부족: 제한된 모드로 시도`);
         // 캐시된 데이터만 사용
-        return await this.optimizedFetch.getRoleMembers(guild, role);
+        return await this.optimizedFetch.getAllGuildMembers(guild, {});
       }
 
       // 3. 기타 오류의 경우 null 반환

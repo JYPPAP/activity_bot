@@ -1,6 +1,6 @@
 // src/utils/EmbedValidator.ts - Discord embed comprehensive validator utility
-import { EmbedBuilder, ColorResolvable } from 'discord.js';
-import { LIMITS } from '../config/constants';
+import { EmbedBuilder } from 'discord.js';
+import { LIMITS } from '../config/constants.js';
 
 // Validation result types
 export interface ValidationResult {
@@ -769,7 +769,6 @@ export class EmbedValidator {
     embed: EmbedBuilder,
     options: EmbedValidationOptions = {}
   ): EmbedOptimizationResult {
-    const opts = { ...this.DEFAULT_OPTIONS, ...options };
     const originalData = embed.toJSON();
     const optimizedEmbed = EmbedBuilder.from(originalData);
     const optimizations: OptimizationApplied[] = [];

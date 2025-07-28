@@ -1,7 +1,7 @@
 // src/utils/CircuitBreaker.ts - Circuit Breaker Pattern Implementation
 
 import { EventEmitter } from 'events';
-import { CircuitBreakerConfig, CircuitBreakerState, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient';
+import { CircuitBreakerConfig, CircuitBreakerState, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient.js';
 
 // Circuit breaker failure tracking
 interface FailureRecord {
@@ -41,8 +41,8 @@ export class CircuitBreaker extends EventEmitter {
       state: 'closed',
       failureCount: 0,
       successCount: 0,
-      lastFailureTime: undefined,
-      nextAttemptTime: undefined,
+      lastFailureTime: 0,
+      nextAttemptTime: 0,
       isHealthy: true
     };
 
@@ -173,9 +173,13 @@ export class CircuitBreaker extends EventEmitter {
     const failureRecord: FailureRecord = {
       timestamp: Date.now(),
       error,
-      endpoint: request.endpoint,
-      statusCode
+      endpoint: request.endpoint
     };
+
+    // Add statusCode conditionally for exactOptionalPropertyTypes
+    if (statusCode !== undefined) {
+      failureRecord.statusCode = statusCode;
+    }
     this.failures.push(failureRecord);
 
     // Clean up old failures
@@ -236,8 +240,8 @@ export class CircuitBreaker extends EventEmitter {
       state: 'closed',
       failureCount: 0,
       successCount: 0,
-      lastFailureTime: undefined,
-      nextAttemptTime: undefined,
+      lastFailureTime: 0,
+      nextAttemptTime: 0,
       isHealthy: true
     };
 
@@ -293,8 +297,8 @@ export class CircuitBreaker extends EventEmitter {
       state: 'half-open',
       failureCount: this.state.failureCount,
       successCount: 0,
-      lastFailureTime: this.state.lastFailureTime,
-      nextAttemptTime: undefined,
+      lastFailureTime: this.state.lastFailureTime || 0,
+      nextAttemptTime: 0,
       isHealthy: false
     };
 
@@ -524,14 +528,27 @@ export class CircuitBreaker extends EventEmitter {
       ? this.state.nextAttemptTime - now
       : undefined;
 
-    return {
+    const result: {
+      recentFailures: number;
+      failuresByEndpoint: Record<string, number>;
+      failuresByStatusCode: Record<number, number>;
+      failuresByErrorType: Record<string, number>;
+      failureRate: number;
+      timeToNextAttempt?: number;
+    } = {
       recentFailures: recentFailures.length,
       failuresByEndpoint,
       failuresByStatusCode,
       failuresByErrorType,
-      failureRate: Math.round(failureRate * 100) / 100,
-      timeToNextAttempt
+      failureRate: Math.round(failureRate * 100) / 100
     };
+
+    // Add timeToNextAttempt conditionally for exactOptionalPropertyTypes
+    if (timeToNextAttempt !== undefined) {
+      result.timeToNextAttempt = timeToNextAttempt;
+    }
+
+    return result;
   }
 
   /**

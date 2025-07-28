@@ -31,4 +31,7 @@ export interface IActivityTracker {
   // 활동 데이터 관리
   getActiveMembersData(): Promise<ClassifiedUser[]>;
   clearAndReinitializeActivityData(role: string): Promise<void>;
+  
+  // 날짜 범위별 활동 사용자 ID 조회
+  getActiveUserIds(guildId: string, startDate: string, endDate: string): Promise<Set<string>>;
 }

@@ -2,13 +2,13 @@
 import path from 'path';
 
 import axios from 'axios';
-import errsole from 'errsole';
-import ErrsoleSQLite from 'errsole-sqlite';
+// import errsole from 'errsole';
+// import ErrsoleSQLite from 'errsole-sqlite';
 
-import { LogLevel } from '../types/index';
+import { LogLevel } from '../types/index.js';
 
-import { TIME } from './constants';
-import { config, isDevelopment } from './env';
+import { TIME } from './constants.js';
+import { config, isDevelopment } from './env.js';
 
 // Errsole은 로그 저장을 위해 SQLite를 사용하지만 애플리케이션 데이터는 PostgreSQL 사용
 
@@ -39,6 +39,8 @@ interface LogMeta {
   stack?: string;
 }
 
+// Temporarily disabled for debugging
+/*
 interface HealthCheckData {
   uptime: string;
   memory: MemoryUsage;
@@ -72,6 +74,7 @@ interface MemoryDiff {
   heapUsed: number;
   heapTotal?: number;
 }
+*/
 
 interface SlackAttachment {
   color: string;
@@ -135,14 +138,34 @@ function createLoggerConfig(environment: 'development' | 'production'): LoggerCo
   };
 }
 
-function initializeLogger(loggerConfig: LoggerConfig): void {
-  errsole.initialize({
-    storage: new ErrsoleSQLite(loggerConfig.logsFile),
-    appName: loggerConfig.appName,
-    environmentName: loggerConfig.environment,
-    port: loggerConfig.port,
-  });
+function initializeLogger(_loggerConfig: LoggerConfig): void {
+  console.log('[Logger] Skipping Errsole initialization for debugging...');
+  // Temporarily disabled to debug startup issues
+  // errsole.initialize({
+  //   storage: new ErrsoleSQLite(_loggerConfig.logsFile),
+  //   appName: _loggerConfig.appName,
+  //   environmentName: _loggerConfig.environment,
+  //   port: _loggerConfig.port,
+  // });
 }
+
+// Mock errsole object for debugging
+const mockErrsole = {
+  debug: (message: string, meta?: any) => console.log(`[DEBUG] ${message}`, meta || ''),
+  info: (message: string, meta?: any) => console.log(`[INFO] ${message}`, meta || ''),
+  warn: (message: string, meta?: any) => console.log(`[WARN] ${message}`, meta || ''),
+  error: (message: string, meta?: any) => console.error(`[ERROR] ${message}`, meta || ''),
+  alert: (message: string, meta?: any) => console.error(`[ALERT] ${message}`, meta || ''),
+  meta: (meta: any) => ({
+    debug: (message: string) => console.log(`[DEBUG] ${message}`, meta),
+    info: (message: string) => console.log(`[INFO] ${message}`, meta),
+    warn: (message: string) => console.log(`[WARN] ${message}`, meta),
+    error: (message: string) => console.error(`[ERROR] ${message}`, meta),
+  }),
+};
+
+// Use mock errsole for now
+const errsole = mockErrsole as any;
 
 // 환경별 로거 설정
 const loggerConfig = createLoggerConfig(isDevelopment() ? 'development' : 'production');
@@ -354,9 +377,11 @@ function setupErrorHandlers(): void {
 // ====================
 
 let healthCheckInterval: NodeJS.Timeout | null = null;
-let lastMemoryUsage: NodeJS.MemoryUsage = process.memoryUsage();
+// let lastMemoryUsage: NodeJS.MemoryUsage = process.memoryUsage();
 
-function startHealthMonitoring(): void {
+// Temporarily disabled for debugging
+/*
+function _startHealthMonitoring(): void {
   console.log('🏥 헬스체크 모니터링 시작 (5분 간격)');
 
   healthCheckInterval = setInterval(async () => {
@@ -382,7 +407,7 @@ function startHealthMonitoring(): void {
       // Discord 봇 메트릭 수집 (동적 임포트로 순환 참조 방지)
       let discordMetrics: DiscordHealthMetrics | undefined;
       try {
-        const { Bot } = await import('../bot');
+        const { Bot } = await import('../bot.js');
         const botInstance = Bot.getInstance();
 
         if (botInstance && botInstance.isReady()) {
@@ -473,6 +498,7 @@ function startHealthMonitoring(): void {
     }
   }, 5 * TIME.MINUTE); // 5분마다 실행
 }
+*/
 
 // ====================
 // 종료 핸들러 설정
@@ -567,9 +593,10 @@ setupErrorHandlers();
 setupShutdownHandlers();
 
 // 애플리케이션 시작 시 헬스체크 시작 (10초 후)
-setTimeout(() => {
-  startHealthMonitoring();
-}, 10 * TIME.SECOND);
+// Temporarily disabled for debugging
+// setTimeout(() => {
+//   startHealthMonitoring();
+// }, 10 * TIME.SECOND);
 
 // 기본 errsole 인스턴스 내보내기
 export default errsole;

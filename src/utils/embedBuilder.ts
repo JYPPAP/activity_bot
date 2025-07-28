@@ -1,11 +1,11 @@
 // src/utils/embedBuilder.ts - 임베드 생성 유틸리티
 import { EmbedBuilder, ColorResolvable } from 'discord.js';
 
-import { COLORS } from '../config/constants';
-import { EmbedConfig, EmbedFieldData } from '../types/discord';
+import { COLORS } from '../config/constants.js';
+import { EmbedConfig, EmbedFieldData } from '../types/discord.js';
 
-import { formatSimpleDate } from './dateUtils';
-import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters';
+import { formatSimpleDate } from './dateUtils.js';
+import { formatTime, formatKoreanDate, formatMembersList, cleanRoleName } from './formatters.js';
 
 // ====================
 // 임베드 데이터 타입
@@ -212,15 +212,11 @@ export class EmbedFactory {
     options: ActivityEmbedOptions = {}
   ): EmbedBuilder[] {
     const {
-      role,
       activeUsers,
       inactiveUsers,
       afkUsers = [],
       startDate,
       endDate,
-      minHours,
-      reportCycle = null,
-      title = '활동 목록',
     } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
@@ -231,18 +227,11 @@ export class EmbedFactory {
 
     const startDateStr = formatSimpleDate(startDateObj);
     const endDateStr = formatSimpleDate(endDateObj);
-    const cleanedRoleName = cleanRoleName(role);
-
-    // 주기 텍스트 생성
-    const cycleText = this.formatReportCycle(reportCycle);
-
-    // 기본 설명
-    const description = `최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`;
 
     // 활성 사용자 임베드
     const activeEmbed = this.createUserListEmbed({
-      title: `📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`,
-      description,
+      title: '📊 활동 보고서',
+      description: `${startDateStr} ~ ${endDateStr}`,
       users: activeUsers,
       color: COLORS.ACTIVE,
       statusEmoji: '✅',
@@ -253,8 +242,8 @@ export class EmbedFactory {
 
     // 비활성 사용자 임베드
     const inactiveEmbed = this.createUserListEmbed({
-      title: `📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`,
-      description,
+      title: '📊 활동 보고서',
+      description: `${startDateStr} ~ ${endDateStr}`,
       users: inactiveUsers,
       color: COLORS.INACTIVE,
       statusEmoji: '❌',
@@ -268,8 +257,8 @@ export class EmbedFactory {
     // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
     if (afkUsers && afkUsers.length > 0) {
       const afkEmbed = this.createAfkUserEmbed({
-        title: `📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`,
-        description,
+        title: '📊 활동 보고서',
+        description: `${startDateStr} ~ ${endDateStr}`,
         users: afkUsers,
         options: opts,
       });
@@ -700,25 +689,6 @@ export class EmbedFactory {
     return embed;
   }
 
-  /**
-   * 보고서 주기를 포맷팅합니다.
-   * @param cycle - 주기
-   * @returns 포맷팅된 주기 텍스트
-   */
-  private static formatReportCycle(cycle: number | null): string {
-    if (!cycle) return 'X';
-
-    switch (cycle) {
-      case 1:
-        return '매주';
-      case 2:
-        return '격주';
-      case 4:
-        return '월간';
-      default:
-        return `${cycle}주마다`;
-    }
-  }
 
   /**
    * 필드 길이를 제한합니다.

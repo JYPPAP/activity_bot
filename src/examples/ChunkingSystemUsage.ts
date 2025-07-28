@@ -2,22 +2,22 @@
 import { ChatInputCommandInteraction, EmbedBuilder } from 'discord.js';
 import { container } from 'tsyringe';
 
-import { IEmbedChunkingSystem } from '../interfaces/IEmbedChunkingSystem';
-import { IReliableEmbedSender, ThreeSectionReport } from '../interfaces/IReliableEmbedSender';
-import { IntegratedReportChunkingService } from '../services/IntegratedReportChunkingService';
-import { DI_TOKENS } from '../interfaces/index';
+import { IEmbedChunkingSystem } from '../interfaces/IEmbedChunkingSystem.js';
+import { ThreeSectionReport } from '../interfaces/IReliableEmbedSender.js';
+import { IntegratedReportChunkingService } from '../services/IntegratedReportChunkingService.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 /**
  * Discord embed chunking system 사용 예제 모음
  */
 export class ChunkingSystemUsageExamples {
   private chunkingSystem: IEmbedChunkingSystem;
-  private reliableEmbedSender: IReliableEmbedSender;
+  // private _reliableEmbedSender: IReliableEmbedSender; // 현재 미사용
   private integratedService: IntegratedReportChunkingService;
 
   constructor() {
     this.chunkingSystem = container.resolve(DI_TOKENS.IEmbedChunkingSystem);
-    this.reliableEmbedSender = container.resolve(DI_TOKENS.IReliableEmbedSender);
+    // this._reliableEmbedSender = container.resolve(DI_TOKENS.IReliableEmbedSender); // 현재 미사용
     this.integratedService = container.resolve(IntegratedReportChunkingService);
   }
 
@@ -85,27 +85,30 @@ export class ChunkingSystemUsageExamples {
     const report: ThreeSectionReport = {
       achievementSection: {
         title: '✅ 활동 기준 달성 멤버',
-        members: Array.from({ length: 30 }, (_, i) => ({
-          name: `달성멤버${i + 1}`,
-          value: `${(i + 1) * 2}시간 ${(i * 15) % 60}분`,
-          extra: `역할: 정회원`
-        }))
+        embeds: [], // Example embeds would be generated here
+        sectionType: 'achievement',
+        priority: 'high'
       },
       underperformanceSection: {
         title: '❌ 활동 기준 미달성 멤버',
-        members: Array.from({ length: 20 }, (_, i) => ({
-          name: `미달성멤버${i + 1}`,
-          value: `${i + 1}시간 ${(i * 20) % 60}분`,
-          extra: `부족: ${5 - (i + 1)}시간`
-        }))
+        embeds: [], // Example embeds would be generated here
+        sectionType: 'underperformance',
+        priority: 'medium'
       },
       afkSection: {
         title: '💤 잠수 중인 멤버',
-        members: Array.from({ length: 15 }, (_, i) => ({
-          name: `잠수멤버${i + 1}`,
-          value: `${i}시간 ${(i * 10) % 60}분`,
-          extra: `해제예정: ${new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR')}`
-        }))
+        embeds: [], // Example embeds would be generated here
+        sectionType: 'afk',
+        priority: 'low'
+      },
+      metadata: {
+        reportId: 'example-report-1',
+        generatedAt: new Date(),
+        totalMembers: 100,
+        dateRange: {
+          start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+          end: new Date()
+        }
       }
     };
 

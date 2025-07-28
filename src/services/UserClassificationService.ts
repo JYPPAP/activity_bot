@@ -4,8 +4,8 @@ import { injectable, inject } from 'tsyringe';
 
 import type { IActivityTracker } from '../interfaces/IActivityTracker';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
-import { DI_TOKENS } from '../interfaces/index';
-import { GuildSettingsManager } from './GuildSettingsManager';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
 import type {
   IUserClassificationService,
   UserData,
@@ -14,7 +14,7 @@ import type {
   ClassificationStatistics,
   UserClassificationConfig,
 } from '../interfaces/IUserClassificationService';
-import { calculateNextSunday } from '../utils/dateUtils';
+import { calculateNextSunday } from '../utils/dateUtils.js';
 
 // 날짜 범위 변환 결과
 interface DateRangeResult {

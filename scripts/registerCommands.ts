@@ -52,12 +52,7 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('보고서')
-    .setDescription('역할별 활동 보고서를 생성합니다.')
-    .addStringOption(option =>
-      option.setName('role')
-            .setDescription('보고서를 생성할 역할 이름')
-            .setRequired(true)
-    )
+    .setDescription('전체 길드 멤버의 활동 보고서를 생성합니다.')
     .addStringOption(option =>
       option.setName('start_date')
             .setDescription('시작 날짜 (YYMMDD 형식, 예: 241201)')
@@ -113,11 +108,11 @@ commands.push(
 const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 
 // 길드 ID 확인 (명령줄 인수 또는 환경변수에서)
-const guildId = process.argv[2] || process.env.REGISTER_GUILD_ID;
+const guildId = process.argv[2] || process.env.REGISTER_GUILD_ID || process.env.GUILDID;
 if (!guildId) {
   console.error('❌ 길드 ID가 필요합니다.');
-  console.error('사용법: npm run register-commands <GUILD_ID>');
-  console.error('또는 REGISTER_GUILD_ID 환경변수를 설정하세요.');
+  console.error('사용법: npm run register <GUILD_ID>');
+  console.error('또는 REGISTER_GUILD_ID 또는 GUILDID 환경변수를 설정하세요.');
   process.exit(1);
 }
 

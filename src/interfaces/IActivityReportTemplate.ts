@@ -1,5 +1,5 @@
 // src/interfaces/IActivityReportTemplate.ts - Activity report template system interface
-import { UserActivityData } from '../utils/embedBuilder';
+import { UserActivityData } from '../utils/embedBuilder.js';
 
 // Template system configuration
 export interface TemplateConfig {
@@ -56,7 +56,6 @@ export interface ActivityReportTemplate {
   // Report metadata
   reportId: string;
   generatedAt: Date;
-  roleFilter: string;
   dateRange: {
     startDate: Date;
     endDate: Date;
@@ -92,6 +91,7 @@ export interface TemplateFormattingOptions {
   koreanDateFormat?: 'short' | 'long' | 'relative';
   
   // Alignment and spacing
+  alignmentStyle?: 'table' | 'list' | 'compact';
   nameColumnWidth?: number;
   timeColumnWidth?: number;
   dateColumnWidth?: number;
@@ -114,7 +114,6 @@ export interface IActivityReportTemplateService {
    * Create a new activity report template
    */
   createTemplate(
-    roleFilter: string,
     activeUsers: UserActivityData[],
     inactiveUsers: UserActivityData[],
     afkUsers: UserActivityData[],
@@ -193,6 +192,7 @@ export const DEFAULT_TEMPLATE_CONFIG: TemplateConfig = {
 export const DEFAULT_FORMATTING_OPTIONS: TemplateFormattingOptions = {
   useKoreanNumbers: true,
   koreanDateFormat: 'short',
+  alignmentStyle: 'table',
   nameColumnWidth: 20,
   timeColumnWidth: 12,
   dateColumnWidth: 12,

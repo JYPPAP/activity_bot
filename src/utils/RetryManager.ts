@@ -1,7 +1,7 @@
 // src/utils/RetryManager.ts - Advanced Retry Logic with Jitter and Intelligent Backoff
 
 import { EventEmitter } from 'events';
-import { RetryConfig, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient';
+import { RetryConfig, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient.js';
 
 // Retry attempt information
 interface RetryAttempt {
@@ -59,7 +59,7 @@ export class RetryManager extends EventEmitter {
     executor: (request: DiscordAPIRequest) => Promise<DiscordAPIResponse<T>>
   ): Promise<DiscordAPIResponse<T>> {
     const requestId = request.id;
-    let lastError: Error;
+    let lastError: Error = new Error('Unknown error - no attempts were made');
     let lastResponse: DiscordAPIResponse<T> | undefined;
 
     // Initialize retry tracking for this request
@@ -68,9 +68,8 @@ export class RetryManager extends EventEmitter {
     for (let attempt = 0; attempt <= this.config.maxRetries; attempt++) {
       try {
         // Execute the request
-        const startTime = Date.now();
         const response = await executor(request);
-        const executionTime = Date.now() - startTime;
+        // Execution time tracking could be added here for monitoring
 
         // Check if the response indicates a successful retry
         if (response.success) {
@@ -299,7 +298,7 @@ export class RetryManager extends EventEmitter {
   /**
    * Update retry statistics
    */
-  private updateRetryStatistics(attempts: RetryAttempt[], success: boolean): void {
+  private updateRetryStatistics(attempts: RetryAttempt[], _success: boolean): void {
     if (attempts.length === 0) return;
 
     const totalDelay = attempts.reduce((sum, attempt) => sum + attempt.delay, 0);
@@ -395,14 +394,19 @@ export class RetryManager extends EventEmitter {
       const nextRetryTime = lastAttempt ? lastAttempt.timestamp + lastAttempt.delay : 0;
       const nextRetryIn = nextRetryTime > now ? nextRetryTime - now : 0;
 
-      return {
+      const result: any = {
         requestId,
         attempts: [...attempts],
         totalAttempts: attempts.length,
         totalDelay,
-        lastError: lastAttempt?.error.message,
-        nextRetryIn: nextRetryIn > 0 ? nextRetryIn : undefined
+        lastError: lastAttempt?.error.message || ''
       };
+      
+      if (nextRetryIn > 0) {
+        result.nextRetryIn = nextRetryIn;
+      }
+      
+      return result;
     });
   }
 
@@ -479,7 +483,7 @@ export class RetryManager extends EventEmitter {
    */
   async testRetryLogic(
     mockError: Error, 
-    statusCode?: number, 
+    _statusCode?: number, 
     shouldSucceedAfter: number = 2
   ): Promise<{
     totalAttempts: number;
@@ -521,12 +525,17 @@ export class RetryManager extends EventEmitter {
       const result = await this.executeWithRetry(testRequest, mockExecutor);
       const totalDelay = Date.now() - totalStartTime;
       
-      return {
+      const resultObj: any = {
         totalAttempts: attempts,
         totalDelay,
-        success: result.success,
-        finalError: result.success ? undefined : result.error
+        success: result.success
       };
+      
+      if (!result.success && result.error) {
+        resultObj.finalError = result.error;
+      }
+      
+      return resultObj;
     } catch (error) {
       const totalDelay = Date.now() - totalStartTime;
       

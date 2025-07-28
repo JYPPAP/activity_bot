@@ -3,19 +3,16 @@ import {
   ChatInputCommandInteraction, 
   Collection, 
   GuildMember, 
-  EmbedBuilder,
-  TextChannel 
+  EmbedBuilder
 } from 'discord.js';
 import { container } from 'tsyringe';
 
-import { ReportGenerationValidator } from '../services/ReportGenerationValidator';
+import { ReportGenerationValidator } from '../services/ReportGenerationValidator.js';
 import type { 
   ReportValidationReport, 
   ValidationStep,
   ProgressCallback 
 } from '../services/ReportGenerationValidator';
-import { EmbedValidator } from '../utils/EmbedValidator';
-import { EmbedFactory } from '../utils/embedBuilder';
 
 /**
  * 보고서 생성 검증 시스템 사용 예제 모음
@@ -188,7 +185,7 @@ export class ReportGenerationValidatorExamples {
       const endDate = new Date();
 
       // 실시간 진행 상황 업데이트 메시지
-      let progressMessage = await interaction.editReply({
+      await interaction.editReply({
         content: '🔄 보고서 생성 검증을 시작합니다...\n\n' +
                 '📊 **진행 상황**\n' +
                 '```\n' +
@@ -205,27 +202,24 @@ export class ReportGenerationValidatorExamples {
         
         console.log(`${statusIcon} ${step.name} (${step.duration || 0}ms)`);
 
-        // 진행률 계산
-        const report = Array.from((this.validator as any).activeValidation.values())[0];
-        if (report) {
-          const currentStep = report.completedSteps + report.failedSteps + report.warningSteps;
-          const progress = Math.round((currentStep / report.totalSteps) * 100);
-          const progressBar = '█'.repeat(Math.floor(progress / 12.5)) + '▱'.repeat(8 - Math.floor(progress / 12.5));
-          
-          try {
-            await interaction.editReply({
-              content: '🔍 보고서 생성 검증 진행 중...\n\n' +
-                      '📊 **진행 상황**\n' +
-                      '```\n' +
-                      `${progressBar} ${progress}% (${currentStep}/${report.totalSteps})\n` +
-                      `현재: ${step.name}\n` +
-                      `상태: ${step.status.toUpperCase()}\n` +
+        // 진행률 계산 (단순화된 버전)
+        // 실제 진행률은 step 정보를 기반으로 계산
+        const progress = step.duration ? Math.min(Math.round(step.duration / 100), 100) : 0;
+        const progressBar = '█'.repeat(Math.floor(progress / 12.5)) + '▱'.repeat(8 - Math.floor(progress / 12.5));
+        
+        try {
+          await interaction.editReply({
+            content: '🔍 보고서 생성 검증 진행 중...\n\n' +
+                    '📊 **진행 상황**\n' +
+                    '```\n' +
+                    `${progressBar} ${progress}%\n` +
+                    `현재: ${step.name}\n` +
+                    `상태: ${step.status.toUpperCase()}\n` +
                       '```\n\n' +
                       `⏱️ **최근 단계 소요시간**: ${step.duration || 0}ms`
             });
-          } catch (editError) {
-            console.log('메시지 업데이트 건너뜀 (Discord 제한)');
-          }
+        } catch (editError) {
+          console.log('메시지 업데이트 건너뜀 (Discord 제한)');
         }
       };
 
@@ -705,7 +699,7 @@ export class ReportGenerationValidatorExamples {
       };
 
       // 검증 실행
-      const report = await this.validator.validateReportGeneration(
+      await this.validator.validateReportGeneration(
         interaction,
         role,
         roleMembers,

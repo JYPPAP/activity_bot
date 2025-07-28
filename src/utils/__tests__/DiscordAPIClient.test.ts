@@ -1,7 +1,7 @@
 // src/utils/__tests__/DiscordAPIClient.test.ts - Comprehensive Tests for Discord API Client
 
-import { DiscordAPIClient } from '../DiscordAPIClient';
-import { DiscordAPIClientConfig } from '../../interfaces/IDiscordAPIClient';
+import { DiscordAPIClient } from '../DiscordAPIClient.js';
+import { DiscordAPIClientConfig } from '../../interfaces/IDiscordAPIClient.js';
 
 describe('DiscordAPIClient Integration Tests', () => {
   let client: DiscordAPIClient;

@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { Client } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { DI_TOKENS } from '../interfaces/index';
+import { DI_TOKENS } from '../interfaces/index.js';
 // EnhancedClient 제거됨 - 표준 Client 사용
 
 // ====================
@@ -73,8 +73,9 @@ export class EventManager extends EventEmitter {
   private readonly eventStats: Map<string, EventStats> = new Map();
   private nextId: number = 1;
 
-  constructor(@inject(DI_TOKENS.DiscordClient) client: Client, options: EventManagerOptions = {}) {
+  constructor(@inject(DI_TOKENS.DiscordClient) client: Client) {
     super();
+    const options: EventManagerOptions = {};
     this.client = client;
     this.options = {
       enableStats: true,

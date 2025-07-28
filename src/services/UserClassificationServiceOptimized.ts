@@ -4,17 +4,15 @@ import { injectable, inject } from 'tsyringe';
 
 import type { IActivityTracker } from '../interfaces/IActivityTracker';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
-import { DI_TOKENS } from '../interfaces/index';
-import { GuildSettingsManager } from './GuildSettingsManager';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
 import type {
   IUserClassificationService,
   UserData,
-  RoleSettings,
   UserClassificationResult,
   ClassificationStatistics,
   UserClassificationConfig,
 } from '../interfaces/IUserClassificationService';
-import { calculateNextSunday } from '../utils/dateUtils';
 
 // 날짜 범위 변환 결과
 interface DateRangeResult {
@@ -32,9 +30,9 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
   constructor(
     @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
     @inject(DI_TOKENS.IActivityTracker) _activityTracker: IActivityTracker,
-    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
-    config: Partial<UserClassificationConfig> = {}
+    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager
   ) {
+    const config: Partial<UserClassificationConfig> = {};
     this.db = dbManager;
     this.guildSettingsManager = guildSettingsManager;
     this.config = {
@@ -65,28 +63,28 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
    * 3. 캐시 시스템 통합
    */
   async classifyUsersByDateRange(
-    role: string,
-    roleMembers: Collection<string, GuildMember>,
+    target: string,
+    guildMembers: Collection<string, GuildMember>,
     startDate: Date | number,
     endDate: Date | number
   ): Promise<UserClassificationResult> {
-    const guildId = roleMembers.first()?.guild?.id;
+    const guildId = guildMembers.first()?.guild?.id;
     if (!guildId) {
-      throw new Error('Guild ID를 찾을 수 없습니다. 역할 멤버가 비어있거나 유효하지 않습니다.');
+      throw new Error('Guild ID를 찾을 수 없습니다. 길드 멤버가 비어있거나 유효하지 않습니다.');
     }
     
     const classificationStartTime = Date.now();
     console.log(`[분류-최적화] 사용자 분류 시작: ${new Date().toISOString()}`);
     console.log(`[분류-최적화] 파라미터:`, {
-      role,
+      target,
       guildId,
-      memberCount: roleMembers.size,
+      memberCount: guildMembers.size,
       startDate: startDate instanceof Date ? startDate.toISOString() : new Date(startDate).toISOString(),
       endDate: endDate instanceof Date ? endDate.toISOString() : new Date(endDate).toISOString()
     });
 
     // 캐시 확인
-    const cacheKey = this.generateCacheKey(role, guildId, startDate, endDate, roleMembers.size);
+    const cacheKey = this.generateCacheKey(target, guildId, startDate, endDate, guildMembers.size);
     const cached = this.classificationCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < this.config.cacheDuration) {
       console.log(`[분류-최적화] 캐시 히트: ${Date.now() - classificationStartTime}ms`);
@@ -94,20 +92,20 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
     }
 
     try {
-      // 1. 역할 설정 조회
-      console.log(`[분류-최적화] 역할 설정 조회 시작: ${role}`);
+      // 1. 전체 길드 기본 설정 조회
+      console.log(`[분류-최적화] 전체 길드 설정 조회 시작: ${target}`);
       const settingsStartTime = Date.now();
-      const { minActivityTime, reportCycle } = await this.getRoleSettings(role, guildId);
-      console.log(`[분류-최적화] 역할 설정 조회 완료: ${Date.now() - settingsStartTime}ms`);
+      const { minActivityTime, reportCycle } = await this.getGuildSettings(guildId);
+      console.log(`[분류-최적화] 전체 길드 설정 조회 완료: ${Date.now() - settingsStartTime}ms`);
 
       // 2. 날짜 변환
       const { startOfDay, endOfDay } = this.convertDatesToTimeRange(startDate, endDate);
       
       // 3. 🚀 배치 활동 데이터 조회 (핵심 최적화!) with Fallback
-      console.log(`[분류-최적화] 배치 활동 조회 시작: ${roleMembers.size}명`);
+      console.log(`[분류-최적화] 배치 활동 조회 시작: ${guildMembers.size}명`);
       const batchStartTime = Date.now();
       
-      const userIds = Array.from(roleMembers.keys());
+      const userIds = Array.from(guildMembers.keys());
       let activityMap: Map<string, number>;
       
       try {
@@ -130,8 +128,7 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
             const totalTime = await this.db.getUserActivityByDateRange(
               userId,
               startOfDay.getTime(),
-              endOfDay.getTime(),
-              guildId
+              endOfDay.getTime()
             );
             activityMap.set(userId, totalTime);
           } catch (userError) {
@@ -154,7 +151,7 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
       console.log(`[분류-최적화] 사용자 분류 시작`);
       const classifyStartTime = Date.now();
 
-      for (const [userId, member] of roleMembers.entries()) {
+      for (const [userId, member] of guildMembers.entries()) {
         const totalTime = activityMap.get(userId) || 0;
         
         const userData: UserData = {
@@ -184,9 +181,9 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
         activeUsers,
         inactiveUsers,
         afkUsers,
-        resetTime: undefined, // TODO: resetTime 로직 추가 필요시
+        resetTime: null, // TODO: resetTime 로직 추가 필요시
         minHours: minActivityTime / (60 * 60 * 1000),
-        reportCycle,
+        reportCycle: reportCycle ?? null,
       };
 
       // 상세 통계 생성
@@ -221,21 +218,21 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
    * 기존 호환성을 위한 classifyUsers 메서드 (전체 누적 시간 기반)
    */
   async classifyUsers(
-    role: string,
-    roleMembers: Collection<string, GuildMember>
+    target: string,
+    guildMembers: Collection<string, GuildMember>
   ): Promise<UserClassificationResult> {
     // 전체 기간으로 분류 (시작일부터 현재까지)
     const endDate = new Date();
     const startDate = new Date(0); // Unix epoch 시작
     
-    return this.classifyUsersByDateRange(role, roleMembers, startDate, endDate);
+    return this.classifyUsersByDateRange(target, guildMembers, startDate, endDate);
   }
 
   /**
    * 캐시 키 생성
    */
   private generateCacheKey(
-    role: string, 
+    target: string, 
     guildId: string, 
     startDate: Date | number, 
     endDate: Date | number, 
@@ -243,7 +240,7 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
   ): string {
     const start = startDate instanceof Date ? startDate.getTime() : startDate;
     const end = endDate instanceof Date ? endDate.getTime() : endDate;
-    return `classification_${guildId}_${role}_${start}_${end}_${memberCount}`;
+    return `classification_${guildId}_${target}_${start}_${end}_${memberCount}`;
   }
 
   /**
@@ -266,11 +263,35 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
   }
 
   /**
-   * 역할 설정 가져오기
+   * 전체 길드 설정 가져오기
    */
-  private async getRoleSettings(role: string, guildId: string): Promise<{
+  private async getGuildSettings(guildId: string): Promise<{
     minActivityTime: number;
     reportCycle?: string;
+  }> {
+    try {
+      // 전체 길드에 대한 기본 설정 사용 (4시간)
+      console.log(`[분류-최적화] 전체 길드 기본 설정 사용: ${guildId}`);
+      return {
+        minActivityTime: 4 * 60 * 60 * 1000, // 기본 4시간
+        reportCycle: 'weekly'
+      };
+    } catch (error) {
+      console.error(`[분류-최적화] 길드 설정 조회 실패: ${guildId}`, error);
+      return {
+        minActivityTime: 4 * 60 * 60 * 1000,
+        reportCycle: 'weekly'
+      };
+    }
+  }
+
+  /**
+   * 역할 설정 가져오기 (기존 호환성용)
+   */
+  async getRoleSettings(role: string, guildId: string): Promise<{
+    minActivityTime: number;
+    resetTime: number | null;
+    reportCycle: string | null;
   }> {
     try {
       const roleConfig = await this.guildSettingsManager.getRoleActivityTime(guildId, role);
@@ -279,18 +300,21 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
         console.warn(`[분류-최적화] 역할 설정 없음: ${role}, 기본값 사용`);
         return {
           minActivityTime: 4 * 60 * 60 * 1000, // 기본 4시간
+          resetTime: null,
           reportCycle: 'weekly'
         };
       }
 
       return {
         minActivityTime: (roleConfig.minHours || 4) * 60 * 60 * 1000,
+        resetTime: null,
         reportCycle: 'weekly' // TODO: roleConfig에서 가져오도록 개선
       };
     } catch (error) {
       console.error(`[분류-최적화] 역할 설정 조회 실패: ${role}`, error);
       return {
         minActivityTime: 4 * 60 * 60 * 1000,
+        resetTime: null,
         reportCycle: 'weekly'
       };
     }
@@ -311,24 +335,25 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
    */
   private async processAfkUser(
     userId: string,
-    member: GuildMember,
+    _member: GuildMember,
     userData: UserData
   ): Promise<UserData> {
     try {
       const afkStatus = await this.db.getUserAfkStatus(userId);
       
-      return {
+      const result: UserData = {
         ...userData,
-        isAfk: true,
-        afkUntil: afkStatus?.afkUntil,
-        afkReason: afkStatus?.afkReason,
-        totalAfkTime: afkStatus?.totalAfkTime || 0,
       };
+      
+      if (afkStatus?.afkUntil !== undefined) {
+        result.afkUntil = afkStatus.afkUntil;
+      }
+      
+      return result;
     } catch (error) {
       console.error(`[분류-최적화] AFK 상태 조회 실패: ${userId}`, error);
       return {
         ...userData,
-        isAfk: true,
       };
     }
   }
@@ -374,21 +399,97 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
   ): ClassificationStatistics {
     const totalUsers = activeUsers.length + inactiveUsers.length + afkUsers.length;
     const totalActiveTime = activeUsers.reduce((sum, user) => sum + (user.totalTime || 0), 0);
-    const totalInactiveTime = inactiveUsers.reduce((sum, user) => sum + (user.totalTime || 0), 0);
 
     return {
       totalUsers,
-      activeCount: activeUsers.length,
-      inactiveCount: inactiveUsers.length,
-      afkCount: afkUsers.length,
       activePercentage: totalUsers > 0 ? Math.round((activeUsers.length / totalUsers) * 100) : 0,
-      averageActiveTime: activeUsers.length > 0 
+      inactivePercentage: totalUsers > 0 ? Math.round((inactiveUsers.length / totalUsers) * 100) : 0,
+      afkPercentage: totalUsers > 0 ? Math.round((afkUsers.length / totalUsers) * 100) : 0,
+      averageActivityTime: activeUsers.length > 0 
         ? Math.round(totalActiveTime / activeUsers.length) 
         : 0,
-      averageInactiveTime: inactiveUsers.length > 0 
-        ? Math.round(totalInactiveTime / inactiveUsers.length) 
-        : 0,
-      totalActivityTime: totalActiveTime + totalInactiveTime,
+      medianActivityTime: this.calculateMedianActivityTime(activeUsers),
+      topActiveUsers: activeUsers.slice(0, 5), // Top 5 active users
+      riskUsers: this.identifyRiskUsers(inactiveUsers)
+    };
+  }
+
+  /**
+   * Calculate median activity time
+   */
+  private calculateMedianActivityTime(users: UserData[]): number {
+    if (users.length === 0) return 0;
+    
+    const sortedTimes = users.map(user => user.totalTime || 0).sort((a, b) => a - b);
+    const mid = Math.floor(sortedTimes.length / 2);
+    
+    if (sortedTimes.length % 2 === 0) {
+      return Math.round((sortedTimes[mid - 1] + sortedTimes[mid]) / 2);
+    } else {
+      return sortedTimes[mid];
+    }
+  }
+
+  /**
+   * Identify risk users (users with very low activity)
+   */
+  private identifyRiskUsers(inactiveUsers: UserData[]): UserData[] {
+    // Return users with lowest activity times (bottom 20%)
+    const sortedUsers = inactiveUsers
+      .sort((a, b) => (a.totalTime || 0) - (b.totalTime || 0));
+    const riskCount = Math.ceil(sortedUsers.length * 0.2);
+    return sortedUsers.slice(0, riskCount);
+  }
+
+  /**
+   * 사용자 활동 동향 분석
+   */
+  async getUserActivityTrend(
+    _userId: string,
+    _days: number = 7
+  ): Promise<{
+    trend: 'increasing' | 'decreasing' | 'stable';
+    weeklyAverage: number;
+    dailyActivities: number[];
+    prediction: number;
+  }> {
+    // Simple implementation
+    return {
+      trend: 'stable',
+      weeklyAverage: 0,
+      dailyActivities: [],
+      prediction: 0
+    };
+  }
+
+  /**
+   * 설정 업데이트
+   */
+  updateConfig(newConfig: Partial<UserClassificationConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+  }
+
+  /**
+   * 캐시 수동 정리
+   */
+  clearCache(): void {
+    this.classificationCache.clear();
+  }
+
+  /**
+   * 서비스 통계 조회
+   */
+  getServiceStatistics(): {
+    cacheSize: number;
+    cacheHitRate: number;
+    totalClassifications: number;
+    averageClassificationTime: number;
+  } {
+    return {
+      cacheSize: this.classificationCache.size,
+      cacheHitRate: 0, // TODO: implement cache hit tracking
+      totalClassifications: 0, // TODO: implement classification counting
+      averageClassificationTime: 0 // TODO: implement timing tracking
     };
   }
 

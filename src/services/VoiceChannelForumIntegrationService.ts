@@ -12,23 +12,22 @@ import {
 } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { config } from '../config/env';
+import { config } from '../config/env.js';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
-import { DI_TOKENS } from '../interfaces/index';
-import { ButtonHandler } from '../ui/ButtonHandler';
-import { InteractionRouter } from '../ui/InteractionRouter';
-import { ModalHandler } from '../ui/ModalHandler';
-import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { ButtonHandler } from '../ui/ButtonHandler.js';
+import { InteractionRouter } from '../ui/InteractionRouter.js';
+import { ModalHandler } from '../ui/ModalHandler.js';
+import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 
-import { FeatureManagerService, Features } from './FeatureManagerService';
-import { ForumPostManager } from './ForumPostManager';
-import { GuildSettingsManager } from './GuildSettingsManager';
-import { MappingService } from './MappingService';
-import { ParticipantTracker } from './ParticipantTracker';
-import { PermissionService } from './PermissionService';
-import { RecruitmentService } from './RecruitmentService';
+import { FeatureManagerService, Features } from './FeatureManagerService.js';
+import { ForumPostManager } from './ForumPostManager.js';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
+import { MappingService } from './MappingService.js';
+import { ParticipantTracker } from './ParticipantTracker.js';
+import { RecruitmentService } from './RecruitmentService.js';
 // SQLiteManager 제거됨 - PostgreSQLManager 사용
-import { VoiceChannelManager } from './VoiceChannelManager';
+import { VoiceChannelManager } from './VoiceChannelManager.js';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
@@ -211,10 +210,11 @@ export class VoiceChannelForumIntegrationService {
   }
 
   /**
-   * ========== 권한 체크 메서드 (위임) ==========
+   * ========== 권한 체크 메서드 ==========
    */
-  hasRecruitmentPermission(user: User, member: GuildMember | null = null): boolean {
-    return PermissionService.hasRecruitmentPermission(user, member);
+  hasRecruitmentPermission(_user: User, _member: GuildMember | null = null): boolean {
+    // 모든 사용자가 구인구직 기능을 사용할 수 있음 (Discord 네이티브 권한 사용)
+    return true;
   }
 
   /**
@@ -309,8 +309,7 @@ export class VoiceChannelForumIntegrationService {
 
       // 권한 체크 및 전처리
       const canProceed = await InteractionRouter.preprocessInteraction(
-        interaction,
-        PermissionService
+        interaction
       );
       if (!canProceed) {
         this.recordFailedInteraction();
@@ -488,7 +487,7 @@ export class VoiceChannelForumIntegrationService {
     try {
       return {
         mappings: this.getMappingStats(),
-        recruitmentEnabled: PermissionService.hasRecruitmentPermission,
+        recruitmentEnabled: true,
         components: {
           voiceChannelManager: !!this.voiceChannelManager,
           forumPostManager: !!this.forumPostManager,

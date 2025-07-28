@@ -2,10 +2,10 @@
 import { Client, MessageReaction, User, Channel, ChannelType } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { DI_TOKENS } from '../interfaces/index';
-import { TextProcessor } from '../utils/TextProcessor';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { TextProcessor } from '../utils/TextProcessor.js';
 
-import { FeatureManagerService, Features } from './FeatureManagerService';
+import { FeatureManagerService, Features } from './FeatureManagerService.js';
 import type { ForumPostManager } from './ForumPostManager';
 
 // 이모지 반응 통계 인터페이스

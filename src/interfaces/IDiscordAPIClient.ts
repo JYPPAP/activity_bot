@@ -1,6 +1,5 @@
 // src/interfaces/IDiscordAPIClient.ts - Discord API Client Wrapper Interface
 
-import { AxiosRequestConfig, AxiosResponse } from 'axios';
 
 // Request types and configurations
 export interface DiscordAPIRequest {

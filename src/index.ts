@@ -1,15 +1,16 @@
 // src/index.ts - 애플리케이션 진입점
+console.log('[Startup] index.ts loaded');
 import 'reflect-metadata'; // DI Container (TSyringe) 지원
 import process from 'process';
 
 // ⚠️ 중요: 환경변수를 먼저 로드 후 logger 임포트
-import { config } from './config/env';
-import './config/logger-termux';
-import { logger } from './config/logger-termux';
+import { config } from './config/env.js';
+import './config/logger-termux.js';
+import { logger } from './config/logger-termux.js';
 
-import { Bot } from './bot';
+import { Bot } from './bot.js';
 // @ts-ignore: JS module without declarations
-import { keepAlive } from '../server';
+import { keepAlive } from '../server.js';
 
 // 프로세스 정보 인터페이스
 interface ProcessInfo {
@@ -186,7 +187,8 @@ function calculateStartupStats(startTime: Date, initTime: Date, loginTime: Date)
  * 환경 검증
  */
 function validateEnvironment(): void {
-  const requiredEnvVars = ['TOKEN', 'GUILDID', 'LOG_CHANNEL_ID'];
+  // GUILDID, LOG_CHANNEL_ID는 이제 데이터베이스에서 관리되므로 환경변수 검증에서 제외
+  const requiredEnvVars = ['TOKEN'];
   const missingVars: string[] = [];
 
   for (const varName of requiredEnvVars) {
@@ -202,7 +204,6 @@ function validateEnvironment(): void {
         (key) =>
           key.startsWith('DISCORD_') ||
           key === 'TOKEN' ||
-          key === 'GUILDID' ||
           key.includes('CHANNEL')
       ),
     });
@@ -218,25 +219,33 @@ async function main(): Promise<void> {
   let bot: Bot | null = null;
 
   try {
+    console.log('[Main] 환경 검증 시작...');
     // 환경 검증
     validateEnvironment();
+    console.log('[Main] 환경 검증 완료');
 
     // 프로세스 정보 수집 및 로깅
+    console.log('[Main] 프로세스 정보 수집 중...');
     const processInfo = getProcessInfo();
     logStartupInfo(processInfo);
 
     // 메모리 모니터링 시작
+    console.log('[Main] 메모리 모니터링 시작...');
     startMemoryMonitoring();
 
     // 봇 인스턴스 생성
+    console.log('[Main] 봇 인스턴스 생성 중...');
     logger.info('봇 인스턴스 생성 중...');
     bot = new Bot(config.TOKEN);
+    console.log('[Main] 봇 인스턴스 생성 완료');
 
     // 봇 초기화
+    console.log('[Main] 봇 초기화 시작...');
     logger.info('봇 초기화 중...');
     const initStartTime = new Date();
     await bot.initialize();
     const initEndTime = new Date();
+    console.log('[Main] 봇 초기화 완료');
     logger.info('봇 초기화 완료', {
       initializationTime: `${initEndTime.getTime() - initStartTime.getTime()}ms`,
     });

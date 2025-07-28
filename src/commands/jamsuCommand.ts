@@ -8,7 +8,7 @@ import {
   Role,
 } from 'discord.js';
 
-import { parseYYMMDD, calculateNextSunday, formatKoreanDateString } from '../utils/dateUtils';
+import { parseYYMMDD, calculateNextSunday, formatKoreanDateString } from '../utils/dateUtils.js';
 
 import {
   CommandBase,
@@ -16,7 +16,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase';
+} from './CommandBase.js';
 
 // AFK 설정 결과 인터페이스
 interface AfkSetResult {

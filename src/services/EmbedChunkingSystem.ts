@@ -7,11 +7,9 @@ import {
   ButtonBuilder,
   ActionRowBuilder,
   AttachmentBuilder,
-  ButtonStyle,
-  ComponentType,
-  MessageFlags
+  ButtonStyle
 } from 'discord.js';
-import { injectable, inject } from 'tsyringe';
+import { injectable } from 'tsyringe';
 import { v4 as uuidv4 } from 'uuid';
 
 import {
@@ -21,17 +19,15 @@ import {
   ChunkingResult,
   NavigationState,
   FileAttachmentData,
-  ChunkingProgress,
   DEFAULT_CHUNKING_CONFIG,
   NAVIGATION_BUTTON_IDS,
   EmbedChunkingError,
   NavigationError,
   FileFallbackError,
   ChunkingStrategy
-} from '../interfaces/IEmbedChunkingSystem';
-import { LIMITS } from '../config/constants';
-import { calculateEmbedLength } from '../utils/embedBuilder';
-import { DI_TOKENS } from '../interfaces/index';
+} from '../interfaces/IEmbedChunkingSystem.js';
+import { LIMITS } from '../config/constants.js';
+import { calculateEmbedLength } from '../utils/embedBuilder.js';
 
 // Performance and statistics tracking
 interface ChunkingStatistics {
@@ -79,7 +75,6 @@ export class EmbedChunkingSystem implements IEmbedChunkingSystem {
     try {
       // Analyze input data
       const totalOriginalSize = embeds.reduce((sum, embed) => sum + calculateEmbedLength(embed), 0);
-      const totalOriginalFields = embeds.reduce((sum, embed) => sum + (embed.toJSON().fields?.length || 0), 0);
 
       // Determine chunking strategy
       const strategy = this.determineChunkingStrategy(embeds, mergedConfig);
@@ -257,10 +252,11 @@ export class EmbedChunkingSystem implements IEmbedChunkingSystem {
               ? `${existingFooter.text} | ${pageInfo}`
               : pageInfo;
             
-            embedCopy.setFooter({ 
-              text: newFooterText,
-              iconURL: existingFooter?.icon_url
-            });
+            const footerOptions: any = { text: newFooterText };
+            if (existingFooter?.icon_url) {
+              footerOptions.iconURL = existingFooter.icon_url;
+            }
+            embedCopy.setFooter(footerOptions);
 
             chunk.embed = embedCopy;
           }
@@ -273,12 +269,15 @@ export class EmbedChunkingSystem implements IEmbedChunkingSystem {
         }
       }
 
-      return {
+      const result: any = {
         messages,
-        navigationState,
         success: true,
         sendTime: Date.now() - startTime
       };
+      if (navigationState) {
+        result.navigationState = navigationState;
+      }
+      return result;
 
     } catch (error) {
       throw new EmbedChunkingError(
@@ -855,9 +854,10 @@ export class EmbedChunkingSystem implements IEmbedChunkingSystem {
   ): Promise<Message> {
     if (target instanceof ChatInputCommandInteraction) {
       if (target.deferred || target.replied) {
-        return await target.followUp(options);
+        return await target.followUp(options) as Message;
       } else {
-        return await target.reply(options);
+        await target.reply(options);
+        return await target.fetchReply() as Message;
       }
     } else {
       return await target.send(options);

@@ -502,7 +502,7 @@ export class SafeInteraction {
           const result = await interaction.deferReply(deferOptions);
           this.statistics.deferredReplies++;
           console.log('[SafeInteraction] defer 성공');
-          return result;
+          return result as any;
         } catch (deferError: any) {
           console.error('[SafeInteraction] defer 실패:', {
             error: deferError.message,

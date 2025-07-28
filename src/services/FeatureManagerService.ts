@@ -1,7 +1,7 @@
 // src/services/FeatureManagerService.ts - 기능 관리 서비스
 import { injectable } from 'tsyringe';
 
-import { isDevelopment } from '../config/env';
+import { isDevelopment } from '../config/env.js';
 
 /**
  * 사용 가능한 기능 목록

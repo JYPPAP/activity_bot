@@ -7,7 +7,6 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
-  ComponentType,
   InteractionResponse,
   Message
 } from 'discord.js';
@@ -19,9 +18,9 @@ import type {
   StreamingReportResult,
   StreamingError,
   DiscordStreamingOptions,
-  StreamingStage,
-  DEFAULT_DISCORD_OPTIONS
+  StreamingStage
 } from '../interfaces/IStreamingReportEngine';
+import { DEFAULT_DISCORD_OPTIONS } from '../interfaces/IStreamingReportEngine.js';
 
 /**
  * Progress message context for managing Discord updates
@@ -31,7 +30,7 @@ interface ProgressMessageContext {
   lastUpdate: number;
   updateCount: number;
   embedHistory: EmbedBuilder[];
-  progressMessage?: Message | InteractionResponse;
+  progressMessage?: Message | InteractionResponse<boolean>;
 }
 
 /**
@@ -173,8 +172,8 @@ export class DiscordStreamingService {
       const partialEmbed = this.createPartialResultEmbed(partialResult, options);
       
       // Send partial results as a follow-up message
-      if ('followUp' in context.progressMessage) {
-        await context.progressMessage.followUp({
+      if (context.progressMessage && 'followUp' in context.progressMessage) {
+        await (context.progressMessage as any).followUp({
           embeds: [partialEmbed, ...(partialResult.embeds || []).slice(0, 3)], // Limit embeds
           flags: options.ephemeral ? MessageFlags.Ephemeral : undefined
         });
@@ -222,7 +221,7 @@ export class DiscordStreamingService {
           const chunk = embedChunks[i];
           const isLast = i === embedChunks.length - 1;
           
-          await context.progressMessage.followUp({
+          await (context.progressMessage as any).followUp({
             content: i === 0 ? '📊 **최종 보고서 결과**' : undefined,
             embeds: chunk,
             flags: options.ephemeral ? MessageFlags.Ephemeral : undefined,
@@ -288,7 +287,7 @@ export class DiscordStreamingService {
    */
   async handleCancellation(
     operationId: string,
-    options: DiscordStreamingOptions
+    _options: DiscordStreamingOptions
   ): Promise<void> {
     const context = this.messageContexts.get(operationId);
     if (!context?.progressMessage) {
@@ -366,7 +365,7 @@ export class DiscordStreamingService {
    */
   private createPartialResultEmbed(
     partialResult: PartialReportResult,
-    options: DiscordStreamingOptions
+    _options: DiscordStreamingOptions
   ): EmbedBuilder {
     const batchInfo = partialResult.batchInfo;
     const stats = partialResult.statistics;
@@ -393,7 +392,7 @@ export class DiscordStreamingService {
    */
   private createCompletionEmbed(
     result: StreamingReportResult,
-    options: DiscordStreamingOptions
+    _options: DiscordStreamingOptions
   ): EmbedBuilder {
     const stats = result.statistics;
     const metadata = result.metadata;
@@ -429,7 +428,7 @@ export class DiscordStreamingService {
    */
   private createErrorEmbed(
     error: StreamingError,
-    options: DiscordStreamingOptions
+    _options: DiscordStreamingOptions
   ): EmbedBuilder {
     const embed = new EmbedBuilder()
       .setTitle('❌ 스트리밍 오류 발생')

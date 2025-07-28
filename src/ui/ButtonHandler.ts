@@ -7,16 +7,16 @@ import {
   VoiceChannel,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { RecruitmentConfig } from '../config/RecruitmentConfig';
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
-import { RecruitmentService } from '../services/RecruitmentService';
-import { VoiceChannelManager } from '../services/VoiceChannelManager';
-import { DiscordAPIError } from '../types/discord';
-import { SafeInteraction } from '../utils/SafeInteraction';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
+import { RecruitmentService } from '../services/RecruitmentService.js';
+import { VoiceChannelManager } from '../services/VoiceChannelManager.js';
+import { DiscordAPIError } from '../types/discord.js';
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 
-import { ModalHandler } from './ModalHandler';
-import { RecruitmentUIBuilder } from './RecruitmentUIBuilder';
+import { ModalHandler } from './ModalHandler.js';
+import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
 
 // 버튼 처리 결과 인터페이스
 interface ButtonHandleResult {

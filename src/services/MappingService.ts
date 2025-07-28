@@ -408,7 +408,7 @@ export class MappingService {
       });
 
       // 참여자 수 계산
-      const ParticipantTracker = (await import('./ParticipantTracker')).ParticipantTracker;
+      const ParticipantTracker = (await import('./ParticipantTracker.js')).ParticipantTracker;
       const participantTracker = new ParticipantTracker(this.client);
       const currentCount = participantTracker.countActiveParticipants(voiceChannelInfo);
 

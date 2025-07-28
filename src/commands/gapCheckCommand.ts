@@ -1,7 +1,7 @@
 // src/commands/gapCheckCommand.ts - 시간체크 명령어 (수정)
 import { ChatInputCommandInteraction, MessageFlags, SlashCommandBuilder, User } from 'discord.js';
 
-import { formatTime, formatTimeInHours } from '../utils/formatters';
+import { formatTime, formatTimeInHours } from '../utils/formatters.js';
 
 import {
   CommandBase,
@@ -9,7 +9,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase';
+} from './CommandBase.js';
 
 // 날짜 범위 인터페이스
 interface DateRange {
@@ -402,7 +402,10 @@ export class GapCheckCommand extends CommandBase {
     result: ActivityCheckResult,
     isPublic: boolean
   ): Promise<void> {
-    const displayName = interaction.member?.displayName || result.user.username;
+    const displayName = 
+      (interaction.member && 'displayName' in interaction.member) 
+        ? interaction.member.displayName 
+        : (interaction.member?.nick || result.user.username);
     let message = `🕐 **${displayName}님의 활동 시간**\n\n`;
 
     // 기본 정보
@@ -429,7 +432,7 @@ export class GapCheckCommand extends CommandBase {
 
     // 시간대별 추천 (간단한 예시)
     if (result.totalTime > 0) {
-      message += `\n💡 **평가:** ${this.getActivityEvaluation(result.totalTime, result.dateRange)}`;
+      message += `\n💡 **팁:** ${this.getActivityEvaluation(result.totalTime, result.dateRange)}`;
     }
 
     await interaction.followUp({
@@ -439,7 +442,7 @@ export class GapCheckCommand extends CommandBase {
   }
 
   /**
-   * 활동 평가 메시지 생성
+   * 활동 팁 메시지 생성
    * @param totalTime - 총 활동 시간
    * @param dateRange - 날짜 범위
    */

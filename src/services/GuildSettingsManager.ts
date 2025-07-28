@@ -1,10 +1,10 @@
 // src/services/GuildSettingsManager.ts - 길드 설정 관리 서비스
 import { injectable, inject } from 'tsyringe';
 
-import { logger } from '../config/logger-termux';
+import { logger } from '../config/logger-termux.js';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
-import { DI_TOKENS } from '../interfaces/index';
-import { SecurityValidator, ValidationResult } from '../utils/SecurityValidator';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { SecurityValidator, ValidationResult } from '../utils/SecurityValidator.js';
 
 export interface GuildSetting {
   id?: number;
@@ -56,6 +56,28 @@ export interface SettingsAuditLog {
   oldValue?: any;
   newValue?: any;
   timestamp: number;
+}
+
+export interface ActivityTimeCategory {
+  guildId: string;
+  categoryName: string;
+  minHours: number;
+  maxHours?: number;
+  displayOrder: number;
+  colorCode: string;
+  isActive: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface MonthlyActivityClassification {
+  userId: string;
+  guildId: string;
+  monthPeriod: string;
+  totalHours: number;
+  categoryName: string;
+  colorCode: string;
+  displayOrder: number;
 }
 
 /**
@@ -473,16 +495,31 @@ export class GuildSettingsManager {
 
       const rows = await this.dbManager.all(
         `
-        SELECT setting_key, setting_value FROM guild_settings 
-        WHERE guild_id = $1 AND setting_type = $2
+        SELECT role_settings FROM guild_settings_backup 
+        WHERE guild_id = $1
       `,
-        [guildId, 'role_activity']
+        [guildId]
       );
 
       const result: { [roleName: string]: RoleActivitySetting } = {};
 
-      for (const row of rows) {
-        result[row.setting_key] = JSON.parse(row.setting_value);
+      if (rows.length > 0 && rows[0].role_settings) {
+        const roleSettings = rows[0].role_settings;
+        
+        // roleConfigs 배열에서 역할 설정 추출
+        if (roleSettings.roleConfigs && Array.isArray(roleSettings.roleConfigs)) {
+          for (const roleConfig of roleSettings.roleConfigs) {
+            if (roleConfig.name && roleConfig.requiredHours !== undefined) {
+              result[roleConfig.name] = {
+                minHours: roleConfig.requiredHours,
+                roleId: roleConfig.roleId || null,
+                warningThreshold: roleConfig.warningThreshold || Math.floor(roleConfig.requiredHours * 0.7),
+                // 기본값 설정
+                allowedAfkDuration: roleConfig.allowedAfkDuration || 3600000 // 1시간
+              };
+            }
+          }
+        }
       }
 
       return result;
@@ -602,14 +639,14 @@ export class GuildSettingsManager {
       // 데이터베이스 저장 (updated_at은 트리거가 자동 처리)
       await this.dbManager.run(
         `
-        INSERT INTO guild_settings 
-        (guild_id, setting_type, setting_key, setting_value) 
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (guild_id, setting_type, setting_key) 
+        INSERT INTO guild_settings (guild_id, activity_tracking) 
+        VALUES ($1, jsonb_build_object('game_list', $2::jsonb))
+        ON CONFLICT (guild_id) 
         DO UPDATE SET 
-          setting_value = EXCLUDED.setting_value
+          activity_tracking = COALESCE(guild_settings.activity_tracking, '{}'::jsonb) || jsonb_build_object('game_list', $2::jsonb),
+          updated_at = NOW()
       `,
-        [guildId, 'game_list', 'games', JSON.stringify(settingData)]
+        [guildId, JSON.stringify(settingData)]
       );
 
       // 감사 로그 기록
@@ -660,15 +697,16 @@ export class GuildSettingsManager {
 
       const row = await this.dbManager.get(
         `
-        SELECT setting_value FROM guild_settings 
-        WHERE guild_id = $1 AND setting_type = $2 AND setting_key = $3
+        SELECT activity_tracking FROM guild_settings 
+        WHERE guild_id = $1
       `,
-        [guildId, 'game_list', 'games']
+        [guildId]
       );
 
-      if (!row) return null;
+      if (!row || !row.activity_tracking) return null;
 
-      return JSON.parse(row.setting_value);
+      const activitySettings = row.activity_tracking;
+      return activitySettings.game_list || null;
     } catch (error) {
       logger.error('[GuildSettingsManager] 게임 목록 조회 실패:', error as any);
       return null;
@@ -722,14 +760,14 @@ export class GuildSettingsManager {
       // 데이터베이스 저장 (updated_at은 트리거가 자동 처리)
       await this.dbManager.run(
         `
-        INSERT INTO guild_settings 
-        (guild_id, setting_type, setting_key, setting_value) 
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (guild_id, setting_type, setting_key) 
+        INSERT INTO guild_settings (guild_id, exclude_channels) 
+        VALUES ($1, $2::jsonb)
+        ON CONFLICT (guild_id) 
         DO UPDATE SET 
-          setting_value = EXCLUDED.setting_value
+          exclude_channels = $2::jsonb,
+          updated_at = NOW()
       `,
-        [guildId, 'exclude_channels', 'channels', JSON.stringify(settingData)]
+        [guildId, JSON.stringify(settingData)]
       );
 
       // 감사 로그 기록
@@ -786,15 +824,15 @@ export class GuildSettingsManager {
 
       const row = await this.dbManager.get(
         `
-        SELECT setting_value FROM guild_settings 
-        WHERE guild_id = $1 AND setting_type = $2 AND setting_key = $3
+        SELECT exclude_channels FROM guild_settings 
+        WHERE guild_id = $1
       `,
-        [guildId, 'exclude_channels', 'channels']
+        [guildId]
       );
 
-      if (!row) return null;
+      if (!row || !row.exclude_channels) return null;
 
-      const parsedData = JSON.parse(row.setting_value);
+      const parsedData = row.exclude_channels;
 
       // 이전 구조에서 새로운 구조로 마이그레이션
       if (parsedData.channels && !parsedData.excludedChannels) {
@@ -808,10 +846,10 @@ export class GuildSettingsManager {
         await this.dbManager.run(
           `
           UPDATE guild_settings 
-          SET setting_value = $1
-          WHERE guild_id = $2 AND setting_type = $3 AND setting_key = $4
+          SET exclude_channels = $1::jsonb, updated_at = NOW()
+          WHERE guild_id = $2
         `,
-          [JSON.stringify(migratedData), guildId, 'exclude_channels', 'channels']
+          [JSON.stringify(migratedData), guildId]
         );
 
         logger.info('[GuildSettingsManager] 제외 채널 데이터 마이그레이션 완료', {
@@ -910,14 +948,14 @@ export class GuildSettingsManager {
       // 데이터베이스 저장 (updated_at은 트리거가 자동 처리)
       await this.dbManager.run(
         `
-        INSERT INTO guild_settings 
-        (guild_id, setting_type, setting_key, setting_value) 
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (guild_id, setting_type, setting_key) 
+        INSERT INTO guild_settings (guild_id, channel_management) 
+        VALUES ($1, $2::jsonb)
+        ON CONFLICT (guild_id) 
         DO UPDATE SET 
-          setting_value = EXCLUDED.setting_value
+          channel_management = $2::jsonb,
+          updated_at = NOW()
       `,
-        [guildId, 'channel_management', 'channels', JSON.stringify(settingData)]
+        [guildId, JSON.stringify(settingData)]
       );
 
       // 감사 로그 기록
@@ -962,15 +1000,15 @@ export class GuildSettingsManager {
 
       const row = await this.dbManager.get(
         `
-        SELECT setting_value FROM guild_settings 
-        WHERE guild_id = $1 AND setting_type = $2 AND setting_key = $3
+        SELECT channel_management FROM guild_settings 
+        WHERE guild_id = $1
       `,
-        [guildId, 'channel_management', 'channels']
+        [guildId]
       );
 
-      if (!row) return null;
+      if (!row || !row.channel_management) return null;
 
-      return JSON.parse(row.setting_value);
+      return row.channel_management;
     } catch (error) {
       logger.error('[GuildSettingsManager] 채널 관리 설정 조회 실패:', error as any);
       return null;
@@ -1150,6 +1188,287 @@ export class GuildSettingsManager {
       return {
         isValid: false,
         error: '설정 삭제 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  // =====================================================
+  // 활동시간 분류 시스템 메서드들
+  // =====================================================
+
+  /**
+   * 길드의 활동시간 분류 카테고리 조회
+   */
+  async getActivityTimeCategories(guildId: string): Promise<ActivityTimeCategory[]> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return [];
+
+      const rows = await this.dbManager.all(
+        `
+        SELECT 
+          guild_id, category_name, min_hours, max_hours, 
+          display_order, color_code, is_active, created_at, updated_at
+        FROM activity_time_categories 
+        WHERE guild_id = $1 AND is_active = true
+        ORDER BY display_order ASC
+        `,
+        [guildId]
+      );
+
+      return rows.map(row => ({
+        guildId: row.guild_id.toString(),
+        categoryName: row.category_name,
+        minHours: row.min_hours,
+        maxHours: row.max_hours,
+        displayOrder: row.display_order,
+        colorCode: row.color_code,
+        isActive: row.is_active,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }));
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 활동시간 분류 조회 실패:', error as any);
+      return [];
+    }
+  }
+
+  /**
+   * 활동시간 분류 카테고리 업데이트
+   */
+  async updateActivityTimeCategory(
+    guildId: string,
+    categoryName: string,
+    categoryData: Partial<ActivityTimeCategory>,
+    userId: string,
+    userName: string
+  ): Promise<ValidationResult> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) {
+        return { isValid: false, error: '유효하지 않은 길드 ID입니다.' };
+      }
+
+      // 기존 카테고리 조회
+      const existingCategory = await this.dbManager.get(
+        `
+        SELECT * FROM activity_time_categories 
+        WHERE guild_id = $1 AND category_name = $2
+        `,
+        [guildId, categoryName]
+      );
+
+      if (existingCategory) {
+        // 업데이트
+        await this.dbManager.run(
+          `
+          UPDATE activity_time_categories 
+          SET min_hours = $3, max_hours = $4, display_order = $5, 
+              color_code = $6, is_active = $7, updated_at = NOW()
+          WHERE guild_id = $1 AND category_name = $2
+          `,
+          [
+            guildId, 
+            categoryName,
+            categoryData.minHours ?? existingCategory.min_hours,
+            categoryData.maxHours ?? existingCategory.max_hours,
+            categoryData.displayOrder ?? existingCategory.display_order,
+            categoryData.colorCode ?? existingCategory.color_code,
+            categoryData.isActive ?? existingCategory.is_active,
+          ]
+        );
+      } else {
+        // 새로 생성
+        await this.dbManager.run(
+          `
+          INSERT INTO activity_time_categories 
+          (guild_id, category_name, min_hours, max_hours, display_order, color_code, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+          `,
+          [
+            guildId,
+            categoryName,
+            categoryData.minHours ?? 0,
+            categoryData.maxHours,
+            categoryData.displayOrder ?? 1,
+            categoryData.colorCode ?? '#666666',
+            categoryData.isActive ?? true,
+          ]
+        );
+      }
+
+      // 감사 로그 기록
+      await this.logSettingChange({
+        guildId,
+        userId,
+        userName,
+        action: existingCategory ? 'UPDATE' : 'CREATE',
+        settingType: 'activity_time_category',
+        settingKey: categoryName,
+        oldValue: existingCategory || null,
+        newValue: categoryData,
+        timestamp: Date.now(),
+      });
+
+      logger.info('[GuildSettingsManager] 활동시간 분류 카테고리 업데이트 완료', {
+        guildId,
+        categoryName,
+        action: existingCategory ? 'UPDATE' : 'CREATE',
+        userId,
+      } as any);
+
+      return { isValid: true, sanitizedValue: categoryData };
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 활동시간 분류 카테고리 업데이트 실패:', error as any);
+      return {
+        isValid: false,
+        error: '분류 카테고리 업데이트 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 사용자의 월별 활동 분류 조회
+   */
+  async getUserMonthlyActivityClassification(
+    userId: string,
+    guildId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<MonthlyActivityClassification | null> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return null;
+
+      const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const end = endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+
+      const result = await this.dbManager.get(
+        `
+        SELECT * FROM get_user_monthly_activity_classification($1, $2, $3, $4)
+        `,
+        [userId, guildId, start.toISOString().split('T')[0], end.toISOString().split('T')[0]]
+      );
+
+      if (!result) return null;
+
+      return {
+        userId: result.user_id,
+        guildId: result.guild_id.toString(),
+        monthPeriod: result.month_period,
+        totalHours: parseFloat(result.total_hours),
+        categoryName: result.category_name,
+        colorCode: result.color_code,
+        displayOrder: result.display_order,
+      };
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 월별 활동 분류 조회 실패:', error as any);
+      return null;
+    }
+  }
+
+  /**
+   * 길드 전체 월별 활동 보고서 조회
+   */
+  async getGuildMonthlyActivityReport(
+    guildId: string,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<MonthlyActivityClassification[]> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return [];
+
+      const start = startDate || new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      const end = endDate || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0);
+
+      const rows = await this.dbManager.all(
+        `
+        SELECT * FROM get_guild_monthly_activity_report($1, $2, $3)
+        `,
+        [guildId, start.toISOString().split('T')[0], end.toISOString().split('T')[0]]
+      );
+
+      return rows.map(row => ({
+        userId: row.user_id,
+        guildId: guildId,
+        monthPeriod: start.toISOString().substring(0, 7), // YYYY-MM format
+        totalHours: parseFloat(row.total_hours),
+        categoryName: row.category_name,
+        colorCode: row.color_code,
+        displayOrder: row.display_order,
+      }));
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 길드 월별 활동 보고서 조회 실패:', error as any);
+      return [];
+    }
+  }
+
+  /**
+   * 활동시간 분류 카테고리 삭제
+   */
+  async deleteActivityTimeCategory(
+    guildId: string,
+    categoryName: string,
+    userId: string,
+    userName: string
+  ): Promise<ValidationResult> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) {
+        return { isValid: false, error: '유효하지 않은 길드 ID입니다.' };
+      }
+
+      // 기존 카테고리 조회
+      const existingCategory = await this.dbManager.get(
+        `
+        SELECT * FROM activity_time_categories 
+        WHERE guild_id = $1 AND category_name = $2
+        `,
+        [guildId, categoryName]
+      );
+
+      if (!existingCategory) {
+        return {
+          isValid: false,
+          error: '삭제할 분류 카테고리를 찾을 수 없습니다.',
+        };
+      }
+
+      // 카테고리 삭제
+      await this.dbManager.run(
+        `
+        DELETE FROM activity_time_categories 
+        WHERE guild_id = $1 AND category_name = $2
+        `,
+        [guildId, categoryName]
+      );
+
+      // 감사 로그 기록
+      await this.logSettingChange({
+        guildId,
+        userId,
+        userName,
+        action: 'DELETE',
+        settingType: 'activity_time_category',
+        settingKey: categoryName,
+        oldValue: existingCategory,
+        newValue: null,
+        timestamp: Date.now(),
+      });
+
+      logger.info('[GuildSettingsManager] 활동시간 분류 카테고리 삭제 완료', {
+        guildId,
+        categoryName,
+        userId,
+      } as any);
+
+      return { isValid: true, sanitizedValue: true };
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 활동시간 분류 카테고리 삭제 실패:', error as any);
+      return {
+        isValid: false,
+        error: '분류 카테고리 삭제 중 오류가 발생했습니다.',
       };
     }
   }

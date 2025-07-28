@@ -10,22 +10,20 @@ import { injectable, inject } from 'tsyringe';
 import {
   IEmbedChunkingSystem,
   EmbedChunkingConfig,
-  ChunkingResult,
   NavigationState,
   FileAttachmentData
-} from '../interfaces/IEmbedChunkingSystem';
+} from '../interfaces/IEmbedChunkingSystem.js';
 import {
   IReliableEmbedSender,
   ThreeSectionReport,
-  ReliableEmbedSendOptions,
-  EmbedSendResult
-} from '../interfaces/IReliableEmbedSender';
+  ReliableEmbedSendOptions
+} from '../interfaces/IReliableEmbedSender.js';
 import {
   IActivityReportTemplateService,
   ActivityReportTemplate,
   TemplateFormattingOptions
-} from '../interfaces/IActivityReportTemplate';
-import { DI_TOKENS } from '../interfaces/index';
+} from '../interfaces/IActivityReportTemplate.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 export interface IntegratedReportResult {
   success: boolean;
@@ -82,11 +80,6 @@ export class IntegratedReportChunkingService {
     try {
       // 기본 옵션 설정
       const {
-        enableChunking = true,
-        chunkingThreshold = 3,
-        enableReliableSending = true,
-        preferChunkingOverReliable = true,
-        chunkingConfig = {},
         reliableSendOptions = {}
       } = options;
 
@@ -95,12 +88,11 @@ export class IntegratedReportChunkingService {
         target,
         report,
         {
-          ...reliableSendOptions,
-          dryRun: true // 실제 전송하지 않고 임베드만 생성
+          ...reliableSendOptions
         }
       );
 
-      if (!embedResult.success || !embedResult.embeds) {
+      if (!embedResult.success) {
         return {
           success: false,
           messages: [],
@@ -112,72 +104,16 @@ export class IntegratedReportChunkingService {
         };
       }
 
-      const embeds = embedResult.embeds;
-      
-      // 청킹 사용 여부 결정
-      const shouldUseChunking = enableChunking && (
-        embeds.length >= chunkingThreshold ||
-        this.exceedsEmbedLimits(embeds) ||
-        preferChunkingOverReliable
-      );
-
-      if (shouldUseChunking) {
-        // 청킹 시스템 사용
-        const chunkingResult = await this.chunkingSystem.chunkEmbeds(embeds, chunkingConfig);
-        
-        const sendResult = await this.chunkingSystem.sendChunkedEmbeds(
-          target,
-          chunkingResult.chunks,
-          chunkingConfig
-        );
-
-        return {
-          success: sendResult.success,
-          messages: sendResult.messages,
-          navigationState: sendResult.navigationState,
-          fallbackAttachment: sendResult.fallbackAttachment,
-          chunkingUsed: true,
-          totalChunks: chunkingResult.totalChunks,
-          sendTime: Date.now() - startTime,
-          compressionRatio: chunkingResult.metadata.compressionRatio,
-          fileFallbackUsed: !!sendResult.fallbackAttachment
-        };
-      } else if (enableReliableSending) {
-        // 신뢰성 있는 전송 사용
-        const sendResult = await this.reliableEmbedSender.sendThreeSectionReport(
-          target,
-          report,
-          reliableSendOptions
-        );
-
-        return {
-          success: sendResult.success,
-          messages: sendResult.messages || [],
-          chunkingUsed: false,
-          totalChunks: sendResult.embeds?.length || 0,
-          sendTime: Date.now() - startTime,
-          compressionRatio: 1,
-          fileFallbackUsed: sendResult.fallbackUsed || false
-        };
-      } else {
-        // 기본 전송 (권장하지 않음)
-        const messages: Message[] = [];
-        
-        for (const embed of embeds) {
-          const message = await this.sendMessage(target, { embeds: [embed] });
-          messages.push(message);
-        }
-
-        return {
-          success: true,
-          messages,
-          chunkingUsed: false,
-          totalChunks: embeds.length,
-          sendTime: Date.now() - startTime,
-          compressionRatio: 1,
-          fileFallbackUsed: false
-        };
-      }
+      // Since ReliableEmbedSender already processed the report, return the results
+      return {
+        success: true,
+        messages: embedResult.messagesSent,
+        chunkingUsed: embedResult.chunksCreated > 1,
+        totalChunks: embedResult.chunksCreated,
+        sendTime: Date.now() - startTime,
+        compressionRatio: 1,
+        fileFallbackUsed: embedResult.fallbackUsed
+      };
 
     } catch (error) {
       console.error('[IntegratedReportChunkingService] Error sending report:', error);
@@ -233,8 +169,8 @@ export class IntegratedReportChunkingService {
         return {
           success: sendResult.success,
           messages: sendResult.messages,
-          navigationState: sendResult.navigationState,
-          fallbackAttachment: sendResult.fallbackAttachment,
+          ...(sendResult.navigationState && { navigationState: sendResult.navigationState }),
+          ...(sendResult.fallbackAttachment && { fallbackAttachment: sendResult.fallbackAttachment }),
           chunkingUsed: true,
           totalChunks: chunkingResult.totalChunks,
           sendTime: Date.now() - startTime,
@@ -307,9 +243,9 @@ export class IntegratedReportChunkingService {
     // 요약 정보 추가
     if (template.summary) {
       const summaryFields = [
-        { name: '✅ 활동 기준 달성', value: `${template.summary.achievementCount || 0}명`, inline: true },
-        { name: '❌ 활동 기준 미달성', value: `${template.summary.underperformanceCount || 0}명`, inline: true },
-        { name: '💤 잠수 중', value: `${template.summary.afkCount || 0}명`, inline: true }
+        { name: '✅ 활동 기준 달성', value: `${template.summary.achievingMembers || 0}명`, inline: true },
+        { name: '❌ 활동 기준 미달성', value: `${template.summary.underperformingMembers || 0}명`, inline: true },
+        { name: '💤 잠수 중', value: `${template.summary.afkMembers || 0}명`, inline: true }
       ];
       
       mainEmbed.addFields(summaryFields);
@@ -318,7 +254,7 @@ export class IntegratedReportChunkingService {
     embeds.push(mainEmbed);
 
     // 각 섹션을 별도 임베드로 생성
-    if (template.achievementSection.members.length > 0) {
+    if (template.achievementSection.memberData.length > 0) {
       const achievementEmbed = await this.createSectionEmbed(
         '✅ 활동 기준 달성 멤버',
         template.achievementSection,
@@ -328,7 +264,7 @@ export class IntegratedReportChunkingService {
       embeds.push(achievementEmbed);
     }
 
-    if (template.underperformanceSection.members.length > 0) {
+    if (template.underperformanceSection.memberData.length > 0) {
       const underperformanceEmbed = await this.createSectionEmbed(
         '❌ 활동 기준 미달성 멤버',
         template.underperformanceSection,
@@ -338,7 +274,7 @@ export class IntegratedReportChunkingService {
       embeds.push(underperformanceEmbed);
     }
 
-    if (template.afkSection && template.afkSection.members.length > 0) {
+    if (template.afkSection && template.afkSection.memberData.length > 0) {
       const afkEmbed = await this.createSectionEmbed(
         '💤 잠수 중인 멤버',
         template.afkSection,
@@ -365,27 +301,13 @@ export class IntegratedReportChunkingService {
       .setColor(color);
 
     // 템플릿 서비스를 사용하여 포맷팅
-    const formattedContent = await this.templateService.formatSection(section, {
-      format: 'table',
-      includeHeader: true,
-      maxMembersPerPage: 25, // Discord embed field limit
-      sortBy: 'activity_time',
-      sortOrder: 'desc',
+    const formattedContent = this.templateService.formatSectionAsText(section, {
+      alignmentStyle: 'table',
+      nameColumnWidth: 25, // Discord embed field limit
       ...options
     });
 
-    if (typeof formattedContent === 'string') {
-      embed.setDescription(formattedContent);
-    } else if (Array.isArray(formattedContent)) {
-      // 페이지네이션된 결과 처리
-      formattedContent.forEach((page, index) => {
-        embed.addFields({
-          name: `페이지 ${index + 1}`,
-          value: page,
-          inline: false
-        });
-      });
-    }
+    embed.setDescription(formattedContent);
 
     return embed;
   }
@@ -401,7 +323,9 @@ export class IntegratedReportChunkingService {
       if (target.deferred || target.replied) {
         return await target.followUp(options);
       } else {
-        return await target.reply(options);
+        await target.reply(options);
+        // Get the actual message from the interaction response
+        return await target.fetchReply() as Message;
       }
     } else {
       return await target.send(options);

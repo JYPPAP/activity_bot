@@ -1,6 +1,6 @@
 // src/examples/EmbedValidatorExamples.ts - Discord embed validator usage examples
 import { EmbedBuilder } from 'discord.js';
-import { EmbedValidator, ValidationResult } from '../utils/EmbedValidator';
+import { EmbedValidator } from '../utils/EmbedValidator.js';
 
 /**
  * Discord embed validator 사용 예제 모음

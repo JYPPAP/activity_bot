@@ -2,11 +2,11 @@
 import { EmbedBuilder, ChatInputCommandInteraction } from 'discord.js';
 import { container } from 'tsyringe';
 
-import { EmbedValidator } from '../utils/EmbedValidator';
-import { EmbedFactory } from '../utils/embedBuilder';
-import { IReliableEmbedSender, ThreeSectionReport } from '../interfaces/IReliableEmbedSender';
-import { IEmbedChunkingSystem } from '../interfaces/IEmbedChunkingSystem';
-import { DI_TOKENS } from '../interfaces/index';
+import { EmbedValidator } from '../utils/EmbedValidator.js';
+import { EmbedFactory } from '../utils/embedBuilder.js';
+import { IReliableEmbedSender, ThreeSectionReport } from '../interfaces/IReliableEmbedSender.js';
+import { IEmbedChunkingSystem } from '../interfaces/IEmbedChunkingSystem.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 /**
  * Discord embed validator를 기존 시스템과 통합하는 예제
@@ -140,82 +140,50 @@ export class EmbedValidatorIntegration {
       const report: ThreeSectionReport = {
         achievementSection: {
           title: '✅ 활동 기준 달성 멤버',
-          members: Array.from({ length: 50 }, (_, i) => ({
-            name: `달성자${i + 1}`,
-            value: `${(i + 5)}시간 ${(i * 15) % 60}분`,
-            extra: `연속 활동: ${i + 1}주`
-          }))
+          embeds: [], // Example embeds would be generated here
+          sectionType: 'achievement',
+          priority: 'high'
         },
         underperformanceSection: {
           title: '❌ 활동 기준 미달성 멤버',
-          members: Array.from({ length: 30 }, (_, i) => ({
-            name: `미달성자${i + 1}`,
-            value: `${i + 1}시간 ${(i * 20) % 60}분`,
-            extra: `부족: ${5 - (i + 1)}시간`
-          }))
+          embeds: [], // Example embeds would be generated here
+          sectionType: 'underperformance',
+          priority: 'medium'
         },
         afkSection: {
           title: '💤 잠수 중인 멤버',
-          members: Array.from({ length: 15 }, (_, i) => ({
-            name: `잠수자${i + 1}`,
-            value: `${i}시간 ${(i * 10) % 60}분`,
-            extra: `해제예정: ${new Date(Date.now() + (i + 1) * 24 * 60 * 60 * 1000).toLocaleDateString('ko-KR')}`
-          }))
+          embeds: [], // Example embeds would be generated here
+          sectionType: 'afk',
+          priority: 'low'
+        },
+        metadata: {
+          reportId: 'example-report-2',
+          generatedAt: new Date(),
+          totalMembers: 150,
+          dateRange: {
+            start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+            end: new Date()
+          }
         }
       };
 
       // ReliableEmbedSender 검증 통합 옵션
       const sendOptions = {
-        validateBeforeSend: true, // 전송 전 검증 활성화
-        optimizeOnValidationFailure: true, // 검증 실패시 자동 최적화
-        validationOptions: {
-          strictMode: false,
-          includeWarnings: true,
-          enableOptimizationSuggestions: true,
-          maxRecommendedFields: 15, // 더 보수적인 제한
-          maxRecommendedCharacters: 4000
-        }
+        strictValidation: true, // 전송 전 검증 활성화
+        autoTruncate: true, // 검증 실패시 자동 최적화
+        enableProgressTracking: true,
+        reportErrors: true,
+        maxRetries: 2,
+        enableTextFallback: true
       };
 
       console.log(`📊 보고서 섹션:`);
-      console.log(`  ✅ 달성: ${report.achievementSection.members.length}명`);
-      console.log(`  ❌ 미달성: ${report.underperformanceSection.members.length}명`);
-      console.log(`  💤 잠수: ${report.afkSection?.members.length || 0}명`);
+      console.log(`  ✅ 달성: ${report.achievementSection.embeds.length}개 임베드`);
+      console.log(`  ❌ 미달성: ${report.underperformanceSection.embeds.length}개 임베드`);
+      console.log(`  💤 잠수: ${report.afkSection?.embeds.length || 0}개 임베드`);
 
-      // 사전 검증을 위한 dry-run
-      console.log(`\n🔍 사전 검증 실행 중...`);
-      const dryRunResult = await this.reliableEmbedSender.sendThreeSectionReport(
-        interaction,
-        report,
-        { ...sendOptions, dryRun: true }
-      );
-
-      if (dryRunResult.embeds) {
-        let totalViolations = 0;
-        let totalWarnings = 0;
-
-        for (let i = 0; i < dryRunResult.embeds.length; i++) {
-          const embed = dryRunResult.embeds[i];
-          const validation = EmbedValidator.validateEmbed(embed, sendOptions.validationOptions);
-          
-          totalViolations += validation.violations.length;
-          totalWarnings += validation.warnings.length;
-
-          console.log(`  임베드 ${i + 1}: ${validation.isValid ? '✅' : '❌'} (${validation.summary.overallHealth})`);
-        }
-
-        console.log(`\n📋 사전 검증 결과:`);
-        console.log(`  📊 총 임베드: ${dryRunResult.embeds.length}개`);
-        console.log(`  ❌ 총 오류: ${totalViolations}개`);
-        console.log(`  ⚠️ 총 경고: ${totalWarnings}개`);
-
-        if (totalViolations > 0) {
-          console.log(`  🔧 자동 최적화가 적용됩니다.`);
-        }
-      }
-
-      // 실제 전송 (검증 및 최적화 포함)
-      console.log(`\n📤 검증된 임베드 전송 중...`);
+      // 실제 전송 (사전 검증은 현재 지원되지 않음)
+      console.log(`\n📤 보고서 전송 중...`);
       const sendResult = await this.reliableEmbedSender.sendThreeSectionReport(
         interaction,
         report,
@@ -224,12 +192,21 @@ export class EmbedValidatorIntegration {
 
       if (sendResult.success) {
         console.log(`✅ 전송 성공:`);
-        console.log(`  📨 메시지 수: ${sendResult.messages?.length || 0}개`);
-        console.log(`  ⏱️ 전송 시간: ${sendResult.sendTime || 0}ms`);
-        console.log(`  📝 문자 압축: ${sendResult.compressionUsed ? '적용됨' : '미적용'}`);
-        console.log(`  📁 텍스트 폴백: ${sendResult.fallbackUsed ? '사용됨' : '미사용'}`);
+        console.log(`  - 전송된 메시지: ${sendResult.messagesSent.length}개`);
+        console.log(`  - 총 임베드: ${sendResult.totalEmbeds}개`);
+        console.log(`  - 청크: ${sendResult.chunksCreated}개`);
+        console.log(`  - 실행 시간: ${sendResult.executionTime}ms`);
+        
+        if (sendResult.validationErrors.length > 0) {
+          console.log(`⚠️ 검증 경고: ${sendResult.validationErrors.length}개`);
+        }
+
       } else {
-        console.log(`❌ 전송 실패: ${sendResult.error}`);
+        console.log(`❌ 전송 실패:`);
+        if (sendResult.errorMessages.length > 0) {
+          console.log(`  오류 메시지: ${sendResult.errorMessages.join(', ')}`);
+        }
+        console.log(`  📁 텍스트 폴백: ${sendResult.fallbackUsed ? '사용됨' : '미사용'}`);
       }
 
     } catch (error) {

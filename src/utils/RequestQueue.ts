@@ -1,7 +1,7 @@
 // src/utils/RequestQueue.ts - Advanced Request Queue with Batching and Prioritization
 
 import { EventEmitter } from 'events';
-import { DiscordAPIRequest, RequestPriority, QueueStatistics, RequestQueueConfig } from '../interfaces/IDiscordAPIClient';
+import { DiscordAPIRequest, RequestPriority, QueueStatistics, RequestQueueConfig } from '../interfaces/IDiscordAPIClient.js';
 
 // Internal queue item interface
 interface QueuedRequest {
@@ -473,7 +473,7 @@ export class RequestQueue extends EventEmitter {
   /**
    * Execute a single request (to be implemented by the client)
    */
-  private async executeRequest(request: DiscordAPIRequest): Promise<any> {
+  private async executeRequest(_request: DiscordAPIRequest): Promise<any> {
     // This is a placeholder - the actual implementation will be in the Discord API client
     throw new Error('executeRequest must be implemented by the client');
   }

@@ -10,11 +10,11 @@ import {
 } from 'discord.js';
 import { inject, injectable } from 'tsyringe';
 
-import { UserClassificationServiceOptimized as UserClassificationService } from '../services/UserClassificationServiceOptimized';
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
-import { EmbedFactory } from '../utils/embedBuilder';
-import { cleanRoleName } from '../utils/formatters';
-import { DI_TOKENS } from '../interfaces/index';
+import { UserClassificationServiceOptimized as UserClassificationService } from '../services/UserClassificationServiceOptimized.js';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
+import { EmbedFactory } from '../utils/embedBuilder.js';
+import { cleanRoleName } from '../utils/formatters.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type { IMemberFetchService, ProgressCallback } from '../interfaces/IMemberFetchService';
 
 import {
@@ -23,7 +23,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase';
+} from './CommandBase.js';
 
 // 명령어 옵션 인터페이스
 interface ReportCommandOptions {

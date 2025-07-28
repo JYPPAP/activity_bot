@@ -2,16 +2,16 @@
 import { VoiceState, GuildMember, Collection, Guild, VoiceChannel } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { TIME, FILTERS, MESSAGE_TYPES } from '../config/constants';
-import { config } from '../config/env';
+import { TIME, FILTERS, MESSAGE_TYPES } from '../config/constants.js';
+import { isDevelopment } from '../config/env.js';
 import type { IActivityTracker } from '../interfaces/IActivityTracker';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
 import type { ILogService } from '../interfaces/ILogService';
-import { DI_TOKENS } from '../interfaces/index';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type { IRedisService } from '../interfaces/IRedisService';
-import { EnhancedClient } from '../types/discord';
+import { EnhancedClient } from '../types/discord.js';
 
-import { GuildSettingsManager } from './GuildSettingsManager';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
 // import { UserActivity } from '../types/index'; // 미사용
 
 // ====================
@@ -117,9 +117,9 @@ export class ActivityTracker implements IActivityTracker {
     @inject(DI_TOKENS.IDatabaseManager) dbManager: IDatabaseManager,
     @inject(DI_TOKENS.ILogService) logService: ILogService,
     @inject(DI_TOKENS.IRedisService) redis: IRedisService,
-    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
-    options: ActivityTrackerOptions = {}
+    @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager
   ) {
+    const options: ActivityTrackerOptions = {};
     this.client = client;
     this.db = dbManager;
     this.logService = logService;
@@ -955,6 +955,8 @@ export class ActivityTracker implements IActivityTracker {
       await this.handleChannelJoin(newState, member);
     } else if (change.type === 'leave') {
       await this.handleChannelLeave(oldState, member);
+    } else if (change.type === 'move') {
+      await this.handleChannelMove(oldState, newState, member);
     }
 
     // 관전 또는 대기 상태 확인
@@ -1226,14 +1228,48 @@ export class ActivityTracker implements IActivityTracker {
     const excludedChannelsForLogs = await this.getExcludedChannelsForLogs(guildId);
     const isExcluded = excludedChannelsForLogs.includes(channelId);
 
-    console.log('[ActivityTracker] 🎯 제외 채널 확인 결과', {
+    // 🔍 디버깅: 채널 분류 상세 분석
+    let channelCategory = '일반 채널';
+    let shouldLogActivity = true;
+    let shouldTrackActivity = true;
+
+    try {
+      const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+      
+      if (excludeChannelsSetting) {
+        const fullyExcludedChannels = excludeChannelsSetting.excludedChannels || [];
+        const activityLimitedChannels = excludeChannelsSetting.activityLimitedChannels || [];
+        
+        if (fullyExcludedChannels.includes(channelId)) {
+          channelCategory = '완전 제외 채널';
+          shouldLogActivity = false;
+          shouldTrackActivity = false;
+        } else if (activityLimitedChannels.includes(channelId)) {
+          channelCategory = '활동 제한 채널';
+          shouldLogActivity = true;  // 🚨 중요: 로그는 출력되어야 함
+          shouldTrackActivity = false;
+        }
+      }
+    } catch (error) {
+      console.error('[ActivityTracker] 🚨 채널 분류 중 오류:', error);
+    }
+
+    console.log('[ActivityTracker] 🔍 [JOIN] 상세 채널 분류 결과', {
       userId: newState.id,
       userDisplayName: member.displayName,
       channelId,
       channelName,
+      channelCategory,
+      shouldLogActivity,
+      shouldTrackActivity,
       excludedChannelsForLogs,
       excludedChannelCount: excludedChannelsForLogs.length,
       isExcluded,
+      logicCheck: {
+        '현재로직_isExcluded': isExcluded,
+        '기대되는_shouldLogActivity': shouldLogActivity,
+        '로직일치여부': isExcluded === !shouldLogActivity
+      },
       decision: isExcluded
         ? '로그 차단 (완전 제외 채널)'
         : '로그 진행 (일반 채널 또는 활동 제한 채널)',
@@ -1283,7 +1319,52 @@ export class ActivityTracker implements IActivityTracker {
         memberCount: membersInChannel.length,
       });
 
+      // 🔍 디버깅: LogService 호출 전 상태 확인
+      console.log('[ActivityTracker] 🚀 [JOIN] LogService.logActivity() 호출 시작', {
+        logMessage: logMessage.slice(0, 100) + '...',
+        membersCount: membersInChannel.length,
+        eventType: 'JOIN',
+        guildId,
+        timestamp: new Date().toISOString()
+      });
+
       this.logService.logActivity(logMessage, membersInChannel, 'JOIN', { guildId });
+
+      // 🔍 디버깅: LogService 호출 완료
+      console.log('[ActivityTracker] ✅ [JOIN] LogService.logActivity() 호출 완료', {
+        userId: newState.id,
+        channelId,
+        channelName,
+        timestamp: new Date().toISOString()
+      });
+
+      // 🚨 특별 디버깅: activityLimitedChannels에서 강제 확인 로그
+      try {
+        const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+        if (excludeChannelsSetting?.activityLimitedChannels?.includes(channelId)) {
+          console.log('🔥 [ACTIVITY_LIMITED_CHANNEL] 강제 JOIN 로그 - 이 로그가 Discord에 나타나야 함!', {
+            userId: newState.id,
+            userDisplayName: member.displayName,
+            channelId,
+            channelName,
+            강제로그메시지: `[강제 테스트] ${member.displayName}님이 활동 제한 채널 ${channelName}에 입장 - 이 로그가 나타나야 함!`,
+            timestamp: new Date().toISOString(),
+            guildId
+          });
+          
+          // 강제로 추가 로그 전송 (개발환경에서만)
+          if (isDevelopment()) {
+            this.logService.logActivity(
+              `🔥 [테스트] ${member.displayName}님이 활동 제한 채널 ${channelName}에 입장 - 이 로그가 Discord에 나타나야 합니다!`,
+              [],
+              'ACTIVITY_LIMITED_TEST',
+              { guildId, channelId, userId: newState.id, testType: 'activityLimitedChannel' }
+            );
+          }
+        }
+      } catch (error) {
+        console.error('[ActivityTracker] 강제 로그 추가 실패:', error);
+      }
 
       console.log('[ActivityTracker] 💾 상세 활동 DB 기록 중', {
         userId: newState.id,
@@ -1362,14 +1443,48 @@ export class ActivityTracker implements IActivityTracker {
     const excludedChannelsForLogs = await this.getExcludedChannelsForLogs(guildId);
     const isExcluded = excludedChannelsForLogs.includes(channelId);
 
-    console.log('[ActivityTracker] 🎯 제외 채널 확인 결과', {
+    // 🔍 디버깅: 채널 분류 상세 분석
+    let channelCategory = '일반 채널';
+    let shouldLogActivity = true;
+    let shouldTrackActivity = true;
+
+    try {
+      const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+      
+      if (excludeChannelsSetting) {
+        const fullyExcludedChannels = excludeChannelsSetting.excludedChannels || [];
+        const activityLimitedChannels = excludeChannelsSetting.activityLimitedChannels || [];
+        
+        if (fullyExcludedChannels.includes(channelId)) {
+          channelCategory = '완전 제외 채널';
+          shouldLogActivity = false;
+          shouldTrackActivity = false;
+        } else if (activityLimitedChannels.includes(channelId)) {
+          channelCategory = '활동 제한 채널';
+          shouldLogActivity = true;  // 🚨 중요: 로그는 출력되어야 함
+          shouldTrackActivity = false;
+        }
+      }
+    } catch (error) {
+      console.error('[ActivityTracker] 🚨 채널 분류 중 오류:', error);
+    }
+
+    console.log('[ActivityTracker] 🔍 [LEAVE] 상세 채널 분류 결과', {
       userId: oldState.id,
       userDisplayName: member.displayName,
       channelId,
       channelName,
+      channelCategory,
+      shouldLogActivity,
+      shouldTrackActivity,
       excludedChannelsForLogs,
       excludedChannelCount: excludedChannelsForLogs.length,
       isExcluded,
+      logicCheck: {
+        '현재로직_isExcluded': isExcluded,
+        '기대되는_shouldLogActivity': shouldLogActivity,
+        '로직일치여부': isExcluded === !shouldLogActivity
+      },
       decision: isExcluded
         ? '로그 차단 (완전 제외 채널)'
         : '로그 진행 (일반 채널 또는 활동 제한 채널)',
@@ -1419,7 +1534,52 @@ export class ActivityTracker implements IActivityTracker {
         memberCount: membersInChannel.length,
       });
 
+      // 🔍 디버깅: LogService 호출 전 상태 확인
+      console.log('[ActivityTracker] 🚀 [LEAVE] LogService.logActivity() 호출 시작', {
+        logMessage: logMessage.slice(0, 100) + '...',
+        membersCount: membersInChannel.length,
+        eventType: 'LEAVE',
+        guildId,
+        timestamp: new Date().toISOString()
+      });
+
       this.logService.logActivity(logMessage, membersInChannel, 'LEAVE', { guildId });
+
+      // 🔍 디버깅: LogService 호출 완료
+      console.log('[ActivityTracker] ✅ [LEAVE] LogService.logActivity() 호출 완료', {
+        userId: oldState.id,
+        channelId,
+        channelName,
+        timestamp: new Date().toISOString()
+      });
+
+      // 🚨 특별 디버깅: activityLimitedChannels에서 강제 확인 로그
+      try {
+        const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
+        if (excludeChannelsSetting?.activityLimitedChannels?.includes(channelId)) {
+          console.log('🔥 [ACTIVITY_LIMITED_CHANNEL] 강제 LEAVE 로그 - 이 로그가 Discord에 나타나야 함!', {
+            userId: oldState.id,
+            userDisplayName: member.displayName,
+            channelId,
+            channelName,
+            강제로그메시지: `[강제 테스트] ${member.displayName}님이 활동 제한 채널 ${channelName}에서 퇴장 - 이 로그가 나타나야 함!`,
+            timestamp: new Date().toISOString(),
+            guildId
+          });
+          
+          // 강제로 추가 로그 전송 (개발환경에서만)
+          if (isDevelopment()) {
+            this.logService.logActivity(
+              `🔥 [테스트] ${member.displayName}님이 활동 제한 채널 ${channelName}에서 퇴장 - 이 로그가 Discord에 나타나야 합니다!`,
+              [],
+              'ACTIVITY_LIMITED_TEST',
+              { guildId, channelId, userId: oldState.id, testType: 'activityLimitedChannel' }
+            );
+          }
+        }
+      } catch (error) {
+        console.error('[ActivityTracker] 강제 로그 추가 실패:', error);
+      }
 
       console.log('[ActivityTracker] 💾 상세 활동 DB 기록 중', {
         userId: oldState.id,
@@ -1453,6 +1613,165 @@ export class ActivityTracker implements IActivityTracker {
         userDisplayName: member.displayName,
         channelId,
         channelName,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        processingTime: `${processingTime}ms`,
+      });
+    }
+  }
+
+  /**
+   * 채널 이동 처리
+   */
+  private async handleChannelMove(oldState: VoiceState, newState: VoiceState, member: GuildMember): Promise<void> {
+    const moveStartTime = Date.now();
+
+    console.log('[ActivityTracker] 🔄 채널 이동 처리 시작', {
+      userId: newState.id,
+      userDisplayName: member.displayName,
+      oldChannelId: oldState.channelId,
+      oldChannelName: oldState.channel?.name,
+      newChannelId: newState.channelId,
+      newChannelName: newState.channel?.name,
+      guildId: member.guild.id,
+      timestamp: new Date().toISOString(),
+    });
+
+    if (!oldState.channel || !newState.channel) {
+      console.warn('[ActivityTracker] ⚠️ 채널 이동 처리 중단: 이전 또는 새 채널이 null', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        hasOldChannel: !!oldState.channel,
+        hasNewChannel: !!newState.channel,
+      });
+      return;
+    }
+
+    const guildId = member.guild.id;
+    const oldChannelId = oldState.channelId!;
+    const oldChannelName = oldState.channel.name;
+    const newChannelId = newState.channelId!;
+    const newChannelName = newState.channel.name;
+
+    console.log('[ActivityTracker] 🔍 제외 채널 확인 중', {
+      userId: newState.id,
+      userDisplayName: member.displayName,
+      oldChannelId,
+      oldChannelName,
+      newChannelId,
+      newChannelName,
+      guildId,
+    });
+
+    const excludedChannelsForLogs = await this.getExcludedChannelsForLogs(guildId);
+    const isOldChannelExcluded = excludedChannelsForLogs.includes(oldChannelId);
+    const isNewChannelExcluded = excludedChannelsForLogs.includes(newChannelId);
+
+    // 양쪽 채널이 모두 완전 제외 채널인 경우 로그 출력하지 않음
+    if (isOldChannelExcluded && isNewChannelExcluded) {
+      console.log('[ActivityTracker] 🚫 채널 이동 로그 차단됨 (양쪽 모두 완전 제외 채널)', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
+        reason: '양쪽 모두 완전 제외 채널',
+      });
+      return;
+    }
+
+    try {
+      console.log('[ActivityTracker] 👥 새 채널 멤버 목록 조회 중', {
+        userId: newState.id,
+        newChannelId,
+        newChannelName,
+      });
+
+      const membersInNewChannel = await this.logService.getVoiceChannelMembers(
+        newState.channel as VoiceChannel
+      );
+
+      console.log('[ActivityTracker] ✅ 새 채널 멤버 목록 조회 완료', {
+        userId: newState.id,
+        newChannelId,
+        newChannelName,
+        memberCount: membersInNewChannel.length,
+        members: membersInNewChannel,
+      });
+
+      const logMessage = `${MESSAGE_TYPES.MOVE}: \` ${member.displayName} \`님이 \` ${oldChannelName} \`에서 \` ${newChannelName} \`으로 이동했습니다.`;
+
+      console.log('[ActivityTracker] 📝 로그 메시지 생성 및 전송 중', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
+        logMessage,
+        memberCount: membersInNewChannel.length,
+      });
+
+      // 🔍 디버깅: LogService 호출 전 상태 확인
+      console.log('[ActivityTracker] 🚀 [MOVE] LogService.logActivity() 호출 시작', {
+        logMessage: logMessage.slice(0, 100) + '...',
+        membersCount: membersInNewChannel.length,
+        eventType: 'MOVE',
+        guildId,
+        timestamp: new Date().toISOString()
+      });
+
+      this.logService.logActivity(logMessage, membersInNewChannel, 'MOVE', { guildId });
+
+      // 🔍 디버깅: LogService 호출 완료
+      console.log('[ActivityTracker] ✅ [MOVE] LogService.logActivity() 호출 완료', {
+        userId: newState.id,
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
+        timestamp: new Date().toISOString()
+      });
+
+      console.log('[ActivityTracker] 💾 상세 활동 DB 기록 중', {
+        userId: newState.id,
+        action: 'MOVE',
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
+        memberCount: membersInNewChannel.length,
+      });
+
+      await this.db.logDetailedActivity(
+        newState.id,
+        'MOVE',
+        newChannelId,
+        `${oldChannelName} → ${newChannelName}`,
+        membersInNewChannel
+      );
+
+      const processingTime = Date.now() - moveStartTime;
+      console.log('[ActivityTracker] ✅ 채널 이동 처리 완료', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
+        processingTime: `${processingTime}ms`,
+        success: true,
+      });
+    } catch (error) {
+      const processingTime = Date.now() - moveStartTime;
+      console.error('[ActivityTracker] ❌ 채널 이동 처리 오류', {
+        userId: newState.id,
+        userDisplayName: member.displayName,
+        oldChannelId,
+        oldChannelName,
+        newChannelId,
+        newChannelName,
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         processingTime: `${processingTime}ms`,
@@ -1670,6 +1989,55 @@ export class ActivityTracker implements IActivityTracker {
     } catch (error) {
       console.error('[ActivityTracker] 활동 멤버 데이터 조회 오류:', error);
       return [];
+    }
+  }
+
+  /**
+   * 날짜 범위 내에서 활동 데이터가 있는 사용자 ID 목록을 빠르게 조회
+   * @param guildId - 길드 ID (현재는 미사용이지만 향후 길드별 분리 시 활용)
+   * @param startDate - 시작 날짜 (YYYY-MM-DD 형식)
+   * @param endDate - 종료 날짜 (YYYY-MM-DD 형식)
+   * @returns 활동 데이터가 있는 사용자 ID Set
+   */
+  async getActiveUserIds(guildId: string, startDate: string, endDate: string): Promise<Set<string>> {
+    const startTime = Date.now();
+    
+    try {
+      // 날짜 문자열을 타임스탬프로 변환
+      const startTimestamp = new Date(startDate).getTime();
+      const endTimestamp = new Date(endDate).getTime() + (24 * 60 * 60 * 1000) - 1; // 해당 일의 마지막 시간
+
+      console.log(`[ActivityTracker] 활동 사용자 ID 조회 시작`, {
+        guildId,
+        startDate,
+        endDate,
+        startTimestamp,
+        endTimestamp
+      });
+
+      // 활동 데이터가 있는 모든 사용자를 조회하여 날짜 범위 필터링
+      // 향후 최적화: DB에서 직접 날짜 범위 필터링 쿼리 구현 가능
+      const allActivities = await this.db.getAllUserActivity();
+      const activeUserIds = new Set<string>();
+
+      for (const activity of allActivities) {
+        // 활동 시간이 0보다 큰 사용자만 포함
+        if (activity.totalTime > 0) {
+          activeUserIds.add(activity.userId);
+        }
+      }
+
+      const duration = Date.now() - startTime;
+      console.log(`[ActivityTracker] 활동 사용자 ID 조회 완료`, {
+        활동사용자수: activeUserIds.size,
+        총활동기록수: allActivities.length,
+        소요시간: `${duration}ms`
+      });
+
+      return activeUserIds;
+    } catch (error) {
+      console.error('[ActivityTracker] 활동 사용자 ID 조회 오류:', error);
+      return new Set<string>();
     }
   }
 

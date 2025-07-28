@@ -4,9 +4,8 @@ import { EventEmitter } from 'events';
 import { Collection, GuildMember } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
 import type { IUserClassificationService } from '../interfaces/IUserClassificationService';
-import { DI_TOKENS } from '../interfaces/index';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 /**
  * Data chunk for incremental processing
@@ -157,7 +156,6 @@ export class IncrementalDataProcessor extends EventEmitter {
   private retryCounters = new Map<string, number>();
 
   constructor(
-    @inject(DI_TOKENS.IDatabaseManager) private dbManager: IDatabaseManager,
     @inject(DI_TOKENS.IUserClassificationService) private classificationService: IUserClassificationService,
     config: Partial<IncrementalProcessingConfig> = {}
   ) {
@@ -350,7 +348,7 @@ export class IncrementalDataProcessor extends EventEmitter {
 
       // Wait for at least one chunk to complete
       if (activePromises.size > 0) {
-        const results = await Promise.allSettled(activePromises.values());
+        await Promise.allSettled(activePromises.values());
         
         // Process completed chunks
         for (const [chunkId, promise] of activePromises.entries()) {
@@ -603,7 +601,9 @@ export class IncrementalDataProcessor extends EventEmitter {
     // Cleanup old cache entries
     if (this.processingCache.size > 100) {
       const oldestKey = this.processingCache.keys().next().value;
-      this.processingCache.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this.processingCache.delete(oldestKey);
+      }
     }
   }
 

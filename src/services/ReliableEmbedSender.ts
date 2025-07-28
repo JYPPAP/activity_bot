@@ -18,12 +18,12 @@ import {
   ReliableEmbedSendOptions,
   DEFAULT_RELIABLE_EMBED_OPTIONS,
   EmbedValidationError,
-  EmbedSendError,
+  // EmbedSendError, // Commented out - unused
   EmbedChunkingError
-} from '../interfaces/IReliableEmbedSender';
-import { LIMITS } from '../config/constants';
-import { calculateEmbedLength, isEmbedOverLimit, chunkEmbeds } from '../utils/embedBuilder';
-import { DI_TOKENS } from '../interfaces/index';
+} from '../interfaces/IReliableEmbedSender.js';
+import { LIMITS } from '../config/constants.js';
+import { calculateEmbedLength, /* isEmbedOverLimit, */ chunkEmbeds } from '../utils/embedBuilder.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 // Performance and statistics tracking
 interface ServiceStatistics {
@@ -49,12 +49,12 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
     chunkingOperations: 0
   };
 
-  private readonly discordClient: Client;
+  // private readonly discordClient: Client; // Commented out - unused
 
   constructor(
-    @inject(DI_TOKENS.DiscordClient) discordClient: Client
+    @inject(DI_TOKENS.DiscordClient) _discordClient: Client
   ) {
-    this.discordClient = discordClient;
+    // this.discordClient = discordClient; // Commented out - unused
   }
 
   /**
@@ -317,16 +317,20 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
 
     // Send with enhanced progress tracking
     const enhancedOptions: Partial<ReliableEmbedSendOptions> = {
-      ...opts,
-      progressCallback: opts.progressCallback ? (progress) => {
+      ...opts
+    };
+    
+    // Add progressCallback conditionally for exactOptionalPropertyTypes
+    if (opts.progressCallback) {
+      enhancedOptions.progressCallback = (progress) => {
         // Enhance progress messages for 3-section reports
         const enhancedProgress = {
           ...progress,
           message: this.enhance3SectionProgressMessage(progress, sections.length)
         };
         opts.progressCallback!(enhancedProgress);
-      } : undefined
-    };
+      };
+    }
 
     return this.sendEmbeds(target, allEmbeds, enhancedOptions);
   }
@@ -409,22 +413,39 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
       // Check footer length
       if (embedData.footer?.text && embedData.footer.text.length > LIMITS.MAX_EMBED_FOOTER) {
         warnings.push(`Embed ${i + 1}: 푸터 길이 초과`);
-        correctedEmbed.setFooter({
-          text: embedData.footer.text.substring(0, LIMITS.MAX_EMBED_FOOTER - 3) + '...',
-          iconURL: embedData.footer.icon_url
-        });
+        const footerOptions: { text: string; iconURL?: string } = {
+          text: embedData.footer.text.substring(0, LIMITS.MAX_EMBED_FOOTER - 3) + '...'
+        };
+        
+        // Add iconURL conditionally for exactOptionalPropertyTypes
+        if (embedData.footer.icon_url) {
+          footerOptions.iconURL = embedData.footer.icon_url;
+        }
+        
+        correctedEmbed.setFooter(footerOptions);
         needsCorrection = true;
       }
 
       correctedEmbeds.push(needsCorrection ? correctedEmbed : embed);
     }
 
-    return {
+    const result: {
+      isValid: boolean;
+      errors: string[];
+      warnings: string[];
+      correctedEmbeds?: EmbedBuilder[];
+    } = {
       isValid: errors.length === 0,
       errors,
-      warnings,
-      correctedEmbeds: errors.length > 0 ? correctedEmbeds : undefined
+      warnings
     };
+
+    // Add correctedEmbeds conditionally for exactOptionalPropertyTypes
+    if (errors.length > 0) {
+      result.correctedEmbeds = correctedEmbeds;
+    }
+
+    return result;
   }
 
   /**
@@ -495,14 +516,27 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
       ? this.statistics.totalExecutionTime / this.statistics.successfulSends
       : 0;
 
-    return {
+    const result: {
+      totalSends: number;
+      successRate: number;
+      averageRetries: number;
+      fallbackUsageRate: number;
+      averageExecutionTime: number;
+      lastError?: string;
+    } = {
       totalSends: this.statistics.totalSends,
       successRate: Math.round(successRate * 100) / 100,
       averageRetries: Math.round(averageRetries * 100) / 100,
       fallbackUsageRate: Math.round(fallbackUsageRate * 100) / 100,
-      averageExecutionTime: Math.round(averageExecutionTime),
-      lastError: this.statistics.lastError
+      averageExecutionTime: Math.round(averageExecutionTime)
     };
+
+    // Add lastError conditionally for exactOptionalPropertyTypes
+    if (this.statistics.lastError) {
+      result.lastError = this.statistics.lastError;
+    }
+
+    return result;
   }
 
   // Private helper methods
@@ -513,17 +547,21 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
     options: ReliableEmbedSendOptions,
     isFollowUp: boolean = false
   ): Promise<Message> {
-    const messageOptions = {
+    const messageOptions: any = {
       embeds: chunk,
-      ...(options.ephemeral && { flags: MessageFlags.Ephemeral }),
       ...(options.allowedMentions && { allowedMentions: options.allowedMentions })
     };
 
+    // Add flags conditionally
+    if (options.ephemeral) {
+      messageOptions.flags = MessageFlags.Ephemeral;
+    }
+
     if (target instanceof ChatInputCommandInteraction) {
       if (target.deferred || target.replied || isFollowUp) {
-        return await target.followUp(messageOptions);
+        return await target.followUp(messageOptions) as unknown as Message;
       } else {
-        return await target.reply(messageOptions);
+        return await target.reply(messageOptions) as unknown as Message;
       }
     } else {
       return await target.send(messageOptions);
@@ -538,17 +576,21 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
     // Split content if it exceeds Discord's message limit
     const maxLength = 2000;
     if (content.length <= maxLength) {
-      const messageOptions = {
+      const messageOptions: any = {
         content: options.textFallbackTemplate 
           ? options.textFallbackTemplate.replace('{content}', content)
-          : `⚠️ **임베드 전송 실패 - 텍스트 형식으로 전환**\n\n${content}`,
-        ...(options.ephemeral && { flags: MessageFlags.Ephemeral })
+          : `⚠️ **임베드 전송 실패 - 텍스트 형식으로 전환**\n\n${content}`
       };
+
+      // Add flags conditionally
+      if (options.ephemeral) {
+        messageOptions.flags = MessageFlags.Ephemeral;
+      }
 
       if (target instanceof ChatInputCommandInteraction) {
         return target.deferred || target.replied 
-          ? await target.followUp(messageOptions)
-          : await target.reply(messageOptions);
+          ? await target.followUp(messageOptions) as unknown as Message
+          : await target.reply(messageOptions) as unknown as Message;
       } else {
         return await target.send(messageOptions);
       }
@@ -562,15 +604,19 @@ export class ReliableEmbedSender implements IReliableEmbedSender {
           ? `⚠️ **임베드 전송 실패 - 텍스트 형식으로 전환** (${i + 1}/${chunks.length})\n\n${chunks[i]}`
           : `**(계속 ${i + 1}/${chunks.length})**\n\n${chunks[i]}`;
           
-        const messageOptions = {
-          content: chunkContent,
-          ...(options.ephemeral && { flags: MessageFlags.Ephemeral })
+        const messageOptions: any = {
+          content: chunkContent
         };
+
+        // Add flags conditionally
+        if (options.ephemeral) {
+          messageOptions.flags = MessageFlags.Ephemeral;
+        }
 
         if (target instanceof ChatInputCommandInteraction) {
           const message = (target.deferred || target.replied || i > 0)
-            ? await target.followUp(messageOptions)
-            : await target.reply(messageOptions);
+            ? await target.followUp(messageOptions) as unknown as Message
+            : await target.reply(messageOptions) as unknown as Message;
           messages.push(message);
         } else {
           const message = await target.send(messageOptions);

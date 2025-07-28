@@ -3,8 +3,7 @@ import {
   EmbedBuilder, 
   ChatInputCommandInteraction, 
   TextChannel, 
-  Message,
-  MessageFlags 
+  Message
 } from 'discord.js';
 
 // Embed send result with detailed status
@@ -49,7 +48,6 @@ export interface ThreeSectionReport {
     reportId: string;
     generatedAt: Date;
     totalMembers: number;
-    roleFilter: string;
     dateRange: { start: Date; end: Date };
   };
 }

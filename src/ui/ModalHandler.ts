@@ -12,12 +12,12 @@ import {
   User,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { RecruitmentConfig } from '../config/RecruitmentConfig';
-import { ForumPostManager } from '../services/ForumPostManager';
-import { RecruitmentService } from '../services/RecruitmentService';
-import { DiscordAPIError } from '../types/discord';
-import { SafeInteraction } from '../utils/SafeInteraction';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { ForumPostManager } from '../services/ForumPostManager.js';
+import { RecruitmentService } from '../services/RecruitmentService.js';
+import { DiscordAPIError } from '../types/discord.js';
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
@@ -552,6 +552,10 @@ export class ModalHandler {
     try {
       console.log(`[ModalHandler] 독립 구인구직 시작 - 제목: "${recruitmentData.title}"`);
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      
+      // 상호작용 컨텍스트에서 길드 ID 추출
+      const guildId = interaction.guild?.id;
+      console.log(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
 
       // 독립 포럼 포스트 생성 (재시도 메커니즘 적용)
       console.log(`[ModalHandler] ForumPostManager.createForumPost 호출 중...`);
@@ -560,11 +564,12 @@ export class ModalHandler {
         description: recruitmentData.description,
         tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
         maxParticipants: (recruitmentData as any).maxParticipants,
-        author: recruitmentData.author.displayName || recruitmentData.author.username,
+        author: recruitmentData.author.displayName || (recruitmentData.author instanceof User ? recruitmentData.author.username : recruitmentData.author.user.username),
+        guildId,
       });
 
       const createResult = await this.withRetry(
-        () => this.forumPostManager.createForumPost(recruitmentData as any),
+        () => this.forumPostManager.createForumPost(recruitmentData as any, undefined, guildId),
         '독립 포럼 포스트 생성'
       );
 
@@ -594,7 +599,6 @@ export class ModalHandler {
       } else {
         console.error(`[ModalHandler] 포럼 포스트 생성 실패:`, {
           error: createResult.error,
-          errorDetails: createResult.errorDetails,
           warnings: createResult.warnings,
           title: recruitmentData.title,
         });
@@ -605,13 +609,12 @@ export class ModalHandler {
           : RecruitmentConfig.MESSAGES.LINK_FAILED;
 
         // 유효성 검사 오류인 경우 더 자세한 정보 제공
-        if (createResult.errorDetails?.validationRule === 'participantPattern') {
+        if (createResult.error?.includes('participantPattern') || createResult.error?.includes('제목 형식')) {
           errorMessage +=
             `\n\n💡 **제목 형식 안내:**\n` +
             `• 올바른 형식: "게임명 1/5" 또는 "게임명 1/N"\n` +
-            `• 입력하신 제목: "${createResult.errorDetails.value}"\n` +
             `• 현재인원/최대인원 형식이 포함되어야 합니다.`;
-        } else if (createResult.errorDetails?.field === 'forumChannelId') {
+        } else if (createResult.error?.includes('forumChannelId') || createResult.error?.includes('포럼 채널')) {
           // 포럼 채널 설정 관련 오류
           errorMessage +=
             `\n\n⚙️ **설정 확인 필요:**\n` +
@@ -674,6 +677,10 @@ export class ModalHandler {
       );
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
+      // 상호작용 컨텍스트에서 길드 ID 추출
+      const guildId = interaction.guild?.id;
+      console.log(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
+
       // 음성 채널 연동 포럼 포스트 생성 (재시도 메커니즘 적용)
       console.log(`[ModalHandler] RecruitmentService.createLinkedRecruitment 호출 중...`);
       console.log(`[ModalHandler] 구인구직 데이터:`, {
@@ -681,8 +688,9 @@ export class ModalHandler {
         description: recruitmentData.description,
         tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
         maxParticipants: (recruitmentData as any).maxParticipants,
-        author: recruitmentData.author.displayName || recruitmentData.author.username,
+        author: recruitmentData.author.displayName || (recruitmentData.author instanceof User ? recruitmentData.author.username : recruitmentData.author.user.username),
         voiceChannelId,
+        guildId,
       });
 
       const result = await this.withRetry(
@@ -690,7 +698,8 @@ export class ModalHandler {
           this.recruitmentService.createLinkedRecruitment(
             recruitmentData as any,
             voiceChannelId,
-            interaction.user.id
+            interaction.user.id,
+            guildId
           ),
         '음성 채널 연동 포럼 포스트 생성'
       );
@@ -724,7 +733,6 @@ export class ModalHandler {
         console.error(`[ModalHandler] 음성 채널 연동 구인구직 생성 실패:`, {
           message: result.message,
           error: result.error,
-          errorDetails: result.errorDetails,
           title: recruitmentData.title,
           voiceChannelId,
         });
@@ -733,13 +741,12 @@ export class ModalHandler {
         let errorMessage = result.message || RecruitmentConfig.MESSAGES.LINK_FAILED;
 
         // 유효성 검사 오류인 경우 더 자세한 정보 제공
-        if (result.errorDetails?.validationRule === 'participantPattern') {
+        if (result.error?.includes('participantPattern') || result.error?.includes('제목 형식')) {
           errorMessage +=
             `\n\n💡 **제목 형식 안내:**\n` +
             `• 올바른 형식: "게임명 1/5" 또는 "게임명 1/N"\n` +
-            `• 입력하신 제목: "${result.errorDetails.value}"\n` +
             `• 현재인원/최대인원 형식이 포함되어야 합니다.`;
-        } else if (result.errorDetails?.field === 'forumChannelId') {
+        } else if (result.error?.includes('forumChannelId') || result.error?.includes('포럼 채널')) {
           // 포럼 채널 설정 관련 오류
           errorMessage +=
             `\n\n⚙️ **설정 확인 필요:**\n` +

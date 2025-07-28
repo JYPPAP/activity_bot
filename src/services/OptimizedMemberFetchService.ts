@@ -2,19 +2,18 @@
 import { 
   Guild, 
   GuildMember, 
-  Collection, 
-  Role 
+  Collection
 } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
 import type { IRedisService } from '../interfaces/IRedisService';
-import { DI_TOKENS } from '../interfaces/index';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 // 가져오기 전략 인터페이스
 interface FetchStrategy {
   name: string;
   timeout: number;
-  execute(guild: Guild, options?: FetchOptions): Promise<Collection<string, GuildMember>>;
+  execute(): Promise<Collection<string, GuildMember>>;
 }
 
 // 가져오기 옵션
@@ -287,6 +286,47 @@ export class OptimizedMemberFetchService {
   }
 
   /**
+   * 모든 길드 멤버 가져오기 (보고서용)
+   */
+  async getAllGuildMembers(guild: Guild, options: FetchOptions = {}): Promise<Collection<string, GuildMember>> {
+    console.log(`[OptimizedFetch] 전체 길드 멤버 가져오기 시작: ${guild.id}`);
+    const startTime = Date.now();
+    
+    try {
+      // 강제 새로고침이 요청된 경우 캐시 무시
+      if (!options.forceRefresh) {
+        const cached = await this.getCachedRoleMembers(guild.id, undefined);
+        if (cached.size > 0) {
+          console.log(`[OptimizedFetch] 캐시된 전체 멤버 사용: ${cached.size}명`);
+          return cached;
+        }
+      }
+      
+      // 점진적 멤버 로딩
+      const allMembers = await this.progressiveLoadMembers(guild);
+      
+      // 캐시에 저장
+      await this.updateMemberCache(guild.id, undefined, allMembers);
+      
+      const duration = Date.now() - startTime;
+      console.log(`[OptimizedFetch] 전체 멤버 가져오기 완료: ${allMembers.size}명 (${duration}ms)`);
+      
+      return allMembers;
+    } catch (error) {
+      console.error(`[OptimizedFetch] 전체 멤버 가져오기 실패:`, error);
+      
+      // 폴백: 캐시에서 시도
+      const cachedMembers = await this.getCachedRoleMembers(guild.id, undefined);
+      if (cachedMembers.size > 0) {
+        console.log(`[OptimizedFetch] 캐시 폴백 사용: ${cachedMembers.size}명`);
+        return cachedMembers;
+      }
+      
+      throw error;
+    }
+  }
+
+  /**
    * 🔄 백그라운드 캐시 워밍업 시작
    */
   async startCacheWarming(guild: Guild, roleNames: string[]): Promise<void> {
@@ -359,13 +399,11 @@ export class OptimizedMemberFetchService {
    */
   private async progressiveLoadMembers(guild: Guild): Promise<Collection<string, GuildMember>> {
     let allMembers = new Collection<string, GuildMember>();
-    let lastMemberId: string | undefined;
     
     for (let chunk = 0; chunk < this.LIMITS.MAX_CHUNKS; chunk++) {
       try {
         const members = await guild.members.fetch({
-          limit: this.LIMITS.CHUNK_SIZE,
-          after: lastMemberId
+          limit: this.LIMITS.CHUNK_SIZE
         });
         
         if (members.size === 0) {
@@ -373,7 +411,6 @@ export class OptimizedMemberFetchService {
         }
         
         allMembers = allMembers.concat(members);
-        lastMemberId = members.lastKey();
         
         console.log(`[ProgressiveLoad] 청크 ${chunk + 1}: ${members.size}명 (총 ${allMembers.size}명)`);
         
@@ -448,12 +485,16 @@ export class OptimizedMemberFetchService {
         data: Array.from(members.entries()),
         timestamp: Date.now(),
         count: members.size,
-        guildId,
-        roleName
+        guildId
       };
+
+      // Add roleName conditionally for exactOptionalPropertyTypes
+      if (roleName !== undefined) {
+        cacheData.roleName = roleName;
+      }
       
       const ttl = roleName ? this.LIMITS.ROLE_CACHE_TTL : this.LIMITS.CACHE_TTL;
-      await this.redisService.setex(cacheKey, ttl, JSON.stringify(cacheData));
+      await this.redisService.set(cacheKey, JSON.stringify(cacheData), ttl);
       
       console.log(`[Cache] 캐시 업데이트: ${cacheKey}, ${members.size}명 (TTL: ${ttl}초)`);
       

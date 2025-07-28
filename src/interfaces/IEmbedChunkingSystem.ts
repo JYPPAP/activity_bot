@@ -5,8 +5,7 @@ import {
   TextChannel, 
   Message,
   ButtonBuilder,
-  ActionRowBuilder,
-  AttachmentBuilder
+  ActionRowBuilder
 } from 'discord.js';
 
 // Chunking configuration options

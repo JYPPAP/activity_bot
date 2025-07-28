@@ -1,8 +1,8 @@
 // src/tests/MemberFetchService.test.ts - MemberFetchService 테스트
 
 import { Collection, Guild, GuildMember, Role } from 'discord.js';
-import { MemberFetchService } from '../services/MemberFetchService';
-import { IMemberFetchService, MemberFetchServiceConfig } from '../interfaces/IMemberFetchService';
+import { MemberFetchService } from '../services/MemberFetchService.js';
+import { IMemberFetchService, MemberFetchServiceConfig } from '../interfaces/IMemberFetchService.js';
 
 // Mock Discord.js 객체들
 class MockGuild {

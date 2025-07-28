@@ -7,7 +7,7 @@ import {
 } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { FeatureManagerService, Features } from '../services/FeatureManagerService';
+import { FeatureManagerService, Features } from '../services/FeatureManagerService.js';
 
 import {
   CommandBase,
@@ -15,7 +15,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandServices,
-} from './CommandBase';
+} from './CommandBase.js';
 
 /**
  * 기능 상태 조회 명령어

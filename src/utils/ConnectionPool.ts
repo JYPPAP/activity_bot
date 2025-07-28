@@ -410,7 +410,7 @@ export class ConnectionPool extends EventEmitter {
   /**
    * Get connection by ID
    */
-  getConnection(connectionId: string): PooledConnection | undefined {
+  getConnectionById(connectionId: string): PooledConnection | undefined {
     return this.connections.get(connectionId);
   }
 

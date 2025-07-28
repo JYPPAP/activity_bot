@@ -1,6 +1,6 @@
 // src/utils/__tests__/EmbedValidator.test.ts - Discord embed validator unit tests
 import { EmbedBuilder } from 'discord.js';
-import { EmbedValidator, ValidationResult } from '../EmbedValidator';
+import { EmbedValidator, ValidationResult } from '../EmbedValidator.js';
 
 describe('EmbedValidator', () => {
   describe('Core Constraint Validation', () => {

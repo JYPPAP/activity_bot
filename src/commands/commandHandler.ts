@@ -7,26 +7,27 @@ import {
   MessageFlags,
   GuildMember,
 } from 'discord.js';
-import { injectable, inject } from 'tsyringe';
+import { injectable, inject, container } from 'tsyringe';
 
-import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions';
-import { config } from '../config/env';
+import { hasCommandPermission, getPermissionDeniedMessage } from '../config/commandPermissions.js';
+import { config } from '../config/env.js';
 import type { IActivityTracker } from '../interfaces/IActivityTracker';
 import type { IDatabaseManager } from '../interfaces/IDatabaseManager';
 import type { ILogService } from '../interfaces/ILogService';
-import { DI_TOKENS } from '../interfaces/index';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type { IUserClassificationService } from '../interfaces/IUserClassificationService';
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
-import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
+import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
 import type { IStreamingReportEngine } from '../interfaces/IStreamingReportEngine';
 import type { DiscordStreamingService } from '../services/DiscordStreamingService';
+import { ReportCommandIntegration } from '../services/ReportCommandIntegration.js';
 
-import { CommandBase, CommandServices } from './CommandBase';
-import { GapCheckCommand } from './gapCheckCommand';
-import { JamsuCommand } from './jamsuCommand';
-import { RecruitmentCommand } from './recruitmentCommand';
-import { ReportCommand } from './reportCommand';
-import { SettingsCommand } from './settingsCommand';
+import { CommandBase, CommandServices } from './CommandBase.js';
+import { GapCheckCommand } from './gapCheckCommand.js';
+import { JamsuCommand } from './jamsuCommand.js';
+import { RecruitmentCommand } from './recruitmentCommand.js';
+import { ReportCommand } from './reportCommand.js';
+import { SettingsCommand } from './settingsCommand.js';
 
 // 명령어 핸들러 설정
 interface CommandHandlerConfig {
@@ -62,10 +63,11 @@ interface CommandHandlerStatistics {
 
 // 명령어 인터페이스 확장
 interface ExtendedCommand extends CommandBase {
-  setUserClassificationService?(service: IUserClassificationService): void;
+  setUserClassificationService?(service: any): void; // 타입 호환성을 위해 any 사용
   setGuildSettingsManager?(manager: GuildSettingsManager): void;
   setStreamingReportEngine?(engine: IStreamingReportEngine): void;
   setDiscordStreamingService?(service: DiscordStreamingService): void;
+  setReportCommandIntegration?(integration: ReportCommandIntegration): void; // 누락된 메서드 추가
 }
 
 @injectable()
@@ -100,9 +102,9 @@ export class CommandHandler {
     userClassificationService: IUserClassificationService,
     @inject(DI_TOKENS.IGuildSettingsManager) guildSettingsManager: GuildSettingsManager,
     @inject(DI_TOKENS.IStreamingReportEngine) streamingReportEngine: IStreamingReportEngine,
-    @inject(DI_TOKENS.IDiscordStreamingService) discordStreamingService: DiscordStreamingService,
-    config: Partial<CommandHandlerConfig> = {}
+    @inject(DI_TOKENS.IDiscordStreamingService) discordStreamingService: DiscordStreamingService
   ) {
+    const config: Partial<CommandHandlerConfig> = {};
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
@@ -117,7 +119,7 @@ export class CommandHandler {
       enableStatistics: true,
       enableCaching: true,
       maxConcurrentCommands: 50,
-      commandTimeout: 30000,
+      commandTimeout: 60000,
       enableRateLimit: true,
       globalRateLimit: 100,
       enableMetrics: true,
@@ -198,6 +200,16 @@ export class CommandHandler {
 
       if (reportCommand.setDiscordStreamingService) {
         reportCommand.setDiscordStreamingService(this.discordStreamingService);
+      }
+
+      // ReportCommandIntegration 의존성 주입
+      try {
+        const reportCommandIntegration = container.resolve(ReportCommandIntegration);
+        if (reportCommand.setReportCommandIntegration) {
+          reportCommand.setReportCommandIntegration(reportCommandIntegration);
+        }
+      } catch (error) {
+        console.error('[CommandHandler] ReportCommandIntegration 주입 실패:', error);
       }
 
       // 명령어 맵에 등록
@@ -599,8 +611,12 @@ export class CommandHandler {
           setTimeout(() => reject(new Error('Command timeout')), this.config.commandTimeout);
         });
 
-        // 명령어 실행
-        await Promise.race([command.execute(interaction), timeoutPromise]);
+        // 명령어 실행 - 보고서 명령어는 공개 visibility 사용
+        if (resolvedCommandName === '보고서') {
+          await Promise.race([command.executeWithVisibility(interaction, {}, true), timeoutPromise]);
+        } else {
+          await Promise.race([command.execute(interaction), timeoutPromise]);
+        }
 
         // 성공 통계 업데이트
         this.updateStatistics({

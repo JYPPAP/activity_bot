@@ -4,11 +4,11 @@ import { performance } from 'perf_hooks';
 import { Client, Events } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { TIME } from '../config/constants';
-import { logger } from '../config/logger-termux';
-import { DI_TOKENS } from '../interfaces/index';
+import { TIME } from '../config/constants.js';
+import { logger } from '../config/logger-termux.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
-import { PrometheusMetricsService } from './PrometheusMetricsService';
+import { PrometheusMetricsService } from './PrometheusMetricsService.js';
 
 // Discord API 레이트 리밋 정보
 interface RateLimitInfo {

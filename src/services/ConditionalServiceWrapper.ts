@@ -1,7 +1,7 @@
 // src/services/ConditionalServiceWrapper.ts - 조건부 서비스 래퍼
 import { injectable, inject } from 'tsyringe';
 
-import { FeatureManagerService, Features } from './FeatureManagerService';
+import { FeatureManagerService, Features } from './FeatureManagerService.js';
 
 /**
  * 기능 조건부 서비스 래퍼

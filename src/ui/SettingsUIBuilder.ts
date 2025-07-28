@@ -12,13 +12,13 @@ import {
   // ComponentType 사용되지 않음
 } from 'discord.js';
 
-import { isDevelopment } from '../config/env';
+import { isDevelopment } from '../config/env.js';
 import {
   RoleActivitySetting,
   GameListSetting,
   ExcludeChannelsSetting,
   ChannelManagementSetting,
-} from '../services/GuildSettingsManager';
+} from '../services/GuildSettingsManager.js';
 
 export interface SettingsUIComponents {
   embed: EmbedBuilder;

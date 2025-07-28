@@ -4,37 +4,36 @@ import { Client } from 'discord.js';
 import { container } from 'tsyringe';
 
 // 서비스 클래스 임포트
-import { CommandHandler } from '../commands/commandHandler';
-import { config } from '../config/env';
-import { DI_TOKENS } from '../interfaces/index';
+import { CommandHandler } from '../commands/commandHandler.js';
+import { config } from '../config/env.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type { RedisConfig } from '../interfaces/IRedisService';
-import { ActivityTracker } from '../services/activityTracker';
-import { ConditionalServiceWrapper } from '../services/ConditionalServiceWrapper';
-import { EmojiReactionService } from '../services/EmojiReactionService';
-import { EventManager } from '../services/eventManager';
-import { FeatureManagerService } from '../services/FeatureManagerService';
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
-import { LogService } from '../services/logService';
+import { ActivityTracker } from '../services/activityTracker.js';
+import { ConditionalServiceWrapper } from '../services/ConditionalServiceWrapper.js';
+import { EmojiReactionService } from '../services/EmojiReactionService.js';
+import { EventManager } from '../services/eventManager.js';
+import { FeatureManagerService } from '../services/FeatureManagerService.js';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
+import { LogService } from '../services/logService.js';
 import type { LogServiceOptions } from '../services/logService';
-import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService';
-import { PostgreSQLManager } from '../services/PostgreSQLManager';
-import { PrometheusMetricsService } from '../services/PrometheusMetricsService';
-import { RedisService } from '../services/RedisService';
-import { UserClassificationService } from '../services/UserClassificationService';
-import { UserClassificationServiceOptimized } from '../services/UserClassificationServiceOptimized';
-import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService';
-import { MemberFetchService } from '../services/MemberFetchService';
-import { StreamingReportEngine } from '../services/StreamingReportEngine';
-import { DiscordStreamingService } from '../services/DiscordStreamingService';
-import { IncrementalDataProcessor } from '../services/IncrementalDataProcessor';
-import { ReliableEmbedSender } from '../services/ReliableEmbedSender';
-import { ActivityReportTemplateService } from '../services/ActivityReportTemplateService';
-import { EmbedChunkingSystem } from '../services/EmbedChunkingSystem';
-import { IntegratedReportChunkingService } from '../services/IntegratedReportChunkingService';
-import { ReportGenerationValidator } from '../services/ReportGenerationValidator';
-import { OptimizedMemberFetchService } from '../services/OptimizedMemberFetchService';
-import { ReportCommandIntegration } from '../services/ReportCommandIntegration';
-import { DEFAULT_STREAMING_CONFIG } from '../interfaces/IStreamingReportEngine';
+import { PerformanceMonitoringService } from '../services/PerformanceMonitoringService.js';
+import { PostgreSQLManager } from '../services/PostgreSQLManager.js';
+import { PrometheusMetricsService } from '../services/PrometheusMetricsService.js';
+import { RedisService } from '../services/RedisService.js';
+import { UserClassificationServiceOptimized } from '../services/UserClassificationServiceOptimized.js';
+import { VoiceChannelForumIntegrationService } from '../services/VoiceChannelForumIntegrationService.js';
+import { MemberFetchService } from '../services/MemberFetchService.js';
+import { StreamingReportEngine } from '../services/StreamingReportEngine.js';
+import { DiscordStreamingService } from '../services/DiscordStreamingService.js';
+import { IncrementalDataProcessor } from '../services/IncrementalDataProcessor.js';
+import { ReliableEmbedSender } from '../services/ReliableEmbedSender.js';
+import { ActivityReportTemplateService } from '../services/ActivityReportTemplateService.js';
+import { EmbedChunkingSystem } from '../services/EmbedChunkingSystem.js';
+import { IntegratedReportChunkingService } from '../services/IntegratedReportChunkingService.js';
+import { ReportGenerationValidator } from '../services/ReportGenerationValidator.js';
+import { OptimizedMemberFetchService } from '../services/OptimizedMemberFetchService.js';
+import { ReportCommandIntegration } from '../services/ReportCommandIntegration.js';
+import { DEFAULT_STREAMING_CONFIG } from '../interfaces/IStreamingReportEngine.js';
 
 // 인터페이스 및 토큰 임포트
 
@@ -52,7 +51,7 @@ export function configureDIContainer(): void {
 
   // 설정 객체들 등록
   const logServiceConfig: LogServiceOptions = {
-    logChannelId: config.LOG_CHANNEL_ID,
+    ...(config.LOG_CHANNEL_ID && { logChannelId: config.LOG_CHANNEL_ID }), // DB에서 우선 관리, 환경변수는 fallback
     batchSize: 10,
     logDelay: 5000,
     maxRetries: 3,

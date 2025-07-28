@@ -4,10 +4,9 @@ import {
   MessageFlags,
   SlashCommandBuilder,
   User,
-  GuildMember,
 } from 'discord.js';
 
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
 
 import {
   CommandBase,
@@ -15,7 +14,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase';
+} from './CommandBase.js';
 
 // 구인구직 통계 인터페이스
 interface RecruitmentStats {
@@ -392,15 +391,6 @@ export class RecruitmentCommand extends CommandBase {
     };
   }
 
-  /**
-   * 구인구직 권한 확인
-   * @param user - 사용자
-   * @param member - 멤버
-   */
-  private hasRecruitmentPermission(user: User, member: GuildMember | null): boolean {
-    if (!this.voiceForumService) return false;
-    return this.voiceForumService.hasRecruitmentPermission(user, member);
-  }
 
   /**
    * 구인구직 목록 임베드 생성

@@ -10,9 +10,9 @@ export interface Config {
   // 필수 환경변수
   TOKEN: string;
   CLIENT_ID: string;
-  LOG_CHANNEL_ID: string;
 
-  // 선택적 환경변수
+  // 선택적 환경변수 (DB에서 우선 관리)
+  LOG_CHANNEL_ID?: string;
   DEV_ID?: string;
 
   // 구인구직 포럼 관련 (DB에서 관리, fallback용)

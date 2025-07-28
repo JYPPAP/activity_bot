@@ -9,11 +9,10 @@ import { injectable, inject } from 'tsyringe';
 
 import type { 
   UserClassificationResult, 
-  UserData,
   IUserClassificationService 
 } from '../interfaces/IUserClassificationService';
-import { EmbedValidator } from '../utils/EmbedValidator';
-import { DI_TOKENS } from '../interfaces/index';
+import { EmbedValidator } from '../utils/EmbedValidator.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 
 // 검증 단계 정의
 export interface ValidationStep {
@@ -452,7 +451,7 @@ export class ReportGenerationValidator {
       }
 
       // 권한 검증
-      if (interaction.guild && interaction.channel) {
+      if (interaction.guild && interaction.channel && 'permissionsFor' in interaction.channel) {
         const botMember = interaction.guild.members.me;
         if (botMember && !interaction.channel.permissionsFor(botMember)?.has('SendMessages')) {
           step.errors!.push('봇이 이 채널에 메시지를 보낼 권한이 없습니다');
@@ -759,9 +758,9 @@ export class ReportGenerationValidator {
       // 예상 카운트 (통계가 있다면 사용)
       if (classificationResult.statistics) {
         validationResult.expectedTotals = {
-          achieved: classificationResult.statistics.activeCount,
-          underperformed: classificationResult.statistics.inactiveCount,
-          afk: classificationResult.statistics.afkCount,
+          achieved: classificationResult.activeUsers.length,
+          underperformed: classificationResult.inactiveUsers.length,
+          afk: classificationResult.afkUsers.length,
           total: classificationResult.statistics.totalUsers
         };
       } else {
@@ -842,10 +841,10 @@ export class ReportGenerationValidator {
         validationResult.isValid = false;
       }
 
-      // AFK 사용자 특별 검증
+      // AFK 사용자 특별 검증 (afkUntil 속성 확인)
       for (const afkUser of classificationResult.afkUsers) {
-        if (!afkUser.isAfk) {
-          step.warnings!.push(`AFK 그룹에 isAfk=false인 사용자 포함: ${afkUser.nickname}`);
+        if (!afkUser.afkUntil) {
+          step.warnings!.push(`AFK 그룹에 afkUntil이 없는 사용자 포함: ${afkUser.nickname}`);
         }
       }
 
@@ -911,7 +910,7 @@ export class ReportGenerationValidator {
       progressCallback?.(step);
 
       // EmbedFactory를 사용해 임베드 생성 (실제 전송 전 검증용)
-      const { EmbedFactory } = await import('../utils/embedBuilder');
+      const { EmbedFactory } = await import('../utils/embedBuilder.js');
       
       const embedData = {
         role: classificationResult.reportCycle || 'test',
@@ -1192,7 +1191,7 @@ export class ReportGenerationValidator {
       }
 
       // 채널 권한 재확인
-      if (interaction.channel && interaction.guild?.members.me) {
+      if (interaction.channel && interaction.guild?.members.me && 'permissionsFor' in interaction.channel) {
         const permissions = interaction.channel.permissionsFor(interaction.guild.members.me);
         if (!permissions?.has('SendMessages')) {
           step.errors!.push('메시지 전송 권한이 없습니다');

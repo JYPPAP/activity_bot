@@ -1,7 +1,7 @@
 // src/utils/PerformanceMetrics.ts - Comprehensive Performance Metrics Collection
 
 import { EventEmitter } from 'events';
-import { PerformanceMetrics, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient';
+import { PerformanceMetrics, DiscordAPIRequest, DiscordAPIResponse } from '../interfaces/IDiscordAPIClient.js';
 
 // Individual request metrics
 interface RequestMetric {
@@ -104,7 +104,7 @@ export class PerformanceMetricsCollector extends EventEmitter {
   private readonly metricsUpdateInterval = 1000; // 1 second
 
   constructor(
-    private config: {
+    config: {
       enableMetrics: boolean;
       metricsInterval: number;
       histogramBuckets?: number[];
@@ -168,12 +168,12 @@ export class PerformanceMetricsCollector extends EventEmitter {
       endTime,
       duration,
       success: response.success,
-      statusCode: response.status,
-      errorType: response.error?.constructor.name,
+      statusCode: response.status ?? 0,
+      ...(response.error && { errorType: response.error.constructor.name }),
       retryCount: additionalInfo?.retryCount ?? response.metadata.retryCount ?? 0,
       fromCache: response.metadata.fromCache ?? false,
-      connectionId: additionalInfo?.connectionId,
-      batchId: additionalInfo?.batchId
+      ...(additionalInfo?.connectionId && { connectionId: additionalInfo.connectionId }),
+      ...(additionalInfo?.batchId && { batchId: additionalInfo.batchId })
     };
 
     this.addRequestMetric(metric);
@@ -203,7 +203,6 @@ export class PerformanceMetricsCollector extends EventEmitter {
    * Update current metrics
    */
   private updateCurrentMetrics(): void {
-    const now = Date.now();
     const recentRequests = this.getRecentRequests(60000); // Last minute
     
     if (this.requests.length === 0) {
@@ -225,7 +224,6 @@ export class PerformanceMetricsCollector extends EventEmitter {
     const throughputPerSecond = recentRequests.length / 60;
 
     // Calculate rates
-    const uptime = now - this.startTime;
     const errorRate = totalRequests > 0 ? (failedRequests / totalRequests) * 100 : 0;
     const cacheHitRate = totalRequests > 0 
       ? (this.requests.filter(r => r.fromCache).length / totalRequests) * 100 

@@ -13,13 +13,13 @@ import {
   Guild,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { RecruitmentConfig } from '../config/RecruitmentConfig';
-import { DiscordAPIError } from '../types/discord';
-import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder';
-import { SafeInteraction } from '../utils/SafeInteraction';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { DiscordAPIError } from '../types/discord.js';
+import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 
-import { PermissionService } from './PermissionService';
+// import { PermissionService } from './PermissionService'; // 사용하지 않음
 
 // 구인구직 데이터 인터페이스
 interface RecruitmentData {
@@ -374,12 +374,14 @@ export class RecruitmentService {
    * @param recruitmentData - 구인구직 데이터
    * @param voiceChannelId - 음성 채널 ID
    * @param linkerId - 연동한 사용자 ID
+   * @param guildId - 길드 ID (선택사항)
    * @returns 생성 결과
    */
   async createLinkedRecruitment(
     recruitmentData: RecruitmentData,
     voiceChannelId: string,
-    linkerId: string
+    linkerId: string,
+    guildId?: string
   ): Promise<RecruitmentCreateResult> {
     try {
       // 입력 검증 - 제목만 필수 (설명은 선택사항)
@@ -424,7 +426,8 @@ export class RecruitmentService {
       // 포럼 포스트 생성
       const createResult = await this.forumPostManager.createForumPost(
         recruitmentData,
-        voiceChannelId
+        voiceChannelId,
+        guildId
       );
       const postId = typeof createResult === 'string' ? createResult : createResult?.postId;
 

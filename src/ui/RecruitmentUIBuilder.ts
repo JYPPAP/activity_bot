@@ -9,12 +9,12 @@ import {
   APIEmbedField,
 } from 'discord.js';
 
-import { DiscordConstants } from '../config/DiscordConstants';
-import { isDevelopment } from '../config/env';
-import { RecruitmentConfig } from '../config/RecruitmentConfig';
-import { DIContainer } from '../di/container';
-import { DI_TOKENS } from '../interfaces/index';
-import { GuildSettingsManager } from '../services/GuildSettingsManager';
+import { DiscordConstants } from '../config/DiscordConstants.js';
+import { isDevelopment } from '../config/env.js';
+import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { DIContainer } from '../di/container.js';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { GuildSettingsManager } from '../services/GuildSettingsManager.js';
 
 // 기존 포스트 정보 인터페이스
 interface ExistingPost {

@@ -17,9 +17,9 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 
-import { DIContainer } from '../di/container';
-import { DI_TOKENS } from '../interfaces/index';
-import { GuildSettingsManager, ExcludeChannelsSetting } from '../services/GuildSettingsManager';
+import { DIContainer } from '../di/container.js';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { GuildSettingsManager, ExcludeChannelsSetting } from '../services/GuildSettingsManager.js';
 
 import {
   CommandBase,
@@ -27,7 +27,7 @@ import {
   CommandResult,
   CommandExecutionOptions,
   CommandMetadata,
-} from './CommandBase';
+} from './CommandBase.js';
 
 export class SettingsCommand extends CommandBase {
   private guildSettingsManager: GuildSettingsManager;
@@ -894,6 +894,7 @@ export class SettingsCommand extends CommandBase {
         embeds: [errorEmbed],
         flags: MessageFlags.Ephemeral,
       });
+      return; // 오류 처리 후 함수 종료
     }
   }
 
@@ -988,6 +989,7 @@ export class SettingsCommand extends CommandBase {
         embeds: [errorEmbed],
         flags: MessageFlags.Ephemeral,
       });
+      return; // 오류 처리 후 함수 종료
     }
   }
 
@@ -1094,10 +1096,20 @@ export class SettingsCommand extends CommandBase {
       gameListInput.setValue(currentGames.join(', '));
     }
 
-    // ActionRow에 입력 필드 추가
-    const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(gameListInput);
+    // 설명 입력 (선택사항)
+    const descriptionInput = new TextInputBuilder()
+      .setCustomId('description')
+      .setLabel('설명 (선택사항)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false)
+      .setMaxLength(200)
+      .setPlaceholder('게임 목록에 대한 추가 설명을 입력하세요. (선택사항)');
 
-    modal.addComponents(firstActionRow);
+    // ActionRow에 입력 필드들 추가
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(gameListInput);
+    const secondActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
+
+    modal.addComponents(firstActionRow, secondActionRow);
 
     await interaction.showModal(modal);
   }
@@ -1271,15 +1283,12 @@ export class SettingsCommand extends CommandBase {
    */
   async handleExcludeChannelsButton(interaction: ButtonInteraction): Promise<void> {
     try {
-      // 먼저 인터랙션 응답 지연 처리
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
       const guildId = interaction.guild?.id;
       if (!guildId) {
         throw new Error('길드 정보를 찾을 수 없습니다.');
       }
 
-      // 현재 설정된 제외 채널 목록 조회
+      // 현재 설정된 제외 채널 목록 조회 (defer 전에 확인)
       const excludeChannelsSetting = await this.guildSettingsManager.getExcludeChannels(guildId);
 
       // 안전성 체크 개선
@@ -1288,27 +1297,34 @@ export class SettingsCommand extends CommandBase {
         (excludeChannelsSetting?.activityLimitedChannels?.length ?? 0) > 0;
 
       if (excludeChannelsSetting && (hasExcludedChannels || hasActivityLimitedChannels)) {
-        // 기존 제외 채널이 있으면 수정 인터페이스 표시
+        // 기존 제외 채널이 있으면 인터랙션 defer 후 수정 인터페이스 표시
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
         await this.showExcludeChannelsInterface(interaction, excludeChannelsSetting);
       } else {
-        // 제외 채널이 없으면 바로 추가 Modal 표시
+        // 제외 채널이 없으면 defer 없이 바로 Modal 표시
         await this.showExcludeChannelsModal(interaction, false);
       }
     } catch (error) {
       console.error('제외 채널 버튼 처리 오류:', error);
       const errorEmbed = this.createErrorEmbed('제외 채널 설정을 불러오는 중 오류가 발생했습니다.');
 
-      // 이미 deferred된 상태이므로 editReply 사용
+      // interaction 상태에 따른 조건부 에러 응답
       if (interaction.deferred) {
         await interaction.editReply({
           embeds: [errorEmbed],
         });
-      } else {
+      } else if (interaction.replied) {
         await interaction.followUp({
           embeds: [errorEmbed],
           flags: MessageFlags.Ephemeral,
         });
+      } else {
+        await interaction.reply({
+          embeds: [errorEmbed],
+          flags: MessageFlags.Ephemeral,
+        });
       }
+      return; // 오류 처리 후 함수 종료
     }
   }
 
@@ -1673,6 +1689,7 @@ export class SettingsCommand extends CommandBase {
         embeds: [errorEmbed],
         flags: MessageFlags.Ephemeral,
       });
+      return; // 오류 처리 후 함수 종료
     }
   }
 

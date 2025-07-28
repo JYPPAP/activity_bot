@@ -3,10 +3,9 @@
 import { 
   Job, 
   JobContext, 
-  JobProgress, 
   JobHandler 
-} from '../../interfaces/IAsyncJobQueue';
-import { Client, Guild, GuildMember } from 'discord.js';
+} from '../../interfaces/IAsyncJobQueue.js';
+import { Client } from 'discord.js';
 import type { IDatabaseManager } from '../../interfaces/IDatabaseManager';
 import type { ILogService } from '../../interfaces/ILogService';
 
@@ -47,9 +46,9 @@ export const createMemberActivityAnalysisHandler = (
   client: Client,
   dbManager: IDatabaseManager,
   logService: ILogService
-): JobHandler<MemberActivityAnalysisPayload, MemberActivityResult> => {
-  return async (job: Job, context: JobContext, progressCallback) => {
-    const { guildId, startDate, endDate, includeVoiceTime, includeMessageCount, generateReport } = job.payload;
+): JobHandler => {
+  return async (job: Job, _context: JobContext, progressCallback: any) => {
+    const { guildId, includeVoiceTime, includeMessageCount, generateReport } = job.payload;
 
     // Initialize progress
     await progressCallback({
@@ -102,14 +101,14 @@ export const createMemberActivityAnalysisHandler = (
 
         if (includeVoiceTime) {
           // This would integrate with your activity tracking system
-          const voiceActivity = await dbManager.getUserActivity(userId, startDate, endDate);
-          voiceTime = voiceActivity?.totalVoiceTime || 0;
+          const voiceActivity = await dbManager.getUserActivity(userId);
+          voiceTime = voiceActivity?.totalTime || 0;
         }
 
         if (includeMessageCount) {
           // This would integrate with your message tracking system
-          const messageActivity = await dbManager.getUserActivity(userId, startDate, endDate);
-          messageCount = messageActivity?.messageCount || 0;
+          await dbManager.getUserActivity(userId);
+          messageCount = 0; // messageCount not available in UserActivity type
         }
 
         // Calculate activity score (simple algorithm)
@@ -231,8 +230,8 @@ export interface BulkRoleAssignmentResult {
 export const createBulkRoleAssignmentHandler = (
   client: Client,
   logService: ILogService
-): JobHandler<BulkRoleAssignmentPayload, BulkRoleAssignmentResult> => {
-  return async (job: Job, context: JobContext, progressCallback) => {
+): JobHandler => {
+  return async (job: Job, _context: JobContext, progressCallback: any) => {
     const { guildId, memberIds, roleIds, action, reason } = job.payload;
 
     await progressCallback({
@@ -345,10 +344,10 @@ export interface DataExportResult {
 
 export const createDataExportHandler = (
   client: Client,
-  dbManager: IDatabaseManager,
+  _dbManager: IDatabaseManager,
   logService: ILogService
-): JobHandler<DataExportPayload, DataExportResult> => {
-  return async (job: Job, context: JobContext, progressCallback) => {
+): JobHandler => {
+  return async (job: Job, _context: JobContext, progressCallback: any) => {
     const { guildId, exportType, format, includePersonalData, dateRange } = job.payload;
 
     await progressCallback({
@@ -395,7 +394,7 @@ export const createDataExportHandler = (
           };
 
           if (includePersonalData) {
-            memberData.email = member.user.email;
+            // member.user.email is not available in Discord.js User type
             memberData.avatar = member.user.avatar;
           }
 
@@ -508,8 +507,8 @@ export interface ScheduledMessageResult {
 export const createScheduledMessageHandler = (
   client: Client,
   logService: ILogService
-): JobHandler<ScheduledMessagePayload, ScheduledMessageResult> => {
-  return async (job: Job, context: JobContext, progressCallback) => {
+): JobHandler => {
+  return async (job: Job, _context: JobContext, progressCallback: any) => {
     const { channelId, message, scheduledFor, repeat } = job.payload;
 
     await progressCallback({
@@ -551,6 +550,10 @@ export const createScheduledMessageHandler = (
       const channel = await client.channels.fetch(channelId);
       if (!channel || !channel.isTextBased()) {
         throw new Error(`Channel not found or not text-based: ${channelId}`);
+      }
+
+      if (!('send' in channel)) {
+        throw new Error(`Channel does not support sending messages: ${channelId}`);
       }
 
       const sentMessage = await channel.send(message);

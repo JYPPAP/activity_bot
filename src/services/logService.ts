@@ -9,14 +9,14 @@ import {
 } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
-import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants';
-import { logger } from '../config/logger-termux';
+import { TIME, COLORS, MESSAGE_TYPES } from '../config/constants.js';
+import { logger } from '../config/logger-termux.js';
 import type { ILogService } from '../interfaces/ILogService';
-import { DI_TOKENS } from '../interfaces/index';
-import { EnhancedClient } from '../types/discord';
-import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { EnhancedClient } from '../types/discord.js';
+import { EmbedFactory, LogEmbedData, LogEmbedOptions } from '../utils/embedBuilder.js';
 
-import { GuildSettingsManager } from './GuildSettingsManager';
+import { GuildSettingsManager } from './GuildSettingsManager.js';
 
 // ====================
 // 로그 서비스 타입
@@ -35,7 +35,7 @@ export interface LogMessage {
 }
 
 export interface LogServiceOptions {
-  logChannelId: string;
+  logChannelId?: string; // DB에서 우선 관리, 환경변수는 fallback
   batchSize?: number;
   logDelay?: number;
   maxRetries?: number;
@@ -101,7 +101,7 @@ export enum LogEventType {
 @injectable()
 export class LogService implements ILogService {
   private readonly client: EnhancedClient;
-  private readonly options: Required<LogServiceOptions>;
+  private readonly options: Required<Omit<LogServiceOptions, 'logChannelId'>> & { logChannelId?: string };
   private readonly guildSettingsManager: GuildSettingsManager;
   private readonly logMessages: LogMessage[] = [];
   private readonly stats: LogStats = {
@@ -149,7 +149,7 @@ export class LogService implements ILogService {
    */
   private async getGuildLogChannelId(guildId?: string): Promise<string> {
     if (!guildId) {
-      return this.options.logChannelId;
+      return this.options.logChannelId || '';
     }
 
     // 캐시 확인
@@ -168,7 +168,7 @@ export class LogService implements ILogService {
     try {
       logger.debug('[LogService] 데이터베이스에서 로그 채널 ID 조회', { guildId });
       const channelManagement = await this.guildSettingsManager.getChannelManagement(guildId);
-      const channelId = channelManagement?.logChannelId || this.options.logChannelId;
+      const channelId = channelManagement?.logChannelId || this.options.logChannelId || '';
 
       // 채널 ID가 길드 ID와 같은지 확인 (잘못된 설정 방지)
       if (channelId === guildId) {
@@ -208,7 +208,7 @@ export class LogService implements ILogService {
         guildId,
         error: error instanceof Error ? error.message : String(error),
       });
-      return this.options.logChannelId;
+      return this.options.logChannelId || '';
     }
   }
 
@@ -216,38 +216,37 @@ export class LogService implements ILogService {
    * 옵션 검증
    */
   private validateOptions(): void {
-    if (!this.options.logChannelId) {
-      throw new Error('로그 채널 ID가 필요합니다.');
-    }
+    // logChannelId는 이제 선택적임 (DB에서 우선 관리)
+    if (this.options.logChannelId) {
+      // 채널 ID 형식 검증 (Discord 채널 ID는 17-20자리 숫자)
+      if (!/^\d{17,20}$/.test(this.options.logChannelId)) {
+        logger.warn('[LogService] 로그 채널 ID 형식이 올바르지 않음:', {
+          channelId: this.options.logChannelId,
+          message: '채널 ID는 17-20자리 숫자여야 합니다.',
+        });
+      }
 
-    // 채널 ID 형식 검증 (Discord 채널 ID는 17-20자리 숫자)
-    if (!/^\d{17,20}$/.test(this.options.logChannelId)) {
-      logger.warn('[LogService] 로그 채널 ID 형식이 올바르지 않음:', {
-        channelId: this.options.logChannelId,
-        message: '채널 ID는 17-20자리 숫자여야 합니다.',
-      });
-    }
+      // 환경변수에서 길드 ID 가져와서 비교
+      const guildId = process.env.GUILDID;
+      if (guildId && this.options.logChannelId === guildId) {
+        logger.error('[LogService] 로그 채널 ID가 길드 ID와 동일함 - 설정 오류:', {
+          channelId: this.options.logChannelId,
+          guildId,
+          message: 'LOG_CHANNEL_ID에 길드 ID 대신 채널 ID를 설정해야 합니다.',
+          solution: '길드 설정에서 올바른 로그 채널을 설정하거나 환경변수를 수정해주세요.',
+        });
 
-    // 환경변수에서 길드 ID 가져와서 비교
-    const guildId = process.env.GUILDID;
-    if (guildId && this.options.logChannelId === guildId) {
-      logger.error('[LogService] 로그 채널 ID가 길드 ID와 동일함 - 설정 오류:', {
-        channelId: this.options.logChannelId,
-        guildId,
-        message: 'LOG_CHANNEL_ID에 길드 ID 대신 채널 ID를 설정해야 합니다.',
-        solution: '길드 설정에서 올바른 로그 채널을 설정하거나 환경변수를 수정해주세요.',
-      });
+        // 치명적 오류 대신 경고로 변경 - 봇 시작을 차단하지 않음
+        logger.warn(
+          '[LogService] 환경변수 LOG_CHANNEL_ID 설정 오류로 인해 로그 전송이 비활성화됩니다.'
+        );
+        logger.warn(
+          '[LogService] 봇은 정상적으로 시작되지만, 로그 전송을 위해 /설정 명령어를 사용하여 올바른 로그 채널을 설정해주세요.'
+        );
 
-      // 치명적 오류 대신 경고로 변경 - 봇 시작을 차단하지 않음
-      logger.warn(
-        '[LogService] 환경변수 LOG_CHANNEL_ID 설정 오류로 인해 로그 전송이 비활성화됩니다.'
-      );
-      logger.warn(
-        '[LogService] 봇은 정상적으로 시작되지만, 로그 전송을 위해 /설정 명령어를 사용하여 올바른 로그 채널을 설정해주세요.'
-      );
-
-      // 잘못된 채널 ID를 빈 문자열로 설정하여 로그 전송 차단
-      this.options.logChannelId = '';
+        // 잘못된 채널 ID를 빈 문자열로 설정하여 로그 전송 차단
+        this.options.logChannelId = '';
+      }
     }
 
     if (this.options.batchSize < 1 || this.options.batchSize > 100) {
@@ -273,7 +272,7 @@ export class LogService implements ILogService {
     metadata?: Record<string, any>
   ): void {
     try {
-      // 디버깅: 로그 메시지 생성 과정 추적
+      // 🔍 디버깅: 로그 메시지 생성 과정 추적
       logger.debug('[LogService] 로그 메시지 생성 시작', {
         message: message.slice(0, 50) + '...',
         eventType,
@@ -282,6 +281,19 @@ export class LogService implements ILogService {
         guildId: metadata?.guildId || 'none',
         metadataKeys: metadata ? Object.keys(metadata) : [],
       });
+
+      // 🔍 추가 디버깅: 중요 이벤트 상세 추적
+      if (eventType === 'JOIN' || eventType === 'LEAVE') {
+        console.log('[LogService] 🔍 음성 채널 이벤트 수신', {
+          eventType,
+          messagePreview: message.slice(0, 100),
+          memberCount: membersInChannel.length,
+          guildId: metadata?.guildId,
+          timestamp: new Date().toISOString(),
+          logQueueSize: this.logMessages.length,
+          isProcessing: this.isProcessing
+        });
+      }
 
       // 채널 생성 메시지일 경우 멤버 목록을 표시하지 않음
       if (message.includes(MESSAGE_TYPES.CHANNEL_CREATE)) {
@@ -367,12 +379,44 @@ export class LogService implements ILogService {
       clearTimeout(this.logTimeout);
     }
 
+    // 🔍 디버깅: 스케줄링 상태 추적
+    const voiceMessages = this.logMessages.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE');
+    const hasUrgent = this.hasUrgentMessage();
+    const shouldSendImmediately = this.logMessages.length >= this.options.batchSize || hasUrgent;
+
+    console.log('[LogService] 📅 로그 전송 스케줄링', {
+      currentQueueSize: this.logMessages.length,
+      voiceMessagesInQueue: voiceMessages.length,
+      batchSize: this.options.batchSize,
+      hasUrgentMessage: hasUrgent,
+      shouldSendImmediately,
+      isProcessing: this.isProcessing,
+      logDelay: this.options.logDelay,
+      action: shouldSendImmediately ? '즉시 전송' : `${this.options.logDelay}ms 후 전송`,
+      timestamp: new Date().toISOString()
+    });
+
     // 배치 크기에 도달했거나 긴급 메시지가 있으면 즉시 전송
-    if (this.logMessages.length >= this.options.batchSize || this.hasUrgentMessage()) {
+    if (shouldSendImmediately) {
+      console.log('[LogService] ⚡ 즉시 로그 전송 실행', {
+        reason: this.logMessages.length >= this.options.batchSize ? '배치 크기 도달' : '긴급 메시지 존재',
+        queueSize: this.logMessages.length,
+        voiceMessages: voiceMessages.length
+      });
       this.sendLogMessages();
     } else {
       // 일정 시간 후 로그 전송
+      console.log('[LogService] ⏰ 지연 로그 전송 스케줄링', {
+        delay: this.options.logDelay,
+        queueSize: this.logMessages.length,
+        voiceMessages: voiceMessages.length,
+        scheduledTime: new Date(Date.now() + this.options.logDelay).toISOString()
+      });
       this.logTimeout = setTimeout(async () => {
+        console.log('[LogService] ⏰ 지연 로그 전송 실행', {
+          currentQueueSize: this.logMessages.length,
+          voiceMessages: this.logMessages.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE').length
+        });
         await this.sendLogMessages();
       }, this.options.logDelay);
     }
@@ -404,8 +448,32 @@ export class LogService implements ILogService {
       const messagesToSend = [...this.logMessages];
       this.logMessages.length = 0;
 
+      // 🔍 디버깅: 전송 대상 메시지 분석
+      const voiceMessages = messagesToSend.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE');
+      console.log('[LogService] 🚀 Discord 로그 전송 시작', {
+        totalMessages: messagesToSend.length,
+        voiceMessages: voiceMessages.length,
+        voiceEventDetails: voiceMessages.map(msg => ({
+          eventType: msg.eventType,
+          messagePreview: msg.message.slice(0, 50) + '...',
+          guildId: msg.guildId,
+          timestamp: msg.timestamp.toISOString()
+        })),
+        timestamp: new Date().toISOString()
+      });
+
       // 중복 로그 제거 (같은 메시지, 타임스탬프, 이벤트 타입)
       const deduplicatedMessages = this.deduplicateLogMessages(messagesToSend);
+
+      // 🔍 디버깅: 중복 제거 후 상태
+      const dedupedVoiceMessages = deduplicatedMessages.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE');
+      if (voiceMessages.length !== dedupedVoiceMessages.length) {
+        console.log('[LogService] ⚠️ 음성 채널 메시지 중복 제거됨', {
+          원본개수: voiceMessages.length,
+          중복제거후개수: dedupedVoiceMessages.length,
+          제거된개수: voiceMessages.length - dedupedVoiceMessages.length
+        });
+      }
 
       // 길드별로 메시지 그룹화
       const messagesByGuild = new Map<string, LogMessage[]>();
@@ -426,9 +494,47 @@ export class LogService implements ILogService {
         }
       );
 
+      // 🔍 디버깅: 길드별 음성 메시지 분석
+      for (const [guildId, messages] of messagesByGuild) {
+        const guildVoiceMessages = messages.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE');
+        if (guildVoiceMessages.length > 0) {
+          console.log('[LogService] 📤 길드별 음성 메시지 전송 예정', {
+            guildId,
+            totalMessages: messages.length,
+            voiceMessages: guildVoiceMessages.length,
+            voiceEvents: guildVoiceMessages.map(msg => ({
+              eventType: msg.eventType,
+              messagePreview: msg.message.slice(0, 50) + '...'
+            }))
+          });
+        }
+      }
+
       // 각 길드별로 로그 전송
       for (const [guildId, messages] of messagesByGuild) {
-        await this.sendGuildLogMessages(guildId === 'default' ? undefined : guildId, messages);
+        const startTime = Date.now();
+        try {
+          await this.sendGuildLogMessages(guildId === 'default' ? undefined : guildId, messages);
+          
+          // 🔍 디버깅: 길드별 전송 성공
+          const guildVoiceMessages = messages.filter(msg => msg.eventType === 'JOIN' || msg.eventType === 'LEAVE');
+          if (guildVoiceMessages.length > 0) {
+            console.log('[LogService] ✅ 길드 음성 메시지 전송 성공', {
+              guildId,
+              voiceMessages: guildVoiceMessages.length,
+              전송시간: `${Date.now() - startTime}ms`,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } catch (guildError) {
+          console.error('[LogService] ❌ 길드별 로그 전송 실패', {
+            guildId,
+            messageCount: messages.length,
+            error: guildError instanceof Error ? guildError.message : String(guildError),
+            전송시간: `${Date.now() - startTime}ms`
+          });
+          throw guildError; // 에러 재발생으로 전체 catch 블록에서 처리
+        }
       }
 
       this.stats.sentMessages += messagesToSend.length;

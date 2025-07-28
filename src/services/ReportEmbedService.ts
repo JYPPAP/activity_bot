@@ -1,5 +1,5 @@
 // src/services/ReportEmbedService.ts - Integration service for reliable report embed sending
-import { ChatInputCommandInteraction, Collection, GuildMember } from 'discord.js';
+import { ChatInputCommandInteraction } from 'discord.js';
 import { injectable, inject } from 'tsyringe';
 
 import {
@@ -8,9 +8,9 @@ import {
   ReportSectionData,
   EmbedSendResult,
   ReliableEmbedSendOptions
-} from '../interfaces/IReliableEmbedSender';
-import { DI_TOKENS } from '../interfaces/index';
-import { EmbedFactory } from '../utils/embedBuilder';
+} from '../interfaces/IReliableEmbedSender.js';
+import { DI_TOKENS } from '../interfaces/index.js';
+import { EmbedFactory } from '../utils/embedBuilder.js';
 import type { UserActivityData } from '../utils/embedBuilder';
 
 // Date range interface for reports
@@ -70,11 +70,13 @@ export class ReportEmbedService {
       autoTruncate: true,
       reportErrors: true,
       ephemeral: config.testMode ?? false,
-      textFallbackTemplate: this.createTextFallbackTemplate(config),
-      progressCallback: config.enableProgressTracking 
-        ? this.createProgressCallback(interaction)
-        : undefined
+      textFallbackTemplate: this.createTextFallbackTemplate(config)
     };
+
+    // Add progressCallback conditionally for exactOptionalPropertyTypes
+    if (config.enableProgressTracking) {
+      sendOptions.progressCallback = this.createProgressCallback(interaction);
+    }
 
     try {
       // Send the report using the reliable embed sender
@@ -182,6 +184,9 @@ export class ReportEmbedService {
   ): ThreeSectionReport {
     const reportId = this.generateReportId(config);
     
+    // Prepare reportCycle for exactOptionalPropertyTypes
+    const reportCycle = config.reportCycle ?? null;
+
     // Create achievement section (달성)
     const achievementEmbeds = EmbedFactory.createActivityEmbeds({
       role: config.role,
@@ -191,7 +196,7 @@ export class ReportEmbedService {
       startDate: config.dateRange.startDate,
       endDate: config.dateRange.endDate,
       minHours: config.minHours,
-      reportCycle: config.reportCycle,
+      reportCycle,
       title: '활동 달성 보고서'
     }).slice(0, 1); // Only take the active users embed
 
@@ -204,7 +209,7 @@ export class ReportEmbedService {
       startDate: config.dateRange.startDate,
       endDate: config.dateRange.endDate,
       minHours: config.minHours,
-      reportCycle: config.reportCycle,
+      reportCycle,
       title: '활동 미달성 보고서'
     }).slice(1, 2); // Only take the inactive users embed
 
@@ -219,7 +224,7 @@ export class ReportEmbedService {
         startDate: config.dateRange.startDate,
         endDate: config.dateRange.endDate,
         minHours: config.minHours,
-        reportCycle: config.reportCycle,
+        reportCycle,
         title: '잠수 상태 보고서'
       }).slice(2); // Take the AFK embed(s)
 
@@ -231,7 +236,7 @@ export class ReportEmbedService {
       };
     }
 
-    return {
+    const result: ThreeSectionReport = {
       achievementSection: {
         title: '활동 기준 달성 멤버',
         embeds: achievementEmbeds,
@@ -244,17 +249,25 @@ export class ReportEmbedService {
         sectionType: 'underperformance',
         priority: 'medium'
       },
-      afkSection,
       metadata: {
         reportId,
         generatedAt: new Date(),
         totalMembers: classificationResult.activeUsers.length + 
                      classificationResult.inactiveUsers.length + 
                      classificationResult.afkUsers.length,
-        roleFilter: config.role,
-        dateRange: config.dateRange
+        dateRange: {
+          start: config.dateRange.startDate,
+          end: config.dateRange.endDate
+        }
       }
     };
+
+    // Add afkSection conditionally for exactOptionalPropertyTypes
+    if (afkSection) {
+      result.afkSection = afkSection;
+    }
+
+    return result;
   }
 
   private createTextFallbackTemplate(config: ReportConfiguration): string {

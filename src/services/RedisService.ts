@@ -3,8 +3,8 @@
 import Redis from 'ioredis';
 import { injectable, inject } from 'tsyringe';
 
-import { logger } from '../config/logger-termux';
-import { DI_TOKENS } from '../interfaces/index';
+import { logger } from '../config/logger-termux.js';
+import { DI_TOKENS } from '../interfaces/index.js';
 import type {
   IRedisService,
   RedisConfig,

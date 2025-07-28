@@ -13,10 +13,10 @@ import {
   TemplateValidationError,
   TemplateFormattingError,
   TemplatePaginationError
-} from '../interfaces/IActivityReportTemplate';
-import { UserActivityData } from '../utils/embedBuilder';
-import { formatTime, formatTimeInHours } from '../utils/formatters';
-import { COLORS } from '../config/constants';
+} from '../interfaces/IActivityReportTemplate.js';
+import { UserActivityData } from '../utils/embedBuilder.js';
+import { formatTime, formatTimeInHours } from '../utils/formatters.js';
+import { COLORS } from '../config/constants.js';
 
 // Template engine for consistent Korean formatting
 interface KoreanTemplateEngine {
@@ -39,7 +39,6 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
    * Create a new activity report template
    */
   async createTemplate(
-    roleFilter: string,
     activeUsers: UserActivityData[],
     inactiveUsers: UserActivityData[],
     afkUsers: UserActivityData[],
@@ -104,16 +103,15 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
       sortedAfkUsers
     );
 
-    // Create template
+    // Create template with conditional afkSection assignment for exactOptionalPropertyTypes compatibility
     const template: ActivityReportTemplate = {
-      reportId: this.generateReportId(roleFilter, dateRange.startDate),
+      reportId: this.generateReportId(dateRange.startDate),
       generatedAt: new Date(),
-      roleFilter,
       dateRange,
       minHours,
       achievementSection,
       underperformanceSection,
-      afkSection,
+      ...(afkSection && { afkSection }),
       config: mergedConfig,
       summary
     };
@@ -148,7 +146,7 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
       }
       
       // Format member data based on alignment style
-      switch (opts) {
+      switch (opts.alignmentStyle) {
         case 'table':
           lines.push(...this.formatAsTable(section, opts));
           break;
@@ -179,7 +177,11 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     template: ActivityReportTemplate,
     formatting: TemplateFormattingOptions = {}
   ): string {
-    const opts = { ...DEFAULT_FORMATTING_OPTIONS, ...formatting };
+    const opts = { 
+      ...DEFAULT_FORMATTING_OPTIONS, 
+      ...formatting,
+      alignmentStyle: formatting.alignmentStyle || template.config.alignmentStyle || 'table'
+    };
     const sections: string[] = [];
     
     // Report header
@@ -280,7 +282,7 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     
     // Find top performer
     const topPerformer = allUsers.reduce((top, user) => {
-      if (!top || user.totalTime > top.totalTime) {
+      if (!top || user.totalTime > top.activityTime) {
         return {
           name: user.nickname || user.userId,
           activityTime: user.totalTime
@@ -289,14 +291,17 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
       return top;
     }, null as { name: string; activityTime: number } | null);
 
-    return {
+    // Create return object with conditional topPerformer assignment for exactOptionalPropertyTypes compatibility
+    const summary = {
       totalMembersProcessed,
       achievingMembers: activeUsers.length,
       underperformingMembers: inactiveUsers.length,
       afkMembers: afkUsers.length,
       averageActivityTime,
-      topPerformer: topPerformer || undefined
+      ...(topPerformer && { topPerformer })
     };
+
+    return summary;
   }
 
   /**
@@ -508,7 +513,7 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     }
     
     // Table rows
-    section.memberData.forEach((user, index) => {
+    section.memberData.forEach((user) => {
       const name = this.templateEngine.formatMemberName(
         user.nickname || user.userId, 
         opts.nameTextStyle || 'plain'
@@ -570,7 +575,7 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     return lines;
   }
 
-  private formatAsCompact(section: ReportSectionTemplate, opts: TemplateFormattingOptions): string[] {
+  private formatAsCompact(section: ReportSectionTemplate, _opts: TemplateFormattingOptions): string[] {
     const names = section.memberData.map(user => {
       const name = user.nickname || user.userId;
       const time = this.templateEngine.formatActivityTime(user.totalTime, 'compact');
@@ -601,12 +606,11 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     return lines;
   }
 
-  private formatReportHeader(template: ActivityReportTemplate, opts: TemplateFormattingOptions): string {
+  private formatReportHeader(template: ActivityReportTemplate, _opts: TemplateFormattingOptions): string {
     const lines: string[] = [];
     
     lines.push('📊 **활동 보고서**');
     lines.push('');
-    lines.push(`**역할:** ${template.roleFilter}`);
     lines.push(`**기간:** ${this.templateEngine.formatDate(template.dateRange.startDate, 'short')} ~ ${this.templateEngine.formatDate(template.dateRange.endDate, 'short')}`);
     lines.push(`**최소 활동 시간:** ${template.minHours}시간`);
     lines.push(`**생성일:** ${this.templateEngine.formatDate(template.generatedAt, 'long')}`);
@@ -614,7 +618,7 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     return lines.join('\n');
   }
 
-  private formatSummary(summary: ActivityReportTemplate['summary'], opts: TemplateFormattingOptions): string {
+  private formatSummary(summary: ActivityReportTemplate['summary'], _opts: TemplateFormattingOptions): string {
     const lines: string[] = [];
     
     lines.push('📈 **요약 통계**');
@@ -632,15 +636,14 @@ export class ActivityReportTemplateService implements IActivityReportTemplateSer
     return lines.join('\n');
   }
 
-  private formatReportFooter(template: ActivityReportTemplate, opts: TemplateFormattingOptions): string {
+  private formatReportFooter(template: ActivityReportTemplate, _opts: TemplateFormattingOptions): string {
     return `*보고서 ID: ${template.reportId} | 생성 시간: ${template.generatedAt.toLocaleString('ko-KR')}*`;
   }
 
-  private generateReportId(roleFilter: string, startDate: Date): string {
+  private generateReportId(startDate: Date): string {
     const timestamp = Date.now().toString(36);
-    const roleHash = roleFilter.replace(/[^a-zA-Z0-9]/g, '').substring(0, 4);
     const dateHash = startDate.getTime().toString(36).substring(-4);
-    return `TMPL_${roleHash}_${dateHash}_${timestamp}`.toUpperCase();
+    return `TMPL_${dateHash}_${timestamp}`.toUpperCase();
   }
 
   private alignText(text: string, width: number, alignment: 'left' | 'center' | 'right'): string {

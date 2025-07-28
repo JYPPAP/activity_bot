@@ -90,9 +90,10 @@ export interface IUserClassificationService {
   /**
    * 역할 설정 가져오기
    * @param role - 역할 이름
+   * @param guildId - 길드 ID
    * @returns 역할 설정 객체
    */
-  getRoleSettings(role: string): Promise<RoleSettings>;
+  getRoleSettings(role: string, guildId: string): Promise<RoleSettings>;
 
   /**
    * 사용자 활동 동향 분석
