@@ -13,7 +13,7 @@
     "dev:build": "dotenv -e .env.development npm run build",
     "dev:start": "dotenv -e .env.development npm run start",
     "dev:pm2": "pm2 start ecosystem-termux.config.cjs --only discord-bot-dev --env development",
-    "start:prod": "dotenv -e .env.production npm run build && pm2 start ecosystem-termux.config.cjs --only discord-bot --env production",
+    "start:prod": "dotenv -e .env.production npm run build && pm2 start ecosystem-termux.config.cjs --only discord-bot --env production && pm2 logs discord-bot",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
