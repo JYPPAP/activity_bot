@@ -24,6 +24,11 @@ export interface UserActivityData {
   totalTime: number;
   afkUntil?: Date | number;
   isAfk?: boolean;
+  // 비례 계산 관련 필드
+  joinedAt?: number;
+  adjustedMinTime?: number;
+  activityPeriodRatio?: number;
+  isProportionalApplied?: boolean;
 }
 
 export interface ActivityEmbedsData {
@@ -149,10 +154,19 @@ export class EmbedFactory {
       ? [...users].sort((a, b) => b.totalTime - a.totalTime)
       : users;
 
+    // 비례 계산 적용 사용자 확인
+    const proportionalUsers = sortedUsers.filter((user) => user.isProportionalApplied);
+
+    // 임베드 설명 생성
+    let description = `최소 활동 시간: ${minActivityTime}시간`;
+    if (proportionalUsers.length > 0) {
+      description += `\n\n⚖️ **중간 가입자 비례 계산 적용됨** (${proportionalUsers.length}명)\n평가 기간 중 가입한 멤버는 가입일부터 계산하여 기준 시간이 조정됩니다.`;
+    }
+
     // 임베드 생성
     const embed = new EmbedBuilder()
       .setTitle(`📊 ${cleanRoleName(role)} 역할 활동 보고서 (${startDateStr} ~ ${endDateStr})`)
-      .setDescription(`최소 활동 시간: ${minActivityTime}시간`)
+      .setDescription(description)
       .setColor(type === 'active' ? COLORS.ACTIVE : COLORS.INACTIVE);
 
     // 상태별 헤더 추가
@@ -166,8 +180,31 @@ export class EmbedFactory {
 
     // 데이터 표시
     if (sortedUsers.length > 0) {
-      const names = sortedUsers.map((user) => user.nickname || user.userId);
-      const times = sortedUsers.map((user) => formatTime(user.totalTime));
+      const names = sortedUsers.map((user) => {
+        let displayName = user.nickname || user.userId;
+
+        // 비례 계산이 적용된 경우 표시
+        if (user.isProportionalApplied && user.joinedAt) {
+          const joinedDate = new Date(user.joinedAt);
+          const month = joinedDate.getMonth() + 1;
+          const day = joinedDate.getDate();
+          displayName += ` (${month}/${day} 가입)`;
+        }
+
+        return displayName;
+      });
+
+      const times = sortedUsers.map((user) => {
+        let timeDisplay = formatTime(user.totalTime);
+
+        // 비례 계산이 적용된 경우 조정된 기준 표시
+        if (user.isProportionalApplied && user.adjustedMinTime) {
+          const adjustedHours = (user.adjustedMinTime / (60 * 60 * 1000)).toFixed(1);
+          timeDisplay += ` [기준: ${adjustedHours}시간]`;
+        }
+
+        return timeDisplay;
+      });
 
       // 필드 길이 제한 적용
       const nameField = this.limitFieldLength(
@@ -211,13 +248,7 @@ export class EmbedFactory {
     data: ActivityEmbedsData,
     options: ActivityEmbedOptions = {}
   ): EmbedBuilder[] {
-    const {
-      activeUsers,
-      inactiveUsers,
-      afkUsers = [],
-      startDate,
-      endDate,
-    } = data;
+    const { activeUsers, inactiveUsers, afkUsers = [], startDate, endDate } = data;
 
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
 
@@ -634,10 +665,19 @@ export class EmbedFactory {
   }): EmbedBuilder {
     const { title, description, users, options } = params;
 
+    // 비례 계산 적용 사용자 확인
+    const proportionalUsers = users.filter((user) => user.isProportionalApplied);
+    
+    // 설명에 비례 계산 안내 추가
+    let finalDescription = description;
+    if (proportionalUsers.length > 0) {
+      finalDescription += `\n\n⚖️ **중간 가입자 비례 계산 적용됨** (${proportionalUsers.length}명)\n평가 기간 중 가입한 멤버는 가입일부터 계산하여 기준 시간이 조정됩니다.`;
+    }
+
     const embed = new EmbedBuilder()
       .setColor(COLORS.SLEEP)
       .setTitle(title)
-      .setDescription(description);
+      .setDescription(finalDescription);
 
     embed.addFields({
       name: `💤 잠수 중인 멤버 (${users.length}명)`,
@@ -645,8 +685,32 @@ export class EmbedFactory {
     });
 
     if (users.length > 0) {
-      const names = users.map((user) => user.nickname || user.userId);
-      const times = users.map((user) => formatTime(user.totalTime));
+      const names = users.map((user) => {
+        let displayName = user.nickname || user.userId;
+        
+        // 비례 계산이 적용된 경우 가입일 표시
+        if (user.isProportionalApplied && user.joinedAt) {
+          const joinedDate = new Date(user.joinedAt);
+          const month = joinedDate.getMonth() + 1;
+          const day = joinedDate.getDate();
+          displayName += ` (${month}/${day} 가입)`;
+        }
+        
+        return displayName;
+      });
+      
+      const times = users.map((user) => {
+        let timeDisplay = formatTime(user.totalTime);
+        
+        // 비례 계산이 적용된 경우 조정된 기준 표시
+        if (user.isProportionalApplied && user.adjustedMinTime) {
+          const adjustedHours = (user.adjustedMinTime / (60 * 60 * 1000)).toFixed(1);
+          timeDisplay += ` [기준: ${adjustedHours}시간]`;
+        }
+        
+        return timeDisplay;
+      });
+      
       const afkUntilDates = users.map((user) =>
         formatSimpleDate(new Date(user.afkUntil || Date.now()))
       );
@@ -688,7 +752,6 @@ export class EmbedFactory {
 
     return embed;
   }
-
 
   /**
    * 필드 길이를 제한합니다.

@@ -7,6 +7,7 @@ import { TextProcessor } from '../utils/TextProcessor.js';
 
 import { FeatureManagerService, Features } from './FeatureManagerService.js';
 import type { ForumPostManager } from './ForumPostManager';
+import type { MappingService } from './MappingService';
 
 // 이모지 반응 통계 인터페이스
 interface EmojiReactionStats {
@@ -69,6 +70,7 @@ interface ForumThreadInfo {
 export class EmojiReactionService {
   private client: Client;
   private forumPostManager?: ForumPostManager;
+  private mappingService?: MappingService;
   private config: EmojiConfig;
   private reactionStats: Map<string, EmojiReactionStats> = new Map();
   private participantCache: Map<string, ParticipantInfo[]> = new Map();
@@ -102,6 +104,14 @@ export class EmojiReactionService {
   }
 
   /**
+   * MappingService 설정
+   * @param mappingService - MappingService 인스턴스
+   */
+  setMappingService(mappingService: MappingService): void {
+    this.mappingService = mappingService;
+  }
+
+  /**
    * 이모지 반응 추가 이벤트 처리
    * @param reaction - 반응 객체
    * @param user - 반응한 사용자
@@ -125,6 +135,15 @@ export class EmojiReactionService {
 
       // 포럼 스레드가 아니면 무시
       if (!this.isForumThread(reaction.message.channel)) {
+        return;
+      }
+
+      // 음성채널과 연동된 포럼 스레드인 경우 이모지 반응 차단
+      const isVoiceIntegrated = await this.isVoiceChannelIntegrated(reaction.message.channel.id);
+      if (isVoiceIntegrated) {
+        console.log(
+          `[EmojiReactionService] 음성채널 연동된 포럼에서 이모지 반응 차단: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'Unknown'}`
+        );
         return;
       }
 
@@ -182,6 +201,15 @@ export class EmojiReactionService {
 
       // 포럼 스레드가 아니면 무시
       if (!this.isForumThread(reaction.message.channel)) {
+        return;
+      }
+
+      // 음성채널과 연동된 포럼 스레드인 경우 이모지 반응 차단
+      const isVoiceIntegrated = await this.isVoiceChannelIntegrated(reaction.message.channel.id);
+      if (isVoiceIntegrated) {
+        console.log(
+          `[EmojiReactionService] 음성채널 연동된 포럼에서 이모지 반응 제거 차단: ${user.displayName || user.username} in ${'name' in reaction.message.channel ? reaction.message.channel.name : 'Unknown'}`
+        );
         return;
       }
 
@@ -254,6 +282,26 @@ export class EmojiReactionService {
       channel.parent !== null &&
       channel.parent.type === ChannelType.GuildForum
     );
+  }
+
+  /**
+   * 음성채널과 연동된 포럼 스레드인지 확인
+   * @param channelId - 포럼 스레드 ID
+   * @returns 음성채널 연동 여부
+   */
+  private async isVoiceChannelIntegrated(channelId: string): Promise<boolean> {
+    try {
+      if (!this.mappingService) {
+        return false;
+      }
+
+      // MappingService를 통해 해당 포럼 스레드가 음성채널과 매핑되어 있는지 확인
+      const mappingDetails = await this.mappingService.getMappingDetails(channelId);
+      return mappingDetails !== null && mappingDetails.isValid;
+    } catch (error) {
+      console.warn(`[EmojiReactionService] 음성채널 연동 확인 실패: ${channelId}`, error);
+      return false;
+    }
   }
 
   /**

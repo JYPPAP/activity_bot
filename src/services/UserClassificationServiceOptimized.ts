@@ -154,19 +154,39 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
       for (const [userId, member] of guildMembers.entries()) {
         const totalTime = activityMap.get(userId) || 0;
         
+        // 비례 계산 적용
+        const proportionalResult = this.calculateProportionalMinTime(
+          member,
+          minActivityTime,
+          startOfDay,
+          endOfDay
+        );
+        
         const userData: UserData = {
           userId,
           nickname: member.displayName,
           totalTime,
+          adjustedMinTime: proportionalResult.adjustedMinTime,
+          activityPeriodRatio: proportionalResult.activityPeriodRatio,
+          isProportionalApplied: proportionalResult.isProportionalApplied,
         };
+
+        // joinedAt은 존재하는 경우에만 추가
+        if (member.joinedTimestamp) {
+          userData.joinedAt = member.joinedTimestamp;
+        }
 
         // 잠수 역할 확인
         if (this.hasAfkRole(member)) {
           const userWithAfkStatus = await this.processAfkUser(userId, member, userData);
+          // 잠수 사용자에게도 비례 계산 정보 적용
+          userWithAfkStatus.adjustedMinTime = proportionalResult.adjustedMinTime;
+          userWithAfkStatus.activityPeriodRatio = proportionalResult.activityPeriodRatio;
+          userWithAfkStatus.isProportionalApplied = proportionalResult.isProportionalApplied;
           afkUsers.push(userWithAfkStatus);
         } else {
-          // 활성/비활성 분류
-          this.classifyUserByActivityTime(userData, minActivityTime, activeUsers, inactiveUsers);
+          // 활성/비활성 분류 - 비례 계산된 기준 시간 사용
+          this.classifyUserByActivityTime(userData, proportionalResult.adjustedMinTime, activeUsers, inactiveUsers);
         }
       }
 
@@ -387,6 +407,75 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
     activeUsers.sort(sortByTime);
     inactiveUsers.sort(sortByTime);
     afkUsers.sort(sortByTime);
+  }
+
+  /**
+   * 비례 계산된 최소 활동 시간 계산
+   * @param member - 길드 멤버
+   * @param minActivityTime - 기본 최소 활동 시간 (밀리초)
+   * @param startDate - 평가 기간 시작일
+   * @param endDate - 평가 기간 종료일
+   * @returns 조정된 최소 활동 시간과 관련 정보
+   */
+  private calculateProportionalMinTime(
+    member: GuildMember,
+    minActivityTime: number,
+    startDate: Date,
+    endDate: Date
+  ): {
+    adjustedMinTime: number;
+    activityPeriodRatio: number;
+    isProportionalApplied: boolean;
+  } {
+    // 멤버의 서버 가입일
+    const joinedTimestamp = member.joinedTimestamp;
+    if (!joinedTimestamp) {
+      return {
+        adjustedMinTime: minActivityTime,
+        activityPeriodRatio: 1,
+        isProportionalApplied: false,
+      };
+    }
+
+    const joinedDate = new Date(joinedTimestamp);
+    
+    // 평가 기간 시작일보다 먼저 가입한 경우 비례 계산 불필요
+    if (joinedDate <= startDate) {
+      return {
+        adjustedMinTime: minActivityTime,
+        activityPeriodRatio: 1,
+        isProportionalApplied: false,
+      };
+    }
+
+    // 평가 기간 종료일 이후 가입한 경우 (일반적으로 발생하지 않음)
+    if (joinedDate >= endDate) {
+      return {
+        adjustedMinTime: 0,
+        activityPeriodRatio: 0,
+        isProportionalApplied: true,
+      };
+    }
+
+    // 전체 평가 기간 (밀리초)
+    const totalPeriod = endDate.getTime() - startDate.getTime();
+    
+    // 실제 활동 가능 기간 (밀리초)
+    const actualPeriod = endDate.getTime() - joinedDate.getTime();
+    
+    // 활동 가능 기간 비율 계산
+    const activityPeriodRatio = actualPeriod / totalPeriod;
+    
+    // 조정된 최소 활동 시간 계산
+    const adjustedMinTime = Math.ceil(minActivityTime * activityPeriodRatio);
+
+    console.log(`[분류-비례계산] 사용자 ${member.displayName} - 가입일: ${joinedDate.toISOString()}, 비율: ${(activityPeriodRatio * 100).toFixed(1)}%, 조정된 기준: ${(adjustedMinTime / (60 * 60 * 1000)).toFixed(1)}시간`);
+
+    return {
+      adjustedMinTime,
+      activityPeriodRatio,
+      isProportionalApplied: true,
+    };
   }
 
   /**

@@ -11,6 +11,10 @@ export interface UserData {
   lastActivity?: number;
   roles?: string[];
   averageSessionTime?: number;
+  // 비례 계산 관련 필드
+  adjustedMinTime?: number;       // 조정된 기준 시간 (밀리초)
+  activityPeriodRatio?: number;   // 활동 가능 기간 비율 (0-1)
+  isProportionalApplied?: boolean; // 비례 계산 적용 여부
 }
 
 // 역할 설정 인터페이스

@@ -218,6 +218,9 @@ export class Bot {
 
       // EmojiReactionService에 ForumPostManager 주입
       emojiReactionService.setForumPostManager(voiceForumService.forumPostManager);
+      
+      // EmojiReactionService에 MappingService 주입
+      emojiReactionService.setMappingService(voiceForumService.mappingService);
 
       // CommandHandler에 VoiceChannelForumIntegrationService 주입
       (commandHandler as any).setVoiceForumService(voiceForumService);
