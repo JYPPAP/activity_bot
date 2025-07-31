@@ -120,13 +120,13 @@ export class SettingsCommand extends CommandBase {
       const currentSettings = await this.guildSettingsManager.getAllGuildSettings(guildId);
 
       // 메인 설정 관리 Embed 생성
-      const mainEmbed = this.createMainSettingsEmbed(interaction.guild.name, currentSettings);
+      const mainEmbed = await this.createMainSettingsEmbed(interaction.guild.name, currentSettings, guildId);
 
       // 4개의 메인 설정 카테고리 버튼 생성
       const actionRow1 = new ActionRowBuilder<ButtonBuilder>().addComponents(
         new ButtonBuilder()
-          .setCustomId('settings_activity_time')
-          .setLabel('🕐 활동시간 지정')
+          .setCustomId('settings_activity_threshold')
+          .setLabel('🕐 활동시간 설정')
           .setStyle(ButtonStyle.Primary),
         new ButtonBuilder()
           .setCustomId('settings_game_list')
@@ -183,8 +183,9 @@ export class SettingsCommand extends CommandBase {
    * 메인 설정 관리 Embed 생성
    * @param guildName - 길드 이름
    * @param currentSettings - 현재 설정 상태
+   * @param guildId - 길드 ID
    */
-  private createMainSettingsEmbed(guildName: string, currentSettings: any): EmbedBuilder {
+  private async createMainSettingsEmbed(guildName: string, currentSettings: any, guildId: string): Promise<EmbedBuilder> {
     const embed = new EmbedBuilder()
       .setTitle('⚙️ 서버 설정 관리')
       .setColor(Colors.Blue)
@@ -193,6 +194,9 @@ export class SettingsCommand extends CommandBase {
       )
       .setTimestamp()
       .setFooter({ text: '서버 설정 관리 시스템' });
+
+    // 현재 길드 활동 임계값 조회
+    const currentThresholdHours = await this.guildSettingsManager.getGuildActivityThresholdHours(guildId);
 
     // 현재 설정 상태 표시
     const roleActivityCount = Object.keys(currentSettings.roleActivity || {}).length;
@@ -204,8 +208,8 @@ export class SettingsCommand extends CommandBase {
 
     embed.addFields(
       {
-        name: '🕐 활동시간 지정',
-        value: `• 역할별 최소 활동 시간 설정\n• 현재 설정: **${roleActivityCount}개 역할**\n• 길드별 분류 저장`,
+        name: '🕐 활동시간 설정',
+        value: `• 길드 전역 활동 시간 임계값 설정\n• 현재 임계값: **${currentThresholdHours}시간** (수정 가능)\n• 모든 멤버에게 공통 적용`,
         inline: true,
       },
       {
@@ -298,7 +302,7 @@ export class SettingsCommand extends CommandBase {
 • 관리자 권한이 필요합니다.
 
 **주요 기능:**
-• 🕐 **활동시간 지정**: 역할별 최소 활동시간 설정
+• 🕐 **활동시간 설정**: 길드 전역 활동 시간 임계값 설정
 • 🎮 **게임 목록 설정**: 게임 태그 목록 관리 (콤마 구분)
 • 🚫 **제외 채널 지정**: 활동 추적 제외 채널 설정
 • ⚙️ **관리 채널 지정**: 보고서, 로그, 구인구직, 게임 채널 관리
@@ -329,7 +333,204 @@ export class SettingsCommand extends CommandBase {
   }
 
   // ==========================================
-  // 활동시간 관리 Modal 및 핸들러
+  // 활동시간 임계값 설정 Modal 및 핸들러
+  // ==========================================
+
+  /**
+   * 활동시간 임계값 설정 버튼 처리
+   * @param interaction - 버튼 상호작용 객체
+   */
+  async handleActivityThresholdButton(interaction: ButtonInteraction): Promise<void> {
+    try {
+      const guildId = interaction.guild?.id;
+      if (!guildId) {
+        throw new Error('길드 정보를 찾을 수 없습니다.');
+      }
+
+      // 현재 설정된 길드 전역 활동 임계값 조회
+      const currentThresholdHours = await this.guildSettingsManager.getGuildActivityThresholdHours(guildId);
+      
+      await this.showActivityThresholdModal(interaction, currentThresholdHours);
+    } catch (error) {
+      console.error('활동시간 임계값 버튼 처리 오류:', error);
+      const errorEmbed = this.createErrorEmbed('활동시간 임계값 설정을 불러오는 중 오류가 발생했습니다.');
+      await interaction.followUp({
+        embeds: [errorEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+
+  /**
+   * 활동시간 임계값 Modal 표시
+   * @param interaction - 상호작용 객체
+   * @param currentHours - 현재 임계값 시간
+   */
+  private async showActivityThresholdModal(
+    interaction: ButtonInteraction,
+    currentHours: number
+  ): Promise<void> {
+    const modal = new ModalBuilder()
+      .setCustomId('activity_threshold_modal')
+      .setTitle('⚙️ 길드 활동시간 임계값 설정');
+
+    // 임계값 입력
+    const thresholdInput = new TextInputBuilder()
+      .setCustomId('threshold_hours')
+      .setLabel('활동시간 임계값 (시간 단위)')
+      .setStyle(TextInputStyle.Short)
+      .setRequired(true)
+      .setMinLength(1)
+      .setMaxLength(3)
+      .setValue(currentHours.toString())
+      .setPlaceholder('예: 30');
+
+    // 설명 입력 (선택사항)
+    const descriptionInput = new TextInputBuilder()
+      .setCustomId('description')
+      .setLabel('변경 사유 (선택사항)')
+      .setStyle(TextInputStyle.Paragraph)
+      .setRequired(false)
+      .setMaxLength(200)
+      .setPlaceholder('임계값 변경 사유를 입력하세요. (선택사항)');
+
+    // ActionRow에 입력 필드들 추가
+    const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(thresholdInput);
+    const secondActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
+
+    modal.addComponents(firstActionRow, secondActionRow);
+
+    await interaction.showModal(modal);
+  }
+
+  /**
+   * 활동시간 임계값 Modal 제출 처리
+   * @param interaction - Modal 제출 상호작용 객체
+   */
+  async handleActivityThresholdModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+    try {
+      const guildId = interaction.guild?.id;
+      if (!guildId) {
+        throw new Error('길드 정보를 찾을 수 없습니다.');
+      }
+
+      const thresholdHoursInput = interaction.fields.getTextInputValue('threshold_hours').trim();
+      const description = interaction.fields.getTextInputValue('description')?.trim() || '';
+
+      // 입력 검증
+      if (!thresholdHoursInput) {
+        throw new Error('활동시간 임계값을 입력해야 합니다.');
+      }
+
+      const thresholdHours = parseInt(thresholdHoursInput);
+      if (isNaN(thresholdHours) || thresholdHours < 1 || thresholdHours > 168) {
+        throw new Error('임계값은 1~168 사이의 숫자여야 합니다.');
+      }
+
+      // 데이터베이스에 저장
+      const result = await this.guildSettingsManager.setGuildActivityThreshold(
+        guildId,
+        thresholdHours,
+        interaction.user.id,
+        interaction.user.displayName
+      );
+
+      if (!result.isValid) {
+        throw new Error(result.error || '활동시간 임계값 저장에 실패했습니다.');
+      }
+
+      // 성공 응답
+      const successEmbed = this.createActivityThresholdSuccessEmbed(
+        thresholdHours,
+        description,
+        result.warnings
+      );
+
+      await interaction.reply({
+        embeds: [successEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
+
+    } catch (error) {
+      console.error('활동시간 임계값 Modal 제출 처리 오류:', error);
+
+      const errorMessage =
+        error instanceof Error ? error.message : '활동시간 임계값 저장 중 오류가 발생했습니다.';
+      const errorEmbed = this.createErrorEmbed(errorMessage);
+
+      await interaction.reply({
+        embeds: [errorEmbed],
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+
+  /**
+   * 활동시간 임계값 설정 성공 Embed 생성
+   * @param thresholdHours - 설정된 임계값 시간
+   * @param description - 변경 사유
+   * @param warnings - 경고 메시지들
+   */
+  private createActivityThresholdSuccessEmbed(
+    thresholdHours: number,
+    description?: string,
+    warnings?: string[]
+  ): EmbedBuilder {
+    const embed = new EmbedBuilder()
+      .setTitle('✅ 활동시간 임계값 설정 완료')
+      .setColor(warnings && warnings.length > 0 ? Colors.Orange : Colors.Green)
+      .addFields(
+        {
+          name: '⏰ 새로운 임계값',
+          value: `**${thresholdHours}시간**`,
+          inline: true,
+        },
+        {
+          name: '🎯 적용 대상',
+          value: '길드 전체 멤버',
+          inline: true,
+        },
+        {
+          name: '🔄 적용 시점',
+          value: '즉시 적용',
+          inline: true,
+        }
+      )
+      .setTimestamp()
+      .setFooter({ text: '활동시간 임계값이 성공적으로 변경되었습니다.' });
+
+    // 변경 사유가 있으면 추가
+    if (description) {
+      embed.addFields({
+        name: '📄 변경 사유',
+        value: description,
+        inline: false,
+      });
+    }
+
+    // 경고사항이 있으면 추가
+    if (warnings && warnings.length > 0) {
+      embed.addFields({
+        name: '⚠️ 경고사항',
+        value: warnings.map((w) => `• ${w}`).join('\n'),
+        inline: false,
+      });
+    }
+
+    embed.addFields({
+      name: '💡 적용 효과',
+      value: 
+        `• 모든 활동 보고서에서 **${thresholdHours}시간**을 기준으로 활성/비활성 분류\n` +
+        '• 기존 역할별 설정보다 우선 적용됨\n' +
+        '• 비례 계산 시에도 이 임계값이 기준으로 사용됨',
+      inline: false,
+    });
+
+    return embed;
+  }
+
+  // ==========================================
+  // 활동시간 관리 Modal 및 핸들러 (기존 역할 기반)
   // ==========================================
 
   /**

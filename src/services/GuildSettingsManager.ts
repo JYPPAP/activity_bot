@@ -80,6 +80,14 @@ export interface MonthlyActivityClassification {
   displayOrder: number;
 }
 
+export interface GuildActivityThreshold {
+  guildId: string;
+  thresholdHours: number;
+  description?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
 /**
  * 길드별 설정 관리 서비스
  */
@@ -1469,6 +1477,238 @@ export class GuildSettingsManager {
       return {
         isValid: false,
         error: '분류 카테고리 삭제 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  // =====================================================
+  // 길드 전역 활동 임계값 관리 메서드들
+  // =====================================================
+
+  /**
+   * 길드의 전역 활동 임계값 설정
+   * @param guildId - 길드 ID
+   * @param thresholdHours - 임계값 (시간 단위)
+   * @param userId - 설정한 사용자 ID
+   * @param userName - 설정한 사용자 이름
+   * @param description - 설정 설명 (선택사항)
+   * @returns 설정 결과
+   */
+  async setGuildActivityThreshold(
+    guildId: string,
+    thresholdHours: number,
+    userId: string,
+    userName: string,
+    description?: string
+  ): Promise<ValidationResult> {
+    try {
+      // 입력 검증
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return guildValidation;
+
+      const hoursValidation = SecurityValidator.validateHours(thresholdHours);
+      if (!hoursValidation.isValid) return hoursValidation;
+
+      const userValidation = SecurityValidator.validateUserId(userId);
+      if (!userValidation.isValid) return userValidation;
+
+      // 기존 설정 조회
+      const existingSetting = await this.getGuildActivityThreshold(guildId);
+
+      // 설정 데이터 생성
+      const currentTime = Date.now();
+      const settingData: GuildActivityThreshold = {
+        guildId,
+        thresholdHours: hoursValidation.sanitizedValue,
+        description: description || `길드 전역 활동 임계값: ${hoursValidation.sanitizedValue}시간`,
+        ...(existingSetting && { createdAt: existingSetting.createdAt }),
+        updatedAt: new Date(currentTime),
+      };
+
+      // 데이터베이스 저장
+      await this.dbManager.run(
+        `
+        INSERT INTO guild_settings 
+        (guild_id, setting_type, setting_key, setting_value) 
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (guild_id, setting_type, setting_key) 
+        DO UPDATE SET 
+          setting_value = EXCLUDED.setting_value
+      `,
+        [guildId, 'guild_activity_threshold', 'threshold', JSON.stringify(settingData)]
+      );
+
+      // 감사 로그 기록
+      await this.logSettingChange({
+        guildId,
+        userId,
+        userName,
+        action: existingSetting ? 'UPDATE' : 'CREATE',
+        settingType: 'guild_activity_threshold',
+        settingKey: 'threshold',
+        oldValue: existingSetting,
+        newValue: settingData,
+        timestamp: currentTime,
+      });
+
+      logger.info('[GuildSettingsManager] 길드 전역 활동 임계값 설정 완료', {
+        guildId,
+        thresholdHours: hoursValidation.sanitizedValue,
+        userId,
+        userName,
+      } as any);
+
+      const result: ValidationResult = {
+        isValid: true,
+        sanitizedValue: settingData,
+      };
+
+      if (hoursValidation.warnings) {
+        result.warnings = hoursValidation.warnings;
+      }
+
+      return result;
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 길드 전역 활동 임계값 설정 실패:', error as any);
+      return {
+        isValid: false,
+        error: '길드 활동 임계값 설정 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /**
+   * 길드의 전역 활동 임계값 조회
+   * @param guildId - 길드 ID
+   * @returns 설정된 임계값 정보 또는 null (기본값: 30시간)
+   */
+  async getGuildActivityThreshold(guildId: string): Promise<GuildActivityThreshold | null> {
+    try {
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return null;
+
+      const row = await this.dbManager.get(
+        `
+        SELECT setting_value FROM guild_settings 
+        WHERE guild_id = $1 AND setting_type = $2 AND setting_key = $3
+      `,
+        [guildId, 'guild_activity_threshold', 'threshold']
+      );
+
+      if (!row || !row.setting_value) {
+        // 기본값 반환: 30시간
+        return {
+          guildId,
+          thresholdHours: 30,
+          description: '기본 길드 활동 임계값 (30시간)',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
+
+      return JSON.parse(row.setting_value) as GuildActivityThreshold;
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 길드 전역 활동 임계값 조회 실패:', error as any);
+      // 오류 시에도 기본값 반환
+      return {
+        guildId,
+        thresholdHours: 30,
+        description: '기본 길드 활동 임계값 (30시간) - 오류로 인한 기본값',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+    }
+  }
+
+  /**
+   * 길드의 전역 활동 임계값을 시간 단위로 간단 조회
+   * @param guildId - 길드 ID
+   * @returns 임계값 (시간 단위, 기본값: 30)
+   */
+  async getGuildActivityThresholdHours(guildId: string): Promise<number> {
+    try {
+      const threshold = await this.getGuildActivityThreshold(guildId);
+      return threshold ? threshold.thresholdHours : 30;
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 길드 활동 임계값 시간 조회 실패:', error as any);
+      return 30; // 기본값
+    }
+  }
+
+  /**
+   * 길드의 전역 활동 임계값 삭제 (기본값으로 되돌리기)
+   * @param guildId - 길드 ID
+   * @param userId - 삭제한 사용자 ID
+   * @param userName - 삭제한 사용자 이름
+   * @returns 삭제 결과
+   */
+  async removeGuildActivityThreshold(
+    guildId: string,
+    userId: string = 'system',
+    userName: string = 'System'
+  ): Promise<ValidationResult> {
+    try {
+      // 입력 검증
+      const guildValidation = SecurityValidator.validateGuildId(guildId);
+      if (!guildValidation.isValid) return guildValidation;
+
+      const userValidation = SecurityValidator.validateUserId(userId);
+      if (!userValidation.isValid) return userValidation;
+
+      // 기존 설정 존재 확인
+      const existingSetting = await this.getGuildActivityThreshold(guildId);
+      if (!existingSetting || existingSetting.thresholdHours === 30) {
+        return {
+          isValid: true,
+          sanitizedValue: true,
+          warnings: ['이미 기본값(30시간)으로 설정되어 있습니다.'],
+        };
+      }
+
+      // 데이터베이스에서 삭제
+      const result = await this.dbManager.run(
+        `
+        DELETE FROM guild_settings 
+        WHERE guild_id = $1 AND setting_type = $2 AND setting_key = $3
+      `,
+        [guildId, 'guild_activity_threshold', 'threshold']
+      );
+
+      if (result.changes === 0) {
+        return {
+          isValid: false,
+          error: '길드 활동 임계값 삭제에 실패했습니다.',
+        };
+      }
+
+      // 감사 로그 기록
+      await this.logSettingChange({
+        guildId,
+        userId,
+        userName,
+        action: 'DELETE',
+        settingType: 'guild_activity_threshold',
+        settingKey: 'threshold',
+        oldValue: existingSetting,
+        newValue: null,
+        timestamp: Date.now(),
+      });
+
+      logger.info('[GuildSettingsManager] 길드 전역 활동 임계값 삭제 완료 (기본값으로 복원)', {
+        guildId,
+        userId,
+        userName,
+      } as any);
+
+      return {
+        isValid: true,
+        sanitizedValue: true,
+      };
+    } catch (error) {
+      logger.error('[GuildSettingsManager] 길드 전역 활동 임계값 삭제 실패:', error as any);
+      return {
+        isValid: false,
+        error: '길드 활동 임계값 삭제 중 오류가 발생했습니다.',
       };
     }
   }

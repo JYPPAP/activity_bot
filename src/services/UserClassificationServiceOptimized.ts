@@ -283,30 +283,34 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
   }
 
   /**
-   * 전체 길드 설정 가져오기
+   * 전체 길드 설정 가져오기 - 길드 전역 활동 임계값 사용
    */
   private async getGuildSettings(guildId: string): Promise<{
     minActivityTime: number;
     reportCycle?: string;
   }> {
     try {
-      // 전체 길드에 대한 기본 설정 사용 (4시간)
-      console.log(`[분류-최적화] 전체 길드 기본 설정 사용: ${guildId}`);
+      // 길드 전역 활동 임계값 조회 (기본값: 30시간)
+      console.log(`[분류-최적화] 길드 전역 활동 임계값 조회 시작: ${guildId}`);
+      const thresholdHours = await this.guildSettingsManager.getGuildActivityThresholdHours(guildId);
+      console.log(`[분류-최적화] 길드 전역 활동 임계값: ${thresholdHours}시간`);
+      
       return {
-        minActivityTime: 4 * 60 * 60 * 1000, // 기본 4시간
+        minActivityTime: thresholdHours * 60 * 60 * 1000, // DB에서 가져온 임계값
         reportCycle: 'weekly'
       };
     } catch (error) {
       console.error(`[분류-최적화] 길드 설정 조회 실패: ${guildId}`, error);
+      // 오류 시 기본값 30시간 사용
       return {
-        minActivityTime: 4 * 60 * 60 * 1000,
+        minActivityTime: 30 * 60 * 60 * 1000, // 기본 30시간
         reportCycle: 'weekly'
       };
     }
   }
 
   /**
-   * 역할 설정 가져오기 (기존 호환성용)
+   * 역할 설정 가져오기 (기존 호환성용) - 길드 전역 임계값 기반
    */
   async getRoleSettings(role: string, guildId: string): Promise<{
     minActivityTime: number;
@@ -317,26 +321,39 @@ export class UserClassificationServiceOptimized implements IUserClassificationSe
       const roleConfig = await this.guildSettingsManager.getRoleActivityTime(guildId, role);
       
       if (!roleConfig) {
-        console.warn(`[분류-최적화] 역할 설정 없음: ${role}, 기본값 사용`);
+        console.warn(`[분류-최적화] 역할 설정 없음: ${role}, 길드 전역 임계값 사용`);
+        // 역할 설정이 없는 경우 길드 전역 임계값 사용
+        const thresholdHours = await this.guildSettingsManager.getGuildActivityThresholdHours(guildId);
         return {
-          minActivityTime: 4 * 60 * 60 * 1000, // 기본 4시간
+          minActivityTime: thresholdHours * 60 * 60 * 1000, // 길드 전역 임계값
           resetTime: null,
           reportCycle: 'weekly'
         };
       }
 
       return {
-        minActivityTime: (roleConfig.minHours || 4) * 60 * 60 * 1000,
+        minActivityTime: (roleConfig.minHours || 30) * 60 * 60 * 1000, // 기본값을 30시간으로 변경
         resetTime: null,
         reportCycle: 'weekly' // TODO: roleConfig에서 가져오도록 개선
       };
     } catch (error) {
       console.error(`[분류-최적화] 역할 설정 조회 실패: ${role}`, error);
-      return {
-        minActivityTime: 4 * 60 * 60 * 1000,
-        resetTime: null,
-        reportCycle: 'weekly'
-      };
+      // 오류 시 길드 전역 임계값 사용
+      try {
+        const thresholdHours = await this.guildSettingsManager.getGuildActivityThresholdHours(guildId);
+        return {
+          minActivityTime: thresholdHours * 60 * 60 * 1000,
+          resetTime: null,
+          reportCycle: 'weekly'
+        };
+      } catch (fallbackError) {
+        console.error(`[분류-최적화] 길드 전역 임계값 조회도 실패, 기본값 사용:`, fallbackError);
+        return {
+          minActivityTime: 30 * 60 * 60 * 1000, // 최종 기본값 30시간
+          resetTime: null,
+          reportCycle: 'weekly'
+        };
+      }
     }
   }
 
