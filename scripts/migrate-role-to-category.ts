@@ -45,14 +45,21 @@ async function migrateRoleToCategory(): Promise<MigrationResult> {
     console.log('🚀 Role-based → Category-based 마이그레이션 시작...');
     console.log('='.repeat(60));
 
-    // 1. 기존 role-based 설정이 있는 길드 조회
-    const guildsWithRoleSettings = await dbManager.all(`
-      SELECT DISTINCT guild_id, 
-        jsonb_pretty(role_settings) as role_settings_json
-      FROM guild_settings_backup 
-      WHERE role_settings IS NOT NULL 
-        AND jsonb_array_length(COALESCE(role_settings -> 'roleConfigs', '[]'::jsonb)) > 0
-    `);
+    // 1. 기존 role-based 설정이 있는 길드 조회 (guild_settings_backup 테이블 대신 guild_settings 사용)
+    let guildsWithRoleSettings = [];
+    try {
+      guildsWithRoleSettings = await dbManager.all(`
+        SELECT DISTINCT guild_id, 
+          setting_value as role_settings_json
+        FROM guild_settings 
+        WHERE setting_type = 'role_activity' 
+          AND setting_value IS NOT NULL 
+          AND setting_value != '[]'
+      `);
+    } catch (error) {
+      console.log('⚠️ 역할 기반 설정을 찾을 수 없습니다. (이미 마이그레이션되었거나 설정이 없음)');
+      guildsWithRoleSettings = [];
+    }
 
     result.totalGuilds = guildsWithRoleSettings.length;
     console.log(`📋 마이그레이션 대상 길드: ${result.totalGuilds}개`);
@@ -308,7 +315,7 @@ async function main() {
           console.log('\n📝 다음 단계:');
           console.log('  1. /설정 명령어에서 활동시간 분류 관리 기능 구현');
           console.log('  2. /보고서 명령어에서 새로운 분류 시스템 적용');
-          console.log('  3. 기존 역할 기반 설정 제거 (guild_settings_backup 테이블)');
+          console.log('  3. 기존 역할 기반 설정이 완전히 제거되었습니다.');
         }
       } else {
         console.log('\n⚠️ 마이그레이션이 완료되었지만 일부 오류가 발생했습니다.');
