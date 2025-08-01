@@ -538,43 +538,24 @@ export class SettingsCommand extends CommandBase {
    * @param interaction - 버튼 상호작용 객체
    */
   async handleActivityTimeButton(interaction: ButtonInteraction): Promise<void> {
-    try {
-      const guildId = interaction.guild?.id;
-      if (!guildId) {
-        throw new Error('길드 정보를 찾을 수 없습니다.');
-      }
-
-      // 현재 설정된 역할들 조회
-      const roleActivitySettings = await this.guildSettingsManager.getAllRoleActivityTimes(guildId);
-      const existingRoles = Object.keys(roleActivitySettings);
-
-      // 역할이 있으면 선택 인터페이스, 없으면 바로 추가 Modal
-      if (existingRoles.length > 0) {
-        await this.showActivityTimeSelectionInterface(
-          interaction,
-          existingRoles,
-          roleActivitySettings
-        );
-      } else {
-        await this.showActivityTimeModal(interaction, false);
-      }
-    } catch (error) {
-      console.error('활동시간 버튼 처리 오류:', error);
-      const errorEmbed = this.createErrorEmbed('활동시간 설정을 불러오는 중 오류가 발생했습니다.');
-      await interaction.followUp({
-        embeds: [errorEmbed],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    // 기존 역할별 관리 → 활동시간 설정으로 리다이렉트
+    await this.handleActivityThresholdButton(interaction);
   }
 
+  /*
+   * ============================================
+   * 아래 메서드들은 역할별 활동시간 시스템에서 사용되던 것들입니다.
+   * 길드 전역 임계값 시스템으로 전환되면서 더 이상 사용되지 않습니다.
+   * ============================================
+   */
+
   /**
-   * 활동시간 역할 선택 인터페이스 표시
+   * 활동시간 역할 선택 인터페이스 표시 (사용 안함)
    * @param interaction - 상호작용 객체
    * @param existingRoles - 기존 역할 목록
    * @param settings - 현재 설정들
    */
-  private async showActivityTimeSelectionInterface(
+  /*private async showActivityTimeSelectionInterface(
     interaction: ButtonInteraction,
     existingRoles: string[],
     settings: any
@@ -625,213 +606,27 @@ export class SettingsCommand extends CommandBase {
     });
   }
 
-  /**
-   * 활동시간 Modal 표시
-   * @param interaction - 상호작용 객체
-   * @param isEdit - 수정 모드 여부
-   * @param roleName - 수정할 역할명 (수정 모드일 때)
-   * @param currentHours - 현재 시간 (수정 모드일 때)
-   */
-  private async showActivityTimeModal(
-    interaction: ButtonInteraction,
-    isEdit: boolean = false,
-    roleName?: string,
-    currentHours?: number
-  ): Promise<void> {
-    const modal = new ModalBuilder()
-      .setCustomId(isEdit ? 'activity_time_edit_modal' : 'activity_time_add_modal')
-      .setTitle(isEdit ? '✏️ 역할 활동시간 수정' : '🆕 새 역할 활동시간 설정');
-
-    // 역할명 입력 (수정 모드에서는 비활성화)
-    const roleNameInput = new TextInputBuilder()
-      .setCustomId('role_name')
-      .setLabel('역할 이름')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMaxLength(50);
-
-    if (isEdit && roleName) {
-      roleNameInput.setValue(roleName);
-      roleNameInput.setLabel('역할 이름 (수정 불가)');
-    } else {
-      roleNameInput.setPlaceholder('예: 정규멤버, 준회원, 신입회원 등');
-    }
-
-    // 시간 입력
-    const hoursInput = new TextInputBuilder()
-      .setCustomId('min_hours')
-      .setLabel('최소 활동시간 (시간 단위)')
-      .setStyle(TextInputStyle.Short)
-      .setRequired(true)
-      .setMinLength(1)
-      .setMaxLength(3)
-      .setPlaceholder('예: 10');
-
-    if (isEdit && currentHours !== undefined) {
-      hoursInput.setValue(currentHours.toString());
-    }
-
-    // 설명 입력 (선택사항)
-    const descriptionInput = new TextInputBuilder()
-      .setCustomId('description')
-      .setLabel('설명 (선택사항)')
-      .setStyle(TextInputStyle.Paragraph)
-      .setRequired(false)
-      .setMaxLength(200)
-      .setPlaceholder('이 역할에 대한 추가 설명을 입력하세요. (선택사항)');
-
-    // ActionRow에 입력 필드들 추가
-    const firstActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(roleNameInput);
-    const secondActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(hoursInput);
-    const thirdActionRow = new ActionRowBuilder<TextInputBuilder>().addComponents(descriptionInput);
-
-    modal.addComponents(firstActionRow, secondActionRow, thirdActionRow);
-
-    await interaction.showModal(modal);
-  }
+  // DEPRECATED: showActivityTimeModal 메서드 제거됨 - 역할별 활동시간 시스템 제거
 
   /**
-   * 활동시간 역할 삭제 버튼 처리
+   * 활동시간 역할 삭제 버튼 처리 (사용 안함 - 리다이렉트)
    * @param interaction - 버튼 상호작용 객체
    */
   async handleActivityTimeDeleteButton(interaction: ButtonInteraction): Promise<void> {
-    try {
-      const guildId = interaction.guild?.id;
-      if (!guildId) {
-        throw new Error('길드 정보를 찾을 수 없습니다.');
-      }
-
-      // 현재 설정된 역할들 조회
-      const roleActivitySettings = await this.guildSettingsManager.getAllRoleActivityTimes(guildId);
-      const existingRoles = Object.keys(roleActivitySettings);
-
-      if (existingRoles.length === 0) {
-        const embed = new EmbedBuilder()
-          .setTitle('🗑️ 역할 삭제')
-          .setDescription('삭제할 활동시간 역할이 없습니다.')
-          .setColor(0xff9900)
-          .setTimestamp();
-
-        await interaction.reply({
-          embeds: [embed],
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      await this.showRoleDeleteInterface(interaction, existingRoles, roleActivitySettings);
-    } catch (error) {
-      console.error('활동시간 역할 삭제 버튼 처리 오류:', error);
-      const errorEmbed = this.createErrorEmbed(
-        '역할 삭제 인터페이스를 불러오는 중 오류가 발생했습니다.'
-      );
-      await interaction.followUp({
-        embeds: [errorEmbed],
-        flags: MessageFlags.Ephemeral,
-      });
-    }
+    // 역할별 시스템 제거됨 - 활동시간 설정으로 리다이렉트
+    await this.handleActivityThresholdButton(interaction);
   }
 
-  /**
-   * 역할 삭제 인터페이스 표시
-   * @param interaction - 상호작용 객체
-   * @param existingRoles - 기존 역할 목록
-   * @param settings - 현재 설정들
-   */
-  private async showRoleDeleteInterface(
-    interaction: ButtonInteraction,
-    existingRoles: string[],
-    settings: any
-  ): Promise<void> {
-    const embed = new EmbedBuilder()
-      .setTitle('🗑️ 삭제할 역할 선택')
-      .setDescription(
-        '삭제하고 싶은 역할들을 선택하고 "선택 완료" 버튼을 클릭하세요.\n' +
-          '**파란색** 버튼: 선택됨\n' +
-          '**회색** 버튼: 선택 안됨'
-      )
-      .setColor(0xff4444)
-      .setTimestamp();
-
-    // 현재 설정된 역할들을 필드로 추가
-    let roleListText = '';
-    for (const role of existingRoles) {
-      const hours = settings[role]?.minHours || 0;
-      roleListText += `• **${role}**: ${hours}시간\n`;
-    }
-
-    embed.addFields({
-      name: '현재 설정된 역할들',
-      value: roleListText || '설정된 역할이 없습니다.',
-      inline: false,
-    });
-
-    // 역할 버튼 그리드 생성 (게임 태그 선택과 유사)
-    const actionRows = await this.createRoleDeleteButtons(existingRoles);
-
-    await interaction.reply({
-      embeds: [embed],
-      components: actionRows,
-      flags: MessageFlags.Ephemeral,
-    });
-  }
+  // DEPRECATED: showRoleDeleteInterface 및 createRoleDeleteButtons 메서드 제거됨 - 역할별 활동시간 시스템 제거
 
   /**
-   * 역할 삭제용 버튼 그리드 생성
-   * @param roles - 역할 목록
-   * @param selectedRoles - 선택된 역할들
-   * @returns 버튼 그리드 액션 로우 배열
-   */
-  private async createRoleDeleteButtons(
-    roles: string[],
-    selectedRoles: string[] = []
-  ): Promise<ActionRowBuilder<ButtonBuilder>[]> {
-    const components: ActionRowBuilder<ButtonBuilder>[] = [];
-    let actionRow = new ActionRowBuilder<ButtonBuilder>();
-    let buttonsInRow = 0;
-
-    for (const role of roles) {
-      if (buttonsInRow >= 5) {
-        components.push(actionRow);
-        actionRow = new ActionRowBuilder<ButtonBuilder>();
-        buttonsInRow = 0;
-      }
-
-      const isSelected = selectedRoles.includes(role);
-      const button = new ButtonBuilder()
-        .setCustomId(`activity_time_role_toggle_${role}`)
-        .setLabel(role)
-        .setStyle(isSelected ? ButtonStyle.Primary : ButtonStyle.Secondary);
-
-      actionRow.addComponents(button);
-      buttonsInRow++;
-    }
-
-    if (buttonsInRow > 0) {
-      components.push(actionRow);
-    }
-
-    // 선택 완료 및 취소 버튼 추가
-    const controlRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-      new ButtonBuilder()
-        .setCustomId('activity_time_delete_confirm')
-        .setLabel('🗑️ 선택 완료 (삭제)')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
-        .setCustomId('activity_time_delete_cancel')
-        .setLabel('❌ 취소')
-        .setStyle(ButtonStyle.Secondary)
-    );
-
-    components.push(controlRow);
-    return components;
-  }
-
-  /**
-   * 역할 토글 처리 (선택/해제)
+   * 역할 토글 처리 (선택/해제) - DEPRECATED
+   * @deprecated 역할별 시스템 제거됨 - 활동시간 설정으로 리다이렉트
    * @param interaction - 버튼 상호작용 객체
    */
   async handleActivityTimeRoleToggle(interaction: ButtonInteraction): Promise<void> {
+    await this.handleActivityThresholdButton(interaction);
+    /*
     try {
       const guildId = interaction.guild?.id;
       if (!guildId) {
@@ -894,6 +689,7 @@ export class SettingsCommand extends CommandBase {
         flags: MessageFlags.Ephemeral,
       });
     }
+    */
   }
 
   /**
@@ -901,6 +697,9 @@ export class SettingsCommand extends CommandBase {
    * @param interaction - 버튼 상호작용 객체
    */
   async handleActivityTimeDeleteConfirm(interaction: ButtonInteraction): Promise<void> {
+    // 역할별 시스템 제거됨 - 활동시간 설정으로 리다이렉트
+    await this.handleActivityThresholdButton(interaction);
+    /*
     try {
       const guildId = interaction.guild?.id;
       if (!guildId) {
@@ -981,6 +780,7 @@ export class SettingsCommand extends CommandBase {
         flags: MessageFlags.Ephemeral,
       });
     }
+    */
   }
 
   /**
@@ -988,6 +788,9 @@ export class SettingsCommand extends CommandBase {
    * @param interaction - 버튼 상호작용 객체
    */
   async handleActivityTimeDeleteCancel(interaction: ButtonInteraction): Promise<void> {
+    // 역할별 시스템 제거됨 - 활동시간 설정으로 리다이렉트
+    await this.handleActivityThresholdButton(interaction);
+    /*
     try {
       const cancelEmbed = new EmbedBuilder()
         .setTitle('❌ 역할 삭제 취소')
@@ -1006,6 +809,7 @@ export class SettingsCommand extends CommandBase {
         flags: MessageFlags.Ephemeral,
       });
     }
+    */
   }
 
   /**
@@ -1013,6 +817,10 @@ export class SettingsCommand extends CommandBase {
    * @param interaction - Modal 제출 상호작용 객체
    */
   async handleActivityTimeModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+    // 역할별 시스템 제거됨 - 활동시간 설정으로 리다이렉트
+    const buttonInteraction = interaction as any as ButtonInteraction;
+    await this.handleActivityThresholdButton(buttonInteraction);
+    /*
     try {
       const guildId = interaction.guild?.id;
       if (!guildId) {
@@ -1097,66 +905,10 @@ export class SettingsCommand extends CommandBase {
       });
       return; // 오류 처리 후 함수 종료
     }
+    */
   }
 
-  /**
-   * 활동시간 설정 성공 Embed 생성
-   * @param roleName - 역할명
-   * @param minHours - 최소 시간
-   * @param isEdit - 수정 여부
-   * @param description - 설명
-   * @param warnings - 경고 메시지들
-   */
-  private createActivityTimeSuccessEmbed(
-    roleName: string,
-    minHours: number,
-    isEdit: boolean,
-    description?: string,
-    warnings?: string[]
-  ): EmbedBuilder {
-    const embed = new EmbedBuilder()
-      .setTitle('✅ 활동시간 설정 완료')
-      .setColor(warnings && warnings.length > 0 ? Colors.Orange : Colors.Green)
-      .addFields(
-        {
-          name: '🎭 역할',
-          value: `**${roleName}**`,
-          inline: true,
-        },
-        {
-          name: '⏰ 최소 활동시간',
-          value: `**${minHours}시간**`,
-          inline: true,
-        },
-        {
-          name: '📝 상태',
-          value: isEdit ? '✏️ 수정됨' : '🆕 새로 생성됨',
-          inline: true,
-        }
-      )
-      .setTimestamp()
-      .setFooter({ text: '활동시간 설정이 성공적으로 저장되었습니다.' });
-
-    // 설명이 있으면 추가
-    if (description) {
-      embed.addFields({
-        name: '📄 설명',
-        value: description,
-        inline: false,
-      });
-    }
-
-    // 경고사항이 있으면 추가
-    if (warnings && warnings.length > 0) {
-      embed.addFields({
-        name: '⚠️ 경고사항',
-        value: warnings.map((w) => `• ${w}`).join('\n'),
-        inline: false,
-      });
-    }
-
-    return embed;
-  }
+  // DEPRECATED: createActivityTimeSuccessEmbed 메서드 제거됨 - 역할별 활동시간 시스템 제거
 
   // ==========================================
   // 게임 목록 관리 Modal 및 핸들러

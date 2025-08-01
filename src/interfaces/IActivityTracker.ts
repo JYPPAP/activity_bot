@@ -23,7 +23,7 @@ export interface IActivityTracker {
   // 데이터 저장 및 로드
   saveActivityData(): Promise<void>;
   loadActivityData(): Promise<void>;
-  loadRoleActivityConfig(guildId?: string): Promise<void>;
+  // loadRoleActivityConfig 제거됨 - 역할별 활동시간 시스템 제거
 
   // Redis 세션 관리
   restoreActiveSessions(): Promise<void>;

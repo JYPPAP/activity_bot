@@ -1,5 +1,7 @@
 #!/usr/bin/env npx tsx
 // scripts/migrate-role-settings.ts - 역할 설정 마이그레이션 스크립트
+// DEPRECATED: 역할별 활동 시간 시스템이 제거되었습니다. 
+// 이 스크립트는 더 이상 사용되지 않습니다.
 
 import 'reflect-metadata';
 import { container } from 'tsyringe';

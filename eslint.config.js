@@ -49,9 +49,12 @@ export default [
     rules: {
       ...prettierConfig.rules,
       'prettier/prettier': 'error',
-      
+
       // TypeScript Rules
-      '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-function-return-type': 'off',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
@@ -59,19 +62,12 @@ export default [
       '@typescript-eslint/prefer-nullish-coalescing': 'warn',
       '@typescript-eslint/prefer-optional-chain': 'error',
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
-      
-      // Import Rules  
+
+      // Import Rules
       'import/order': [
         'warn',
         {
-          groups: [
-            'builtin',
-            'external',
-            'internal',
-            'parent',
-            'sibling',
-            'index',
-          ],
+          groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
           'newlines-between': 'always',
           alphabetize: {
             order: 'asc',
@@ -83,18 +79,18 @@ export default [
       'import/no-unused-modules': 'warn',
       'import/no-duplicates': 'error',
       'import/newline-after-import': 'error',
-      
+
       // Security Rules
       'security/detect-object-injection': 'warn',
       'security/detect-non-literal-regexp': 'warn',
       'security/detect-possible-timing-attacks': 'warn',
       'security/detect-eval-with-expression': 'error',
-      
+
       // Node.js Rules
       'node/no-missing-import': 'off', // TypeScript handles this
       'node/no-unsupported-features/es-syntax': 'off',
       'node/no-process-exit': 'warn',
-      
+
       // General Rules
       'no-console': 'off',
       'no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
@@ -108,6 +104,14 @@ export default [
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'logs/', '*.js', 'coverage/', '!scripts/*.js', '!*.config.js'],
+    ignores: [
+      'dist/',
+      'node_modules/',
+      'logs/',
+      '*.js',
+      'coverage/',
+      '!scripts/*.js',
+      '!*.config.js',
+    ],
   },
 ];

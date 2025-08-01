@@ -2,12 +2,7 @@
 
 import { EventEmitter } from 'events';
 import { injectable, inject } from 'tsyringe';
-import {
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle
-} from 'discord.js';
+import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import {
   IAsyncJobQueue,
   Job,
@@ -26,7 +21,7 @@ import {
   DEFAULT_ASYNC_JOB_QUEUE_CONFIG,
   JobHandlerMap,
   IJobResultCache,
-  IWebhookDeliveryService
+  IWebhookDeliveryService,
 } from '../interfaces/IAsyncJobQueue.js';
 import { DI_TOKENS } from '../interfaces/index.js';
 import type { ILogService } from '../interfaces/ILogService';
@@ -45,7 +40,7 @@ class JobResultCache implements IJobResultCache {
 
   async get(key: string): Promise<any> {
     const entry = this.cache.get(key);
-    
+
     if (!entry || entry.expiry < Date.now()) {
       if (entry) {
         this.cache.delete(key);
@@ -121,7 +116,7 @@ class JobResultCache implements IJobResultCache {
       hitRate: total > 0 ? this.hits / total : 0,
       missRate: total > 0 ? this.misses / total : 0,
       size: this.cache.size,
-      memoryUsage: this.currentSize
+      memoryUsage: this.currentSize,
     };
   }
 
@@ -141,23 +136,22 @@ class JobResultCache implements IJobResultCache {
 
 // Webhook delivery service implementation
 class WebhookDeliveryService implements IWebhookDeliveryService {
-  private deliveryStatus = new Map<string, {
-    status: 'pending' | 'delivered' | 'failed';
-    attempts: number;
-    lastAttempt?: Date;
-    error?: string;
-  }>();
+  private deliveryStatus = new Map<
+    string,
+    {
+      status: 'pending' | 'delivered' | 'failed';
+      attempts: number;
+      lastAttempt?: Date;
+      error?: string;
+    }
+  >();
 
-  async deliver(
-    webhookConfig: WebhookConfig,
-    payload: any,
-    context: JobContext
-  ): Promise<boolean> {
+  async deliver(webhookConfig: WebhookConfig, payload: any, context: JobContext): Promise<boolean> {
     const deliveryId = `${context.correlationId || Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
+
     this.deliveryStatus.set(deliveryId, {
       status: 'pending',
-      attempts: 0
+      attempts: 0,
     });
 
     const maxRetries = webhookConfig.retries || 3;
@@ -168,7 +162,7 @@ class WebhookDeliveryService implements IWebhookDeliveryService {
         this.deliveryStatus.set(deliveryId, {
           status: 'pending',
           attempts: attempt,
-          lastAttempt: new Date()
+          lastAttempt: new Date(),
         });
 
         const transformedPayload = webhookConfig.transformPayload
@@ -181,18 +175,18 @@ class WebhookDeliveryService implements IWebhookDeliveryService {
             'Content-Type': 'application/json',
             ...webhookConfig.headers,
             ...(webhookConfig.enableAuth && webhookConfig.authToken
-              ? { 'Authorization': `Bearer ${webhookConfig.authToken}` }
-              : {})
+              ? { Authorization: `Bearer ${webhookConfig.authToken}` }
+              : {}),
           },
           body: JSON.stringify(transformedPayload),
-          signal: AbortSignal.timeout(webhookConfig.timeout || 30000)
+          signal: AbortSignal.timeout(webhookConfig.timeout || 30000),
         });
 
         if (response.ok) {
           this.deliveryStatus.set(deliveryId, {
             status: 'delivered',
             attempts: attempt,
-            lastAttempt: new Date()
+            lastAttempt: new Date(),
           });
           return true;
         }
@@ -200,10 +194,10 @@ class WebhookDeliveryService implements IWebhookDeliveryService {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       } catch (error) {
         lastError = error as Error;
-        
+
         if (attempt < maxRetries) {
           const delay = webhookConfig.retryDelay || 1000;
-          await new Promise(resolve => setTimeout(resolve, delay * attempt));
+          await new Promise((resolve) => setTimeout(resolve, delay * attempt));
         }
       }
     }
@@ -211,24 +205,26 @@ class WebhookDeliveryService implements IWebhookDeliveryService {
     const failedStatus: any = {
       status: 'failed',
       attempts: maxRetries,
-      lastAttempt: new Date()
+      lastAttempt: new Date(),
     };
-    
+
     if (lastError?.message) {
       failedStatus.error = lastError.message;
     }
-    
+
     this.deliveryStatus.set(deliveryId, failedStatus);
 
     return false;
   }
 
   async getDeliveryStatus(deliveryId: string) {
-    return this.deliveryStatus.get(deliveryId) || {
-      status: 'failed' as const,
-      attempts: 0,
-      error: 'Delivery ID not found'
-    };
+    return (
+      this.deliveryStatus.get(deliveryId) || {
+        status: 'failed' as const,
+        attempts: 0,
+        error: 'Delivery ID not found',
+      }
+    );
   }
 }
 
@@ -244,7 +240,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   private cleanupTimer: NodeJS.Timeout | null = null;
   private metricsTimer: NodeJS.Timeout | null = null;
   private healthCheckTimer: NodeJS.Timeout | null = null;
-  
+
   private resultCache: IJobResultCache;
   private webhookService: IWebhookDeliveryService;
   private statistics: JobQueueStatistics;
@@ -256,13 +252,13 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     private config: AsyncJobQueueConfig = DEFAULT_ASYNC_JOB_QUEUE_CONFIG
   ) {
     super();
-    
+
     this.resultCache = new JobResultCache(config.maxCacheSize);
     this.webhookService = new WebhookDeliveryService();
-    
+
     this.statistics = this.initializeStatistics();
     this.health = this.initializeHealth();
-    
+
     this.setupTimers();
     this.setupEventHandlers();
   }
@@ -276,7 +272,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   ): Promise<string> {
     const jobId = `${type}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const jobConfig = { ...DEFAULT_JOB_CONFIG, ...config };
-    
+
     const job: Job = {
       id: jobId,
       type,
@@ -287,7 +283,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       createdAt: new Date(),
       retryCount: 0,
       logs: [],
-      version: 1
+      version: 1,
     };
 
     // Check queue capacity
@@ -304,16 +300,16 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     this.jobs.set(jobId, job);
     this.processingQueue.push(job);
     this.sortProcessingQueue();
-    
+
     this.statistics.totalJobs++;
     this.statistics.pendingJobs++;
-    
+
     this.emit('jobEnqueued', job);
     this.logService.logActivity(`Job enqueued: ${jobId}`, [], 'job_enqueued', {
       jobId,
       type,
       userId: context.userId,
-      guildId: context.guildId
+      guildId: context.guildId,
     });
 
     // Start processing if not already running
@@ -328,42 +324,42 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     return this.jobs.get(jobId) || null;
   }
 
-  async getJobs(filter: {
-    status?: JobStatus;
-    type?: string;
-    userId?: string;
-    guildId?: string;
-    tags?: string[];
-    createdAfter?: Date;
-    createdBefore?: Date;
-    limit?: number;
-    offset?: number;
-  } = {}): Promise<Job[]> {
+  async getJobs(
+    filter: {
+      status?: JobStatus;
+      type?: string;
+      userId?: string;
+      guildId?: string;
+      tags?: string[];
+      createdAfter?: Date;
+      createdBefore?: Date;
+      limit?: number;
+      offset?: number;
+    } = {}
+  ): Promise<Job[]> {
     let jobs = Array.from(this.jobs.values());
 
     // Apply filters
     if (filter.status) {
-      jobs = jobs.filter(job => job.status === filter.status);
+      jobs = jobs.filter((job) => job.status === filter.status);
     }
     if (filter.type) {
-      jobs = jobs.filter(job => job.type === filter.type);
+      jobs = jobs.filter((job) => job.type === filter.type);
     }
     if (filter.userId) {
-      jobs = jobs.filter(job => job.context.userId === filter.userId);
+      jobs = jobs.filter((job) => job.context.userId === filter.userId);
     }
     if (filter.guildId) {
-      jobs = jobs.filter(job => job.context.guildId === filter.guildId);
+      jobs = jobs.filter((job) => job.context.guildId === filter.guildId);
     }
     if (filter.tags && filter.tags.length > 0) {
-      jobs = jobs.filter(job => 
-        filter.tags!.some(tag => job.config.tags?.includes(tag))
-      );
+      jobs = jobs.filter((job) => filter.tags!.some((tag) => job.config.tags?.includes(tag)));
     }
     if (filter.createdAfter) {
-      jobs = jobs.filter(job => job.createdAt >= filter.createdAfter!);
+      jobs = jobs.filter((job) => job.createdAt >= filter.createdAfter!);
     }
     if (filter.createdBefore) {
-      jobs = jobs.filter(job => job.createdAt <= filter.createdBefore!);
+      jobs = jobs.filter((job) => job.createdAt <= filter.createdBefore!);
     }
 
     // Sort by creation date (newest first)
@@ -372,7 +368,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     // Apply pagination
     const offset = filter.offset || 0;
     const limit = filter.limit || jobs.length;
-    
+
     return jobs.slice(offset, offset + limit);
   }
 
@@ -385,15 +381,15 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       job.status = JobStatus.CANCELLED;
       job.completedAt = new Date();
       job.logs.push(`Job cancelled: ${reason || 'No reason provided'}`);
-      
+
       this.statistics.pendingJobs = Math.max(0, this.statistics.pendingJobs - 1);
       this.statistics.runningJobs = Math.max(0, this.statistics.runningJobs - 1);
-      
+
       this.emit('jobCancelled', job, reason);
       return true;
     } else if (job.status === JobStatus.PENDING || job.status === JobStatus.RETRYING) {
       // Remove from processing queue
-      const queueIndex = this.processingQueue.findIndex(j => j.id === jobId);
+      const queueIndex = this.processingQueue.findIndex((j) => j.id === jobId);
       if (queueIndex !== -1) {
         this.processingQueue.splice(queueIndex, 1);
       }
@@ -401,9 +397,9 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       job.status = JobStatus.CANCELLED;
       job.completedAt = new Date();
       job.logs.push(`Job cancelled: ${reason || 'No reason provided'}`);
-      
+
       this.statistics.pendingJobs = Math.max(0, this.statistics.pendingJobs - 1);
-      
+
       this.emit('jobCancelled', job, reason);
       return true;
     }
@@ -453,13 +449,17 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       handlerInfo.defaultConfig = defaultConfig;
     }
     this.jobHandlers.set(type, handlerInfo);
-    this.logService.logActivity(`Job handler registered: ${type}`, [], 'handler_registered', { type });
+    this.logService.logActivity(`Job handler registered: ${type}`, [], 'handler_registered', {
+      type,
+    });
   }
 
   unregisterHandler(type: string): boolean {
     const result = this.jobHandlers.delete(type);
     if (result) {
-      this.logService.logActivity(`Job handler unregistered: ${type}`, [], 'handler_unregistered', { type });
+      this.logService.logActivity(`Job handler unregistered: ${type}`, [], 'handler_unregistered', {
+        type,
+      });
     }
     return result;
   }
@@ -516,22 +516,22 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
           context: job.context,
           status: job.status,
           createdAt: job.createdAt,
-          completedAt: job.completedAt
+          completedAt: job.completedAt,
         },
         result: {
           success: result.success,
           data: result.data,
           executionTime: result.executionTime,
-          retryCount: result.retryCount
+          retryCount: result.retryCount,
         },
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
 
       return await this.webhookService.deliver(webhookConfig, payload, job.context);
     } catch (error) {
       this.logService.logActivity('Webhook delivery failed', [], 'webhook_failed', {
         jobId: job.id,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
       return false;
     }
@@ -555,59 +555,60 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
           {
             name: 'Progress',
             value: this.createProgressBar(progress.percentage),
-            inline: false
+            inline: false,
           },
           {
             name: 'Status',
             value: progress.stage || 'Processing',
-            inline: true
+            inline: true,
           },
           {
             name: 'Completion',
             value: `${progress.current}/${progress.total} (${progress.percentage.toFixed(1)}%)`,
-            inline: true
-          }
+            inline: true,
+          },
         ])
         .setTimestamp();
 
       if (progress.estimatedTimeRemaining) {
-        embed.addFields([{
-          name: 'ETA',
-          value: `${Math.ceil(progress.estimatedTimeRemaining / 1000)}s remaining`,
-          inline: true
-        }]);
+        embed.addFields([
+          {
+            name: 'ETA',
+            value: `${Math.ceil(progress.estimatedTimeRemaining / 1000)}s remaining`,
+            inline: true,
+          },
+        ]);
       }
 
       const components = [];
       if (job.status === JobStatus.RUNNING) {
         components.push(
-          new ActionRowBuilder<ButtonBuilder>()
-            .addComponents(
-              new ButtonBuilder()
-                .setCustomId(`cancel_job_${job.id}`)
-                .setLabel('Cancel Job')
-                .setStyle(ButtonStyle.Danger)
-                .setEmoji('❌')
-            )
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
+            new ButtonBuilder()
+              .setCustomId(`cancel_job_${job.id}`)
+              .setLabel('Cancel Job')
+              .setStyle(ButtonStyle.Danger)
+              .setEmoji('❌')
+          )
         );
       }
 
       if (interaction.replied || interaction.deferred) {
         await interaction.editReply({
           embeds: [embed],
-          components
+          components,
         });
       } else {
         await interaction.reply({
           embeds: [embed],
           components,
-          ephemeral: true
+          ephemeral: true,
         });
       }
     } catch (error) {
       this.logService.logActivity('Discord progress update failed', [], 'progress_update_failed', {
         jobId: job.id,
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
       });
     }
   }
@@ -619,10 +620,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     this.isProcessing = true;
     this.isPaused = false;
 
-    this.processingTimer = setInterval(
-      () => this.processJobs(),
-      this.config.jobProcessingInterval
-    );
+    this.processingTimer = setInterval(() => this.processJobs(), this.config.jobProcessingInterval);
 
     this.logService.logActivity('Job queue processing started', [], 'queue_started');
   }
@@ -662,11 +660,11 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     }
 
     while (
-      this.processingQueue.length > 0 && 
+      this.processingQueue.length > 0 &&
       this.runningJobs.size < this.config.maxConcurrentJobs
     ) {
       const job = this.processingQueue.shift()!;
-      
+
       if (job.status === JobStatus.CANCELLED) {
         continue;
       }
@@ -688,7 +686,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
 
   private async executeJob(job: Job): Promise<void> {
     const startTime = Date.now();
-    
+
     try {
       // Update job status
       job.status = JobStatus.RUNNING;
@@ -709,7 +707,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       // Check for cached result
       let result: any = null;
       const cacheKey = `job_result:${job.type}:${JSON.stringify(job.payload)}`;
-      
+
       if (job.config.cacheResults) {
         result = await this.getCachedResult(cacheKey);
         if (result) {
@@ -719,7 +717,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
             executionTime: Date.now() - startTime,
             retryCount: job.retryCount,
             cacheHit: true,
-            logs: job.logs
+            logs: job.logs,
           });
           return;
         }
@@ -736,7 +734,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
 
       result = await Promise.race([
         handlerInfo.handler(job, job.context, progressCallback),
-        timeoutPromise
+        timeoutPromise,
       ]);
 
       // Cache result if enabled
@@ -749,9 +747,8 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
         data: result,
         executionTime: Date.now() - startTime,
         retryCount: job.retryCount,
-        logs: job.logs
+        logs: job.logs,
       });
-
     } catch (error) {
       await this.handleJobError(job, error as Error, startTime);
     }
@@ -778,7 +775,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
         retries: 3,
         retryDelay: 1000,
         enableAuth: false,
-        ...this.config.defaultWebhookConfig
+        ...this.config.defaultWebhookConfig,
       };
 
       await this.deliverResultViaWebhook(job, result, webhookConfig);
@@ -808,14 +805,14 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       this.emit('jobRetry', job, job.retryCount);
 
       // Schedule retry with backoff
-      const retryDelay = job.config.retryDelay * Math.pow(job.config.retryBackoffMultiplier, job.retryCount - 1);
-      
+      const retryDelay =
+        job.config.retryDelay * Math.pow(job.config.retryBackoffMultiplier, job.retryCount - 1);
+
       setTimeout(() => {
         job.status = JobStatus.PENDING;
         this.processingQueue.push(job);
         this.sortProcessingQueue();
       }, retryDelay);
-
     } else {
       // Job has failed permanently
       job.status = JobStatus.FAILED;
@@ -825,7 +822,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
         error,
         executionTime,
         retryCount: job.retryCount,
-        logs: job.logs
+        logs: job.logs,
       };
 
       this.statistics.runningJobs = Math.max(0, this.statistics.runningJobs - 1);
@@ -854,24 +851,24 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
           {
             name: 'Execution Time',
             value: `${result.executionTime}ms`,
-            inline: true
+            inline: true,
           },
           {
             name: 'Retry Count',
             value: result.retryCount.toString(),
-            inline: true
+            inline: true,
           },
           {
             name: 'Cache Hit',
             value: result.cacheHit ? 'Yes' : 'No',
-            inline: true
-          }
+            inline: true,
+          },
         ])
         .setTimestamp();
 
       await interaction.editReply({
         embeds: [embed],
-        components: []
+        components: [],
       });
     } catch (error) {
       console.error('Failed to send completion update:', error);
@@ -891,19 +888,19 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
           {
             name: 'Error',
             value: error.message.substring(0, 1024),
-            inline: false
+            inline: false,
           },
           {
             name: 'Retry Count',
             value: job.retryCount.toString(),
-            inline: true
-          }
+            inline: true,
+          },
         ])
         .setTimestamp();
 
       await interaction.editReply({
         embeds: [embed],
-        components: []
+        components: [],
       });
     } catch (err) {
       console.error('Failed to send failure update:', err);
@@ -943,7 +940,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       cacheHitRate: 0,
       memoryUsage: 0,
       queueHealth: 'healthy',
-      lastResetTime: new Date()
+      lastResetTime: new Date(),
     };
   }
 
@@ -958,7 +955,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       queueBacklog: 0,
       lastHealthCheck: new Date(),
       issues: [],
-      recommendations: []
+      recommendations: [],
     };
   }
 
@@ -990,8 +987,9 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     if (totalCompleted === 1) {
       this.statistics.averageExecutionTime = executionTime;
     } else {
-      this.statistics.averageExecutionTime = 
-        (this.statistics.averageExecutionTime * (totalCompleted - 1) + executionTime) / totalCompleted;
+      this.statistics.averageExecutionTime =
+        (this.statistics.averageExecutionTime * (totalCompleted - 1) + executionTime) /
+        totalCompleted;
     }
   }
 
@@ -1021,7 +1019,10 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
   private updateQueueHealth(): void {
     if (this.statistics.errorRate > 0.5) {
       this.statistics.queueHealth = 'critical';
-    } else if (this.statistics.errorRate > 0.2 || this.processingQueue.length > this.config.maxQueueSize * 0.8) {
+    } else if (
+      this.statistics.errorRate > 0.2 ||
+      this.processingQueue.length > this.config.maxQueueSize * 0.8
+    ) {
       this.statistics.queueHealth = 'degraded';
     } else {
       this.statistics.queueHealth = 'healthy';
@@ -1058,7 +1059,8 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       this.health.recommendations.push('Consider increasing concurrent job limit');
     }
 
-    if (this.statistics.memoryUsage > 1024 * 1024 * 1024) { // 1GB
+    if (this.statistics.memoryUsage > 1024 * 1024 * 1024) {
+      // 1GB
       this.health.issues.push('High memory usage');
       this.health.recommendations.push('Consider reducing cache size or job retention time');
     }
@@ -1089,17 +1091,16 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     let cleaned = 0;
 
     for (const [jobId, job] of this.jobs.entries()) {
-      const shouldCleanup = (
-        (job.status === JobStatus.COMPLETED && 
-         job.completedAt && 
-         now - job.completedAt.getTime() > this.config.completedJobRetentionTime) ||
-        (job.status === JobStatus.FAILED && 
-         job.completedAt && 
-         now - job.completedAt.getTime() > this.config.failedJobRetentionTime) ||
+      const shouldCleanup =
+        (job.status === JobStatus.COMPLETED &&
+          job.completedAt &&
+          now - job.completedAt.getTime() > this.config.completedJobRetentionTime) ||
+        (job.status === JobStatus.FAILED &&
+          job.completedAt &&
+          now - job.completedAt.getTime() > this.config.failedJobRetentionTime) ||
         (job.status === JobStatus.CANCELLED &&
-         job.completedAt &&
-         now - job.completedAt.getTime() > this.config.completedJobRetentionTime)
-      );
+          job.completedAt &&
+          now - job.completedAt.getTime() > this.config.completedJobRetentionTime);
 
       if (shouldCleanup) {
         this.jobs.delete(jobId);
@@ -1108,7 +1109,9 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     }
 
     if (cleaned > 0) {
-      this.logService.logActivity(`Cleaned up ${cleaned} old jobs`, [], 'jobs_cleaned', { count: cleaned });
+      this.logService.logActivity(`Cleaned up ${cleaned} old jobs`, [], 'jobs_cleaned', {
+        count: cleaned,
+      });
     }
 
     return cleaned;
@@ -1133,9 +1136,9 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
     // Reset statistics
     this.statistics = this.initializeStatistics();
 
-    this.logService.logActivity(`Cleared ${cleared} jobs from queue`, [], 'queue_cleared', { 
-      count: cleared, 
-      status: status || 'all' 
+    this.logService.logActivity(`Cleared ${cleared} jobs from queue`, [], 'queue_cleared', {
+      count: cleared,
+      status: status || 'all',
     });
 
     return cleared;
@@ -1162,7 +1165,7 @@ export class AsyncJobQueue extends EventEmitter implements IAsyncJobQueue {
       clearInterval(this.healthCheckTimer);
       this.healthCheckTimer = null;
     }
-    
+
     this.logService.logActivity('Job queue shutdown completed', [], 'queue_shutdown');
   }
 }

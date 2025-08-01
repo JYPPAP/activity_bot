@@ -100,7 +100,7 @@ CREATE TABLE IF NOT EXISTS voice_channel_mapping (
 CREATE TABLE IF NOT EXISTS guild_settings (
     id SERIAL PRIMARY KEY,
     guild_id VARCHAR(20) NOT NULL,
-    setting_type VARCHAR(50) NOT NULL CHECK (setting_type IN ('role_activity', 'game_list', 'exclude_channels', 'channel_management')),
+    setting_type VARCHAR(50) NOT NULL CHECK (setting_type IN ('role_activity', 'game_list', 'exclude_channels', 'channel_management', 'activity_threshold')),
     setting_key VARCHAR(100) NOT NULL,
     setting_value TEXT NOT NULL,
     created_at TIMESTAMP DEFAULT NOW(),

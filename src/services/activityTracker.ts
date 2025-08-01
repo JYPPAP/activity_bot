@@ -82,7 +82,7 @@ export class ActivityTracker implements IActivityTracker {
 
   // 활동 데이터 저장소 (Redis 기반 + fallback)
   private readonly channelActivityTime: Map<string, ActivityData> = new Map(); // fallback용
-  private roleActivityConfig: Record<string, number> = {};
+  // roleActivityConfig 제거됨 - 길드 전역 임계값 시스템 사용
 
   // Redis 키 패턴
   private readonly REDIS_KEYS = {
@@ -490,32 +490,15 @@ export class ActivityTracker implements IActivityTracker {
     }
   }
 
+  // 역할별 활동 시간 시스템 제거됨 - 길드 전역 임계값 시스템 사용
+
   /**
-   * 역할 활동 설정을 DB에서 로드
+   * 역할 활동 설정 로드 (DEPRECATED)
+   * @deprecated 역할별 활동 시간 시스템이 제거되었습니다. 길드 전역 임계값을 사용하세요.
    */
-  async loadRoleActivityConfig(guildId?: string): Promise<void> {
-    try {
-      // 길드 ID가 필수적으로 필요합니다
-      if (!guildId) {
-        throw new Error('loadRoleActivityConfig: guildId는 필수 매개변수입니다');
-      }
-      
-      const configs = await this.guildSettingsManager.getAllRoleActivityTimes(guildId);
-      this.roleActivityConfig = {};
-
-      // 객체 형태로 반환되는 configs를 처리
-      for (const [roleName, config] of Object.entries(configs)) {
-        this.roleActivityConfig[roleName] = config.minHours;
-      }
-
-      const configCount = Object.keys(configs).length;
-      if (this.options.enableLogging) {
-        console.log(`[ActivityTracker] ${configCount}개의 역할 설정을 로드했습니다.`);
-      }
-    } catch (error) {
-      console.error('[ActivityTracker] 역할 설정 로드 오류:', error);
-      throw error;
-    }
+  async loadRoleActivityConfig(_guildId?: string): Promise<void> {
+    // 빈 구현 - 역할별 시스템 제거됨
+    console.warn('[ActivityTracker] loadRoleActivityConfig는 더 이상 사용되지 않습니다. 길드 전역 임계값 시스템을 사용하세요.');
   }
 
   /**
@@ -800,23 +783,12 @@ export class ActivityTracker implements IActivityTracker {
         cachedMemberCount: guild.memberCount,
       });
 
-      await this.loadRoleActivityConfig(guild.id);
       await this.loadActivityData();
 
-      const roleConfigs = await this.guildSettingsManager.getAllRoleActivityTimes(guild.id);
-      const trackedRoles = Object.keys(roleConfigs);
-
-      console.log('[ActivityTracker] 추적 대상 역할:', {
-        trackedRoles,
-        roleConfigCount: Object.keys(roleConfigs).length,
+      console.log('[ActivityTracker] 길드 전역 활동 추적 시작:', {
+        activityTrackingEnabled: true,
+        message: '모든 활성 멤버를 추적합니다 (역할 상관없이)'
       });
-
-      // 추적 대상 역할이 없으면 멤버 조회 생략
-      if (trackedRoles.length === 0) {
-        console.log('[ActivityTracker] ⚠️ 추적 대상 역할이 없어 멤버 조회 생략');
-        this.isInitialized = true;
-        return;
-      }
 
       // Guild members fetch with timeout and retry mechanism
       let members: Collection<string, GuildMember>;
@@ -862,18 +834,16 @@ export class ActivityTracker implements IActivityTracker {
         }
       }
 
-      // 멤버 처리
+      // 멤버 처리 (모든 멤버 추적 - 역할 기반 시스템 제거됨)
       console.log('[ActivityTracker] 멤버 처리 시작', {
         totalMembers,
-        trackedRolesCount: trackedRoles.length,
+        guildWideTracking: true,
       });
 
       for (const [userId, member] of members) {
         try {
-          const userRoles = member.roles.cache.map((role: any) => role.name);
-          const hasTrackedRole = userRoles.some((role: any) => trackedRoles.includes(role));
-
-          if (hasTrackedRole && !this.channelActivityTime.has(userId)) {
+          // 모든 멤버를 추적 대상으로 설정 (역할 기반 필터링 제거)
+          if (!this.channelActivityTime.has(userId)) {
             this.channelActivityTime.set(userId, {
               startTime: null,
               totalTime: 0,
@@ -901,7 +871,7 @@ export class ActivityTracker implements IActivityTracker {
         membersFetched,
         totalMembers,
         processedMembers,
-        trackedRolesCount: trackedRoles.length,
+        guildWideTracking: true,
         avgProcessingTimePerMember:
           totalMembers > 0 ? `${(initTime / totalMembers).toFixed(2)}ms` : 'N/A',
       });
@@ -2118,13 +2088,7 @@ export class ActivityTracker implements IActivityTracker {
     return new Map(this.channelActivityTime);
   }
 
-  /**
-   * 역할 설정 업데이트
-   */
-  async updateRoleConfig(roleName: string, minHours: number): Promise<void> {
-    this.roleActivityConfig[roleName] = minHours;
-    await this.db.updateRoleConfig(roleName, minHours);
-  }
+  // updateRoleConfig 메서드 제거됨 - 길드 전역 임계값 시스템 사용
 
   /**
    * 강제 저장

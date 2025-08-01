@@ -893,11 +893,11 @@ export class PostgreSQLManager implements IDatabaseManager {
 
   /**
    * 모든 역할 설정 조회
-   * @deprecated 이 메서드는 더 이상 사용되지 않습니다. GuildSettingsManager.getAllRoleActivityTimes()을 사용하세요.
+   * @deprecated 역할별 활동 시간 시스템이 제거되었습니다. 길드 전역 임계값을 사용하세요.
    */
   async getAllRoleConfigs(): Promise<RoleConfig[]> {
     // DEPRECATED WARNING
-    console.warn(`[DB] ⚠️ DEPRECATED: getAllRoleConfigs() 메서드는 더 이상 사용되지 않습니다. GuildSettingsManager.getAllRoleActivityTimes()을 사용하세요.`);
+    console.warn(`[DB] ⚠️ DEPRECATED: getAllRoleConfigs() 메서드는 더 이상 사용되지 않습니다. 역할별 활동 시간 시스템이 제거되었습니다.`);
     console.warn(`[DB] ⚠️ 호출된 위치:`, new Error().stack?.split('\n')[2]?.trim());
     
     try {

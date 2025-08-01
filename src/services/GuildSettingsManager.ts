@@ -402,140 +402,7 @@ export class GuildSettingsManager {
     }
   }
 
-  /**
-   * 모든 역할 설정의 이름을 Discord API와 동기화
-   * @param guildId - 길드 ID
-   * @param discordRoles - Discord 역할 컬렉션 (선택사항)
-   * @returns 동기화 결과
-   */
-  async syncAllRoleNames(
-    guildId: string,
-    discordRoles?: Map<string, { id: string; name: string }>
-  ): Promise<{
-    totalChecked: number;
-    updated: number;
-    errors: number;
-    results: Array<{ roleId: string; updated: boolean; oldName?: string; newName?: string; error?: string }>;
-  }> {
-    try {
-      const guildValidation = SecurityValidator.validateGuildId(guildId);
-      if (!guildValidation.isValid) {
-        return { totalChecked: 0, updated: 0, errors: 1, results: [] };
-      }
 
-      console.log(`[GuildSettings] 모든 역할 이름 동기화 시작: guildId=${guildId}`);
-
-      // 모든 역할 설정 조회
-      const allRoleSettings = await this.getAllRoleActivityTimes(guildId);
-      const results: Array<{ roleId: string; updated: boolean; oldName?: string; newName?: string; error?: string }> = [];
-      
-      let totalChecked = 0;
-      let updated = 0;
-      let errors = 0;
-
-      for (const [settingKey, setting] of Object.entries(allRoleSettings)) {
-        totalChecked++;
-        
-        try {
-          // roleId가 있는 경우만 처리
-          const roleId = setting.roleId || settingKey;
-          if (!setting.roleId) {
-            console.log(`[GuildSettings] roleId가 없는 설정 건너뜀: settingKey=${settingKey}`);
-            continue;
-          }
-
-          // Discord 역할 정보 가져오기
-          let currentRoleName: string | undefined;
-          if (discordRoles && discordRoles.has(roleId)) {
-            currentRoleName = discordRoles.get(roleId)!.name;
-          } else {
-            // discordRoles가 제공되지 않은 경우 개별 조회는 생략
-            console.log(`[GuildSettings] Discord 역할 정보 없음: roleId=${roleId}`);
-            continue;
-          }
-
-          // 이름 업데이트 시도
-          const updateResult = await this.updateRoleNameIfChanged(guildId, roleId, currentRoleName);
-          results.push({
-            roleId,
-            updated: updateResult.updated,
-            ...(updateResult.oldName && { oldName: updateResult.oldName }),
-            ...(updateResult.newName && { newName: updateResult.newName })
-          });
-
-          if (updateResult.updated) {
-            updated++;
-          }
-        } catch (error) {
-          errors++;
-          results.push({
-            roleId: setting.roleId || settingKey,
-            updated: false,
-            error: error instanceof Error ? error.message : '알 수 없는 오류'
-          });
-          console.error(`[GuildSettings] 역할 동기화 실패:`, error);
-        }
-      }
-
-      logger.info('[GuildSettingsManager] 역할 이름 일괄 동기화 완료', {
-        guildId,
-        totalChecked,
-        updated,
-        errors,
-      } as any);
-
-      return { totalChecked, updated, errors, results };
-    } catch (error) {
-      logger.error('[GuildSettingsManager] 역할 이름 일괄 동기화 실패:', error as any);
-      return { totalChecked: 0, updated: 0, errors: 1, results: [] };
-    }
-  }
-
-  /**
-   * 모든 역할 활동 시간 조회
-   */
-  async getAllRoleActivityTimes(
-    guildId: string
-  ): Promise<{ [roleName: string]: RoleActivitySetting }> {
-    try {
-      const guildValidation = SecurityValidator.validateGuildId(guildId);
-      if (!guildValidation.isValid) return {};
-
-      const rows = await this.dbManager.all(
-        `
-        SELECT role_settings FROM guild_settings_backup 
-        WHERE guild_id = $1
-      `,
-        [guildId]
-      );
-
-      const result: { [roleName: string]: RoleActivitySetting } = {};
-
-      if (rows.length > 0 && rows[0].role_settings) {
-        const roleSettings = rows[0].role_settings;
-        
-        // roleConfigs 배열에서 역할 설정 추출
-        if (roleSettings.roleConfigs && Array.isArray(roleSettings.roleConfigs)) {
-          for (const roleConfig of roleSettings.roleConfigs) {
-            if (roleConfig.name && roleConfig.requiredHours !== undefined) {
-              result[roleConfig.name] = {
-                minHours: roleConfig.requiredHours,
-                roleId: roleConfig.roleId || null,
-                warningThreshold: roleConfig.warningThreshold || Math.floor(roleConfig.requiredHours * 0.7),
-                // 기본값 설정
-                allowedAfkDuration: roleConfig.allowedAfkDuration || 3600000 // 1시간
-              };
-            }
-          }
-        }
-      }
-
-      return result;
-    } catch (error) {
-      logger.error('[GuildSettingsManager] 모든 역할 활동 시간 조회 실패:', error as any);
-      return {};
-    }
-  }
 
   /**
    * 역할 활동시간 설정 삭제
@@ -1027,21 +894,24 @@ export class GuildSettingsManager {
    * 길드의 모든 설정 조회
    */
   async getAllGuildSettings(guildId: string): Promise<{
-    roleActivity: { [roleName: string]: RoleActivitySetting };
+    activityThreshold: { hours: number; value: string } | null;
     gameList: GameListSetting | null;
     excludeChannels: ExcludeChannelsSetting | null;
     channelManagement: ChannelManagementSetting | null;
   }> {
     try {
-      const [roleActivity, gameList, excludeChannels, channelManagement] = await Promise.all([
-        this.getAllRoleActivityTimes(guildId),
+      const [activityThreshold, gameList, excludeChannels, channelManagement] = await Promise.all([
+        this.getGuildActivityThreshold(guildId),
         this.getGameList(guildId),
         this.getExcludeChannels(guildId),
         this.getChannelManagement(guildId),
       ]);
 
       return {
-        roleActivity,
+        activityThreshold: activityThreshold ? { 
+          hours: await this.getGuildActivityThresholdHours(guildId),
+          value: activityThreshold.thresholdHours.toString() 
+        } : null,
         gameList,
         excludeChannels,
         channelManagement,
@@ -1049,7 +919,7 @@ export class GuildSettingsManager {
     } catch (error) {
       logger.error('[GuildSettingsManager] 모든 길드 설정 조회 실패:', error as any);
       return {
-        roleActivity: {},
+        activityThreshold: null,
         gameList: null,
         excludeChannels: null,
         channelManagement: null,

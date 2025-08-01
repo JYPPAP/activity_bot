@@ -1,6 +1,6 @@
 # Discord Bot Errsole 로깅 시스템 구축 패치 노트
 
-**작업 일시**: 2025년 7월 7일  
+**작업 일시**: 2025년 7월 7일
 **작업 범위**: Errsole 로깅 시스템 통합, 환경변수 관리 개선, 포트 충돌 해결, Slack 알림 설정
 
 ---
@@ -51,7 +51,7 @@
    // Before
    import './config/logger-termux.js';
    import {config} from './config/env.js';
-   
+
    // After
    import {config} from './config/env.js';  // dotenv 먼저 로드
    import './config/logger-termux.js';
@@ -186,6 +186,6 @@ npm run restart
 
 ---
 
-**작업자**: JYPPAP (Claude Code Assistant)  
-**검토**: 2025-07-07  
+**작업자**: JYPPAP (Claude Code Assistant)
+**검토**: 2025-07-07
 **버전**: 1.0.0
