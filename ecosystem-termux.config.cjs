@@ -67,8 +67,8 @@ module.exports = {
     // Termux 특화 설정
     cwd: '/data/data/com.termux/files/home/discord_bot',
 
-    // 환경 파일 로드
-    env_file: '.env'
+    // 환경 파일 로드 (프로덕션용)
+    env_file: '.env.production'
   }, {
     // TypeScript 개발용 설정 (Termux 최적화)
     name: 'discord-bot-dev',
@@ -106,6 +106,7 @@ module.exports = {
     // Termux 작업 디렉토리
     cwd: '/data/data/com.termux/files/home/discord_bot',
 
-    env_file: '.env'
+    // 환경 파일 로드 (개발용)
+    env_file: '.env.development'
   }]
 };
