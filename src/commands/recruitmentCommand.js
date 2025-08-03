@@ -16,7 +16,7 @@ export class RecruitmentCommand extends CommandBase {
     try {
       // ========== 권한 체크 ==========
       if (!this.voiceForumService.hasRecruitmentPermission(interaction.user, interaction.member)) {
-        await interaction.reply({
+        await this.safeReply(interaction, {
           content: '❌ **구인구직 기능 접근 권한이 없습니다.**\n\n이 기능은 현재 베타 테스트 중으로 특정 사용자와 관리자만 이용할 수 있습니다.',
           flags: MessageFlags.Ephemeral
         });
@@ -29,13 +29,11 @@ export class RecruitmentCommand extends CommandBase {
     } catch (error) {
       console.error(`${this.constructor.name} 명령어 실행 오류:`, error);
 
-      // 에러 응답 (아직 응답하지 않은 경우에만)
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: '명령어 실행 중 오류가 발생했습니다.',
-          flags: MessageFlags.Ephemeral,
-        });
-      }
+      // 에러 응답 (SafeInteraction이 자동으로 상태 확인)
+      await this.safeReply(interaction, {
+        content: '명령어 실행 중 오류가 발생했습니다.',
+        flags: MessageFlags.Ephemeral,
+      });
     }
   }
 }

@@ -1,6 +1,7 @@
 // src/commands/gapCheckCommand.js - 시간체크 명령어 (수정)
 import {MessageFlags} from 'discord.js';
 import {formatTime} from '../utils/formatters.js';
+import {SafeInteraction} from '../utils/SafeInteraction.js';
 
 export class GapCheckCommand {
   constructor(activityTracker, dbManager) {
@@ -13,7 +14,7 @@ export class GapCheckCommand {
    * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
-    await interaction.deferReply({flags: MessageFlags.Ephemeral});
+    await SafeInteraction.safeDeferReply(interaction, {flags: MessageFlags.Ephemeral});
 
     try {
       // 명령어 옵션 가져오기
@@ -54,7 +55,7 @@ export class GapCheckCommand {
           dateRangeMessage = ` ${startDateFormatted} ~ ${endDateFormatted} 기간`;
         } catch (error) {
           console.error('날짜 파싱 오류:', error);
-          await interaction.followUp({
+          await SafeInteraction.safeReply(interaction, {
             content: `날짜 처리 중 오류가 발생했습니다: ${error.message}`,
             flags: MessageFlags.Ephemeral,
           });
@@ -70,13 +71,13 @@ export class GapCheckCommand {
       const formattedTime = formatTime(totalTime);
 
       // 응답 전송
-      await interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: `${user.username}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
       console.error('시간체크 명령어 실행 오류:', error);
-      await interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: '활동 시간 확인 중 오류가 발생했습니다.',
         flags: MessageFlags.Ephemeral,
       });
@@ -86,7 +87,7 @@ export class GapCheckCommand {
   // 날짜 형식 검증
   validateDateFormat(dateStr, label, interaction) {
     if (!/^\d{6}$/.test(dateStr)) {
-      interaction.followUp({
+      SafeInteraction.safeReply(interaction, {
         content: `${label} 날짜 형식이 올바르지 않습니다. '${dateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250413)`,
         flags: MessageFlags.Ephemeral,
       });

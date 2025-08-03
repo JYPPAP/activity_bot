@@ -14,6 +14,7 @@ import {RecruitmentCommand} from './recruitmentCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
 import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
+import {SafeInteraction} from '../utils/SafeInteraction.js';
 
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, calendarLogService, voiceForumService) {
@@ -114,7 +115,7 @@ export class CommandHandler {
 
     // 권한 확인
     if (!hasCommandPermission(interaction.member, commandName)) {
-      await interaction.reply({
+      await SafeInteraction.safeReply(interaction, {
         content: getPermissionDeniedMessage(commandName),
         flags: MessageFlags.Ephemeral,
       });
@@ -130,18 +131,11 @@ export class CommandHandler {
     } catch (error) {
       console.error("명령어 처리 오류:", error);
 
-      // 이미 응답한 상호작용이 아닐 경우에만 응답
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: "요청 수행 중 오류가 발생했습니다!",
-          flags: MessageFlags.Ephemeral,
-        });
-      } else if (interaction.deferred) {
-        await interaction.followUp({
-          content: "요청 수행 중 오류가 발생했습니다!",
-          flags: MessageFlags.Ephemeral,
-        });
-      }
+      // SafeInteraction이 자동으로 상태를 확인하고 적절한 메서드를 선택
+      await SafeInteraction.safeReply(interaction, {
+        content: "요청 수행 중 오류가 발생했습니다!",
+        flags: MessageFlags.Ephemeral,
+      });
     }
   }
 }

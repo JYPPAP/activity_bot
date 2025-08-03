@@ -1,5 +1,6 @@
 // src/commands/CommandBase.js - 모든 명령어의 기본 기능 제공
 import {MessageFlags} from 'discord.js';
+import {SafeInteraction} from '../utils/SafeInteraction.js';
 
 export class CommandBase {
   /**
@@ -41,27 +42,44 @@ export class CommandBase {
   }
 
   /**
-   * 오류 응답 전송
+   * 오류 응답 전송 (SafeInteraction 사용)
    * @param interaction - 상호작용 객체
    * @param {Error} error - 발생한 오류
    */
   async sendErrorResponse(interaction, error) {
     const errorMessage = '명령어 실행 중 오류가 발생했습니다.';
 
-    try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({
-          content: errorMessage,
-          flags: MessageFlags.Ephemeral,
-        });
-      } else {
-        await interaction.followUp({
-          content: errorMessage,
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    } catch (responseError) {
-      console.error('오류 응답 전송 실패:', responseError);
-    }
+    await SafeInteraction.safeReply(interaction, {
+      content: errorMessage,
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+
+  /**
+   * 안전한 응답 전송
+   * @param interaction - 상호작용 객체
+   * @param options - 응답 옵션
+   */
+  async safeReply(interaction, options) {
+    return await SafeInteraction.safeReply(interaction, options);
+  }
+
+  /**
+   * 안전한 지연 응답
+   * @param interaction - 상호작용 객체
+   * @param options - 지연 옵션
+   */
+  async safeDeferReply(interaction, options = {}) {
+    return await SafeInteraction.safeDeferReply(interaction, options);
+  }
+
+  /**
+   * 안전한 후속 응답
+   * @param interaction - 상호작용 객체
+   * @param options - 응답 옵션
+   */
+  async safeFollowUp(interaction, options) {
+    // SafeInteraction.safeReply가 자동으로 상태를 확인해서 followUp 또는 다른 적절한 메서드를 선택함
+    return await SafeInteraction.safeReply(interaction, options);
   }
 }
