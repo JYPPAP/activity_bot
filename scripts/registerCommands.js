@@ -48,11 +48,23 @@ commands.push(
     )
 );
 
+// 시간확인 명령어
+commands.push(
+  new SlashCommandBuilder()
+    .setName('시간확인')
+    .setDescription('이번 달 활동 시간을 확인합니다.')
+);
+
 // 시간체크 명령어
 commands.push(
   new SlashCommandBuilder()
     .setName('시간체크')
-    .setDescription('본인의 활동 시간을 확인합니다.')
+    .setDescription('특정 사용자의 활동 시간을 확인합니다.')
+    .addUserOption(option =>
+      option.setName('user')
+            .setDescription('확인할 사용자')
+            .setRequired(true)
+    )
     .addStringOption(option =>
       option.setName('start_date')
             .setDescription('시작 날짜 (YYMMDD 형식, 예: 250413)')

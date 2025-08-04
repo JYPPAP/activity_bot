@@ -1,16 +1,16 @@
-// src/commands/gapCheckCommand.js - 시간체크 명령어 (단순화)
+// src/commands/TimeConfirmCommand.js - 시간확인 명령어 (개인용)
 import {MessageFlags} from 'discord.js';
 import {formatTime} from '../utils/formatters.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 
-export class GapCheckCommand {
+export class TimeConfirmCommand {
   constructor(activityTracker, dbManager) {
     this.activityTracker = activityTracker;
     this.db = dbManager;
   }
 
   /**
-   * 시간체크 명령어를 실행합니다.
+   * 시간확인 명령어를 실행합니다.
    * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
@@ -51,7 +51,7 @@ export class GapCheckCommand {
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      console.error('시간체크 명령어 실행 오류:', error);
+      console.error('시간확인 명령어 실행 오류:', error);
       await SafeInteraction.safeReply(interaction, {
         content: '활동 시간 확인 중 오류가 발생했습니다.',
         flags: MessageFlags.Ephemeral,

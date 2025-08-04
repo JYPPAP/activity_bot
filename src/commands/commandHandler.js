@@ -3,7 +3,8 @@ import {PermissionsBitField, MessageFlags, ApplicationCommandOptionType} from 'd
 import {GapListCommand} from './gapListCommand.js';
 import {GapConfigCommand} from './gapConfigCommand.js';
 import {GapResetCommand} from './gapResetCommand.js';
-import {GapCheckCommand} from './gapCheckCommand.js';
+import {TimeConfirmCommand} from './TimeConfirmCommand.js';
+import {TimeCheckCommand} from './TimeCheckCommand.js';
 import {GapSaveCommand} from './gapSaveCommand.js';
 import {GapCalendarCommand} from './gapCalendarCommand.js';
 import {GapStatsCommand} from './gapStatsCommand.js';
@@ -35,7 +36,8 @@ export class CommandHandler {
       const gapListCommand = new GapListCommand(this.activityTracker, this.dbManager);
       const gapConfigCommand = new GapConfigCommand(this.dbManager);
       const gapResetCommand = new GapResetCommand(this.activityTracker);
-      const gapCheckCommand = new GapCheckCommand(this.activityTracker, this.dbManager);
+      const timeConfirmCommand = new TimeConfirmCommand(this.activityTracker, this.dbManager);
+      const timeCheckCommand = new TimeCheckCommand(this.activityTracker, this.dbManager);
       const gapSaveCommand = new GapSaveCommand(this.activityTracker);
       const gapCalendarCommand = new GapCalendarCommand(this.calendarLogService);
       const gapStatsCommand = new GapStatsCommand(this.dbManager);
@@ -60,7 +62,8 @@ export class CommandHandler {
       this.commands.set('gap_list', gapListCommand);
       this.commands.set('gap_config', gapConfigCommand);
       this.commands.set('gap_reset', gapResetCommand);
-      this.commands.set('시간체크', gapCheckCommand);
+      this.commands.set('시간확인', timeConfirmCommand);
+      this.commands.set('시간체크', timeCheckCommand);
       this.commands.set('gap_save', gapSaveCommand);
       this.commands.set('gap_calendar', gapCalendarCommand);
       this.commands.set('gap_stats', gapStatsCommand);
