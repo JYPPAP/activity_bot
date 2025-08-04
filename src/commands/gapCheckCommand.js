@@ -23,8 +23,7 @@ export class GapCheckCommand {
       const startDateStr = interaction.options.getString("start_date")?.trim();
       const endDateStr = interaction.options.getString("end_date")?.trim();
 
-      // 현재 활동 데이터 저장 (최신 데이터 확보)
-      await this.activityTracker.saveActivityData();
+      // 현재 활동 데이터는 실시간으로 추적되므로 별도 저장 불필요 (성능 최적화)
 
       // 날짜 범위 파싱
       let totalTime;
@@ -72,7 +71,7 @@ export class GapCheckCommand {
 
       // 응답 전송
       await SafeInteraction.safeReply(interaction, {
-        content: `${user.username}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
+        content: `${interaction.member?.displayName || user.username}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
