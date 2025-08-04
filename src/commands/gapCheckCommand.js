@@ -17,8 +17,8 @@ export class GapCheckCommand {
     await SafeInteraction.safeDeferReply(interaction, {flags: MessageFlags.Ephemeral});
 
     try {
-      // 명령어 옵션 가져오기
-      const user = interaction.options.getUser("user");
+      // 명령어를 실행한 사용자 정보 가져오기
+      const user = interaction.user;
       const userId = user.id;
       const startDateStr = interaction.options.getString("start_date")?.trim();
       const endDateStr = interaction.options.getString("end_date")?.trim();
