@@ -1,8 +1,9 @@
 // src/config/commandPermissions.js - 명령어 권한 설정
 import { PermissionsBitField } from 'discord.js';
+import { config } from './env.js';
 
 // 모든 명령어에 대한 전체 권한을 가진 역할들
-export const SUPER_ADMIN_ROLES = ['관리자', '봇관리자'];
+export const SUPER_ADMIN_ROLES = ['사장'];
 
 // 일반 사용자도 사용 가능한 명령어들 (역할 없이도 사용 가능)
 export const PUBLIC_COMMANDS = ['구직', '시간확인'];
@@ -28,7 +29,12 @@ export const ROLE_BASED_PERMISSIONS = {
  * @returns {boolean} - 권한 보유 여부
  */
 export function hasCommandPermission(member, commandName) {
-  // 1. 슈퍼 관리자 역할 확인 (모든 명령어 사용 가능)
+  // 1. DEV_ID 사용자 확인 (모든 명령어 사용 가능)
+  if (config.DEV_ID && member.id === config.DEV_ID) {
+    return true;
+  }
+  
+  // 2. "사장" 역할 확인 (모든 명령어 사용 가능)
   const isSuperAdmin = member.roles.cache.some(role => 
     SUPER_ADMIN_ROLES.includes(role.name)
   );
@@ -37,12 +43,12 @@ export function hasCommandPermission(member, commandName) {
     return true;
   }
   
-  // 2. 일반 사용자도 사용 가능한 명령어 확인
+  // 3. 일반 사용자도 사용 가능한 명령어 확인
   if (PUBLIC_COMMANDS.includes(commandName)) {
     return true;
   }
   
-  // 3. 특정 역할이 필요한 명령어 확인
+  // 4. 특정 역할이 필요한 명령어 확인
   const allowedRoles = ROLE_BASED_PERMISSIONS[commandName];
   if (allowedRoles && allowedRoles.length > 0) {
     return member.roles.cache.some(role => 
@@ -50,7 +56,7 @@ export function hasCommandPermission(member, commandName) {
     );
   }
   
-  // 4. 정의되지 않은 명령어는 기본적으로 거부
+  // 5. 정의되지 않은 명령어는 기본적으로 거부
   return false;
 }
 
@@ -67,5 +73,5 @@ export function getPermissionDeniedMessage(commandName) {
   }
   
   const roleList = [...allowedRoles].join(', ');
-  return `❌ 이 명령어는 다음 역할이 필요합니다: ${roleList}`;
+  return `❌ 이 명령어는 다음 역할이 필요합니다: ${roleList} (또는 개발자 권한)`;
 }
