@@ -14,9 +14,9 @@ export class DatabaseManager {
     this.cacheTimeout = 30000; // 30초 캐시 유지
     this.lastCacheTime = 0;
     
-    // 사용자별 활동 시간 캐시 (30분 디바운싱)
+    // 사용자별 활동 시간 캐시 (1분 디바운싱 - 테스트 중)
     this.userActivityCache = new Map(); // { cacheKey: { totalTime, lastFetch } }
-    this.USER_CACHE_DURATION = 30 * 60 * 1000; // 30분
+    this.USER_CACHE_DURATION = 1 * 60 * 1000; // 1분
 
     // 기본 데이터베이스 구조 설정
     this.db.defaults({
@@ -371,14 +371,14 @@ export class DatabaseManager {
       const cacheKey = `${userId}_${startTime}_${endTime}`;
       const cached = this.userActivityCache.get(cacheKey);
       
-      // 캐시가 있고 30분이 안 지났으면 캐시된 값 반환
+      // 캐시가 있고 1분이 안 지났으면 캐시된 값 반환
       if (cached && (now - cached.lastFetch) < this.USER_CACHE_DURATION) {
         const remainingTime = Math.round((this.USER_CACHE_DURATION - (now - cached.lastFetch)) / 1000);
         console.log(`[캐시 사용] 사용자 ${userId} - 캐시 만료까지 ${remainingTime}초 남음`);
         return cached.totalTime;
       }
       
-      // 30분이 지났거나 캐시가 없으면 DB에서 읽기
+      // 1분이 지났거나 캐시가 없으면 DB에서 읽기
       console.log(`[DB 조회] 사용자 ${userId} - 캐시 갱신 중...`);
       console.log(`[DB 조회] 검색 범위: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`);
       this.db.read(); // 파일에서 직접 읽기
