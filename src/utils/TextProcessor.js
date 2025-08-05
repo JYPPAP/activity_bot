@@ -153,4 +153,40 @@ export class TextProcessor {
     const { hasWaitTag, hasSpectateTag } = this.checkSpecialTags(displayName);
     return hasWaitTag || hasSpectateTag;
   }
+  
+  /**
+   * 포럼 포스트 제목에서 실제 소유자 이름 추출
+   * @param {string} title - 포럼 포스트 제목
+   * @returns {string|null} - 추출된 소유자 이름 또는 null
+   */
+  static extractOwnerFromTitle(title) {
+    if (!title || typeof title !== 'string') {
+      return null;
+    }
+    
+    // 패턴 1: [[상태] 사용자명] 형태 (예: [[관전] 무지] 테스트 1/5 테스트)
+    const doubleNestedMatch = title.match(/^\[\[(?:관전|대기|참여)\]\s*([^\]]+)\]/);
+    if (doubleNestedMatch && doubleNestedMatch[1]) {
+      return doubleNestedMatch[1].trim();
+    }
+    
+    // 패턴 2: [상태] 사용자명] 형태 (예: [대기] 김태희] 테스트)
+    const stateUserMatch = title.match(/^\[(?:관전|대기|참여)\]\s*([^\]]+)\]/);
+    if (stateUserMatch && stateUserMatch[1]) {
+      return stateUserMatch[1].trim();
+    }
+    
+    // 패턴 3: [사용자명] 형태 (예: [김태희] 롤체 1/8 17:00)
+    const basicMatch = title.match(/^\[([^\]]+)\]/);
+    if (basicMatch && basicMatch[1]) {
+      const username = basicMatch[1].trim();
+      // 상태 태그가 아닌 경우만 반환
+      if (!['관전', '대기', '참여'].includes(username)) {
+        return username;
+      }
+    }
+    
+    // 매칭되지 않으면 null 반환
+    return null;
+  }
 }

@@ -4,6 +4,7 @@ import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
+import { TextProcessor } from '../utils/TextProcessor.js';
 import { config } from '../config/env.js';
 
 export class ButtonHandler {
@@ -208,6 +209,8 @@ export class ButtonHandler {
         await this.handleWaitButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) || customId === 'general_reset') {
         await this.handleResetButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) || customId === 'general_delete') {
+        await this.handleDeleteButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -472,6 +475,76 @@ export class ButtonHandler {
   }
   
   /**
+   * 포스트 삭제(닫기) 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleDeleteButton(interaction) {
+    // 즉시 defer하여 3초 제한 해결
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    
+    try {
+      // 현재 채널이 포럼 스레드인지 확인
+      if (!interaction.channel || !interaction.channel.isThread()) {
+        await interaction.editReply({
+          content: '❌ 포럼 포스트에서만 사용할 수 있습니다.'
+        });
+        return;
+      }
+      
+      const postTitle = interaction.channel.name;
+      const clickerNickname = interaction.user.displayName || interaction.user.username;
+      
+      // 포스트 제목에서 실제 소유자 추출
+      const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
+      
+      if (!postOwner) {
+        await interaction.editReply({
+          content: '❌ 포스트 소유자를 확인할 수 없습니다.'
+        });
+        return;
+      }
+      
+      // 버튼을 클릭한 사용자의 닉네임 정리 (대기/관전 태그 제거)
+      const cleanedClickerNickname = TextProcessor.cleanNickname(clickerNickname);
+      
+      // 소유자와 클릭자 비교
+      if (postOwner !== cleanedClickerNickname) {
+        await interaction.editReply({
+          content: `❌ 포스트 소유자만 닫기가 가능합니다.\\n**포스트 소유자**: ${postOwner}\\n**현재 사용자**: ${cleanedClickerNickname}`
+        });
+        return;
+      }
+      
+      // 포스트 아카이브 및 잠금 처리
+      const postId = interaction.channel.id;
+      const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(
+        postId, 
+        '포스트 소유자가 직접 종료',
+        true
+      );
+      
+      if (archiveSuccess) {
+        await interaction.editReply({
+          content: `✅ 포스트가 성공적으로 종료되었습니다.\\n📝 **포스트**: ${postTitle}\\n👤 **종료자**: ${cleanedClickerNickname}`
+        });
+        console.log(`[ButtonHandler] 포스트 삭제 성공: ${postId} by ${cleanedClickerNickname}`);
+      } else {
+        await interaction.editReply({
+          content: '❌ 포스트 종료에 실패했습니다. 다시 시도해주세요.'
+        });
+        console.warn(`[ButtonHandler] 포스트 삭제 실패: ${postId}`);
+      }
+      
+    } catch (error) {
+      console.error('[ButtonHandler] 포스트 삭제 처리 오류:', error);
+      await interaction.editReply({
+        content: '❌ 포스트 종료 중 오류가 발생했습니다.'
+      });
+    }
+  }
+  
+  /**
    * 버튼 처리 라우팅
    * @param {ButtonInteraction} interaction - 버튼 인터랙션
    * @returns {Promise<void>}
@@ -519,10 +592,12 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||
-           customId === 'general_close';
+           customId === 'general_close' ||
+           customId === 'general_delete';
   }
   
   /**

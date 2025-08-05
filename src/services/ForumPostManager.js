@@ -184,8 +184,12 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    // 닫기 버튼 제거 (closeButton -> 제거)
-    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton);
+    const deleteButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE}${voiceChannelId}`)
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, deleteButton);
   }
   
   /**
@@ -214,8 +218,12 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
-    // 닫기 버튼 제거 (closeButton -> 제거)
-    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton);
+    const deleteButton = new ButtonBuilder()
+      .setCustomId('general_delete')
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, deleteButton);
   }
   
   /**
