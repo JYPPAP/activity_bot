@@ -17,7 +17,7 @@ export class TextProcessor {
   
   /**
    * 태그를 역할 멘션으로 변환
-   * @param {string} tags - 태그 문자열 (쉼표로 구분)
+   * @param {string|string[]} tags - 태그 문자열 (쉼표로 구분) 또는 태그 배열
    * @param {Guild} guild - 길드 객체
    * @returns {Promise<string>} - 역할 멘션 문자열
    */
@@ -25,7 +25,9 @@ export class TextProcessor {
     if (!tags || !guild) return '';
     
     try {
-      const tagArray = tags.split(',').map(tag => tag.trim()).filter(tag => tag);
+      // 배열인 경우 문자열로 변환
+      const tagsString = Array.isArray(tags) ? tags.join(', ') : tags;
+      const tagArray = tagsString.split(',').map(tag => tag.trim()).filter(tag => tag);
       const roleMentions = [];
       
       for (const tag of tagArray) {
