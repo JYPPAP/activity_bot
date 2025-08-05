@@ -13,6 +13,10 @@ export class DatabaseManager {
     this.cache = new Map();
     this.cacheTimeout = 30000; // 30초 캐시 유지
     this.lastCacheTime = 0;
+    
+    // 사용자별 활동 시간 캐시 (30분 디바운싱)
+    this.userActivityCache = new Map(); // { cacheKey: { totalTime, lastFetch } }
+    this.USER_CACHE_DURATION = 30 * 60 * 1000; // 30분
 
     // 기본 데이터베이스 구조 설정
     this.db.defaults({
@@ -363,7 +367,21 @@ export class DatabaseManager {
    */
   async getUserActivityByDateRange(userId, startTime, endTime) {
     try {
-      this.forceReload(); // 기간별 사용자 활동 조회 시 정확한 데이터 필요
+      const now = Date.now();
+      const cacheKey = `${userId}_${startTime}_${endTime}`;
+      const cached = this.userActivityCache.get(cacheKey);
+      
+      // 캐시가 있고 30분이 안 지났으면 캐시된 값 반환
+      if (cached && (now - cached.lastFetch) < this.USER_CACHE_DURATION) {
+        const remainingTime = Math.round((this.USER_CACHE_DURATION - (now - cached.lastFetch)) / 1000);
+        console.log(`[캐시 사용] 사용자 ${userId} - 캐시 만료까지 ${remainingTime}초 남음`);
+        return cached.totalTime;
+      }
+      
+      // 30분이 지났거나 캐시가 없으면 DB에서 읽기
+      console.log(`[DB 조회] 사용자 ${userId} - 캐시 갱신 중...`);
+      this.db.read(); // 파일에서 직접 읽기
+      
       const logs = this.db.get('activity_logs')
                        .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
@@ -383,6 +401,14 @@ export class DatabaseManager {
       if (joinTime) {
         totalTime += Math.min(endTime, Date.now()) - joinTime;
       }
+      
+      // 캐시 업데이트
+      this.userActivityCache.set(cacheKey, {
+        totalTime: totalTime,
+        lastFetch: now
+      });
+      
+      console.log(`[DB 조회 완료] 사용자 ${userId} - 총 활동 시간: ${totalTime}ms`);
 
       return totalTime;
     } catch (error) {
