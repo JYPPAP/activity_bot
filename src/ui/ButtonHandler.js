@@ -511,7 +511,7 @@ export class ButtonHandler {
       // 소유자와 클릭자 비교
       if (postOwner !== cleanedClickerNickname) {
         await interaction.editReply({
-          content: `❌ 포스트 소유자만 닫기가 가능합니다.\\n**포스트 소유자**: ${postOwner}\\n**현재 사용자**: ${cleanedClickerNickname}`
+          content: `❌ 포스트 소유자만 닫기가 가능합니다.\n**포스트 소유자**: ${postOwner}\n**현재 사용자**: ${cleanedClickerNickname}`
         });
         return;
       }
@@ -526,7 +526,7 @@ export class ButtonHandler {
       
       if (archiveSuccess) {
         await interaction.editReply({
-          content: `✅ 포스트가 성공적으로 종료되었습니다.\\n📝 **포스트**: ${postTitle}\\n👤 **종료자**: ${cleanedClickerNickname}`
+          content: `✅ 포스트가 성공적으로 종료되었습니다.\n📝 **포스트**: ${postTitle}\n👤 **종료자**: ${cleanedClickerNickname}`
         });
         console.log(`[ButtonHandler] 포스트 삭제 성공: ${postId} by ${cleanedClickerNickname}`);
       } else {
