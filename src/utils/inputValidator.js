@@ -74,8 +74,8 @@ export function validateAndSanitizeInput(text, options = {}) {
       result.isValid = false;
     }
 
-    // 8. 빈 텍스트 검사 (정화 후)
-    if (result.sanitizedText.trim().length === 0) {
+    // 8. 빈 텍스트 검사 (정화 후) - minLength가 0인 경우 허용
+    if (result.sanitizedText.trim().length === 0 && config.minLength > 0) {
       result.errors.push('유효한 내용이 없습니다.');
       result.isValid = false;
     }
