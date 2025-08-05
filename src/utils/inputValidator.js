@@ -23,8 +23,11 @@ export function validateAndSanitizeInput(text, options = {}) {
   };
 
   try {
-    // 1. 기본 유효성 검사
+    // 1. 기본 유효성 검사 (디버깅 로그 추가)
+    console.log(`[InputValidator] 입력값 확인: type=${typeof text}, value="${text}", length=${text?.length || 0}`);
+    
     if (!text || typeof text !== 'string') {
+      console.log(`[InputValidator] 입력 검증 실패 - text: "${text}", type: ${typeof text}, truthy: ${!!text}`);
       result.errors.push('입력 텍스트가 유효하지 않습니다.');
       result.isValid = false;
       return result;
