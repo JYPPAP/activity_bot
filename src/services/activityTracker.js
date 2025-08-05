@@ -477,6 +477,47 @@ export class ActivityTracker {
     }
   }
 
+  /**
+   * 메모리에 저장된 활동 데이터 확인 (디버깅용)
+   */
+  getMemoryActivityData(userId = null) {
+    if (userId) {
+      // 특정 사용자의 메모리 데이터 반환
+      const activity = this.channelActivityTime.get(userId);
+      if (activity) {
+        const now = Date.now();
+        const currentSessionTime = activity.startTime ? now - activity.startTime : 0;
+        return {
+          userId: userId,
+          totalTime: activity.totalTime,
+          currentSessionTime: currentSessionTime,
+          isCurrentlyActive: !!activity.startTime,
+          startTime: activity.startTime,
+          displayName: activity.displayName,
+          totalWithCurrent: activity.totalTime + currentSessionTime
+        };
+      }
+      return null;
+    } else {
+      // 모든 사용자의 메모리 데이터 반환
+      const now = Date.now();
+      const result = [];
+      for (const [uid, activity] of this.channelActivityTime.entries()) {
+        const currentSessionTime = activity.startTime ? now - activity.startTime : 0;
+        result.push({
+          userId: uid,
+          totalTime: activity.totalTime,
+          currentSessionTime: currentSessionTime,
+          isCurrentlyActive: !!activity.startTime,
+          startTime: activity.startTime,
+          displayName: activity.displayName,
+          totalWithCurrent: activity.totalTime + currentSessionTime
+        });
+      }
+      return result;
+    }
+  }
+
   async classifyUsersByRole(roleName, roleMembers) {
     try {
       // 역할에 필요한 최소 활동 시간 조회

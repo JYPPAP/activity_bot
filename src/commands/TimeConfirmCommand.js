@@ -30,6 +30,18 @@ export class TimeConfirmCommand {
 
       console.log('자동 설정된 날짜:', startDate, endDate);
 
+      // 메모리에서 현재 활동 상태 확인 (디버깅용)
+      const memoryData = this.activityTracker.getMemoryActivityData(userId);
+      if (memoryData) {
+        console.log(`[메모리 데이터] 사용자 ${userId}:`);
+        console.log(`  - 누적 시간: ${Math.round(memoryData.totalTime / 1000 / 60)}분`);
+        console.log(`  - 현재 세션: ${Math.round(memoryData.currentSessionTime / 1000 / 60)}분`);
+        console.log(`  - 현재 활동 중: ${memoryData.isCurrentlyActive ? 'YES' : 'NO'}`);
+        console.log(`  - 총 시간 (누적+현재): ${Math.round(memoryData.totalWithCurrent / 1000 / 60)}분`);
+      } else {
+        console.log(`[메모리 데이터] 사용자 ${userId}: 데이터 없음`);
+      }
+
       // 특정 기간의 활동 시간 조회
       const totalTime = await this.db.getUserActivityByDateRange(
         userId,

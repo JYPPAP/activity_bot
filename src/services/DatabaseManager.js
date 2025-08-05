@@ -380,27 +380,55 @@ export class DatabaseManager {
       
       // 30분이 지났거나 캐시가 없으면 DB에서 읽기
       console.log(`[DB 조회] 사용자 ${userId} - 캐시 갱신 중...`);
+      console.log(`[DB 조회] 검색 범위: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`);
       this.db.read(); // 파일에서 직접 읽기
       
       const logs = this.db.get('activity_logs')
                        .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
 
+      console.log(`[DB 조회] 사용자 ${userId} - 총 ${logs.length}개의 로그 발견`);
+      
+      // 로그 상세 정보 출력 (최대 10개)
+      const sampleLogs = logs.slice(0, 10);
+      sampleLogs.forEach((log, index) => {
+        console.log(`[DB 로그 ${index + 1}] ${log.eventType} at ${new Date(log.timestamp).toISOString()}`);
+      });
+      if (logs.length > 10) {
+        console.log(`[DB 조회] ... 및 ${logs.length - 10}개 더 있음`);
+      }
+
       let totalTime = 0;
       let joinTime = null;
+      let joinCount = 0;
+      let leaveCount = 0;
+      let unmatchedJoins = 0;
 
       for (const log of logs) {
         if (log.eventType === 'JOIN') {
           joinTime = log.timestamp;
+          joinCount++;
         } else if (log.eventType === 'LEAVE' && joinTime) {
-          totalTime += log.timestamp - joinTime;
+          const sessionTime = log.timestamp - joinTime;
+          totalTime += sessionTime;
+          console.log(`[세션 시간] ${new Date(joinTime).toISOString()} ~ ${new Date(log.timestamp).toISOString()} = ${Math.round(sessionTime / 1000 / 60)}분`);
           joinTime = null;
+          leaveCount++;
+        } else if (log.eventType === 'LEAVE' && !joinTime) {
+          console.log(`[경고] LEAVE 이벤트에 대응하는 JOIN이 없음: ${new Date(log.timestamp).toISOString()}`);
         }
       }
 
+      // 현재 활동 중인 세션 처리
       if (joinTime) {
-        totalTime += Math.min(endTime, Date.now()) - joinTime;
+        const currentSessionTime = Math.min(endTime, Date.now()) - joinTime;
+        totalTime += currentSessionTime;
+        unmatchedJoins = 1;
+        console.log(`[현재 세션] ${new Date(joinTime).toISOString()} ~ 현재 = ${Math.round(currentSessionTime / 1000 / 60)}분`);
       }
+      
+      console.log(`[DB 통계] JOIN: ${joinCount}개, LEAVE: ${leaveCount}개, 미완료 세션: ${unmatchedJoins}개`);
+      console.log(`[DB 총계] 계산된 총 시간: ${Math.round(totalTime / 1000 / 60)}분 (${totalTime}ms)`);
       
       // 캐시 업데이트
       this.userActivityCache.set(cacheKey, {
