@@ -17,7 +17,7 @@ export class ForumPostManager {
    * 포럼 포스트 생성
    * @param {Object} recruitmentData - 구인구직 데이터
    * @param {string} voiceChannelId - 음성 채널 ID (선택사항)
-   * @returns {Promise<string|null>} - 생성된 포스트 ID
+   * @returns {Promise<{success: boolean, postId?: string, error?: string}>} - 생성 결과
    */
   async createForumPost(recruitmentData, voiceChannelId = null) {
     try {
@@ -25,7 +25,7 @@ export class ForumPostManager {
       
       if (!forumChannel || forumChannel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
         console.error('[ForumPostManager] 포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.');
-        return null;
+        return { success: false, error: '포럼 채널을 찾을 수 없습니다' };
       }
       
       const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
@@ -106,11 +106,11 @@ export class ForumPostManager {
       }
       
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
-      return thread.id;
+      return { success: true, postId: thread.id };
       
     } catch (error) {
       console.error('[ForumPostManager] 포럼 포스트 생성 오류:', error);
-      return null;
+      return { success: false, error: error.message };
     }
   }
   
