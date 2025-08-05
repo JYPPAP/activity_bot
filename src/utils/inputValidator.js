@@ -100,8 +100,6 @@ export function sanitizeJsonUnsafeChars(text) {
     .replace(/"/g, "'")
     // 백슬래시 이스케이프
     .replace(/\\/g, "\\\\")
-    // 슬래시 이스케이프 (JSON 안전성을 위해)
-    .replace(/\//g, "\\/")
     // 제어문자를 공백으로 대체
     .replace(/[\r\n\t]/g, ' ')
     // 연속된 공백 정리
