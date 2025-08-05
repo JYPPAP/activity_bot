@@ -226,6 +226,14 @@ export class SafeInteraction {
             result = await interaction.reply(normalizedOptions);
           }
         } catch (editError) {
+          // 복구 불가능한 에러는 즉시 중단
+          const errorCode = Number(editError.code) || 0;
+          const unrecoverableErrors = [10062, 10008, 40060];
+          if (unrecoverableErrors.includes(errorCode)) {
+            console.warn(`[SafeInteraction] editReply 복구 불가능한 에러 (${errorCode}) - 중단`);
+            throw editError;
+          }
+
           // editReply가 실패한 경우 followUp으로 대체
           console.warn('[SafeInteraction] editReply 실패, followUp으로 대체:', {
             error: editError.message,
@@ -254,6 +262,14 @@ export class SafeInteraction {
             error: replyError.message,
             code: replyError.code,
           });
+
+          // 복구 불가능한 에러는 즉시 중단
+          const errorCode = Number(replyError.code) || 0;
+          const unrecoverableErrors = [10062, 10008, 40060];
+          if (unrecoverableErrors.includes(errorCode)) {
+            console.warn(`[SafeInteraction] 복구 불가능한 에러 (${errorCode}) - 재시도 중단`);
+            throw replyError;
+          }
 
           // reply 실패 시 상태 재확인 후 적절한 메서드 선택
           const retryState = this.getInteractionState(interaction);
@@ -319,7 +335,8 @@ export class SafeInteraction {
 
       if (state.replied) {
         console.log('[SafeInteraction] 이미 응답된 인터랙션 - 업데이트 대신 followUp 사용');
-        return await this.safeReply(interaction, options);
+        const normalizedOptions = this.normalizeReplyOptions(options);
+        return await interaction.followUp(normalizedOptions);
       }
 
       const normalizedOptions = this.normalizeReplyOptions(options);
@@ -330,11 +347,8 @@ export class SafeInteraction {
     } catch (error) {
       this.handleInteractionError(error, 'update');
 
-      // 업데이트 실패 시 응답으로 대체
-      return await this.safeReply(interaction, {
-        content: '❌ 업데이트 중 오류가 발생했습니다.',
-        flags: MessageFlags.Ephemeral,
-      });
+      console.warn('[SafeInteraction] 업데이트 실패 - 재귀 호출 없이 종료');
+      return null;
     }
   }
 
@@ -363,10 +377,7 @@ export class SafeInteraction {
     } catch (error) {
       this.handleInteractionError(error, 'showModal');
 
-      await this.safeReply(interaction, {
-        content: '❌ 모달 표시 중 오류가 발생했습니다.',
-        flags: MessageFlags.Ephemeral,
-      });
+      console.warn('[SafeInteraction] 모달 표시 실패 - 재귀 호출 없이 종료');
     }
   }
 

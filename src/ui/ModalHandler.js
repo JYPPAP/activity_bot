@@ -491,7 +491,7 @@ export class ModalHandler {
       });
 
       const createResult = await this.withRetry(
-        () => this.forumPostManager.createForumPost(recruitmentData, undefined, guildId),
+        () => this.forumPostManager.createForumPost(recruitmentData, undefined),
         '독립 포럼 포스트 생성'
       );
 

@@ -124,8 +124,8 @@ export class RecruitmentService {
       }
       
       // 포럼 포스트 생성
-      const postId = await this.forumPostManager.createForumPost(recruitmentData, voiceChannelId);
-      if (!postId) {
+      const createResult = await this.forumPostManager.createForumPost(recruitmentData, voiceChannelId);
+      if (!createResult.success) {
         return {
           success: false,
           message: RecruitmentConfig.MESSAGES.LINK_FAILED
@@ -133,13 +133,13 @@ export class RecruitmentService {
       }
       
       // 채널-포스트 매핑 추가
-      this.mappingService.addMapping(voiceChannelId, postId);
+      this.mappingService.addMapping(voiceChannelId, createResult.postId);
       
-      console.log(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${postId}`);
+      console.log(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${createResult.postId}`);
       
       return {
         success: true,
-        postId: postId,
+        postId: createResult.postId,
         message: RecruitmentConfig.MESSAGES.LINK_SUCCESS
       };
       

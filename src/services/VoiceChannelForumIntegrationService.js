@@ -166,7 +166,7 @@ export class VoiceChannelForumIntegrationService {
   /**
    * 독립적인 포럼 포스트 생성 (음성 채널 없이)
    * @param {Object} recruitmentData - 구인구직 데이터
-   * @returns {Promise<string|null>} - 생성된 포스트 ID 또는 null
+   * @returns {Promise<{success: boolean, postId?: string, error?: string}>} - 생성 결과
    */
   async createStandaloneForumPost(recruitmentData) {
     return await this.forumPostManager.createForumPost(recruitmentData);
