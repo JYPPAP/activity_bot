@@ -9,7 +9,7 @@
 export function validateAndSanitizeInput(text, options = {}) {
   const config = {
     maxLength: options.maxLength || 2000,
-    minLength: options.minLength || 1,
+    minLength: options.minLength !== undefined ? options.minLength : 1,
     allowUrls: options.allowUrls !== false,
     strictMode: options.strictMode || false,
     fieldName: options.fieldName || 'input'
