@@ -379,7 +379,8 @@ export class ModalHandler {
       }
 
       // 기존 검증도 유지 (호환성을 위해)
-      const legacyValidation = this.validateModalData(recruitmentData);
+      const rawTitle = interaction.fields.getTextInputValue('recruitment_title');
+      const legacyValidation = this.validateModalData(recruitmentData, rawTitle);
       if (!legacyValidation.valid) {
         this.modalStats.validationErrors++;
         this.recordValidationErrors(legacyValidation.errors);
@@ -504,8 +505,8 @@ export class ModalHandler {
       .map((tag) => tag.trim())
       .filter((tag) => tag.length > 0);
 
-    // 최대 참여자 수 추출 시도
-    const participantMatch = title.match(/(\d+)\/(\d+|[Nn])/);
+    // 최대 참여자 수 추출 시도 (원본 텍스트 사용)
+    const participantMatch = rawTitle.match(/(\d+)\/(\d+|[Nn])/);
     let maxParticipants;
 
     if (participantMatch) {
@@ -791,9 +792,10 @@ export class ModalHandler {
   /**
    * 모달 입력 값 유효성 검증
    * @param {Object} recruitmentData - 구인구직 데이터
+   * @param {string} rawTitle - 원본 제목 (이스케이프 처리 전)
    * @returns {Object} 검증 결과
    */
-  validateModalData(recruitmentData) {
+  validateModalData(recruitmentData, rawTitle) {
     const errors = [];
     const warnings = [];
 
@@ -809,8 +811,8 @@ export class ModalHandler {
       errors.push(`제목은 최대 ${DiscordConstants.LIMITS.MODAL_TITLE_MAX}글자까지 가능합니다.`);
     }
 
-    // 인원 수 패턴 검증
-    if (recruitmentData.title && !recruitmentData.title.match(/\d+\/(\d+|[Nn])/)) {
+    // 인원 수 패턴 검증 (원본 텍스트 사용)
+    if (rawTitle && !rawTitle.match(/\d+\/(\d+|[Nn])/)) {
       errors.push('제목에 "현재인원/최대인원" 형식을 포함해주세요. (예: 1/5)');
     }
 
