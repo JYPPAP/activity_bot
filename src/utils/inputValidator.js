@@ -41,15 +41,11 @@ export function validateAndSanitizeInput(text, options = {}) {
     }
 
     // 3. JSON 안전성 처리
-    console.log(`[InputValidator] 3단계 전: "${result.sanitizedText}"`);
     result.sanitizedText = sanitizeJsonUnsafeChars(result.sanitizedText);
-    console.log(`[InputValidator] 3단계 후 (JSON 안전화): "${result.sanitizedText}"`);
 
     // 4. 보안 위험 요소 제거
-    console.log(`[InputValidator] 4단계 전: "${result.sanitizedText}"`);
     const securityResult = removeSecurityThreats(result.sanitizedText, config.strictMode);
     result.sanitizedText = securityResult.sanitizedText;
-    console.log(`[InputValidator] 4단계 후 (보안 처리): "${result.sanitizedText}", threats: ${JSON.stringify(securityResult.threatsFound)}`);
     if (securityResult.threatsFound.length > 0) {
       result.warnings.push(`보안 위험 요소가 제거되었습니다: ${securityResult.threatsFound.join(', ')}`);
       console.warn(`[InputValidator] 보안 위험 입력 감지: ${securityResult.threatsFound.join(', ')}`, {
@@ -59,19 +55,15 @@ export function validateAndSanitizeInput(text, options = {}) {
     }
 
     // 5. 스팸 패턴 필터링
-    console.log(`[InputValidator] 5단계 전: "${result.sanitizedText}"`);
     const spamResult = filterSpamPatterns(result.sanitizedText);
     result.sanitizedText = spamResult.sanitizedText;
-    console.log(`[InputValidator] 5단계 후 (스팸 필터링): "${result.sanitizedText}", patterns: ${JSON.stringify(spamResult.patternsFound)}`);
     if (spamResult.patternsFound.length > 0) {
       result.warnings.push(`스팸 패턴이 정리되었습니다: ${spamResult.patternsFound.join(', ')}`);
     }
 
     // 6. 디스코드 요소 정규화
-    console.log(`[InputValidator] 6단계 전: "${result.sanitizedText}"`);
     const discordResult = normalizeDiscordElements(result.sanitizedText, config.allowUrls);
     result.sanitizedText = discordResult.sanitizedText;
-    console.log(`[InputValidator] 6단계 후 (디스코드 정규화): "${result.sanitizedText}", normalized: ${JSON.stringify(discordResult.normalized)}`);
     if (discordResult.normalized.length > 0) {
       result.warnings.push(`디스코드 요소가 정리되었습니다: ${discordResult.normalized.join(', ')}`);
     }

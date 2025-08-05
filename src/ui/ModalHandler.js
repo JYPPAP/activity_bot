@@ -492,7 +492,13 @@ export class ModalHandler {
       strictMode: true,
       fieldName: '게임 태그'
     });
-    const descriptionValidation = validateAndSanitizeInput(rawDescription, VALIDATION_PRESETS.CONTENT);
+    const descriptionValidation = validateAndSanitizeInput(rawDescription, {
+      maxLength: 2000,
+      minLength: 0, // 선택적 필드이므로 빈 문자열 허용
+      allowUrls: true,
+      strictMode: false,
+      fieldName: '설명'
+    });
 
     // 정화된 데이터 사용
     const title = titleValidation.sanitizedText;
