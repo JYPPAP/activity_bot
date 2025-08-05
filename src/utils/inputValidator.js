@@ -97,6 +97,8 @@ export function sanitizeJsonUnsafeChars(text) {
     .replace(/"/g, "'")
     // 백슬래시 이스케이프
     .replace(/\\/g, "\\\\")
+    // 슬래시 이스케이프 (JSON 안전성을 위해)
+    .replace(/\//g, "\\/")
     // 제어문자를 공백으로 대체
     .replace(/[\r\n\t]/g, ' ')
     // 연속된 공백 정리
@@ -279,8 +281,9 @@ export function validateLength(text, minLength = 1, maxLength = 2000) {
  */
 export function isJsonSafe(text) {
   try {
-    // JSON 객체에 넣어서 파싱 테스트
-    const testObj = { test: text };
+    // 특수 문자들을 미리 이스케이프 처리
+    const escapedText = text.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const testObj = { test: escapedText };
     JSON.stringify(testObj);
     JSON.parse(JSON.stringify(testObj));
     return true;
