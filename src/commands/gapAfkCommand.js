@@ -2,6 +2,7 @@
 import {MessageFlags} from 'discord.js';
 import {parseYYMMDD, calculateNextSunday, formatKoreanDateString} from '../utils/dateUtils.js';
 import {CommandBase} from './CommandBase.js';
+import { validateAndSanitizeInput } from '../utils/inputValidator.js';
 
 export class GapAfkCommand extends CommandBase {
   constructor(client, dbManager) {
@@ -15,8 +16,8 @@ export class GapAfkCommand extends CommandBase {
   async executeCommand(interaction) {
     // 사용자 옵션 가져오기
     const targetUser = interaction.options.getUser("user");
-    // 날짜 옵션 가져오기 (YYMMDD 형식)
-    const dateStr = interaction.options.getString("until_date");
+    // 날짜 옵션 가져오기 및 검증 (YYMMDD 형식)
+    const rawDateStr = interaction.options.getString("until_date");
 
     if (!targetUser) {
       return await interaction.followUp({
@@ -25,7 +26,26 @@ export class GapAfkCommand extends CommandBase {
       });
     }
 
-    if (!dateStr || !/^\d{6}$/.test(dateStr)) {
+    // 날짜 입력 검증
+    const dateValidation = validateAndSanitizeInput(rawDateStr, {
+      maxLength: 6,
+      minLength: 6,
+      allowUrls: false,
+      strictMode: true,
+      fieldName: '날짜'
+    });
+
+    if (!dateValidation.isValid) {
+      return await interaction.followUp({
+        content: `❌ **날짜 입력 오류:**\n${dateValidation.errors.join('\n')}\n\n날짜는 YYMMDD 형식으로 입력해주세요. (예: 250510)`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+
+    const dateStr = dateValidation.sanitizedText;
+
+    // 추가 날짜 형식 검증
+    if (!/^\d{6}$/.test(dateStr)) {
       return await interaction.followUp({
         content: "날짜는 YYMMDD 형식으로 입력해주세요. (예: 250510)",
         flags: MessageFlags.Ephemeral,

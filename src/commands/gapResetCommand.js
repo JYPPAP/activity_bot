@@ -1,6 +1,7 @@
 // src/commands/gapResetCommand.js - gap_reset 명령어
 import {MessageFlags} from 'discord.js';
 import {cleanRoleName} from '../utils/formatters.js';
+import { validateAndSanitizeInput, VALIDATION_PRESETS } from '../utils/inputValidator.js';
 
 export class GapResetCommand {
   constructor(activityTracker) {
@@ -15,8 +16,27 @@ export class GapResetCommand {
     await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
-      // 역할 옵션 가져오기
-      const role = cleanRoleName(interaction.options.getString("role"));
+      // 역할 옵션 가져오기 및 검증
+      const rawRole = interaction.options.getString("role");
+      
+      // 입력 검증
+      const roleValidation = validateAndSanitizeInput(rawRole, {
+        maxLength: 50,
+        minLength: 1,
+        allowUrls: false,
+        strictMode: true,
+        fieldName: '역할명'
+      });
+
+      if (!roleValidation.isValid) {
+        await interaction.followUp({
+          content: `❌ **역할명 입력 오류:**\n${roleValidation.errors.join('\n')}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const role = cleanRoleName(roleValidation.sanitizedText);
 
       // 해당 역할의 멤버들 가져오기
       const members = interaction.guild.members.cache.filter(

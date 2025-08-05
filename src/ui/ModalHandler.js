@@ -12,6 +12,7 @@ import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { ForumPostManager } from '../services/ForumPostManager.js';
 import { RecruitmentService } from '../services/RecruitmentService.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { validateAndSanitizeInput, VALIDATION_PRESETS, getValidationErrorMessage } from '../utils/inputValidator.js';
 
 export class ModalHandler {
   constructor(recruitmentService, forumPostManager) {
@@ -352,23 +353,58 @@ export class ModalHandler {
     try {
       const customId = interaction.customId;
 
-      // 입력 값 추출 및 검증
+      // 입력 값 추출 및 검증 (새로운 검증 시스템 사용)
       const recruitmentData = this.extractModalData(interaction);
-      const validation = this.validateModalData(recruitmentData);
-
-      if (!validation.valid) {
+      
+      // 새로운 검증 시스템 결과 확인
+      if (!recruitmentData.validationResult.isValid) {
         this.modalStats.validationErrors++;
-        this.recordValidationErrors(validation.errors);
+        this.recordValidationErrors(recruitmentData.validationResult.errors);
 
-        const errorMessage = this.createValidationErrorMessage(validation.errors);
+        // 새로운 검증 시스템의 에러 메시지 사용
+        const errorMessage = getValidationErrorMessage(
+          recruitmentData.validationResult.errors,
+          recruitmentData.validationResult.warnings,
+          '구인구직 입력'
+        );
+        
         await SafeInteraction.safeReply(interaction, {
           content: errorMessage,
           flags: MessageFlags.Ephemeral,
         });
 
         return this.recordSubmissionResult(interaction, 'validation', false, startTime, {
-          errors: validation.errors,
+          errors: recruitmentData.validationResult.errors,
         });
+      }
+
+      // 기존 검증도 유지 (호환성을 위해)
+      const legacyValidation = this.validateModalData(recruitmentData);
+      if (!legacyValidation.valid) {
+        this.modalStats.validationErrors++;
+        this.recordValidationErrors(legacyValidation.errors);
+
+        const errorMessage = this.createValidationErrorMessage(legacyValidation.errors);
+        await SafeInteraction.safeReply(interaction, {
+          content: errorMessage,
+          flags: MessageFlags.Ephemeral,
+        });
+
+        return this.recordSubmissionResult(interaction, 'validation', false, startTime, {
+          errors: legacyValidation.errors,
+        });
+      }
+
+      // 입력이 정화되었다면 사용자에게 알림
+      if (recruitmentData.validationResult.hasSanitization) {
+        const warningMessage = getValidationErrorMessage(
+          [],
+          recruitmentData.validationResult.warnings,
+          '구인구직 입력'
+        );
+        
+        // 경고 메시지는 로그로만 출력 (사용자에게는 너무 방해가 될 수 있음)
+        console.log(`[ModalHandler] 입력 정화 완료: ${warningMessage}`);
       }
 
       if (customId === 'standalone_recruitment_modal') {
@@ -430,16 +466,33 @@ export class ModalHandler {
   }
 
   /**
-   * 모달에서 데이터 추출
+   * 모달에서 데이터 추출 (입력 검증 및 정화 포함)
    * @param {import('discord.js').ModalSubmitInteraction} interaction - 모달 제출 인터랙션
-   * @returns {Object} 추출된 데이터
+   * @returns {Object} 추출된 데이터 (validationResult 포함)
    */
   extractModalData(interaction) {
-    const title = interaction.fields.getTextInputValue('recruitment_title');
-    const tags = interaction.fields.getTextInputValue('recruitment_tags') || '';
-    const description = interaction.fields.getTextInputValue('recruitment_description') || '';
+    // 원본 입력값 추출
+    const rawTitle = interaction.fields.getTextInputValue('recruitment_title');
+    const rawTags = interaction.fields.getTextInputValue('recruitment_tags') || '';
+    const rawDescription = interaction.fields.getTextInputValue('recruitment_description') || '';
 
-    // 태그 배열 생성
+    // 입력 검증 및 정화
+    const titleValidation = validateAndSanitizeInput(rawTitle, VALIDATION_PRESETS.TITLE);
+    const tagsValidation = validateAndSanitizeInput(rawTags, {
+      maxLength: 100,
+      minLength: 0,
+      allowUrls: false,
+      strictMode: true,
+      fieldName: '게임 태그'
+    });
+    const descriptionValidation = validateAndSanitizeInput(rawDescription, VALIDATION_PRESETS.CONTENT);
+
+    // 정화된 데이터 사용
+    const title = titleValidation.sanitizedText;
+    const tags = tagsValidation.sanitizedText;
+    const description = descriptionValidation.sanitizedText;
+
+    // 태그 배열 생성 (정화된 데이터 사용)
     const tagsArray = tags
       .split(',')
       .map((tag) => tag.trim())
@@ -456,11 +509,30 @@ export class ModalHandler {
       }
     }
 
+    // 검증 결과 통합
+    const validationResult = {
+      isValid: titleValidation.isValid && tagsValidation.isValid && descriptionValidation.isValid,
+      errors: [
+        ...titleValidation.errors,
+        ...tagsValidation.errors,
+        ...descriptionValidation.errors
+      ],
+      warnings: [
+        ...titleValidation.warnings,
+        ...tagsValidation.warnings,
+        ...descriptionValidation.warnings
+      ],
+      hasSanitization: titleValidation.warnings.length > 0 || 
+                      tagsValidation.warnings.length > 0 || 
+                      descriptionValidation.warnings.length > 0
+    };
+
     return {
       title: title.trim(),
       tags: tagsArray, // 배열로 변경하여 ForumPostManager와 타입 일치
       description: description.trim(),
       author: interaction.member || interaction.user,
+      validationResult, // 검증 결과 추가
       ...(maxParticipants !== undefined && { maxParticipants }),
     };
   }

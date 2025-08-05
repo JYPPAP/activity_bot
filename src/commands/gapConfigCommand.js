@@ -1,6 +1,7 @@
 // src/commands/gapConfigCommand.js - gap_config 명령어 (수정)
 import {MessageFlags} from 'discord.js';
 import {cleanRoleName} from '../utils/formatters.js';
+import { validateAndSanitizeInput } from '../utils/inputValidator.js';
 
 export class GapConfigCommand {
   constructor(dbManager) {
@@ -15,9 +16,28 @@ export class GapConfigCommand {
     await interaction.deferReply({flags: MessageFlags.Ephemeral});
 
     try {
-      // 명령어 옵션 가져오기
-      const role = cleanRoleName(interaction.options.getString("role"));
+      // 명령어 옵션 가져오기 및 검증
+      const rawRole = interaction.options.getString("role");
       const hours = interaction.options.getInteger("hours");
+      
+      // 역할명 입력 검증
+      const roleValidation = validateAndSanitizeInput(rawRole, {
+        maxLength: 50,
+        minLength: 1,
+        allowUrls: false,
+        strictMode: true,
+        fieldName: '역할명'
+      });
+
+      if (!roleValidation.isValid) {
+        await interaction.followUp({
+          content: `❌ **역할명 입력 오류:**\n${roleValidation.errors.join('\n')}`,
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
+      }
+
+      const role = cleanRoleName(roleValidation.sanitizedText);
 
       // 역할 설정 업데이트
       await this.dbManager.updateRoleConfig(role, hours);
