@@ -493,7 +493,7 @@ export class ButtonHandler {
       }
       
       const postTitle = interaction.channel.name;
-      const clickerNickname = interaction.user.displayName || interaction.user.username;
+      const clickerNickname = interaction.member.displayName;
       
       // 포스트 제목에서 실제 소유자 추출
       const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
