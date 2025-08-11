@@ -88,21 +88,14 @@ export class TimeCheckCommand {
 
       logger.commandExecution('시간체크 날짜 범위 설정', { component: 'TimeCheckCommand', startDate: startDate.toISOString(), endDate: endDate.toISOString(), userId: interaction.user.id });
 
-      // 메모리에서 현재 활동 상태 확인 (디버깅용)
-      const memoryData = this.activityTracker.getMemoryActivityData(targetUserId);
-      if (memoryData) {
-        logger.warn('⚠️ 메모리에서 데이터 조회 (DB 대신 메모리 사용)', { 
-          component: 'TimeCheckCommand', 
-          issue: 'MEMORY_DATA_USAGE', 
-          targetUserId, 
-          totalTimeMinutes: Math.round(memoryData.totalTime / 1000 / 60),
-          currentSessionMinutes: Math.round(memoryData.currentSessionTime / 1000 / 60),
-          isCurrentlyActive: memoryData.isCurrentlyActive,
-          totalWithCurrentMinutes: Math.round(memoryData.totalWithCurrent / 1000 / 60)
-        });
-      } else {
-        logger.warn('⚠️ 메모리 데이터 없음 (DB 대신 메모리 조회)', { component: 'TimeCheckCommand', issue: 'NO_MEMORY_DATA', targetUserId });
-      }
+      // 메모리 데이터 조회 제거 - DB 데이터만 사용
+      logger.commandExecution('DB에서 대상 사용자 활동 시간 조회 시작', { 
+        component: 'TimeCheckCommand', 
+        targetUserId, 
+        executedBy: interaction.user.id,
+        startDate: startDate.toISOString(), 
+        endDate: endDate.toISOString() 
+      });
 
       // 특정 기간의 활동 시간 조회
       const totalTime = await this.db.getUserActivityByDateRange(
@@ -110,6 +103,37 @@ export class TimeCheckCommand {
         startDate.getTime(),
         endDate.getTime()
       );
+
+      // 데이터 일관성 검증 - 메모리 데이터와 비교
+      const memoryData = this.activityTracker.getMemoryActivityData(targetUserId);
+      if (memoryData) {
+        const memoryTimeMinutes = Math.round(memoryData.totalTime / 1000 / 60);
+        const dbTimeMinutes = Math.round(totalTime / 1000 / 60);
+        const timeDifference = Math.abs(memoryTimeMinutes - dbTimeMinutes);
+        const percentageDiff = dbTimeMinutes > 0 ? (timeDifference / dbTimeMinutes) * 100 : 0;
+
+        if (percentageDiff > 10) { // 10% 이상 차이나는 경우 경고
+          logger.warn('⚠️ 메모리-DB 데이터 불일치 감지', {
+            component: 'TimeCheckCommand',
+            targetUserId,
+            executedBy: interaction.user.id,
+            memoryTimeMinutes,
+            dbTimeMinutes,
+            timeDifference,
+            percentageDiff: Math.round(percentageDiff),
+            issue: 'DATA_INCONSISTENCY_WARNING'
+          });
+        } else {
+          logger.info('✅ 메모리-DB 데이터 일관성 확인', {
+            component: 'TimeCheckCommand',
+            targetUserId,
+            executedBy: interaction.user.id,
+            memoryTimeMinutes,
+            dbTimeMinutes,
+            percentageDiff: Math.round(percentageDiff)
+          });
+        }
+      }
 
       // 날짜 범위 메시지 작성
       const startDateFormatted = `${startDate.getFullYear()}.${(startDate.getMonth() + 1).toString().padStart(2, '0')}.${startDate.getDate().toString().padStart(2, '0')}`;
@@ -133,6 +157,17 @@ export class TimeCheckCommand {
       await SafeInteraction.safeReply(interaction, {
         content: `${displayName}님의${dateRangeMessage} 활동 시간은 ${formattedTime} 입니다.`,
         flags: MessageFlags.Ephemeral,
+      });
+
+      // 명령어 실행 완료 로그
+      logger.commandExecution('TimeCheckCommand 실행 완료', { 
+        component: 'TimeCheckCommand', 
+        targetUserId,
+        executedBy: interaction.user.id,
+        totalTimeMs: totalTime,
+        formattedTime,
+        targetDisplayName: displayName,
+        command: '시간체크'
       });
     } catch (error) {
       logger.error('시간체크 명령어 실행 오류', { component: 'TimeCheckCommand', error: error.message, stack: error.stack, userId: interaction.user.id });
