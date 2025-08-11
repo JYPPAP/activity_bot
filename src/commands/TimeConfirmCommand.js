@@ -2,6 +2,7 @@
 import {MessageFlags} from 'discord.js';
 import {formatTime} from '../utils/formatters.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
+import { logger } from '../config/logger-termux.js';
 
 export class TimeConfirmCommand {
   constructor(activityTracker, dbManager) {
@@ -28,18 +29,22 @@ export class TimeConfirmCommand {
       const startDate = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
       const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-      console.log('자동 설정된 날짜:', startDate, endDate);
+      logger.commandExecution('자동 설정된 날짜', { component: 'TimeConfirmCommand', startDate: startDate.toISOString(), endDate: endDate.toISOString(), userId: interaction.user.id });
 
       // 메모리에서 현재 활동 상태 확인 (디버깅용)
       const memoryData = this.activityTracker.getMemoryActivityData(userId);
       if (memoryData) {
-        console.log(`[메모리 데이터] 사용자 ${userId}:`);
-        console.log(`  - 누적 시간: ${Math.round(memoryData.totalTime / 1000 / 60)}분`);
-        console.log(`  - 현재 세션: ${Math.round(memoryData.currentSessionTime / 1000 / 60)}분`);
-        console.log(`  - 현재 활동 중: ${memoryData.isCurrentlyActive ? 'YES' : 'NO'}`);
-        console.log(`  - 총 시간 (누적+현재): ${Math.round(memoryData.totalWithCurrent / 1000 / 60)}분`);
+        logger.warn('⚠️ 메모리에서 데이터 조회 (DB 대신 메모리 사용)', { 
+          component: 'TimeConfirmCommand', 
+          issue: 'MEMORY_DATA_USAGE', 
+          userId, 
+          totalTimeMinutes: Math.round(memoryData.totalTime / 1000 / 60),
+          currentSessionMinutes: Math.round(memoryData.currentSessionTime / 1000 / 60),
+          isCurrentlyActive: memoryData.isCurrentlyActive,
+          totalWithCurrentMinutes: Math.round(memoryData.totalWithCurrent / 1000 / 60)
+        });
       } else {
-        console.log(`[메모리 데이터] 사용자 ${userId}: 데이터 없음`);
+        logger.warn('⚠️ 메모리 데이터 없음 (DB 대신 메모리 조회)', { component: 'TimeConfirmCommand', issue: 'NO_MEMORY_DATA', userId });
       }
 
       // 특정 기간의 활동 시간 조회
@@ -63,7 +68,7 @@ export class TimeConfirmCommand {
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      console.error('시간확인 명령어 실행 오류:', error);
+      logger.error('시간확인 명령어 실행 오류', { component: 'TimeConfirmCommand', error: error.message, stack: error.stack, userId: interaction.user.id });
       await SafeInteraction.safeReply(interaction, {
         content: '활동 시간 확인 중 오류가 발생했습니다.',
         flags: MessageFlags.Ephemeral,

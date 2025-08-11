@@ -1,6 +1,7 @@
 // src/commands/CommandBase.js - 모든 명령어의 기본 기능 제공
 import {MessageFlags} from 'discord.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
+import { logger } from '../config/logger-termux.js';
 
 export class CommandBase {
   /**
@@ -26,7 +27,7 @@ export class CommandBase {
       // 자식 클래스에서 실제 실행을 구현해야 함
       await this.executeCommand(interaction);
     } catch (error) {
-      console.error(`${this.constructor.name} 명령어 실행 오류:`, error);
+      logger.error('명령어 실행 오류', { component: this.constructor.name, error: error.message, stack: error.stack, interactionId: interaction.id });
 
       // 에러 응답
       await this.sendErrorResponse(interaction, error);

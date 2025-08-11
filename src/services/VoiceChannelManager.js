@@ -1,12 +1,13 @@
 // src/services/VoiceChannelManager.js - 음성 채널 관리
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
+import { logger } from '../config/logger-termux.js';
 
 export class VoiceChannelManager {
   constructor(client, voiceCategoryId) {
     this.client = client;
     this.voiceCategoryId = voiceCategoryId;
-    console.log(`[VoiceChannelManager] 초기화됨 - 대상 카테고리 ID: ${this.voiceCategoryId}`);
+    logger.voiceActivity('초기화 완료 - 대상 카테고리 설정', { component: 'VoiceChannelManager', voiceCategoryId: this.voiceCategoryId });
   }
   
   /**
@@ -73,8 +74,8 @@ export class VoiceChannelManager {
       result.actionType = 'join';
       result.channelId = newState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
-      console.log(`[VoiceChannelManager] 음성 채널 입장 분석: ${newState.member?.displayName} -> ${newState.channel.name} (카테고리 일치: ${result.isTargetCategory})`);
-      console.log(`[VoiceChannelManager] 채널 정보 - 실제 parentId: ${newState.channel.parentId}, 설정된 voiceCategoryId: ${this.voiceCategoryId}`);
+      logger.voiceActivity('음성 채널 입장 분석', { component: 'VoiceChannelManager', member: newState.member?.displayName, channel: newState.channel.name, isTargetCategory: result.isTargetCategory });
+      logger.debug('채널 정보 검증', { component: 'VoiceChannelManager', actualParentId: newState.channel.parentId, configuredCategoryId: this.voiceCategoryId });
     }
     // 채널 퇴장
     else if (oldState.channel && !newState.channel) {
@@ -83,7 +84,7 @@ export class VoiceChannelManager {
       result.channelId = oldState.channel.id; // 퇴장한 채널을 channelId로도 설정
       result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
       result.isTargetCategory = result.wasTargetCategory; // 호환성을 위해
-      console.log(`[VoiceChannelManager] 음성 채널 퇴장 분석: ${newState.member?.displayName} <- ${oldState.channel.name} (카테고리 일치: ${result.wasTargetCategory})`);
+      logger.voiceActivity('음성 채널 퇴장 분석', { component: 'VoiceChannelManager', member: newState.member?.displayName, channel: oldState.channel.name, wasTargetCategory: result.wasTargetCategory });
     }
     // 채널 이동
     else if (oldState.channel && newState.channel && oldState.channel.id !== newState.channel.id) {
@@ -92,7 +93,7 @@ export class VoiceChannelManager {
       result.oldChannelId = oldState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
       result.wasTargetCategory = oldState.channel.parentId === this.voiceCategoryId;
-      console.log(`[VoiceChannelManager] 음성 채널 이동 분석: ${newState.member?.displayName} ${oldState.channel.name} -> ${newState.channel.name} (이전 카테고리: ${result.wasTargetCategory}, 현재 카테고리: ${result.isTargetCategory})`);
+      logger.voiceActivity('음성 채널 이동 분석', { component: 'VoiceChannelManager', member: newState.member?.displayName, fromChannel: oldState.channel.name, toChannel: newState.channel.name, wasTargetCategory: result.wasTargetCategory, isTargetCategory: result.isTargetCategory });
     }
     // 상태 변경 (음소거, 화면 공유 등)
     else if (oldState.channel && newState.channel && oldState.channel.id === newState.channel.id) {
@@ -100,7 +101,7 @@ export class VoiceChannelManager {
       result.channelId = newState.channel.id;
       result.isTargetCategory = newState.channel.parentId === this.voiceCategoryId;
       // 상태 변경은 일반적으로 참여자 수에 영향을 주지 않으므로 로그를 최소화
-      console.log(`[VoiceChannelManager] 음성 상태 변경: ${newState.member?.displayName} in ${newState.channel.name}`);
+      logger.voiceActivity('음성 상태 변경', { component: 'VoiceChannelManager', member: newState.member?.displayName, channel: newState.channel.name });
     }
     
     return result;
@@ -116,7 +117,7 @@ export class VoiceChannelManager {
       const channel = await this.client.channels.fetch(channelId);
       
       if (!channel || channel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_VOICE) {
-        console.warn(`[VoiceChannelManager] 채널을 찾을 수 없거나 음성 채널이 아님: ${channelId}`);
+        logger.warn('채널을 찾을 수 없거나 음성 채널이 아님', { component: 'VoiceChannelManager', method: 'getChannelInfo', channelId });
         return null;
       }
       
@@ -133,11 +134,11 @@ export class VoiceChannelManager {
     } catch (error) {
       // 10003 에러 (Unknown Channel)는 채널이 삭제되었음을 의미
       if (error.code === 10003) {
-        console.warn(`[VoiceChannelManager] 채널이 삭제되었거나 존재하지 않음: ${channelId}`);
+        logger.warn('채널이 삭제되었거나 존재하지 않음', { component: 'VoiceChannelManager', method: 'getChannelInfo', channelId });
         return { deleted: true, channelId };
       }
       
-      console.error(`[VoiceChannelManager] 채널 정보 가져오기 실패: ${channelId}`, error);
+      logger.error('채널 정보 가져오기 실패', { component: 'VoiceChannelManager', method: 'getChannelInfo', channelId, error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -173,24 +174,24 @@ export class VoiceChannelManager {
       const channelInfo = await this.getVoiceChannelInfo(channelId);
       
       if (!channelInfo) {
-        console.error(`[VoiceChannelManager] 채널을 찾을 수 없음: ${channelId}`);
+        logger.error('채널을 찾을 수 없음', { component: 'VoiceChannelManager', method: 'clearVoiceChannel', channelId });
         return false;
       }
       
       // 모든 멤버 연결 해제
       const disconnectPromises = channelInfo.members.map(member => {
         return member.voice.disconnect('채널 초기화').catch(error => {
-          console.warn(`[VoiceChannelManager] 멤버 연결 해제 실패: ${member.displayName}`, error);
+          logger.warn('멤버 연결 해제 실패', { component: 'VoiceChannelManager', method: 'clearVoiceChannel', member: member.displayName, error: error.message });
         });
       });
       
       await Promise.all(disconnectPromises);
       
-      console.log(`[VoiceChannelManager] 음성 채널 초기화 완료: ${channelInfo.name} (${channelInfo.members.length}명 연결 해제)`);
+      logger.voiceActivity('음성 채널 초기화 완료', { component: 'VoiceChannelManager', method: 'clearVoiceChannel', channelName: channelInfo.name, membersDisconnected: channelInfo.members.length });
       return true;
       
     } catch (error) {
-      console.error(`[VoiceChannelManager] 음성 채널 초기화 실패: ${channelId}`, error);
+      logger.error('음성 채널 초기화 실패', { component: 'VoiceChannelManager', method: 'clearVoiceChannel', channelId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -204,10 +205,10 @@ export class VoiceChannelManager {
   async changeNickname(member, newNickname) {
     try {
       await member.setNickname(newNickname);
-      console.log(`[VoiceChannelManager] 별명 변경 성공: ${member.displayName} -> ${newNickname}`);
+      logger.voiceActivity('별명 변경 성공', { component: 'VoiceChannelManager', method: 'changeMemberNickname', oldNickname: member.displayName, newNickname });
       return true;
     } catch (error) {
-      console.error(`[VoiceChannelManager] 별명 변경 실패: ${member.displayName} -> ${newNickname}`, error);
+      logger.error('별명 변경 실패', { component: 'VoiceChannelManager', method: 'changeMemberNickname', oldNickname: member.displayName, newNickname, error: error.message, stack: error.stack });
       return false;
     }
   }

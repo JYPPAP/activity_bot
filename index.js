@@ -2,6 +2,7 @@
 import { Bot } from './src/bot.js';
 import { config } from './src/config/env.js';
 import { keepAlive } from './server.js';
+import { logger } from './src/config/logger-termux.js';
 
 // 비동기 즉시 실행 함수 (IIFE)로 애플리케이션 시작
 (async () => {
@@ -16,8 +17,13 @@ import { keepAlive } from './server.js';
     // 봇 로그인
     await bot.login();
 
-    console.log(`봇이 켜졌습니다: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    // Terminal output - bot status only
+    console.log(`✅ Discord Bot 시작 완료: ${new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}`);
+    logger.botActivity('Discord Bot 초기화 및 로그인 완료', { timestamp: new Date().toISOString(), environment: config.NODE_ENV });
   } catch (error) {
-    console.error('봇 실행 중 오류 발생:', error);
+    // Terminal output - critical startup errors only
+    console.error(`❌ 봇 시작 실패: ${error.message}`);
+    logger.error('봇 실행 중 치명적 오류 발생', { error: error.message, stack: error.stack, timestamp: new Date().toISOString() });
+    process.exit(1);
   }
 })();

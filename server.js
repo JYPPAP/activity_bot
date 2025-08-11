@@ -1,5 +1,6 @@
 // server.js - 봇을 활성 상태로 유지하는 간단한 웹 서버
 import express from 'express';
+import { logger } from './src/config/logger-termux.js';
 
 /**
  * 봇을 활성 상태로 유지하기 위한 Express 서버를 시작합니다.
@@ -20,6 +21,8 @@ export const keepAlive = () => {
 
   // 서버 시작
   app.listen(PORT, () => {
-    console.log(`서버가 http://localhost:${PORT}에서 실행 중입니다.`);
+    // Terminal output - server status only  
+    console.log(`🌐 Express 서버 시작: http://localhost:${PORT}`);
+    logger.info('Express 서버 시작 완료', { component: 'KeepAlive', port: PORT, uptime: process.uptime() });
   });
 };

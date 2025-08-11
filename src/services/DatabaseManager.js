@@ -2,6 +2,7 @@
 import low from 'lowdb';
 import FileSync from 'lowdb/adapters/FileSync.js';
 import path from 'path';
+import { logger } from '../config/logger-termux.js';
 
 export class DatabaseManager {
   constructor() {
@@ -36,10 +37,10 @@ export class DatabaseManager {
    */
   async initialize() {
     try {
-      console.log(`LowDB 데이터베이스가 ${this.dbPath}에 연결되었습니다.`);
+      logger.databaseOperation(`LowDB 데이터베이스 연결 완료`, { dbPath: this.dbPath });
       return true;
     } catch (error) {
-      console.error('데이터베이스 초기화 오류:', error);
+      logger.error('데이터베이스 초기화 오류', { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -57,7 +58,7 @@ export class DatabaseManager {
         this.lastCacheTime = now;
         this.cache.clear(); // 캐시 초기화
       } catch (error) {
-        console.error('[DB] 데이터 새로고침 실패:', error);
+        logger.error('데이터베이스 새로고침 실패', { error: error.message });
       }
     }
   }
@@ -104,7 +105,7 @@ export class DatabaseManager {
    * 데이터베이스 연결 종료 (LowDB에서는 필요 없지만 호환성을 위해 유지)
    */
   async close() {
-    console.log('데이터베이스 연결이 종료되었습니다.');
+    logger.databaseOperation('데이터베이스 연결 종료');
     return true;
   }
 
@@ -374,28 +375,31 @@ export class DatabaseManager {
       // 캐시가 있고 1분이 안 지났으면 캐시된 값 반환
       if (cached && (now - cached.lastFetch) < this.USER_CACHE_DURATION) {
         const remainingTime = Math.round((this.USER_CACHE_DURATION - (now - cached.lastFetch)) / 1000);
-        console.log(`[캐시 사용] 사용자 ${userId} - 캐시 만료까지 ${remainingTime}초 남음`);
+        logger.debug('사용자 활동 시간 캐시 사용', { userId, remainingTime: `${remainingTime}초` });
         return cached.totalTime;
       }
       
       // 1분이 지났거나 캐시가 없으면 DB에서 읽기
-      console.log(`[DB 조회] 사용자 ${userId} - 캐시 갱신 중...`);
-      console.log(`[DB 조회] 검색 범위: ${new Date(startTime).toISOString()} ~ ${new Date(endTime).toISOString()}`);
+      logger.debug('사용자 활동 시간 DB 조회 시작', { 
+        userId, 
+        startTime: new Date(startTime).toISOString(), 
+        endTime: new Date(endTime).toISOString() 
+      });
       this.db.read(); // 파일에서 직접 읽기
       
       const logs = this.db.get('activity_logs')
                        .filter(log => log.userId === userId && log.timestamp >= startTime && log.timestamp <= endTime)
                        .value();
 
-      console.log(`[DB 조회] 사용자 ${userId} - 총 ${logs.length}개의 로그 발견`);
+      logger.debug('활동 로그 조회 완료', { userId, logCount: logs.length });
       
       // 로그 상세 정보 출력 (최대 10개)
       const sampleLogs = logs.slice(0, 10);
       sampleLogs.forEach((log, index) => {
-        console.log(`[DB 로그 ${index + 1}] ${log.eventType} at ${new Date(log.timestamp).toISOString()}`);
+        logger.debug(`활동 로그 ${index + 1}`, { eventType: log.eventType, timestamp: new Date(log.timestamp).toISOString() });
       });
       if (logs.length > 10) {
-        console.log(`[DB 조회] ... 및 ${logs.length - 10}개 더 있음`);
+        logger.debug('추가 로그 생략', { additionalLogs: logs.length - 10 });
       }
 
       let totalTime = 0;
@@ -411,11 +415,18 @@ export class DatabaseManager {
         } else if (log.eventType === 'LEAVE' && joinTime) {
           const sessionTime = log.timestamp - joinTime;
           totalTime += sessionTime;
-          console.log(`[세션 시간] ${new Date(joinTime).toISOString()} ~ ${new Date(log.timestamp).toISOString()} = ${Math.round(sessionTime / 1000 / 60)}분`);
+          logger.debug('세션 시간 계산', { 
+            joinTime: new Date(joinTime).toISOString(), 
+            leaveTime: new Date(log.timestamp).toISOString(), 
+            sessionMinutes: Math.round(sessionTime / 1000 / 60) 
+          });
           joinTime = null;
           leaveCount++;
         } else if (log.eventType === 'LEAVE' && !joinTime) {
-          console.log(`[경고] LEAVE 이벤트에 대응하는 JOIN이 없음: ${new Date(log.timestamp).toISOString()}`);
+          logger.warn('LEAVE 이벤트에 대응하는 JOIN 없음', { 
+            timestamp: new Date(log.timestamp).toISOString(), 
+            userId 
+          });
         }
       }
 
@@ -424,11 +435,19 @@ export class DatabaseManager {
         const currentSessionTime = Math.min(endTime, Date.now()) - joinTime;
         totalTime += currentSessionTime;
         unmatchedJoins = 1;
-        console.log(`[현재 세션] ${new Date(joinTime).toISOString()} ~ 현재 = ${Math.round(currentSessionTime / 1000 / 60)}분`);
+        logger.debug('현재 활성 세션', { 
+          joinTime: new Date(joinTime).toISOString(), 
+          currentSessionMinutes: Math.round(currentSessionTime / 1000 / 60) 
+        });
       }
       
-      console.log(`[DB 통계] JOIN: ${joinCount}개, LEAVE: ${leaveCount}개, 미완료 세션: ${unmatchedJoins}개`);
-      console.log(`[DB 총계] 계산된 총 시간: ${Math.round(totalTime / 1000 / 60)}분 (${totalTime}ms)`);
+      logger.debug('활동 통계', { 
+        joinCount, 
+        leaveCount, 
+        unmatchedJoins, 
+        totalMinutes: Math.round(totalTime / 1000 / 60), 
+        totalTime 
+      });
       
       // 캐시 업데이트
       this.userActivityCache.set(cacheKey, {
@@ -436,11 +455,11 @@ export class DatabaseManager {
         lastFetch: now
       });
       
-      console.log(`[DB 조회 완료] 사용자 ${userId} - 총 활동 시간: ${totalTime}ms`);
+      logger.databaseOperation('사용자 활동 시간 조회 완료', { userId, totalTime });
 
       return totalTime;
     } catch (error) {
-      console.error('특정 기간 활동 시간 조회 오류:', error);
+      logger.error('사용자 활동 시간 조회 실패', { userId, error: error.message, stack: error.stack });
       return 0;
     }
   }
@@ -471,7 +490,7 @@ export class DatabaseManager {
 
       return activeMembers;
     } catch (error) {
-      console.error('활동 멤버 조회 오류:', error);
+      logger.error('활동 멤버 조회 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -501,7 +520,7 @@ export class DatabaseManager {
 
       return sortedChannels;
     } catch (error) {
-      console.error('활동적인 채널 조회 오류:', error);
+      logger.error('활동 채널 조회 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -581,10 +600,10 @@ export class DatabaseManager {
         }
       }
 
-      console.log('JSON 데이터가 성공적으로 마이그레이션되었습니다.');
+      logger.databaseOperation('JSON 데이터 마이그레이션 완료');
       return true;
     } catch (error) {
-      console.error('JSON 데이터 마이그레이션 오류:', error);
+      logger.error('JSON 데이터 마이그레이션 실패', { error: error.message, stack: error.stack });
       throw error;
     }
   }
@@ -608,10 +627,10 @@ export class DatabaseManager {
           })
           .write();
 
-      console.log(`[DB] 잠수 상태 설정: ${userId}, until: ${new Date(untilTimestamp).toISOString()}`);
+      logger.databaseOperation('잠수 상태 설정', { userId, until: new Date(untilTimestamp).toISOString() });
       return true;
     } catch (error) {
-      console.error('[DB] 잠수 상태 설정 오류:', error);
+      logger.error('잠수 상태 설정 실패', { userId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -625,7 +644,7 @@ export class DatabaseManager {
 
       const afkData = this.db.get('afk_status').get(userId).value();
 
-      console.log(`[DB] 잠수 상태 조회: ${userId}, 결과:`, afkData);
+      logger.debug('잠수 상태 조회', { userId, afkData });
 
       if (!afkData || !afkData.afkUntil) {
         return null;
@@ -638,7 +657,7 @@ export class DatabaseManager {
         totalTime: 0 // 필요한 경우 user_activity에서 조회
       };
     } catch (error) {
-      console.error('[DB] 잠수 상태 조회 오류:', error);
+      logger.error('잠수 상태 조회 실패', { userId, error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -652,10 +671,10 @@ export class DatabaseManager {
 
       this.db.get('afk_status').unset(userId).write();
 
-      console.log(`[DB] 잠수 상태 해제: ${userId}`);
+      logger.databaseOperation('잠수 상태 해제', { userId });
       return true;
     } catch (error) {
-      console.error('[DB] 잠수 상태 해제 오류:', error);
+      logger.error('잠수 상태 해제 실패', { userId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -686,7 +705,7 @@ export class DatabaseManager {
 
       return afkUsers;
     } catch (error) {
-      console.error('[DB] 잠수 사용자 조회 오류:', error);
+      logger.error('잠수 사용자 조회 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -706,13 +725,13 @@ export class DatabaseManager {
         if (data.afkUntil && data.afkUntil < now) {
           this.db.get('afk_status').unset(userId).write();
           clearedUsers.push(userId);
-          console.log(`[DB] 잠수 상태 만료 해제: ${userId}`);
+          logger.databaseOperation('잠수 상태 만료 해제', { userId });
         }
       }
 
       return clearedUsers;
     } catch (error) {
-      console.error('[DB] 잠수 상태 만료 처리 오류:', error);
+      logger.error('잠수 상태 만료 처리 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -750,10 +769,10 @@ export class DatabaseManager {
       
       this.db.get('forum_messages').set(threadId, threadData).write();
       
-      console.log(`[DB] 포럼 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
+      logger.databaseOperation('포럼 메시지 추적 저장', { threadId, messageType, messageId });
       return true;
     } catch (error) {
-      console.error('[DB] 포럼 메시지 추적 저장 오류:', error);
+      logger.error('포럼 메시지 추적 저장 실패', { threadId, messageType, messageId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -775,7 +794,7 @@ export class DatabaseManager {
       
       return threadData[messageType] || [];
     } catch (error) {
-      console.error('[DB] 추적된 메시지 조회 오류:', error);
+      logger.error('추적된 메시지 조회 실패', { threadId, messageType, error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -807,10 +826,10 @@ export class DatabaseManager {
         this.db.get('forum_messages').set(threadId, threadData).write();
       }
       
-      console.log(`[DB] 추적된 메시지 삭제: ${threadId}, ${messageType}, ${messageIds.length}개`);
+      logger.databaseOperation('추적된 메시지 삭제', { threadId, messageType, count: messageIds.length });
       return messageIds;
     } catch (error) {
-      console.error('[DB] 추적된 메시지 삭제 오류:', error);
+      logger.error('추적된 메시지 삭제 실패', { threadId, messageType, error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -830,10 +849,10 @@ export class DatabaseManager {
       
       this.db.get('forum_messages').unset(threadId).write();
       
-      console.log(`[DB] 스레드의 모든 추적 메시지 삭제: ${threadId}`);
+      logger.databaseOperation('스레드 모든 추적 메시지 삭제', { threadId });
       return threadData;
     } catch (error) {
-      console.error('[DB] 스레드 메시지 추적 정보 삭제 오류:', error);
+      logger.error('스레드 메시지 추적 삭제 실패', { threadId, error: error.message, stack: error.stack });
       return {};
     }
   }
@@ -864,10 +883,10 @@ export class DatabaseManager {
           .set(voiceChannelId, mappingData)
           .write();
       
-      console.log(`[DB] 채널 매핑 저장: ${voiceChannelId} -> ${forumPostId}`);
+      logger.databaseOperation('채널 매핑 저장', { voiceChannelId, forumPostId });
       return true;
     } catch (error) {
-      console.error('[DB] 채널 매핑 저장 오류:', error);
+      logger.error('채널 매핑 저장 실패', { voiceChannelId, forumPostId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -884,7 +903,7 @@ export class DatabaseManager {
       const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
       return mappingData || null;
     } catch (error) {
-      console.error('[DB] 채널 매핑 조회 오류:', error);
+      logger.error('채널 매핑 조회 실패', { voiceChannelId, error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -900,7 +919,7 @@ export class DatabaseManager {
       const mappings = this.db.get('voice_channel_mappings').value();
       return Object.values(mappings);
     } catch (error) {
-      console.error('[DB] 모든 채널 매핑 조회 오류:', error);
+      logger.error('모든 채널 매핑 조회 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -921,10 +940,10 @@ export class DatabaseManager {
       
       this.db.get('voice_channel_mappings').unset(voiceChannelId).write();
       
-      console.log(`[DB] 채널 매핑 제거: ${voiceChannelId}`);
+      logger.databaseOperation('채널 매핑 제거', { voiceChannelId });
       return true;
     } catch (error) {
-      console.error('[DB] 채널 매핑 제거 오류:', error);
+      logger.error('채널 매핑 제거 실패', { voiceChannelId, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -941,7 +960,7 @@ export class DatabaseManager {
       
       const mappingData = this.db.get('voice_channel_mappings').get(voiceChannelId).value();
       if (!mappingData) {
-        console.log(`[DB] 매핑을 찾을 수 없음: ${voiceChannelId}`);
+        logger.debug('채널 매핑 찾을 수 없음', { voiceChannelId });
         return false;
       }
       
@@ -952,10 +971,10 @@ export class DatabaseManager {
           .set(voiceChannelId, mappingData)
           .write();
       
-      console.log(`[DB] 참여자 수 업데이트: ${voiceChannelId} -> ${participantCount}`);
+      logger.databaseOperation('참여자 수 업데이트', { voiceChannelId, participantCount });
       return true;
     } catch (error) {
-      console.error('[DB] 참여자 수 업데이트 오류:', error);
+      logger.error('참여자 수 업데이트 실패', { voiceChannelId, participantCount, error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -979,7 +998,7 @@ export class DatabaseManager {
       
       return null;
     } catch (error) {
-      console.error('[DB] 포스트 ID로 채널 ID 조회 오류:', error);
+      logger.error('포스트 ID로 채널 ID 조회 실패', { forumPostId, error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -1001,17 +1020,20 @@ export class DatabaseManager {
         if (data.last_updated && (now - data.last_updated) > maxAge) {
           this.db.get('voice_channel_mappings').unset(channelId).write();
           cleanedCount++;
-          console.log(`[DB] 만료된 매핑 제거: ${channelId} (${Math.round((now - data.last_updated) / (24 * 60 * 60 * 1000))}일 경과)`);
+          logger.databaseOperation('만료된 매핑 제거', { 
+            channelId, 
+            daysElapsed: Math.round((now - data.last_updated) / (24 * 60 * 60 * 1000)) 
+          });
         }
       }
       
       if (cleanedCount > 0) {
-        console.log(`[DB] 만료된 매핑 정리 완료: ${cleanedCount}개 제거`);
+        logger.databaseOperation('만료된 매핑 정리 완료', { cleanedCount });
       }
       
       return cleanedCount;
     } catch (error) {
-      console.error('[DB] 만료된 매핑 정리 오류:', error);
+      logger.error('만료된 매핑 정리 실패', { error: error.message, stack: error.stack });
       return 0;
     }
   }

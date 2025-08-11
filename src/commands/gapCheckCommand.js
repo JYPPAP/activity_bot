@@ -2,6 +2,7 @@
 import {MessageFlags} from 'discord.js';
 import {formatTime} from '../utils/formatters.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
+import { logger } from '../config/logger-termux.js';
 
 export class GapCheckCommand {
   constructor(activityTracker, dbManager) {
@@ -28,7 +29,7 @@ export class GapCheckCommand {
       const startDate = new Date(today.getFullYear(), today.getMonth(), 1, 0, 0, 0, 0);
       const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
 
-      console.log('자동 설정된 날짜:', startDate, endDate);
+      logger.commandExecution('자동 설정된 날짜', { component: 'GapCheckCommand', startDate: startDate.toISOString(), endDate: endDate.toISOString() });
 
       // 특정 기간의 활동 시간 조회
       const totalTime = await this.db.getUserActivityByDateRange(
@@ -51,7 +52,7 @@ export class GapCheckCommand {
         flags: MessageFlags.Ephemeral,
       });
     } catch (error) {
-      console.error('시간체크 명령어 실행 오류:', error);
+      logger.error('시간체크 명령어 실행 오류', { component: 'GapCheckCommand', error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: '활동 시간 확인 중 오류가 발생했습니다.',
         flags: MessageFlags.Ephemeral,

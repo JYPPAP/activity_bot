@@ -1,4 +1,6 @@
 // src/services/eventManager.js - 이벤트 관리 서비스
+import { logger } from '../config/logger-termux.js';
+
 export class EventManager {
   constructor(client) {
     this.client = client;
@@ -30,7 +32,7 @@ export class EventManager {
             await handler(...args);
           }
         } catch (error) {
-          console.error(`이벤트 핸들러 오류 (${event}):`, error);
+          logger.error('이벤트 핸들러 오류', { component: 'EventManager', event, error: error.message, stack: error.stack });
         }
       });
     }

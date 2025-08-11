@@ -4,6 +4,7 @@ import {
   ModalBuilder,
   InteractionType,
 } from 'discord.js';
+import { logger } from '../config/logger-termux.js';
 
 export class SafeInteraction {
   // ========== 처리 상태 관리 ==========
@@ -44,13 +45,13 @@ export class SafeInteraction {
    */
   static startProcessing(interaction) {
     if (!interaction?.id) {
-      console.warn('[SafeInteraction] 인터랙션 ID가 없습니다.');
+      logger.warn('인터랙션 ID가 없습니다', { component: 'SafeInteraction', method: 'startProcessing' });
       return false;
     }
 
     if (this.processingInteractions.has(interaction.id)) {
       this.statistics.duplicateInteractions++;
-      console.warn(`[SafeInteraction] 중복 처리 방지: ${interaction.id}`);
+      logger.warn('중복 처리 방지', { component: 'SafeInteraction', interactionId: interaction.id, duplicates: this.statistics.duplicateInteractions });
       return false;
     }
 
@@ -179,7 +180,7 @@ export class SafeInteraction {
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn('유효하지 않은 인터랙션', { component: 'SafeInteraction', method: 'safeReply', reason: validation.reason, code: validation.code });
         return null;
       }
 
@@ -188,13 +189,11 @@ export class SafeInteraction {
 
       // 현재 상태 확인
       const state = this.getInteractionState(interaction);
-      console.log(
-        `[SafeInteraction] 인터랙션 상태: replied=${state.replied}, deferred=${state.deferred}`
-      );
+      logger.debug('인터랙션 상태 확인', { component: 'SafeInteraction', method: 'safeReply', replied: state.replied, deferred: state.deferred, interactionId: interaction.id });
 
       // 상태 일관성 검증
       if (state.expired) {
-        console.warn('[SafeInteraction] 인터랙션이 만료되었습니다.');
+        logger.warn('인터랙션이 만료되었습니다', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id, age: state.age });
         return null;
       }
 
@@ -203,26 +202,24 @@ export class SafeInteraction {
       // 상태 기반 응답 처리 (state 객체 사용으로 일관성 보장)
       if (state.replied) {
         // 이미 응답한 경우 followUp 사용
-        console.log('[SafeInteraction] 이미 응답됨 - followUp 사용');
+        logger.debug('이미 응답됨 - followUp 사용', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id });
         result = await interaction.followUp(normalizedOptions);
       } else if (state.deferred) {
         // 지연된 경우 editReply 사용
-        console.log('[SafeInteraction] 지연됨 - editReply 사용');
+        logger.debug('지연됨 - editReply 사용', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id });
         try {
           // 실시간 상태 재확인 (Discord API 상태 변화 감지)
           const currentReplied = interaction.replied;
           const currentDeferred = interaction.deferred;
-          console.log(
-            `[SafeInteraction] editReply 전 실시간 상태 확인: replied=${currentReplied}, deferred=${currentDeferred}`
-          );
+          logger.debug('editReply 전 실시간 상태 확인', { component: 'SafeInteraction', method: 'safeReply', replied: currentReplied, deferred: currentDeferred, interactionId: interaction.id });
 
           if (currentReplied) {
-            console.log('[SafeInteraction] 실시간 확인: 이미 응답됨 - followUp으로 변경');
+            logger.debug('실시간 확인: 이미 응답됨 - followUp으로 변경', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id });
             result = await interaction.followUp(normalizedOptions);
           } else if (currentDeferred) {
             result = await interaction.editReply(normalizedOptions);
           } else {
-            console.log('[SafeInteraction] 실시간 확인: 상태 변화 감지 - reply로 변경');
+            logger.debug('실시간 확인: 상태 변화 감지 - reply로 변경', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id });
             result = await interaction.reply(normalizedOptions);
           }
         } catch (editError) {
@@ -230,52 +227,39 @@ export class SafeInteraction {
           const errorCode = Number(editError.code) || 0;
           const unrecoverableErrors = [10062, 10008, 40060];
           if (unrecoverableErrors.includes(errorCode)) {
-            console.warn(`[SafeInteraction] editReply 복구 불가능한 에러 (${errorCode}) - 중단`);
+            logger.warn('editReply 복구 불가능한 에러', { component: 'SafeInteraction', method: 'safeReply', errorCode, interactionId: interaction.id, error: editError.message });
             throw editError;
           }
 
           // editReply가 실패한 경우 followUp으로 대체
-          console.warn('[SafeInteraction] editReply 실패, followUp으로 대체:', {
-            error: editError.message,
-            code: editError.code,
-            status: editError.status,
-          });
+          logger.warn('editReply 실패, followUp으로 대체', { component: 'SafeInteraction', method: 'safeReply', error: editError.message, code: editError.code, status: editError.status, interactionId: interaction.id });
 
           try {
             result = await interaction.followUp(normalizedOptions);
           } catch (followUpError) {
-            console.error('[SafeInteraction] followUp도 실패:', {
-              error: followUpError.message,
-              code: followUpError.code,
-              status: followUpError.status,
-            });
+            logger.error('followUp도 실패', { component: 'SafeInteraction', method: 'safeReply', error: followUpError.message, code: followUpError.code, status: followUpError.status, interactionId: interaction.id });
             throw followUpError;
           }
         }
       } else {
         // 첫 응답
-        console.log('[SafeInteraction] 첫 응답 - reply 사용');
+        logger.debug('첫 응답 - reply 사용', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id });
         try {
           result = await interaction.reply(normalizedOptions);
         } catch (replyError) {
-          console.warn('[SafeInteraction] reply 실패, 상태 재확인 후 재시도:', {
-            error: replyError.message,
-            code: replyError.code,
-          });
+          logger.warn('reply 실패, 상태 재확인 후 재시도', { component: 'SafeInteraction', method: 'safeReply', error: replyError.message, code: replyError.code, interactionId: interaction.id });
 
           // 복구 불가능한 에러는 즉시 중단
           const errorCode = Number(replyError.code) || 0;
           const unrecoverableErrors = [10062, 10008, 40060];
           if (unrecoverableErrors.includes(errorCode)) {
-            console.warn(`[SafeInteraction] 복구 불가능한 에러 (${errorCode}) - 재시도 중단`);
+            logger.warn('복구 불가능한 에러 - 재시도 중단', { component: 'SafeInteraction', method: 'safeReply', errorCode, interactionId: interaction.id, error: replyError.message });
             throw replyError;
           }
 
           // reply 실패 시 상태 재확인 후 적절한 메서드 선택
           const retryState = this.getInteractionState(interaction);
-          console.log(
-            `[SafeInteraction] 재시도를 위한 상태 확인: replied=${retryState.replied}, deferred=${retryState.deferred}`
-          );
+          logger.debug('재시도를 위한 상태 확인', { component: 'SafeInteraction', method: 'safeReply', replied: retryState.replied, deferred: retryState.deferred, interactionId: interaction.id });
 
           if (retryState.replied) {
             result = await interaction.followUp(normalizedOptions);
@@ -318,23 +302,21 @@ export class SafeInteraction {
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn('유효하지 않은 인터랙션', { component: 'SafeInteraction', method: 'safeUpdate', reason: validation.reason, code: validation.code });
         return null;
       }
 
       // 상태 확인
       const state = this.getInteractionState(interaction);
-      console.log(
-        `[SafeInteraction] 업데이트 상태: replied=${state.replied}, deferred=${state.deferred}`
-      );
+      logger.debug('업데이트 상태 확인', { component: 'SafeInteraction', method: 'safeUpdate', replied: state.replied, deferred: state.deferred, interactionId: interaction.id });
 
       if (state.expired) {
-        console.warn('[SafeInteraction] 인터랙션이 만료되어 업데이트를 건너뜁니다.');
+        logger.warn('인터랙션이 만료되어 업데이트를 건너뜁니다', { component: 'SafeInteraction', method: 'safeUpdate', interactionId: interaction.id, age: state.age });
         return null;
       }
 
       if (state.replied) {
-        console.log('[SafeInteraction] 이미 응답된 인터랙션 - 업데이트 대신 followUp 사용');
+        logger.debug('이미 응답된 인터랙션 - 업데이트 대신 followUp 사용', { component: 'SafeInteraction', method: 'safeUpdate', interactionId: interaction.id });
         const normalizedOptions = this.normalizeReplyOptions(options);
         return await interaction.followUp(normalizedOptions);
       }
@@ -347,7 +329,7 @@ export class SafeInteraction {
     } catch (error) {
       this.handleInteractionError(error, 'update');
 
-      console.warn('[SafeInteraction] 업데이트 실패 - 재귀 호출 없이 종료');
+      logger.warn('업데이트 실패 - 재귀 호출 없이 종료', { component: 'SafeInteraction', method: 'safeUpdate', error: error.message, code: error.code });
       return null;
     }
   }
@@ -361,14 +343,14 @@ export class SafeInteraction {
   static async safeShowModal(interaction, modal) {
     try {
       if (!interaction) {
-        console.warn('[SafeInteraction] 인터랙션이 null입니다.');
+        logger.warn('인터랙션이 null입니다', { component: 'SafeInteraction', method: 'safeShowModal' });
         return;
       }
 
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn('유효하지 않은 인터랙션', { component: 'SafeInteraction', method: 'safeShowModal', reason: validation.reason, code: validation.code });
         return;
       }
 
@@ -377,7 +359,7 @@ export class SafeInteraction {
     } catch (error) {
       this.handleInteractionError(error, 'showModal');
 
-      console.warn('[SafeInteraction] 모달 표시 실패 - 재귀 호출 없이 종료');
+      logger.warn('모달 표시 실패 - 재귀 호출 없이 종료', { component: 'SafeInteraction', method: 'safeShowModal', error: error.message, code: error.code });
     }
   }
 
@@ -392,27 +374,23 @@ export class SafeInteraction {
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn('유효하지 않은 인터랙션', { component: 'SafeInteraction', method: 'safeDeferReply', reason: validation.reason, code: validation.code });
         return null;
       }
 
       // 상태 확인
       const state = this.getInteractionState(interaction);
-      console.log(
-        `[SafeInteraction] defer 상태: replied=${state.replied}, deferred=${state.deferred}`
-      );
+      logger.debug('defer 상태 확인', { component: 'SafeInteraction', method: 'safeDeferReply', replied: state.replied, deferred: state.deferred, interactionId: interaction.id });
 
       if (state.expired) {
-        console.warn('[SafeInteraction] 인터랙션이 만료되어 defer를 건너뜁니다.');
+        logger.warn('인터랙션이 만료되어 defer를 건너뜁니다', { component: 'SafeInteraction', method: 'safeDeferReply', interactionId: interaction.id, age: state.age });
         return null;
       }
 
       // 실시간 상태 재확인
       const currentReplied = interaction.replied;
       const currentDeferred = interaction.deferred;
-      console.log(
-        `[SafeInteraction] defer 실시간 상태 확인: replied=${currentReplied}, deferred=${currentDeferred}`
-      );
+      logger.debug('defer 실시간 상태 확인', { component: 'SafeInteraction', method: 'safeDeferReply', replied: currentReplied, deferred: currentDeferred, interactionId: interaction.id });
 
       if (!currentDeferred && !currentReplied) {
         try {
@@ -425,22 +403,16 @@ export class SafeInteraction {
 
           const result = await interaction.deferReply(deferOptions);
           this.statistics.deferredReplies++;
-          console.log('[SafeInteraction] defer 성공');
+          logger.debug('defer 성공', { component: 'SafeInteraction', method: 'safeDeferReply', interactionId: interaction.id });
           return result;
         } catch (deferError) {
-          console.error('[SafeInteraction] defer 실패:', {
-            error: deferError.message,
-            code: deferError.code,
-            status: deferError.status,
-          });
+          logger.error('defer 실패', { component: 'SafeInteraction', method: 'safeDeferReply', error: deferError.message, code: deferError.code, status: deferError.status, interactionId: interaction.id });
 
           // defer 실패 시에도 통계 업데이트 안 함
           throw deferError;
         }
       } else {
-        console.log(
-          `[SafeInteraction] defer 건너뜀 - 현재 상태: replied=${currentReplied}, deferred=${currentDeferred}`
-        );
+        logger.debug('defer 건너뜀 - 현재 상태', { component: 'SafeInteraction', method: 'safeDeferReply', replied: currentReplied, deferred: currentDeferred, interactionId: interaction.id });
       }
 
       return null;
@@ -460,7 +432,7 @@ export class SafeInteraction {
       // 인터랙션 유효성 검사
       const validation = this.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[SafeInteraction] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn('유효하지 않은 인터랙션', { component: 'SafeInteraction', method: 'safeDeferUpdate', reason: validation.reason, code: validation.code });
         return null;
       }
 
@@ -490,32 +462,25 @@ export class SafeInteraction {
     this.statistics.errorsByCode[numericErrorCode] =
       (this.statistics.errorsByCode[numericErrorCode] || 0) + 1;
 
-    console.error(`[SafeInteraction] ${context} 오류:`, {
-      message: error.message,
-      code: error.code,
-      status: error.status,
-      method: error.method,
-      url: error.url,
-      requestBody: error.requestBody,
-    });
+    logger.error(`${context} 오류`, { component: 'SafeInteraction', context, error: error.message, code: error.code, status: error.status, method: error.method, url: error.url, requestBody: error.requestBody });
 
     // 특정 에러 코드별 추가 처리
     switch (errorCode) {
       case 10062:
-        console.warn('[SafeInteraction] 만료된 인터랙션 - 재시도하지 않음');
+        logger.warn('만료된 인터랙션 - 재시도하지 않음', { component: 'SafeInteraction', method: 'handleInteractionError', errorCode: 10062 });
         this.statistics.expiredInteractions++;
         break;
       case 10008:
-        console.warn('[SafeInteraction] 원본 메시지가 삭제되었음');
+        logger.warn('원본 메시지가 삭제되었음', { component: 'SafeInteraction', method: 'handleInteractionError', errorCode: 10008 });
         break;
       case 40060:
-        console.warn('[SafeInteraction] 이미 처리된 인터랙션');
+        logger.warn('이미 처리된 인터랙션', { component: 'SafeInteraction', method: 'handleInteractionError', errorCode: 40060 });
         break;
       case 50013:
-        console.warn('[SafeInteraction] 권한 부족');
+        logger.warn('권한 부족', { component: 'SafeInteraction', method: 'handleInteractionError', errorCode: 50013 });
         break;
       case 50035:
-        console.warn('[SafeInteraction] 잘못된 폼 데이터');
+        logger.warn('잘못된 폼 데이터', { component: 'SafeInteraction', method: 'handleInteractionError', errorCode: 50035 });
         break;
     }
   }
@@ -548,7 +513,7 @@ export class SafeInteraction {
         }
       }
     } catch (finalError) {
-      console.error('[SafeInteraction] 최종 에러 복구 실패:', finalError);
+      logger.error('최종 에러 복구 실패', { component: 'SafeInteraction', method: 'attemptErrorRecovery', error: finalError.message, stack: finalError.stack });
     }
 
     return null;
@@ -657,7 +622,7 @@ export class SafeInteraction {
   static logDebugInfo(interaction, context) {
     const debugInfo = this.getDebugInfo(interaction);
     if (debugInfo) {
-      console.log(`[SafeInteraction] ${context} 디버그:`, debugInfo);
+      logger.debug(`${context} 디버그 정보`, { component: 'SafeInteraction', context, debugInfo });
     }
   }
 

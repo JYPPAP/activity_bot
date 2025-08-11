@@ -16,6 +16,7 @@ import {UserClassificationService} from '../services/UserClassificationService.j
 import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
+import { logger } from '../config/logger-termux.js';
 
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, calendarLogService, voiceForumService) {
@@ -72,9 +73,9 @@ export class CommandHandler {
       this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
 
-      console.log('명령어 초기화 완료:', [...this.commands.keys()]);
+      logger.info('명령어 초기화 완료', { component: 'CommandHandler', commands: [...this.commands.keys()], count: this.commands.size });
     } catch (error) {
-      console.error('명령어 초기화 오류:', error);
+      logger.error('명령어 초기화 오류', { component: 'CommandHandler', error: error.message, stack: error.stack });
     }
   }
 
@@ -132,7 +133,7 @@ export class CommandHandler {
         await this.commands.get(commandName).execute(interaction);
       }
     } catch (error) {
-      console.error("명령어 처리 오류:", error);
+      logger.error('명령어 처리 오류', { component: 'CommandHandler', commandName: interaction.commandName, error: error.message, stack: error.stack, userId: interaction.user.id });
 
       // SafeInteraction이 자동으로 상태를 확인하고 적절한 메서드를 선택
       await SafeInteraction.safeReply(interaction, {
