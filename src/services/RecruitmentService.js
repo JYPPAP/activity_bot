@@ -22,13 +22,15 @@ export class RecruitmentService {
    */
   async handleVoiceConnectButton(interaction) {
     try {
+      // 즉시 defer 처리하여 3초 제한시간 해결
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      
       const voiceChannelId = interaction.customId.replace(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT, '');
       
       // 권한 확인
       if (!PermissionService.hasRecruitmentPermission(interaction.user, interaction.member)) {
-        await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.NO_PERMISSION,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: RecruitmentConfig.MESSAGES.NO_PERMISSION
         });
         return;
       }
@@ -36,9 +38,8 @@ export class RecruitmentService {
       // 음성 채널 정보 가져오기
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
       if (!voiceChannelInfo) {
-        await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND,
-          flags: MessageFlags.Ephemeral
+        await interaction.editReply({
+          content: RecruitmentConfig.MESSAGES.VOICE_CHANNEL_NOT_FOUND
         });
         return;
       }
@@ -50,17 +51,22 @@ export class RecruitmentService {
       const embed = RecruitmentUIBuilder.createMethodSelectionEmbed(voiceChannelInfo.name);
       const selectMenu = RecruitmentUIBuilder.createMethodSelectMenu(voiceChannelId, existingPosts);
       
-      await SafeInteraction.safeReply(interaction, {
+      await interaction.editReply({
         embeds: [embed],
-        components: [selectMenu],
-        flags: MessageFlags.Ephemeral
+        components: [selectMenu]
       });
       
     } catch (error) {
       console.error('[RecruitmentService] 구인구직 연동 버튼 처리 오류:', error);
-      await SafeInteraction.safeReply(interaction, 
-        SafeInteraction.createErrorResponse('구인구직 연동', error)
-      );
+      if (interaction.deferred) {
+        await interaction.editReply(
+          SafeInteraction.createErrorResponse('구인구직 연동', error)
+        );
+      } else {
+        await SafeInteraction.safeReply(interaction, 
+          SafeInteraction.createErrorResponse('구인구직 연동', error)
+        );
+      }
     }
   }
   

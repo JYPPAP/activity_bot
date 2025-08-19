@@ -1,47 +1,38 @@
-// src/services/VoiceChannelForumIntegrationService.js - 음성채널-포럼 통합 서비스 (리팩토링된 버전)
-import { VoiceChannelManager } from './VoiceChannelManager.js';
-import { ForumPostManager } from './ForumPostManager.js';
-import { ParticipantTracker } from './ParticipantTracker.js';
-import { MappingService } from './MappingService.js';
-import { RecruitmentService } from './RecruitmentService.js';
+// src/services/VoiceChannelForumIntegrationService.js - 음성채널-포럼 통합 서비스 (DI 적용 버전)
 import { PermissionService } from './PermissionService.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
-import { InteractionRouter } from '../ui/InteractionRouter.js';
-import { ModalHandler } from '../ui/ModalHandler.js';
-import { ButtonHandler } from '../ui/ButtonHandler.js';
-import { config } from '../config/env.js';
 
 export class VoiceChannelForumIntegrationService {
-  constructor(client, forumChannelId, voiceCategoryId, databaseManager = null) {
+  constructor({ 
+    client, 
+    forumChannelId, 
+    voiceCategoryId, 
+    dbManager,
+    voiceChannelManager,
+    forumPostManager,
+    participantTracker,
+    mappingService,
+    recruitmentService,
+    modalHandler,
+    buttonHandler,
+    interactionRouter
+  }) {
     this.client = client;
     this.forumChannelId = forumChannelId;
     this.voiceCategoryId = voiceCategoryId;
-    this.databaseManager = databaseManager;
+    this.dbManager = dbManager;
     
-    // Core Services 초기화
-    this.voiceChannelManager = new VoiceChannelManager(client, voiceCategoryId);
-    this.forumPostManager = new ForumPostManager(client, forumChannelId, config.FORUM_TAG_ID, databaseManager);
-    this.participantTracker = new ParticipantTracker(client);
-    this.mappingService = new MappingService(client, this.voiceChannelManager, this.forumPostManager, databaseManager);
+    // 주입받은 서비스들 할당
+    this.voiceChannelManager = voiceChannelManager;
+    this.forumPostManager = forumPostManager;
+    this.participantTracker = participantTracker;
+    this.mappingService = mappingService;
+    this.recruitmentService = recruitmentService;
+    this.modalHandler = modalHandler;
+    this.buttonHandler = buttonHandler;
+    this.interactionRouter = interactionRouter;
     
-    // Business Logic Services 초기화
-    this.recruitmentService = new RecruitmentService(
-      client,
-      this.forumPostManager,
-      this.voiceChannelManager,
-      this.mappingService,
-      this.participantTracker
-    );
-    
-    // UI Handlers 초기화
-    this.modalHandler = new ModalHandler(this.recruitmentService, this.forumPostManager);
-    this.buttonHandler = new ButtonHandler(this.voiceChannelManager, this.recruitmentService, this.modalHandler);
-    this.interactionRouter = new InteractionRouter(this.buttonHandler, this.modalHandler, this.recruitmentService);
-    
-    // 서비스 초기화
-    this.recruitmentService.initialize();
-    
-    console.log(`[VoiceForumService] 통합 서비스 기본 초기화 완료`);
+    console.log(`[VoiceForumService] 통합 서비스 DI 초기화 완료`);
   }
   
   /**

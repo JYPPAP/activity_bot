@@ -1,18 +1,9 @@
-// src/bot.js - 봇 클래스 정의 (SQLite 버전)
+// src/bot.js - 봇 클래스 정의 (DI Container 적용 버전)
 import {Client, GatewayIntentBits, Events} from 'discord.js';
-import {EventManager} from './services/eventManager.js';
-import {ActivityTracker} from './services/activityTracker.js';
-import {LogService} from './services/logService.js';
-import {CalendarLogService} from './services/calendarLogService.js';
-import {CommandHandler} from './commands/commandHandler.js';
-import {UserClassificationService} from './services/UserClassificationService.js';
-import {DatabaseManager} from './services/DatabaseManager.js'; // 새로운 DB 관리자
-import {VoiceChannelForumIntegrationService} from './services/VoiceChannelForumIntegrationService.js';
-import {EmojiReactionService} from './services/EmojiReactionService.js';
 import {config} from './config/env.js';
 import {PATHS} from './config/constants.js';
 import {logger} from './config/logger-termux.js';
-import {EmbedFactory} from './utils/embedBuilder.js';
+import {createDIContainer, initializeContainer, disposeContainer} from './container.js';
 import fs from 'fs';
 
 export class Bot {
@@ -35,36 +26,25 @@ export class Bot {
       ],
     });
 
-    // 각 서비스 인스턴스 생성 (FileManager 제거)
-    this.dbManager = new DatabaseManager();
-    this.logService = new LogService(this.client, config.LOG_CHANNEL_ID);
-    this.calendarLogService = new CalendarLogService(this.client, this.dbManager);
-    this.activityTracker = new ActivityTracker(this.client, this.dbManager, this.logService);
-    this.voiceForumService = new VoiceChannelForumIntegrationService(
-      this.client,
-      config.FORUM_CHANNEL_ID,
-      config.VOICE_CATEGORY_ID,
-      this.dbManager
-    );
-    this.emojiReactionService = new EmojiReactionService(
-      this.client,
-      this.voiceForumService.forumPostManager
-    );
-    this.commandHandler = new CommandHandler(
-      this.client,
-      this.activityTracker,
-      this.dbManager,
-      this.calendarLogService,
-      this.voiceForumService
-    );
-    this.eventManager = new EventManager(this.client);
+    // DI Container 생성 및 서비스 해결
+    this.container = createDIContainer(this.client);
+    
+    // 각 서비스를 Container에서 해결
+    this.dbManager = this.container.resolve('dbManager');
+    this.logService = this.container.resolve('logService');
+    this.calendarLogService = this.container.resolve('calendarLogService');
+    this.activityTracker = this.container.resolve('activityTracker');
+    this.voiceForumService = this.container.resolve('voiceChannelForumIntegrationService');
+    this.emojiReactionService = this.container.resolve('emojiReactionService');
+    this.commandHandler = this.container.resolve('commandHandler');
+    this.eventManager = this.container.resolve('eventManager');
 
     Bot.instance = this;
   }
 
   async initialize() {
-    // 데이터베이스 초기화
-    await this.dbManager.initialize();
+    // DI Container 및 모든 서비스 초기화
+    await initializeContainer(this.container);
 
     // JSON 데이터 마이그레이션 (필요시)
     await this.migrateDataIfNeeded();
@@ -131,8 +111,8 @@ export class Bot {
         });
 
         // JSON 파일 로드
-        const activityData = this.fileManager.loadJSON(PATHS.ACTIVITY_INFO);
-        const roleConfigData = this.fileManager.loadJSON(PATHS.ROLE_CONFIG);
+        const activityData = JSON.parse(fs.readFileSync(PATHS.ACTIVITY_INFO, 'utf8'));
+        const roleConfigData = JSON.parse(fs.readFileSync(PATHS.ROLE_CONFIG, 'utf8'));
 
         // 마이그레이션 실행
         const success = await this.dbManager.migrateFromJSON(activityData, roleConfigData);
@@ -249,9 +229,9 @@ export class Bot {
       await this.activityTracker.saveActivityData();
       logger.info('활동 데이터 저장 완료');
 
-      // 데이터베이스 연결 종료
-      await this.dbManager.close();
-      logger.info('데이터베이스 연결 종료 완료');
+      // DI Container 및 모든 리소스 해제
+      await disposeContainer(this.container);
+      logger.info('DI Container 해제 완료');
 
       // 클라이언트 연결 종료
       if (this.client) {

@@ -12,6 +12,7 @@ import {GapReportCommand} from './gapReportCommand.js';
 import {GapCycleCommand} from './gapCycleCommand.js';
 import {GapAfkCommand} from './gapAfkCommand.js';
 import {RecruitmentCommand} from './recruitmentCommand.js';
+import {NicknameCommand} from './NicknameCommand.js';
 import {UserClassificationService} from '../services/UserClassificationService.js';
 import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
@@ -50,6 +51,11 @@ export class CommandHandler {
         voiceForumService: this.voiceForumService
       });
 
+      const nicknameCommand = new NicknameCommand({
+        client: this.client,
+        voiceChannelManager: this.voiceForumService.voiceChannelManager
+      });
+
       // UserClassificationService 의존성 주입
       if (gapListCommand.setUserClassificationService) {
         gapListCommand.setUserClassificationService(this.userClassificationService);
@@ -72,6 +78,7 @@ export class CommandHandler {
       this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
+      this.commands.set('닉네임설정', nicknameCommand);
 
       logger.info('명령어 초기화 완료', { component: 'CommandHandler', commands: [...this.commands.keys()], count: this.commands.size });
     } catch (error) {

@@ -206,6 +206,18 @@ commands.push(
     .setDescription('구인구직 포럼 포스트를 생성합니다.')
 );
 
+// 닉네임설정 명령어
+commands.push(
+  new SlashCommandBuilder()
+    .setName('닉네임설정')
+    .setDescription('대상 채널에 닉네임 변경 버튼을 설정합니다.')
+    .addStringOption(option =>
+      option.setName('channel')
+            .setDescription('대상 채널 ID')
+            .setRequired(true)
+    )
+);
+
 // REST 클라이언트 생성
 const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 

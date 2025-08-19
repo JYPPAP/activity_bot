@@ -8,18 +8,15 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "register": "node scripts/registerCommands.js",
-
     "pm2:start": "pm2 start src/index.js --name discord-bot",
     "pm2": "pm2 start ecosystem-termux.config.cjs --env production",
     "stop": "pm2 stop discord-bot",
     "restart": "pm2 restart discord-bot",
     "logs": "pm2 logs discord-bot",
     "status": "pm2 status",
-    
     "setup": "pkg install python nodejs sqlite libsqlite clang make && npm install",
     "external": "ERRSOLE_HOST=0.0.0.0 pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot",
     "ip": "termux-wifi-connectioninfo | grep 'ip_address' || ip route get 1.1.1.1 | grep -oP 'src \\K\\S+' || echo '핸드폰에서 설정 > Wi-Fi에서 IP 확인'",
-    
     "test": "node -e \"import('./src/config/logger-termux.js').then(m => m.logger.info('로거 테스트'));\"",
     "slack": "node -e \"process.env.NODE_ENV='production'; process.env.ENABLE_SLACK_ALERTS='true'; import('./src/config/logger-termux.js').then(m => m.logger.error('Slack 테스트', {test: true}));\"",
     "update": "git pull && pm2 delete discord-bot 2>/dev/null || true && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot"
@@ -33,6 +30,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "awilix": "^12.0.5",
     "axios": "^1.10.0",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",

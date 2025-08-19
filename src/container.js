@@ -1,0 +1,260 @@
+// src/container.js - DI Container 설정
+import { createContainer, asClass, asValue, asFunction, Lifetime, InjectionMode } from 'awilix';
+import { config } from './config/env.js';
+
+// 서비스 임포트
+import { DatabaseManager } from './services/DatabaseManager.js';
+import { LogService } from './services/logService.js';
+import { CalendarLogService } from './services/calendarLogService.js';
+import { ActivityTracker } from './services/activityTracker.js';
+import { EventManager } from './services/eventManager.js';
+import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
+import { EmojiReactionService } from './services/EmojiReactionService.js';
+import { UserClassificationService } from './services/UserClassificationService.js';
+import { ParticipantTracker } from './services/ParticipantTracker.js';
+import { VoiceChannelManager } from './services/VoiceChannelManager.js';
+import { ForumPostManager } from './services/ForumPostManager.js';
+import { MappingService } from './services/MappingService.js';
+import { RecruitmentService } from './services/RecruitmentService.js';
+
+// UI 관련 임포트
+import { ButtonHandler } from './ui/ButtonHandler.js';
+import { ModalHandler } from './ui/ModalHandler.js';
+import { InteractionRouter } from './ui/InteractionRouter.js';
+import { RecruitmentUIBuilder } from './ui/RecruitmentUIBuilder.js';
+
+// 명령어 관련 임포트
+import { CommandHandler } from './commands/commandHandler.js';
+import { GapListCommand } from './commands/gapListCommand.js';
+import { GapConfigCommand } from './commands/gapConfigCommand.js';
+import { GapResetCommand } from './commands/gapResetCommand.js';
+import { TimeConfirmCommand } from './commands/TimeConfirmCommand.js';
+import { TimeCheckCommand } from './commands/TimeCheckCommand.js';
+import { GapSaveCommand } from './commands/gapSaveCommand.js';
+import { GapCalendarCommand } from './commands/gapCalendarCommand.js';
+import { GapStatsCommand } from './commands/gapStatsCommand.js';
+import { GapReportCommand } from './commands/gapReportCommand.js';
+import { GapCycleCommand } from './commands/gapCycleCommand.js';
+import { GapAfkCommand } from './commands/gapAfkCommand.js';
+import { RecruitmentCommand } from './commands/recruitmentCommand.js';
+import { GapCheckCommand } from './commands/gapCheckCommand.js';
+
+/**
+ * DI Container 생성 및 설정
+ * @param {Client} client - Discord 클라이언트 인스턴스
+ * @returns {AwilixContainer} 설정된 컨테이너
+ */
+export function createDIContainer(client) {
+  const container = createContainer({
+    injectionMode: InjectionMode.CLASSIC
+  });
+
+  // 외부 의존성 등록 (값으로 등록)
+  container.register({
+    // Discord 클라이언트 (외부에서 주입)
+    client: asValue(client),
+    
+    // 환경 설정 값들
+    token: asValue(config.TOKEN),
+    guildId: asValue(config.GUILDID),
+    logChannelId: asValue(config.LOG_CHANNEL_ID),
+    forumChannelId: asValue(config.FORUM_CHANNEL_ID),
+    voiceCategoryId: asValue(config.VOICE_CATEGORY_ID),
+    forumTagId: asValue(config.FORUM_TAG_ID),
+  });
+
+  // 기반 서비스들 등록 (Singleton으로 관리)
+  container.register({
+    // 데이터베이스 관리자 (의존성 없음)
+    dbManager: asClass(DatabaseManager).singleton(),
+    databaseManager: asClass(DatabaseManager).singleton(), // Alias for compatibility
+    
+    // 로그 서비스 (client, logChannelId 의존)
+    logService: asClass(LogService).singleton(),
+    
+    // 이벤트 매니저 (client 의존)
+    eventManager: asClass(EventManager).singleton(),
+    
+    // 참가자 추적기 (client 의존)
+    participantTracker: asClass(ParticipantTracker).singleton(),
+  });
+
+  // 음성 채널 관련 서비스들 등록
+  container.register({
+    // 음성 채널 매니저 (client, voiceCategoryId 의존)
+    voiceChannelManager: asClass(VoiceChannelManager).singleton(),
+    
+    // 포럼 포스트 매니저 (client, forumChannelId, forumTagId, dbManager 의존)
+    forumPostManager: asClass(ForumPostManager).singleton(),
+  });
+
+  // 복합 서비스들 등록
+  container.register({
+    // 매핑 서비스 (client, voiceChannelManager, forumPostManager, dbManager 의존)
+    mappingService: asClass(MappingService).singleton(),
+    
+    // 달력 로그 서비스 (client, dbManager 의존)
+    calendarLogService: asClass(CalendarLogService).singleton(),
+    
+    // 활동 추적기 (client, dbManager, logService 의존)
+    activityTracker: asClass(ActivityTracker).singleton(),
+    
+    // 사용자 분류 서비스 (dbManager, activityTracker 의존)
+    userClassificationService: asClass(UserClassificationService).singleton(),
+  });
+
+  // 통합 서비스들 등록
+  container.register({
+    // 이모지 반응 서비스 (client, forumPostManager 의존)
+    emojiReactionService: asClass(EmojiReactionService).singleton(),
+    
+    // 구인구직 서비스 (복잡한 의존성)
+    recruitmentService: asClass(RecruitmentService).singleton(),
+  });
+
+  // UI 관련 서비스들 등록
+  container.register({
+    // UI 빌더
+    recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
+    
+    // 버튼 핸들러 (voiceChannelManager, recruitmentService, modalHandler 의존)
+    buttonHandler: asClass(ButtonHandler).singleton(),
+    
+    // 모달 핸들러 (recruitmentService, forumPostManager 의존)
+    modalHandler: asClass(ModalHandler).singleton(),
+    
+    // 인터랙션 라우터 (buttonHandler, modalHandler, recruitmentService 의존)
+    interactionRouter: asClass(InteractionRouter).singleton(),
+  });
+
+  // 명령어들 등록
+  container.register({
+    // 기본 명령어들
+    gapListCommand: asClass(GapListCommand).singleton(),
+    gapConfigCommand: asClass(GapConfigCommand).singleton(),
+    gapResetCommand: asClass(GapResetCommand).singleton(),
+    timeConfirmCommand: asClass(TimeConfirmCommand).singleton(),
+    timeCheckCommand: asClass(TimeCheckCommand).singleton(),
+    gapSaveCommand: asClass(GapSaveCommand).singleton(),
+    gapCalendarCommand: asClass(GapCalendarCommand).singleton(),
+    gapStatsCommand: asClass(GapStatsCommand).singleton(),
+    gapReportCommand: asClass(GapReportCommand).singleton(),
+    gapCycleCommand: asClass(GapCycleCommand).singleton(),
+    gapAfkCommand: asClass(GapAfkCommand).singleton(),
+    gapCheckCommand: asClass(GapCheckCommand).singleton(),
+    recruitmentCommand: asClass(RecruitmentCommand).singleton(),
+  });
+
+  // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
+  container.register({
+    commandHandler: asClass(CommandHandler).singleton(),
+  });
+
+  // 복잡한 의존성을 가진 VoiceChannelForumIntegrationService를 Factory로 등록
+  container.register({
+    voiceChannelForumIntegrationService: asFunction(({ 
+      client, 
+      forumChannelId, 
+      voiceCategoryId, 
+      dbManager,
+      voiceChannelManager,
+      forumPostManager,
+      participantTracker,
+      mappingService,
+      recruitmentService,
+      modalHandler,
+      buttonHandler,
+      interactionRouter
+    }) => {
+      return new VoiceChannelForumIntegrationService({
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      });
+    }).singleton(),
+    voiceForumService: asFunction(({ 
+      client, 
+      forumChannelId, 
+      voiceCategoryId, 
+      dbManager,
+      voiceChannelManager,
+      forumPostManager,
+      participantTracker,
+      mappingService,
+      recruitmentService,
+      modalHandler,
+      buttonHandler,
+      interactionRouter
+    }) => {
+      return new VoiceChannelForumIntegrationService({
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      });
+    }).singleton() // Alias for CommandHandler compatibility
+  });
+
+  return container;
+}
+
+/**
+ * 컨테이너 초기화
+ * 모든 서비스들의 초기화 메서드를 순서대로 호출
+ * @param {AwilixContainer} container - DI 컨테이너
+ */
+export async function initializeContainer(container) {
+  try {
+    // 1. 데이터베이스 초기화 (가장 먼저)
+    const dbManager = container.resolve('dbManager');
+    await dbManager.initialize();
+
+    // 2. 기타 초기화가 필요한 서비스들
+    const calendarLogService = container.resolve('calendarLogService');
+    await calendarLogService.initialize();
+
+    console.log('DI Container 및 서비스들이 성공적으로 초기화되었습니다.');
+    return true;
+  } catch (error) {
+    console.error('DI Container 초기화 중 오류 발생:', error);
+    throw error;
+  }
+}
+
+/**
+ * 컨테이너 해제
+ * 모든 리소스를 정리
+ * @param {AwilixContainer} container - DI 컨테이너
+ */
+export async function disposeContainer(container) {
+  try {
+    // 데이터베이스 연결 종료
+    const dbManager = container.resolve('dbManager');
+    await dbManager.close();
+
+    // 컨테이너 해제
+    container.dispose();
+    
+    console.log('DI Container가 안전하게 해제되었습니다.');
+  } catch (error) {
+    console.error('DI Container 해제 중 오류 발생:', error);
+    throw error;
+  }
+}
