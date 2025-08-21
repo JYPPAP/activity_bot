@@ -32,7 +32,6 @@ export class Bot {
     // 각 서비스를 Container에서 해결
     this.dbManager = this.container.resolve('dbManager');
     this.logService = this.container.resolve('logService');
-    this.calendarLogService = this.container.resolve('calendarLogService');
     this.activityTracker = this.container.resolve('activityTracker');
     this.voiceForumService = this.container.resolve('voiceChannelForumIntegrationService');
     this.emojiReactionService = this.container.resolve('emojiReactionService');
@@ -67,11 +66,6 @@ export class Bot {
         await this.activityTracker.initializeActivityData(guild);
         logger.info('활동 추적 초기화 완료');
       }
-
-      // 달력 로그 서비스 초기화
-      logger.info('달력 로그 서비스 초기화 시작');
-      await this.calendarLogService.initialize();
-      logger.info('달력 로그 서비스 초기화 완료');
 
       // VoiceChannelForumIntegrationService 매핑 초기화 (봇이 준비된 후)
       try {

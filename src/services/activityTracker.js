@@ -1,4 +1,4 @@
-// src/services/activityTracker.js - 활동 추적 서비스 (SQLite 버전)
+// src/services/activityTracker.js - 활동 추적 서비스 (PostgreSQL 버전)
 import {TIME, FILTERS, MESSAGE_TYPES} from '../config/constants.js';
 import {config} from '../config/env.js';
 
@@ -7,30 +7,38 @@ export class ActivityTracker {
     this.client = client;
     this.db = dbManager;
     this.logService = logService;
-    this.channelActivityTime = new Map();
-    this.saveActivityTimeout = null;
+    // 현재 활성 세션만 메모리에 저장 (userId -> {startTime, displayName})
+    this.activeSessions = new Map();
   }
 
   /**
-   * 활동 데이터를 DB에서 로드
+   * 현재 활성 세션 로드 (서버 재시작시 복구용)
    */
-  async loadActivityData() {
+  async loadActiveSessions() {
     try {
-      const activities = await this.db.getAllUserActivity();
+      // 음성 채널에 현재 있는 사용자들의 세션을 복구
+      const guild = this.client.guilds.cache.get(config.GUILDID);
+      if (!guild) return;
 
-      // 로드된 데이터를 Map으로 변환하여 메모리에 저장
-      this.channelActivityTime.clear();
+      const members = await guild.members.fetch();
+      const now = Date.now();
 
-      activities.forEach(activity => {
-        this.channelActivityTime.set(activity.userId, {
-          startTime: activity.startTime,
-          totalTime: activity.totalTime
-        });
-      });
+      for (const [userId, member] of members.entries()) {
+        // 현재 음성 채널에 있고, 제외 대상이 아닌 경우
+        if (member.voice?.channelId && 
+            !config.EXCLUDED_CHANNELS.includes(member.voice.channelId) &&
+            !this.isObservationOrWaiting(member)) {
+          
+          this.activeSessions.set(userId, {
+            startTime: now,
+            displayName: member.displayName
+          });
+        }
+      }
 
-      console.log(`${activities.length}명의 사용자 활동 데이터를 로드했습니다.`);
+      console.log(`${this.activeSessions.size}명의 활성 세션을 복구했습니다.`);
     } catch (error) {
-      console.error('활동 데이터 로드 오류:', error);
+      console.error('활성 세션 로드 오류:', error);
     }
   }
 
@@ -53,75 +61,18 @@ export class ActivityTracker {
   }
 
   /**
-   * 활동 데이터를 DB에 저장
+   * 세션 종료시 일일 활동 분을 즉시 DB에 업데이트
    */
-  async saveActivityData() {
-    const now = Date.now();
-    const activeUsers = Array.from(this.channelActivityTime.entries()).filter(([_, activity]) => activity.startTime);
-    
-    if (activeUsers.length > 0) {
-      console.log(`[ActivityTracker] 활동 데이터 저장 시작 - ${activeUsers.length}명의 활성 사용자`);
-    }
-
+  async saveSessionActivity(userId, sessionDurationMs, displayName, date = new Date()) {
     try {
-      // 트랜잭션 시작
-      await this.db.beginTransaction();
-
-      // 각 사용자의 활동 데이터 업데이트
-      for (const [userId, userActivity] of this.channelActivityTime.entries()) {
-        if (userActivity.startTime) {
-          // 현재 DB에 저장된 데이터 확인
-          const existingActivity = await this.db.getUserActivity(userId);
-          const existingTotalTime = existingActivity ? existingActivity.totalTime : 0;
-
-          // 새로운 totalTime 계산 (기존 + 새로 추가된 시간)
-          const newTotalTime = existingTotalTime + (now - userActivity.startTime);
-
-          // DB에 업데이트
-          await this.db.updateUserActivity(
-            userId,
-            newTotalTime,
-            now, // 현재 시간으로 startTime 업데이트
-            userActivity.displayName || null
-          );
-
-          // 메모리 내 값도 업데이트
-          userActivity.totalTime = newTotalTime;
-          userActivity.startTime = now;
-        } else if (userActivity.totalTime) {
-          // 활동 중이 아닌 사용자의 기존 totalTime만 저장
-          await this.db.updateUserActivity(
-            userId,
-            userActivity.totalTime,
-            null,
-            userActivity.displayName || null
-          );
-        }
+      const minutes = Math.floor(sessionDurationMs / (1000 * 60));
+      if (minutes > 0) {
+        await this.db.updateDailyActivity(userId, displayName, config.GUILDID, date, minutes);
+        console.log(`[ActivityTracker] ${displayName}님의 ${minutes}분 활동 기록 완료`);
       }
-
-      // 트랜잭션 커밋
-      await this.db.commitTransaction();
-      console.log('활동 데이터가 성공적으로 저장되었습니다.');
     } catch (error) {
-      // 오류 발생 시 롤백
-      await this.db.rollbackTransaction();
-      console.error('활동 데이터 저장 오류:', error);
+      console.error('세션 활동 저장 오류:', error);
     }
-  }
-
-  /**
-   * 일정 시간 후 활동 데이터 저장 예약
-   */
-  debounceSaveActivityData() {
-    // 기존 예약된 저장 작업 취소
-    if (this.saveActivityTimeout) {
-      clearTimeout(this.saveActivityTimeout);
-    }
-
-    // 10분 후 저장 작업 예약
-    this.saveActivityTimeout = setTimeout(async () => {
-      await this.saveActivityData();
-    }, TIME.SAVE_ACTIVITY_DELAY);
   }
 
   /**
@@ -129,8 +80,6 @@ export class ActivityTracker {
    * @param {string} role - 초기화할 역할 이름
    */
   async clearAndReinitializeActivityData(role) {
-    await this.saveActivityData(); // 초기화 전에 데이터 저장
-
     const now = Date.now();
     const guild = this.client.guilds.cache.get(config.GUILDID);
 
@@ -138,32 +87,37 @@ export class ActivityTracker {
       // 역할 리셋 시간 업데이트
       await this.db.updateRoleResetTime(role, now, '관리자 명령으로 초기화');
 
-      // 해당 역할을 가진 멤버들의 활동 시간 초기화
+      // 해당 역할을 가진 멤버들의 현재 세션 처리
       const members = await guild.members.fetch();
 
-      members.forEach(member => {
+      for (const [userId, member] of members.entries()) {
         const hasRole = member.roles.cache.some(r => r.name === role);
 
         if (hasRole) {
-          const userId = member.id;
-          if (this.channelActivityTime.has(userId)) {
-            const userActivity = this.channelActivityTime.get(userId);
-
-            // 현재 음성 채널에 있는 경우 startTime만 초기화
+          // 현재 활성 세션이 있다면 종료하고 새로 시작
+          if (this.activeSessions.has(userId)) {
+            const session = this.activeSessions.get(userId);
+            const sessionDuration = now - session.startTime;
+            
+            // 현재 세션의 활동 분 저장
+            await this.saveSessionActivity(userId, sessionDuration, member.displayName);
+            
+            // 현재 음성 채널에 있다면 새 세션 시작, 없다면 세션 제거
             if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
-              userActivity.startTime = now;
-              userActivity.totalTime = 0;
+              session.startTime = now;
+              session.displayName = member.displayName;
             } else {
-              // 음성 채널에 없는 경우 완전히 초기화
-              userActivity.startTime = null;
-              userActivity.totalTime = 0;
+              this.activeSessions.delete(userId);
             }
-
-            // DB에도 초기화된 데이터 저장
-            this.db.updateUserActivity(userId, 0, userActivity.startTime, member.displayName);
+          } else if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
+            // 세션이 없지만 음성 채널에 있다면 새 세션 시작
+            this.activeSessions.set(userId, {
+              startTime: now,
+              displayName: member.displayName
+            });
           }
         }
-      });
+      }
 
       console.log(`역할 '${role}'의 활동 데이터가 초기화되었습니다.`);
     } catch (error) {
@@ -180,36 +134,8 @@ export class ActivityTracker {
       // 역할 활동 설정 불러오기
       await this.loadRoleActivityConfig();
 
-      // 메모리 데이터 로드
-      await this.loadActivityData();
-
-      // 길드의 모든 멤버 불러오기
-      const members = await guild.members.fetch();
-
-      // 역할 활동 설정 가져오기
-      const roleConfigs = await this.db.getAllRoleConfigs();
-      const trackedRoles = roleConfigs.map(config => config.roleName);
-
-      // 멤버별 데이터 확인 및 초기화
-      for (const [userId, member] of members.entries()) {
-        const userRoles = member.roles.cache.map(role => role.name);
-
-        // 사용자의 역할 중 추적 대상 역할이 있는지 확인
-        const hasTrackedRole = userRoles.some(role => trackedRoles.includes(role));
-
-        if (hasTrackedRole) {
-          // 사용자가 메모리 캐시에 없으면 추가
-          if (!this.channelActivityTime.has(userId)) {
-            this.channelActivityTime.set(userId, {
-              startTime: 0,
-              totalTime: 0
-            });
-
-            // DB에도 초기 데이터 설정
-            await this.db.updateUserActivity(userId, 0, null, member.displayName);
-          }
-        }
-      }
+      // 현재 활성 세션 로드 (서버 재시작시 음성 채널에 있는 사용자들)
+      await this.loadActiveSessions();
 
       console.log("✔ 활동 정보가 초기화되었습니다.");
     } catch (error) {
@@ -237,11 +163,11 @@ export class ActivityTracker {
                       this.isChannelLeave(oldState, newState) ? '퇴장' : '이동';
     console.log(`[ActivityTracker] 음성 채널 ${actionType}: ${member.displayName} (${userId})`);
 
-    // 채널 입장 처리 (로그 기록용)
+    // 채널 입장 처리 (로그 기록용) - activity_logs 제거, Discord 로그만 유지
     if (this.isChannelJoin(oldState, newState)) {
       await this.handleChannelJoin(newState, member);
     }
-    // 채널 퇴장 처리 (로그 기록용)
+    // 채널 퇴장 처리 (로그 기록용) - activity_logs 제거, Discord 로그만 유지
     else if (this.isChannelLeave(oldState, newState)) {
       await this.handleChannelLeave(oldState, member);
     }
@@ -251,14 +177,8 @@ export class ActivityTracker {
       return;
     }
 
-    // // 활동 시간 추적
-    // this.trackActivityTime(oldState, newState, userId, member, now);
-
-    // 활동 시간 추적
-    this.trackActivityTimeImproved(oldState, newState, userId, member, now);
-
-    // 일정 시간 후 데이터 저장 예약
-    this.debounceSaveActivityData();
+    // 실시간 활동 시간 추적
+    await this.trackActivityTimeRealtime(oldState, newState, userId, member, now);
   }
 
   // 같은 채널 내 상태 변경인지 확인
@@ -284,7 +204,7 @@ export class ActivityTracker {
     );
   }
 
-  // 채널 입장 처리
+  // 채널 입장 처리 (Discord 로그만, activity_logs 제거)
   async handleChannelJoin(newState, member) {
     const membersInChannel = await this.logService.getVoiceChannelMembers(newState.channel);
     const channelName = newState.channel ? newState.channel.name : '알 수 없는 채널';
@@ -292,20 +212,11 @@ export class ActivityTracker {
     // 로그 메시지 생성
     const logMessage = `${MESSAGE_TYPES.JOIN}: \` ${member.displayName} \`님이 \` ${channelName} \`에 입장했습니다.`;
 
-    // 로그 서비스를 통한 로깅
+    // 로그 서비스를 통한 Discord 채널 로깅만 수행
     this.logService.logActivity(logMessage, membersInChannel, 'JOIN');
-
-    // 데이터베이스에도 로깅
-    await this.db.logActivity(
-      newState.id,
-      'JOIN',
-      newState.channelId,
-      channelName,
-      membersInChannel
-    );
   }
 
-  // 채널 퇴장 처리
+  // 채널 퇴장 처리 (Discord 로그만, activity_logs 제거)
   async handleChannelLeave(oldState, member) {
     const membersInChannel = await this.logService.getVoiceChannelMembers(oldState.channel);
     const channelName = oldState.channel ? oldState.channel.name : '알 수 없는 채널';
@@ -313,63 +224,38 @@ export class ActivityTracker {
     // 로그 메시지 생성
     const logMessage = `${MESSAGE_TYPES.LEAVE}: \` ${member.displayName} \`님이 \` ${channelName} \`에서 퇴장했습니다.`;
 
-    // 로그 서비스를 통한 로깅
+    // 로그 서비스를 통한 Discord 채널 로깅만 수행
     this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
-
-    // 데이터베이스에도 로깅
-    await this.db.logActivity(
-      oldState.id,
-      'LEAVE',
-      oldState.channelId,
-      channelName,
-      membersInChannel
-    );
   }
 
-  // 활동 시간 추적
-  trackActivityTime(oldState, newState, userId, member, now) {
-    // 채널 입장 시 시간 기록 시작
-    if (this.isChannelJoin(oldState, newState)) {
-      this.startActivityTracking(userId, member, now);
-    }
-    // 채널 퇴장 시 시간 기록 종료
-    else if (this.isChannelLeave(oldState, newState)) {
-      this.endActivityTracking(userId, now);
-    }
-  }
-
-  // 개선된 활동 시간 추적
-  trackActivityTimeImproved(oldState, newState, userId, member, now) {
-    // 사용자가 이전에 어떤 채널에도 없었고, 이제 채널에 입장한 경우만 시작 시간 설정
+  // 실시간 활동 시간 추적 (PostgreSQL 월별 테이블 직접 업데이트)
+  async trackActivityTimeRealtime(oldState, newState, userId, member, now) {
+    // 실제 채널 입장 (첫 입장만 감지)
     if (this.isRealChannelJoin(oldState, newState)) {
-      if (!this.channelActivityTime.has(userId)) {
-        this.channelActivityTime.set(userId, {
-          startTime: now,
-          totalTime: 0,
-          displayName: member.displayName
-        });
-      } else if (!this.channelActivityTime.get(userId).startTime) {
-        const userActivity = this.channelActivityTime.get(userId);
-        userActivity.startTime = now;
-        userActivity.displayName = member.displayName;
-      }
+      this.activeSessions.set(userId, {
+        startTime: now,
+        displayName: member.displayName
+      });
+      console.log(`[ActivityTracker] ${member.displayName} 세션 시작`);
     }
-    // 사용자가 모든 채널에서 완전히 퇴장한 경우만 종료 시간 설정
+    // 실제 채널 퇴장 (모든 채널에서 퇴장하는 경우만 감지)
     else if (this.isRealChannelLeave(oldState, newState)) {
-      if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
-        const userActivity = this.channelActivityTime.get(userId);
-        userActivity.totalTime += now - userActivity.startTime;
-        userActivity.startTime = null;
+      if (this.activeSessions.has(userId)) {
+        const session = this.activeSessions.get(userId);
+        const sessionDuration = now - session.startTime;
+        
+        // 즉시 PostgreSQL에 일일 활동 분 업데이트
+        await this.saveSessionActivity(userId, sessionDuration, member.displayName);
+        
+        // 메모리에서 세션 제거
+        this.activeSessions.delete(userId);
       }
     }
-    // 채널 간 이동인 경우 - 활동 시간 유지하며 필요시 복구
+    // 채널 간 이동인 경우 - 세션 유지 (시간 계속 누적)
     else if (this.isChannelTransfer(oldState, newState)) {
-      if (this.channelActivityTime.has(userId)) {
-        const userActivity = this.channelActivityTime.get(userId);
-        if (!userActivity.startTime) {
-          // 예기치 않게 startTime이 없는 경우에 대한 복구 로직
-          userActivity.startTime = now;
-        }
+      if (this.activeSessions.has(userId)) {
+        // 표시 이름 업데이트만 수행, 세션 시간은 유지
+        this.activeSessions.get(userId).displayName = member.displayName;
       }
     }
   }
@@ -393,30 +279,6 @@ export class ActivityTracker {
     return oldState.channelId && newState.channelId;
   }
 
-  // 활동 추적 시작
-  startActivityTracking(userId, member, now) {
-    if (!this.channelActivityTime.has(userId)) {
-      this.channelActivityTime.set(userId, {
-        startTime: now,
-        totalTime: 0,
-        displayName: member.displayName
-      });
-    } else if (!this.channelActivityTime.get(userId).startTime) {
-      const userActivity = this.channelActivityTime.get(userId);
-      userActivity.startTime = now;
-      userActivity.displayName = member.displayName;
-    }
-  }
-
-  // 활동 추적 종료
-  endActivityTracking(userId, now) {
-    if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
-      const userActivity = this.channelActivityTime.get(userId);
-      userActivity.totalTime += now - userActivity.startTime;
-      userActivity.startTime = null;
-    }
-  }
-
   /**
    * 길드 멤버 업데이트 이벤트 핸들러
    * @param {GuildMember} oldMember - 이전 멤버 상태
@@ -434,84 +296,65 @@ export class ActivityTracker {
     // 멤버가 [관전] 또는 [대기] 상태로 변경된 경우
     if (newMember.displayName.includes(FILTERS.OBSERVATION) ||
       newMember.displayName.includes(FILTERS.WAITING)) {
-      // 활동 시간 기록 중단
-      if (this.channelActivityTime.has(userId) && this.channelActivityTime.get(userId).startTime) {
-        const userActivity = this.channelActivityTime.get(userId);
-        userActivity.totalTime += now - userActivity.startTime;
-        userActivity.startTime = null;
-
-        // DB에 업데이트
-        await this.db.updateUserActivity(
-          userId,
-          userActivity.totalTime,
-          null,
-          newMember.displayName
-        );
+      // 활성 세션이 있다면 종료하고 저장
+      if (this.activeSessions.has(userId)) {
+        const session = this.activeSessions.get(userId);
+        const sessionDuration = now - session.startTime;
+        
+        await this.saveSessionActivity(userId, sessionDuration, newMember.displayName);
+        this.activeSessions.delete(userId);
+        console.log(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
       }
     } else {
       // 정상 상태로 변경된 경우 & 음성 채널에 있는 경우
       const voiceState = newMember.voice;
       if (voiceState?.channelId && !config.EXCLUDED_CHANNELS.includes(voiceState.channelId)) {
-        // 활동 시간 기록 시작/재개
-        if (!this.channelActivityTime.has(userId)) {
-          this.channelActivityTime.set(userId, {
+        // 활성 세션이 없다면 새로 시작
+        if (!this.activeSessions.has(userId)) {
+          this.activeSessions.set(userId, {
             startTime: now,
-            totalTime: 0,
             displayName: newMember.displayName
           });
-        } else if (!this.channelActivityTime.get(userId).startTime) {
-          this.channelActivityTime.get(userId).startTime = now;
-          this.channelActivityTime.get(userId).displayName = newMember.displayName;
+          console.log(`[ActivityTracker] ${newMember.displayName} 정상 상태로 세션 시작`);
+        } else {
+          // 기존 세션의 표시 이름만 업데이트
+          this.activeSessions.get(userId).displayName = newMember.displayName;
         }
-
-        // DB에 업데이트
-        await this.db.updateUserActivity(
-          userId,
-          this.channelActivityTime.get(userId).totalTime,
-          now,
-          newMember.displayName
-        );
-
-        this.debounceSaveActivityData();
       }
     }
   }
 
   /**
-   * 메모리에 저장된 활동 데이터 확인 (디버깅용)
+   * 현재 활성 세션 정보 확인 (디버깅용)
    */
-  getMemoryActivityData(userId = null) {
+  getActiveSessionData(userId = null) {
     if (userId) {
-      // 특정 사용자의 메모리 데이터 반환
-      const activity = this.channelActivityTime.get(userId);
-      if (activity) {
+      // 특정 사용자의 활성 세션 데이터 반환
+      const session = this.activeSessions.get(userId);
+      if (session) {
         const now = Date.now();
-        const currentSessionTime = activity.startTime ? now - activity.startTime : 0;
+        const currentSessionTime = now - session.startTime;
         return {
           userId: userId,
-          totalTime: activity.totalTime,
           currentSessionTime: currentSessionTime,
-          isCurrentlyActive: !!activity.startTime,
-          startTime: activity.startTime,
-          displayName: activity.displayName,
-          totalWithCurrent: activity.totalTime + currentSessionTime
+          isCurrentlyActive: true,
+          startTime: session.startTime,
+          displayName: session.displayName
         };
       }
       return null;
     } else {
-      // 모든 사용자의 메모리 데이터 반환
+      // 모든 사용자의 활성 세션 데이터 반환
       const now = Date.now();
       const result = [];
-      for (const [uid, activity] of this.channelActivityTime.entries()) {
-        const currentSessionTime = activity.startTime ? now - activity.startTime : 0;
+      for (const [uid, session] of this.activeSessions.entries()) {
+        const currentSessionTime = now - session.startTime;
         result.push({
           userId: uid,
-          totalTime: activity.totalTime,
           currentSessionTime: currentSessionTime,
-          isCurrentlyActive: !!activity.startTime,
-          startTime: activity.startTime,
-          displayName: activity.displayName,
-          totalWithCurrent: activity.totalTime + currentSessionTime
+          isCurrentlyActive: true,
+          startTime: session.startTime,
+          displayName: session.displayName
         });
       }
       return result;
@@ -523,7 +366,7 @@ export class ActivityTracker {
       // 역할에 필요한 최소 활동 시간 조회
       const roleConfig = await this.db.getRoleConfig(roleName);
       const minActivityHours = roleConfig ? roleConfig.minHours : 0;
-      const minActivityTime = minActivityHours * 60 * 60 * 1000;
+      const minActivityMinutes = minActivityHours * 60;
 
       // 리셋 시간 가져오기
       const resetTime = roleConfig ? roleConfig.resetTime : null;
@@ -533,14 +376,23 @@ export class ActivityTracker {
       const afkUsers = []; // 잠수 멤버용 배열
 
       for (const [userId, member] of roleMembers.entries()) {
-        // 사용자 활동 데이터 조회
-        const userActivity = await this.db.getUserActivity(userId);
-        const totalTime = userActivity ? userActivity.totalTime : 0;
+        // PostgreSQL에서 사용자 활동 분 조회 (현재 월 기준)
+        const totalMinutes = await this.db.getUserTotalActivityMinutes(userId, config.GUILDID);
+        
+        // 현재 활성 세션이 있다면 추가
+        let currentSessionMinutes = 0;
+        if (this.activeSessions.has(userId)) {
+          const session = this.activeSessions.get(userId);
+          const sessionDuration = Date.now() - session.startTime;
+          currentSessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+        }
+
+        const totalWithCurrent = totalMinutes + currentSessionMinutes;
 
         const userData = {
           userId,
           nickname: member.displayName,
-          totalTime
+          totalTime: totalWithCurrent * 60 * 1000 // 호환성을 위해 밀리초로 변환
         };
 
         // 잠수 역할이 있는 경우 afkUsers에 추가
@@ -548,7 +400,7 @@ export class ActivityTracker {
           afkUsers.push(userData);
         }
         // 그 외는 활동 시간 기준으로 분류
-        else if (totalTime >= minActivityTime) {
+        else if (totalWithCurrent >= minActivityMinutes) {
           activeUsers.push(userData);
         } else {
           inactiveUsers.push(userData);
@@ -575,44 +427,33 @@ export class ActivityTracker {
 
   async getActiveMembersData() {
     try {
-      // 모든 사용자 활동 정보 가져오기
-      const activities = await this.db.getAllUserActivity();
+      // PostgreSQL에서 모든 사용자의 활동 분 조회 (현재 월 기준)
+      const activeMembers = await this.db.getAllActiveUsersThisMonth(config.GUILDID);
 
-      // 활성 멤버 정보 변환 (ID → 표시 이름)
-      const activeMembers = [];
+      const guild = this.client.guilds.cache.get(config.GUILDID);
 
-      for (const activity of activities) {
-        // 총 활동 시간이 0보다 큰 사용자만 필터링
-        if (activity.totalTime > 0) {
-          // 멤버 표시 이름 가져오기 (없으면 ID 사용)
-          let displayName = activity.displayName || activity.userId;
+      for (const member of activeMembers) {
+        // 현재 활성 세션이 있다면 추가
+        if (this.activeSessions.has(member.userId)) {
+          const session = this.activeSessions.get(member.userId);
+          const sessionDuration = Date.now() - session.startTime;
+          const currentSessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+          member.totalMinutes += currentSessionMinutes;
+        }
 
-          // 디스코드에서 멤버 정보 가져오기 시도
+        // 호환성을 위해 밀리초로 변환
+        member.totalTime = member.totalMinutes * 60 * 1000;
+
+        // 디스코드에서 최신 표시 이름 가져오기 시도
+        if (guild) {
           try {
-            const guild = this.client.guilds.cache.get(config.GUILDID);
-            if (guild) {
-              const member = await guild.members.fetch(activity.userId).catch(() => null);
-              if (member) {
-                displayName = member.displayName;
-
-                // DB에 표시 이름 업데이트
-                await this.db.updateUserActivity(
-                  activity.userId,
-                  activity.totalTime,
-                  activity.startTime,
-                  displayName
-                );
-              }
+            const discordMember = await guild.members.fetch(member.userId).catch(() => null);
+            if (discordMember) {
+              member.nickname = discordMember.displayName;
             }
           } catch (error) {
-            console.error(`사용자 정보 조회 실패: ${activity.userId}`, error);
+            console.error(`사용자 정보 조회 실패: ${member.userId}`, error);
           }
-
-          activeMembers.push({
-            userId: activity.userId,
-            nickname: displayName,
-            totalTime: activity.totalTime
-          });
         }
       }
 

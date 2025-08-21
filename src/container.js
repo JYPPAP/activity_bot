@@ -1,11 +1,10 @@
 // src/container.js - DI Container 설정
-import { createContainer, asClass, asValue, asFunction, Lifetime, InjectionMode } from 'awilix';
+import { createContainer, asClass, asValue, asFunction, InjectionMode } from 'awilix';
 import { config } from './config/env.js';
 
 // 서비스 임포트
 import { DatabaseManager } from './services/DatabaseManager.js';
 import { LogService } from './services/logService.js';
-import { CalendarLogService } from './services/calendarLogService.js';
 import { ActivityTracker } from './services/activityTracker.js';
 import { EventManager } from './services/eventManager.js';
 import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
@@ -25,19 +24,13 @@ import { RecruitmentUIBuilder } from './ui/RecruitmentUIBuilder.js';
 
 // 명령어 관련 임포트
 import { CommandHandler } from './commands/commandHandler.js';
-import { GapListCommand } from './commands/gapListCommand.js';
 import { GapConfigCommand } from './commands/gapConfigCommand.js';
-import { GapResetCommand } from './commands/gapResetCommand.js';
 import { TimeConfirmCommand } from './commands/TimeConfirmCommand.js';
 import { TimeCheckCommand } from './commands/TimeCheckCommand.js';
-import { GapSaveCommand } from './commands/gapSaveCommand.js';
-import { GapCalendarCommand } from './commands/gapCalendarCommand.js';
-import { GapStatsCommand } from './commands/gapStatsCommand.js';
 import { GapReportCommand } from './commands/gapReportCommand.js';
-import { GapCycleCommand } from './commands/gapCycleCommand.js';
 import { GapAfkCommand } from './commands/gapAfkCommand.js';
 import { RecruitmentCommand } from './commands/recruitmentCommand.js';
-import { GapCheckCommand } from './commands/gapCheckCommand.js';
+import { NicknameCommand } from './commands/NicknameCommand.js';
 
 /**
  * DI Container 생성 및 설정
@@ -93,9 +86,6 @@ export function createDIContainer(client) {
     // 매핑 서비스 (client, voiceChannelManager, forumPostManager, dbManager 의존)
     mappingService: asClass(MappingService).singleton(),
     
-    // 달력 로그 서비스 (client, dbManager 의존)
-    calendarLogService: asClass(CalendarLogService).singleton(),
-    
     // 활동 추적기 (client, dbManager, logService 의존)
     activityTracker: asClass(ActivityTracker).singleton(),
     
@@ -130,24 +120,46 @@ export function createDIContainer(client) {
   // 명령어들 등록
   container.register({
     // 기본 명령어들
-    gapListCommand: asClass(GapListCommand).singleton(),
     gapConfigCommand: asClass(GapConfigCommand).singleton(),
-    gapResetCommand: asClass(GapResetCommand).singleton(),
     timeConfirmCommand: asClass(TimeConfirmCommand).singleton(),
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
-    gapSaveCommand: asClass(GapSaveCommand).singleton(),
-    gapCalendarCommand: asClass(GapCalendarCommand).singleton(),
-    gapStatsCommand: asClass(GapStatsCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
-    gapCycleCommand: asClass(GapCycleCommand).singleton(),
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
-    gapCheckCommand: asClass(GapCheckCommand).singleton(),
     recruitmentCommand: asClass(RecruitmentCommand).singleton(),
+    nicknameCommand: asClass(NicknameCommand).singleton(),
   });
 
   // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
   container.register({
-    commandHandler: asClass(CommandHandler).singleton(),
+    commandHandler: asFunction(({ 
+      client, 
+      activityTracker, 
+      dbManager,
+      voiceForumService,
+      userClassificationService,
+      gapConfigCommand,
+      timeConfirmCommand,
+      timeCheckCommand,
+      gapReportCommand,
+      gapAfkCommand,
+      recruitmentCommand,
+      nicknameCommand
+    }) => {
+      return new CommandHandler(
+        client, 
+        activityTracker, 
+        dbManager,
+        voiceForumService,
+        userClassificationService,
+        gapConfigCommand,
+        timeConfirmCommand,
+        timeCheckCommand,
+        gapReportCommand,
+        gapAfkCommand,
+        recruitmentCommand,
+        nicknameCommand
+      );
+    }).singleton(),
   });
 
   // 복잡한 의존성을 가진 VoiceChannelForumIntegrationService를 Factory로 등록
@@ -225,10 +237,6 @@ export async function initializeContainer(container) {
     // 1. 데이터베이스 초기화 (가장 먼저)
     const dbManager = container.resolve('dbManager');
     await dbManager.initialize();
-
-    // 2. 기타 초기화가 필요한 서비스들
-    const calendarLogService = container.resolve('calendarLogService');
-    await calendarLogService.initialize();
 
     console.log('DI Container 및 서비스들이 성공적으로 초기화되었습니다.');
     return true;

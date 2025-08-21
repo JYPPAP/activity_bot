@@ -8,13 +8,15 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "register": "node scripts/registerCommands.js",
+    "init-db": "node scripts/init-database.js",
+    "test-migration": "node test-migration.js",
     "pm2:start": "pm2 start src/index.js --name discord-bot",
     "pm2": "pm2 start ecosystem-termux.config.cjs --env production",
     "stop": "pm2 stop discord-bot",
     "restart": "pm2 restart discord-bot",
     "logs": "pm2 logs discord-bot",
     "status": "pm2 status",
-    "setup": "pkg install python nodejs sqlite libsqlite clang make && npm install",
+    "setup": "pkg install python nodejs postgresql clang make && npm install",
     "external": "ERRSOLE_HOST=0.0.0.0 pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot",
     "ip": "termux-wifi-connectioninfo | grep 'ip_address' || ip route get 1.1.1.1 | grep -oP 'src \\K\\S+' || echo '핸드폰에서 설정 > Wi-Fi에서 IP 확인'",
     "test": "node -e \"import('./src/config/logger-termux.js').then(m => m.logger.info('로거 테스트'));\"",
@@ -37,7 +39,7 @@
     "errsole": "^2.18.1",
     "errsole-sqlite": "^3.0.3",
     "express": "^4.21.2",
-    "lowdb": "^1.0.0"
+    "pg": "^8.11.3"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"

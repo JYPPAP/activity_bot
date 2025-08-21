@@ -1,81 +1,35 @@
 // src/commands/commandHandler.js - 명령어 핸들러 수정
 import {PermissionsBitField, MessageFlags, ApplicationCommandOptionType} from 'discord.js';
-import {GapListCommand} from './gapListCommand.js';
-import {GapConfigCommand} from './gapConfigCommand.js';
-import {GapResetCommand} from './gapResetCommand.js';
-import {TimeConfirmCommand} from './TimeConfirmCommand.js';
-import {TimeCheckCommand} from './TimeCheckCommand.js';
-import {GapSaveCommand} from './gapSaveCommand.js';
-import {GapCalendarCommand} from './gapCalendarCommand.js';
-import {GapStatsCommand} from './gapStatsCommand.js';
-import {GapReportCommand} from './gapReportCommand.js';
-import {GapCycleCommand} from './gapCycleCommand.js';
-import {GapAfkCommand} from './gapAfkCommand.js';
-import {RecruitmentCommand} from './recruitmentCommand.js';
-import {NicknameCommand} from './NicknameCommand.js';
-import {UserClassificationService} from '../services/UserClassificationService.js';
 import {hasCommandPermission, getPermissionDeniedMessage} from '../config/commandPermissions.js';
 import {config} from '../config/env.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 import { logger } from '../config/logger-termux.js';
 
 export class CommandHandler {
-  constructor(client, activityTracker, dbManager, calendarLogService, voiceForumService) {
+  constructor(client, activityTracker, dbManager, voiceForumService, userClassificationService,
+              gapConfigCommand, timeConfirmCommand, timeCheckCommand, gapReportCommand, gapAfkCommand,
+              recruitmentCommand, nicknameCommand) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
     this.calendarLogService = calendarLogService;
     this.voiceForumService = voiceForumService;
-
-    // UserClassificationService 인스턴스 생성
-    this.userClassificationService = new UserClassificationService(this.dbManager, this.activityTracker);
+    this.userClassificationService = userClassificationService;
 
     this.commands = new Map();
 
-    // 각 명령어 개별적으로 추가
+    // 명령어들을 DI Container에서 주입받아 사용
     try {
-      // 명령어 인스턴스 생성
-      const gapListCommand = new GapListCommand(this.activityTracker, this.dbManager);
-      const gapConfigCommand = new GapConfigCommand(this.dbManager);
-      const gapResetCommand = new GapResetCommand(this.activityTracker);
-      const timeConfirmCommand = new TimeConfirmCommand(this.activityTracker, this.dbManager);
-      const timeCheckCommand = new TimeCheckCommand(this.activityTracker, this.dbManager);
-      const gapSaveCommand = new GapSaveCommand(this.activityTracker);
-      const gapCalendarCommand = new GapCalendarCommand(this.calendarLogService);
-      const gapStatsCommand = new GapStatsCommand(this.dbManager);
-      const gapReportCommand = new GapReportCommand(this.dbManager, this.activityTracker);
-      const gapCycleCommand = new GapCycleCommand(this.dbManager);
-      const gapAfkCommand = new GapAfkCommand(this.client, this.dbManager);
-      const recruitmentCommand = new RecruitmentCommand({
-        client: this.client,
-        voiceForumService: this.voiceForumService
-      });
-
-      const nicknameCommand = new NicknameCommand({
-        client: this.client,
-        voiceChannelManager: this.voiceForumService.voiceChannelManager
-      });
-
-      // UserClassificationService 의존성 주입
-      if (gapListCommand.setUserClassificationService) {
-        gapListCommand.setUserClassificationService(this.userClassificationService);
-      }
-
+      // UserClassificationService 의존성 주입 (필요시)
       if (gapReportCommand.setUserClassificationService) {
         gapReportCommand.setUserClassificationService(this.userClassificationService);
       }
 
-      // 명령어 맵에 등록
-      this.commands.set('gap_list', gapListCommand);
+      // 명령어 맵에 등록 (DI Container에서 주입받은 인스턴스들 사용)
       this.commands.set('gap_config', gapConfigCommand);
-      this.commands.set('gap_reset', gapResetCommand);
       this.commands.set('시간확인', timeConfirmCommand);
       this.commands.set('시간체크', timeCheckCommand);
-      this.commands.set('gap_save', gapSaveCommand);
-      this.commands.set('gap_calendar', gapCalendarCommand);
-      this.commands.set('gap_stats', gapStatsCommand);
       this.commands.set('gap_report', gapReportCommand);
-      this.commands.set('gap_cycle', gapCycleCommand);
       this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
       this.commands.set('닉네임설정', nicknameCommand);

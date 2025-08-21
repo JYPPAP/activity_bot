@@ -57,11 +57,14 @@ export const config = {
   SLACK_WEBHOOK_URL: process.env.SLACK_WEBHOOK_URL,
   SLACK_CHANNEL: process.env.SLACK_CHANNEL,
   SLACK_MIN_LEVEL: process.env.SLACK_MIN_LEVEL,
-  PHONE_IP: process.env.PHONE_IP // 네트워크 설정
+  PHONE_IP: process.env.PHONE_IP, // 네트워크 설정
+
+  // PostgreSQL 데이터베이스 설정
+  DATABASE_URL: process.env.DATABASE_URL || process.env.POSTGRES_URL
 };
 
 // 필수 환경변수 확인
-const requiredEnvVars = ['TOKEN', 'GUILDID', 'LOG_CHANNEL_ID'];
+const requiredEnvVars = ['TOKEN', 'GUILDID', 'LOG_CHANNEL_ID', 'DATABASE_URL'];
 const missingEnvVars = requiredEnvVars.filter(varName => !config[varName]);
 
 if (missingEnvVars.length > 0) {

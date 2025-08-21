@@ -12,7 +12,6 @@ export class CommandBase {
     // 서비스 초기화
     this.activityTracker = services.activityTracker;
     this.dbManager = services.dbManager;
-    this.calendarLogService = services.calendarLogService;
     this.client = services.client;
   }
 
