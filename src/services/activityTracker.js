@@ -466,4 +466,47 @@ export class ActivityTracker {
       return [];
     }
   }
+
+  /**
+   * 메모리에 저장된 활동 데이터 확인 (디버깅용)
+   * @param {string|null} userId - 특정 사용자 ID (null이면 모든 사용자)
+   * @returns {Object|Array|null} - 사용자의 메모리 활동 데이터
+   */
+  getMemoryActivityData(userId = null) {
+    if (userId) {
+      // 특정 사용자의 활성 세션 데이터 반환
+      const session = this.activeSessions.get(userId);
+      if (session) {
+        const now = Date.now();
+        const currentSessionTime = now - session.startTime;
+        return {
+          userId: userId,
+          totalTime: currentSessionTime, // PostgreSQL에서는 현재 세션 시간만
+          currentSessionTime: currentSessionTime,
+          isCurrentlyActive: true,
+          startTime: session.startTime,
+          displayName: session.displayName,
+          totalWithCurrent: currentSessionTime
+        };
+      }
+      return null;
+    } else {
+      // 모든 활성 세션 데이터 반환
+      const now = Date.now();
+      const result = [];
+      for (const [uid, session] of this.activeSessions.entries()) {
+        const currentSessionTime = now - session.startTime;
+        result.push({
+          userId: uid,
+          totalTime: currentSessionTime,
+          currentSessionTime: currentSessionTime,
+          isCurrentlyActive: true,
+          startTime: session.startTime,
+          displayName: session.displayName,
+          totalWithCurrent: currentSessionTime
+        });
+      }
+      return result;
+    }
+  }
 }
