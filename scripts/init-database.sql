@@ -152,7 +152,7 @@ BEGIN
     RAISE NOTICE '  - users (사용자 정보 + 잠수 상태)';
     RAISE NOTICE '  - guild_settings (길드 설정)';
     RAISE NOTICE '  - post_integrations (포스트 연동 + 포럼 메시지)';
-    RAISE NOTICE '  - user_activities_% (월별 활동 데이터)';
+    RAISE NOTICE '  - user_activities_%% (월별 활동 데이터)';
     RAISE NOTICE '생성된 인덱스 및 트리거: 조회 성능 최적화 완료';
     RAISE NOTICE '============================================';
 END $$;
