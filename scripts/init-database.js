@@ -13,13 +13,67 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// PostgreSQL Dollar-Quoted String을 인식하는 스마트 SQL 파서
+function splitSqlStatements(sqlScript) {
+  const statements = [];
+  let current = '';
+  let i = 0;
+  let inDollarQuote = false;
+  let dollarTag = '';
+  
+  while (i < sqlScript.length) {
+    const char = sqlScript[i];
+    const remaining = sqlScript.slice(i);
+    
+    if (!inDollarQuote) {
+      // Dollar-quoted string 시작 감지
+      const dollarMatch = remaining.match(/^\$([^$]*)\$/);
+      if (dollarMatch) {
+        inDollarQuote = true;
+        dollarTag = dollarMatch[0]; // 예: $$, $tag$
+        current += dollarTag;
+        i += dollarTag.length;
+        continue;
+      }
+      
+      // 일반 세미콜론으로 구문 분할
+      if (char === ';') {
+        const trimmed = current.trim();
+        if (trimmed && !trimmed.startsWith('--')) {
+          statements.push(trimmed);
+        }
+        current = '';
+        i++;
+        continue;
+      }
+    } else {
+      // Dollar-quoted string 끝 감지
+      if (remaining.startsWith(dollarTag)) {
+        inDollarQuote = false;
+        current += dollarTag;
+        i += dollarTag.length;
+        dollarTag = '';
+        continue;
+      }
+    }
+    
+    current += char;
+    i++;
+  }
+  
+  // 마지막 구문 처리
+  const trimmed = current.trim();
+  if (trimmed && !trimmed.startsWith('--')) {
+    statements.push(trimmed);
+  }
+  
+  return statements;
+}
+
 // SQL 구문별 실행 함수 (스마트 정렬 적용)
 async function executeSqlStatements(client, sqlScript) {
-  // SQL 스크립트를 구문별로 분할
-  const rawStatements = sqlScript
-    .split(';')
-    .map(stmt => stmt.trim())
-    .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
+  // PostgreSQL Dollar-Quoted String을 인식하는 스마트 파싱
+  const rawStatements = splitSqlStatements(sqlScript);
   
   console.log(`📋 총 ${rawStatements.length}개의 SQL 구문을 발견했습니다.`);
   
