@@ -89,14 +89,7 @@ if (isDevelopment) {
     retentionDays: 180,
     
     // 에러 알림 설정 (개발 환경에서는 비활성화)
-    enableAlerts: false,
-    
-    // 실시간성 설정 추가
-    flushInterval: 1000,    // 1초마다 강제 플러시
-    maxBufferSize: 10,      // 버퍼 크기 최소화 (10개 로그마다 즉시 전송)
-    enableRealTime: true,   // 실시간 모드 활성화
-    collectLogs: true,      // 로그 수집 활성화
-    enableConsoleOutput: true  // 콘솔 출력도 유지
+    enableAlerts: false
   });
   
   console.log(`✅ Errsole 개발 환경 설정 완료 (Termux)`);
@@ -133,14 +126,7 @@ if (isDevelopment) {
     port: errsolePort,
     logLevel: 'info',
     retentionDays: 180, // 6개월 보관
-    enableAlerts: true,
-    
-    // 실시간성 설정 추가 (운영환경에서도 적용)
-    flushInterval: 2000,    // 2초마다 강제 플러시 (운영환경은 약간 보수적)
-    maxBufferSize: 20,      // 버퍼 크기 (20개 로그마다 전송)
-    enableRealTime: true,   // 실시간 모드 활성화
-    collectLogs: true,      // 로그 수집 활성화
-    enableConsoleOutput: false  // 운영환경에서는 콘솔 출력 비활성화
+    enableAlerts: true
   });
   
   console.log(`✅ Errsole 운영 환경 설정 완료`);
