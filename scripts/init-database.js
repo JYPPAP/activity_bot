@@ -15,11 +15,14 @@ const __dirname = dirname(__filename);
 
 // PostgreSQL Dollar-Quoted String을 인식하는 스마트 SQL 파서
 function splitSqlStatements(sqlScript) {
+  console.log(`🔍 SQL 파싱 디버그: 총 ${sqlScript.length}자 분석 시작`);
+  
   const statements = [];
   let current = '';
   let i = 0;
   let inDollarQuote = false;
   let dollarTag = '';
+  let statementCount = 0;
   
   while (i < sqlScript.length) {
     const char = sqlScript[i];
@@ -33,14 +36,36 @@ function splitSqlStatements(sqlScript) {
         dollarTag = dollarMatch[0]; // 예: $$, $tag$
         current += dollarTag;
         i += dollarTag.length;
+        console.log(`🔤 Dollar-quote 시작: ${dollarTag} (위치: ${i})`);
         continue;
       }
       
       // 일반 세미콜론으로 구문 분할
       if (char === ';') {
         const trimmed = current.trim();
-        if (trimmed && !trimmed.startsWith('--')) {
-          statements.push(trimmed);
+        if (trimmed) {
+          // 멀티라인 구문에서 SQL 키워드 검사 (주석이 포함된 구문도 처리)
+          const hasSQL = /\b(CREATE|DROP|SELECT|INSERT|UPDATE|DELETE|ALTER|DO)\b/i.test(trimmed);
+          
+          if (hasSQL) {
+            statementCount++;
+            const preview = trimmed.substring(0, 80).replace(/\s+/g, ' ');
+            console.log(`📝 SQL 구문 #${statementCount} 발견 (${trimmed.length}자): ${preview}...`);
+            
+            // CREATE TABLE 감지 디버그
+            if (trimmed.toUpperCase().includes('CREATE TABLE')) {
+              console.log(`🏗️  CREATE TABLE 감지! 구문 #${statementCount}`);
+            }
+            
+            statements.push(trimmed);
+          } else if (!trimmed.startsWith('--')) {
+            // 주석이 아닌데 SQL 키워드도 없는 경우
+            console.log(`❓ 알 수 없는 구문: ${trimmed.substring(0, 50)}`);
+          } else {
+            console.log(`❌ 순수 주석 구문 제외`);
+          }
+        } else {
+          console.log(`❌ 빈 구문 제외`);
         }
         current = '';
         i++;
@@ -52,6 +77,7 @@ function splitSqlStatements(sqlScript) {
         inDollarQuote = false;
         current += dollarTag;
         i += dollarTag.length;
+        console.log(`🔤 Dollar-quote 종료: ${dollarTag} (위치: ${i})`);
         dollarTag = '';
         continue;
       }
@@ -63,9 +89,38 @@ function splitSqlStatements(sqlScript) {
   
   // 마지막 구문 처리
   const trimmed = current.trim();
-  if (trimmed && !trimmed.startsWith('--')) {
-    statements.push(trimmed);
+  if (trimmed) {
+    // 멀티라인 구문에서 SQL 키워드 검사 (주석이 포함된 구문도 처리)
+    const hasSQL = /\b(CREATE|DROP|SELECT|INSERT|UPDATE|DELETE|ALTER|DO)\b/i.test(trimmed);
+    
+    if (hasSQL) {
+      statementCount++;
+      const preview = trimmed.substring(0, 80).replace(/\s+/g, ' ');
+      console.log(`📝 마지막 SQL 구문 #${statementCount} (${trimmed.length}자): ${preview}...`);
+      
+      // CREATE TABLE 감지 디버그
+      if (trimmed.toUpperCase().includes('CREATE TABLE')) {
+        console.log(`🏗️  CREATE TABLE 감지! 마지막 구문 #${statementCount}`);
+      }
+      
+      statements.push(trimmed);
+    } else if (!trimmed.startsWith('--')) {
+      // 주석이 아닌데 SQL 키워드도 없는 경우
+      console.log(`❓ 마지막 알 수 없는 구문: ${trimmed.substring(0, 50)}`);
+    } else {
+      console.log(`❌ 마지막 순수 주석 구문 제외`);
+    }
+  } else {
+    console.log(`❌ 마지막 빈 구문 제외`);
   }
+  
+  console.log(`🔍 파싱 완료: 총 ${statements.length}개 구문 발견`);
+  
+  // CREATE TABLE 구문 카운트 검증
+  const createTableCount = statements.filter(stmt => 
+    stmt.toUpperCase().trim().startsWith('CREATE TABLE')
+  ).length;
+  console.log(`🏗️  CREATE TABLE 구문 수: ${createTableCount}개`);
   
   return statements;
 }
@@ -128,16 +183,32 @@ async function executeSqlStatements(client, sqlScript) {
 // SQL 구문 유형 감지 및 우선순위
 function detectStatementType(statement) {
   const upperStatement = statement.toUpperCase().trim();
+  const preview = statement.substring(0, 100).replace(/\s+/g, ' ');
   
-  if (upperStatement.startsWith('DROP FUNCTION')) return { type: '함수 삭제', priority: 1 };
-  if (upperStatement.startsWith('CREATE TABLE')) return { type: '테이블 생성', priority: 2 };
-  if (upperStatement.startsWith('CREATE OR REPLACE FUNCTION')) return { type: '함수 생성', priority: 3 };
-  if (upperStatement.startsWith('CREATE INDEX')) return { type: '인덱스 생성', priority: 4 };
-  if (upperStatement.startsWith('CREATE TRIGGER')) return { type: '트리거 생성', priority: 5 };
-  if (upperStatement.startsWith('SELECT')) return { type: '함수 호출', priority: 6 };
-  if (upperStatement.startsWith('DO $$')) return { type: '스크립트 블록', priority: 7 };
+  let result;
   
-  return { type: 'SQL 구문', priority: 8 };
+  // 주석을 포함한 구문에서도 SQL 키워드를 찾기 위해 includes() 사용
+  // 더 구체적인 키워드부터 먼저 검사 (CREATE OR REPLACE FUNCTION이 CREATE TABLE보다 먼저)
+  if (upperStatement.includes('DROP FUNCTION')) {
+    result = { type: '함수 삭제', priority: 1 };
+  } else if (upperStatement.includes('CREATE OR REPLACE FUNCTION')) {
+    result = { type: '함수 생성', priority: 3 };
+  } else if (upperStatement.includes('CREATE TABLE')) {
+    result = { type: '테이블 생성', priority: 2 };
+  } else if (upperStatement.includes('CREATE INDEX')) {
+    result = { type: '인덱스 생성', priority: 4 };
+  } else if (upperStatement.includes('CREATE TRIGGER')) {
+    result = { type: '트리거 생성', priority: 5 };
+  } else if (upperStatement.includes('SELECT ') && !upperStatement.includes('CREATE')) {
+    result = { type: '함수 호출', priority: 6 };
+  } else if (upperStatement.includes('DO $$')) {
+    result = { type: '스크립트 블록', priority: 7 };
+  } else {
+    result = { type: 'SQL 구문', priority: 8 };
+  }
+  
+  console.log(`🏷️  구문 분류: ${result.type} (우선순위: ${result.priority}) - ${preview}...`);
+  return result;
 }
 
 // SQL 구문 스마트 정렬
