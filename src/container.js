@@ -39,7 +39,7 @@ import { NicknameCommand } from './commands/NicknameCommand.js';
  */
 export function createDIContainer(client) {
   const container = createContainer({
-    injectionMode: InjectionMode.CLASSIC
+    injectionMode: InjectionMode.PROXY
   });
 
   // 외부 의존성 등록 (값으로 등록)
@@ -167,98 +167,48 @@ export function createDIContainer(client) {
 
   // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
   container.register({
-    commandHandler: asFunction(({
-      client,
-      activityTracker,
-      dbManager,
-      voiceForumService,
-      userClassificationService,
-      gapConfigCommand,
-      timeConfirmCommand,
-      timeCheckCommand,
-      gapReportCommand,
-      gapAfkCommand,
-      recruitmentCommand,
-      nicknameCommand
-    }) => {
-      return new CommandHandler(
-        client,
-        activityTracker,
-        dbManager,
-        voiceForumService,
-        userClassificationService,
-        gapConfigCommand,
-        timeConfirmCommand,
-        timeCheckCommand,
-        gapReportCommand,
-        gapAfkCommand,
-        recruitmentCommand,
-        nicknameCommand
-      );
-    }).singleton(),
+    commandHandler: asFunction((cradle) =>
+      new CommandHandler(
+        cradle.client,
+        cradle.activityTracker,
+        cradle.dbManager,
+        cradle.voiceForumService,
+        cradle.userClassificationService,
+        cradle.gapConfigCommand,
+        cradle.timeConfirmCommand,
+        cradle.timeCheckCommand,
+        cradle.gapReportCommand,
+        cradle.gapAfkCommand,
+        cradle.recruitmentCommand,
+        cradle.nicknameCommand
+      )
+    ).singleton(),
   });
 
   // 복잡한 의존성을 가진 VoiceChannelForumIntegrationService를 Factory로 등록
   container.register({
-    voiceChannelForumIntegrationService: asFunction(({
-      client,
-      forumChannelId,
-      voiceCategoryId,
-      dbManager,
-      voiceChannelManager,
-      forumPostManager,
-      participantTracker,
-      mappingService,
-      recruitmentService,
-      modalHandler,
-      buttonHandler,
-      interactionRouter
-    }) => {
-      return new VoiceChannelForumIntegrationService({
-        client,
-        forumChannelId,
-        voiceCategoryId,
-        dbManager,
-        voiceChannelManager,
-        forumPostManager,
-        participantTracker,
-        mappingService,
-        recruitmentService,
-        modalHandler,
-        buttonHandler,
-        interactionRouter
-      });
-    }).singleton(),
-    voiceForumService: asFunction(({
-      client,
-      forumChannelId,
-      voiceCategoryId,
-      dbManager,
-      voiceChannelManager,
-      forumPostManager,
-      participantTracker,
-      mappingService,
-      recruitmentService,
-      modalHandler,
-      buttonHandler,
-      interactionRouter
-    }) => {
-      return new VoiceChannelForumIntegrationService({
-        client,
-        forumChannelId,
-        voiceCategoryId,
-        dbManager,
-        voiceChannelManager,
-        forumPostManager,
-        participantTracker,
-        mappingService,
-        recruitmentService,
-        modalHandler,
-        buttonHandler,
-        interactionRouter
-      });
-    }).singleton() // Alias for CommandHandler compatibility
+    voiceChannelForumIntegrationService: asFunction((cradle) =>
+      new VoiceChannelForumIntegrationService({
+        client: cradle.client,
+        forumChannelId: cradle.forumChannelId,
+        voiceCategoryId: cradle.voiceCategoryId,
+        dbManager: cradle.dbManager,
+        voiceChannelManager: cradle.voiceChannelManager,
+        forumPostManager: cradle.forumPostManager,
+        participantTracker: cradle.participantTracker,
+        mappingService: cradle.mappingService,
+        recruitmentService: cradle.recruitmentService,
+        modalHandler: cradle.modalHandler,
+        buttonHandler: cradle.buttonHandler,
+        interactionRouter: cradle.interactionRouter
+      })
+    ).singleton(),
   });
+
+  container.register({
+    voiceForumService: asFunction((cradle) => cradle.voiceChannelForumIntegrationService).singleton()
+  });
+
   console.log('REG_KEYS', Object.keys(container.registrations));
   return container;
 }
