@@ -126,7 +126,7 @@ export function createDIContainer(client) {
     gapReportCommand: asClass(GapReportCommand).singleton(),
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
     recruitmentCommand: asFunction(({ voiceForumService }) => new RecruitmentCommand({ voiceForumService })).singleton(),
-    nicknameCommand: asClass(NicknameCommand).singleton(),
+    nicknameCommand: asFunction(({ voiceChannelManager }) => new NicknameCommand({ voiceChannelManager })).singleton(),
   });
 
   // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
