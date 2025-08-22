@@ -3,7 +3,17 @@ module.exports = {
   apps: [{
     name: 'discord-bot',
     script: 'src/index.js',
-    
+
+  // ── 파일 변경 감지 안전장치 (watch 켜더라도 로그/DB 파일은 무시)
+    watch: false,
+    ignore_watch: [
+      'node_modules',
+      'logs',          // Errsole .sqlite 포함
+      '*.sqlite',
+      '*.db',
+      '.env'
+    ],
+
     // 환경 변수
     env: {
       NODE_ENV: 'development',
@@ -35,19 +45,18 @@ module.exports = {
     max_memory_restart: '1G',
     
     // 로그 설정 (Errsole과 병행)
-    log_file: './logs/combined.log',
-    out_file: './logs/out.log',
-    error_file: './logs/error.log',
+    log_file: './logs/discord-bot-combined.log',
+    out_file: './logs/discord-bot-out.log',
+    error_file: './logs/discord-bot-error.log',
     log_type: 'json',
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     
     // 기존 PM2 로그와 Errsole 로그 병행 사용
-    merge_logs: true,
+    merge_logs: false,
     
-    // 크래시 시 재시작 지연 (4초)
-    restart_delay: 4000,
-    
-    // 최대 재시작 횟수 (무한 재시작 방지)
+    // 크래시 시 재시작 지연 (5초)
+    restart_delay: 5000,
+    exp_backoff_restart_delay: 100,
     max_restarts: 10,
     min_uptime: '10s',
     
@@ -57,11 +66,6 @@ module.exports = {
     // 정상 종료 설정
     kill_timeout: 5000,
     listen_timeout: 3000,
-    
-    // 환경별 추가 설정
-    error_file: './logs/discord-bot-error.log',
-    out_file: './logs/discord-bot-out.log',
-    log_file: './logs/discord-bot-combined.log',
     
     // 로그 로테이션 설정
     max_size: '10M',
