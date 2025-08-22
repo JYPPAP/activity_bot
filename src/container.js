@@ -125,7 +125,7 @@ export function createDIContainer(client) {
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
-    recruitmentCommand: asClass(RecruitmentCommand).singleton(),
+    recruitmentCommand: asFunction(({ voiceForumService }) => new RecruitmentCommand({ voiceForumService })).singleton(),
     nicknameCommand: asClass(NicknameCommand).singleton(),
   });
 
