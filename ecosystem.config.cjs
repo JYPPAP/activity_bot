@@ -67,10 +67,6 @@ module.exports = {
     kill_timeout: 5000,
     listen_timeout: 3000,
     
-    // 로그 로테이션 설정
-    max_size: '10M',
-    retain: 180, // 180일치 로그 보관
-    
     // 서버 재시작 시 자동 시작
     startup: 'user',
     
