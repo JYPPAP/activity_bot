@@ -39,10 +39,10 @@ import { NicknameCommand } from './commands/NicknameCommand.js';
  */
 export function createDIContainer(client) {
   const container = createContainer({
-    injectionMode: InjectionMode.CLASSIC
+    injectionMode: InjectionMode.CLASSIC,
   });
 
-  // 외부 의존성 등록 (값으로 등록)
+  // 외부 의존성 등록 (값)
   container.register({
     client: asValue(client),
     token: asValue(config.TOKEN),
@@ -53,29 +53,35 @@ export function createDIContainer(client) {
     forumTagId: asValue(config.FORUM_TAG_ID),
   });
 
-  // 기반 서비스들 등록 (Singleton)
+  // 기반 서비스들
   container.register({
     dbManager: asClass(DatabaseManager).singleton(),
-    databaseManager: asClass(DatabaseManager).singleton(), // Alias 유지
+    databaseManager: asClass(DatabaseManager).singleton(), // alias
     logService: asClass(LogService).singleton(),
     eventManager: asClass(EventManager).singleton(),
     participantTracker: asClass(ParticipantTracker).singleton(),
   });
 
-  // 음성/포럼 관련 기본 서비스
+  // 음성/포럼 관련 개별 서비스
   container.register({
     voiceChannelManager: asClass(VoiceChannelManager).singleton(),
     forumPostManager: asClass(ForumPostManager).singleton(),
   });
 
-  // 복합 서비스들
+  // 복합 서비스
   container.register({
     mappingService: asClass(MappingService).singleton(),
     activityTracker: asClass(ActivityTracker).singleton(),
     userClassificationService: asClass(UserClassificationService).singleton(),
   });
 
-  // UI 레이어 (통합 서비스가 의존하므로 먼저 등록)
+  // 통합/부가 서비스
+  container.register({
+    emojiReactionService: asClass(EmojiReactionService).singleton(),
+    recruitmentService: asClass(RecruitmentService).singleton(),
+  });
+
+  // UI 계층
   container.register({
     recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
     buttonHandler: asClass(ButtonHandler).singleton(),
@@ -83,38 +89,47 @@ export function createDIContainer(client) {
     interactionRouter: asClass(InteractionRouter).singleton(),
   });
 
-  // 통합 서비스 (Voice ↔ Forum) 및 별칭 등록
+  // === 통합 서비스 등록 (CLASSIC 모드: 매개변수 이름으로 주입) ===
   container.register({
-    voiceChannelForumIntegrationService: asFunction((cradle) =>
-      new VoiceChannelForumIntegrationService({
-        client: cradle.client,
-        forumChannelId: cradle.forumChannelId,
-        voiceCategoryId: cradle.voiceCategoryId,
-        dbManager: cradle.dbManager,
-        voiceChannelManager: cradle.voiceChannelManager,
-        forumPostManager: cradle.forumPostManager,
-        participantTracker: cradle.participantTracker,
-        mappingService: cradle.mappingService,
-        recruitmentService: cradle.recruitmentService,
-        modalHandler: cradle.modalHandler,
-        buttonHandler: cradle.buttonHandler,
-        interactionRouter: cradle.interactionRouter
-      })
+    voiceChannelForumIntegrationService: asFunction((
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      ) =>
+        new VoiceChannelForumIntegrationService({
+          client,
+          forumChannelId,
+          voiceCategoryId,
+          dbManager,
+          voiceChannelManager,
+          forumPostManager,
+          participantTracker,
+          mappingService,
+          recruitmentService,
+          modalHandler,
+          buttonHandler,
+          interactionRouter,
+        })
     ).singleton(),
 
-    // 기존 코드 호환을 위한 alias (voiceForumService)
-    voiceForumService: asFunction((cradle) => cradle.voiceChannelForumIntegrationService).singleton(),
+    // 기존 호환용 alias: voiceForumService
+    voiceForumService: asFunction((voiceChannelForumIntegrationService) =>
+      voiceChannelForumIntegrationService
+    ).singleton(),
   });
 
-  // 기타 통합/유틸 서비스
+  // === services 번들 (CLASSIC 모드: 개별 파라미터 나열) ===
   container.register({
-    emojiReactionService: asClass(EmojiReactionService).singleton(),
-    recruitmentService: asClass(RecruitmentService).singleton(),
-  });
-
-  // services 번들 (RecruitmentCommand 등에서 참조)
-  container.register({
-    services: asFunction(({
+    services: asFunction((
       client,
       dbManager,
       activityTracker,
@@ -127,7 +142,7 @@ export function createDIContainer(client) {
       participantTracker,
       emojiReactionService,
       userClassificationService
-    }) => ({
+    ) => ({
       client,
       dbManager,
       activityTracker,
@@ -139,8 +154,8 @@ export function createDIContainer(client) {
       logService,
       participantTracker,
       emojiReactionService,
-      userClassificationService
-    })).singleton()
+      userClassificationService,
+    })).singleton(),
   });
 
   // 명령어들
@@ -154,28 +169,39 @@ export function createDIContainer(client) {
     nicknameCommand: asClass(NicknameCommand).singleton(),
   });
 
-  // 명령어 핸들러 (의존성 주입 순서 고정)
+  // 명령어 핸들러 (CLASSIC 모드: 파라미터 이름과 등록 키 일치)
   container.register({
-    commandHandler: asFunction((cradle) =>
-      new CommandHandler(
-        cradle.client,
-        cradle.activityTracker,
-        cradle.dbManager,
-        cradle.voiceForumService,
-        cradle.userClassificationService,
-        cradle.gapConfigCommand,
-        cradle.timeConfirmCommand,
-        cradle.timeCheckCommand,
-        cradle.gapReportCommand,
-        cradle.gapAfkCommand,
-        cradle.recruitmentCommand,
-        cradle.nicknameCommand
-      )
+    commandHandler: asFunction((
+        client,
+        activityTracker,
+        dbManager,
+        voiceForumService,
+        userClassificationService,
+        gapConfigCommand,
+        timeConfirmCommand,
+        timeCheckCommand,
+        gapReportCommand,
+        gapAfkCommand,
+        recruitmentCommand,
+        nicknameCommand
+      ) =>
+        new CommandHandler(
+          client,
+          activityTracker,
+          dbManager,
+          voiceForumService,
+          userClassificationService,
+          gapConfigCommand,
+          timeConfirmCommand,
+          timeCheckCommand,
+          gapReportCommand,
+          gapAfkCommand,
+          recruitmentCommand,
+          nicknameCommand
+        )
     ).singleton(),
   });
 
-  // 디버그용 출력
-  console.log('REG_KEYS', Object.keys(container.registrations));
   return container;
 }
 
