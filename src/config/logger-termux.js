@@ -21,7 +21,7 @@ async function optimizeSQLiteDatabase(dbPath) {
         return;
       }
 
-      console.log('🔧 SQLite 데이터베이스 최적화 시작...');
+      console.log('🔧 Errsole 로깅 시스템 (SQLite) 최적화 시작...');
       
       // WAL 모드 활성화 및 최적화 설정
       db.serialize(() => {
@@ -61,7 +61,7 @@ async function optimizeSQLiteDatabase(dbPath) {
           console.error('❌ SQLite 데이터베이스 닫기 실패:', err.message);
           reject(err);
         } else {
-          console.log('✅ SQLite 데이터베이스 최적화 완료');
+          console.log('✅ Errsole 로깅 시스템 (SQLite) 최적화 완료');
           resolve();
         }
       });

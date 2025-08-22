@@ -239,8 +239,8 @@ export class DatabaseManager {
         await client.query(`
             UPDATE ${tableName}
             SET daily_voice_minutes = COALESCE(daily_voice_minutes, '{}'::jsonb) ||
-                                      jsonb_build_object($1, COALESCE((daily_voice_minutes ->>$1)::integer, 0) + $2),
-                total_voice_minutes = total_voice_minutes + $2,
+                                      jsonb_build_object($1::text, COALESCE((daily_voice_minutes ->>$1::text)::integer, 0) + $2::integer),
+                total_voice_minutes = total_voice_minutes + $2::integer,
                 updated_at          = CURRENT_TIMESTAMP
             WHERE guild_id = $3
               AND user_id = $4

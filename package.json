@@ -9,7 +9,6 @@
     "dev": "nodemon src/index.js",
     "register": "node scripts/registerCommands.js",
     "init-db": "node scripts/init-database.js",
-    "test-migration": "node test-migration.js",
     "pm2:start": "pm2 start src/index.js --name discord-bot",
     "pm2": "pm2 start ecosystem-termux.config.cjs --env production",
     "stop": "pm2 stop discord-bot",
