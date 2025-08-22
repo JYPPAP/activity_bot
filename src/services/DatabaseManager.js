@@ -829,14 +829,15 @@ export class DatabaseManager {
 
   async getAllChannelMappings() {
     try {
-      // 공용 래퍼 사용: 초기화가 끝나면 this.query()는 항상 Postgres Pool로 위임됩니다.
-      const {rows} = await this.query(`
-          SELECT voice_channel_id,
-                 forum_channel_id,
-                 forum_tag_id,
-                 created_at,
-                 updated_at
-          FROM channel_mappings
+      const { rows } = await this.query(`
+          SELECT
+              voice_channel_id,
+              forum_channel_id,
+              NULL::varchar(20) AS forum_tag_id, -- post_integrations에는 없으므로 우선 NULL
+              created_at,
+              updated_at
+          FROM post_integrations
+          WHERE is_active = true
           ORDER BY created_at DESC
       `);
       return rows ?? [];
