@@ -860,7 +860,213 @@ export class DatabaseManager {
     return [];
   }
 
-  // 포럼 메시지 추적 호환성
+  /**
+   * 포럼 레코드 조회 또는 자동 생성
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @returns {Promise<Object|null>} - 포럼 레코드 또는 null
+   */
+  async getOrCreateForumRecord(forumPostId) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'getOrCreateForumRecord' });
+      return null;
+    }
+
+    try {
+      // 1. 기존 레코드 확인
+      const existingQuery = `
+        SELECT * FROM post_integrations 
+        WHERE forum_post_id = $1 AND is_active = true
+      `;
+      
+      const existingResult = await this.pool.query(existingQuery, [forumPostId]);
+      
+      if (existingResult.rows.length > 0) {
+        logger.debug('기존 포럼 레코드 발견', { 
+          forumPostId, 
+          forum_state: existingResult.rows[0].forum_state 
+        });
+        return existingResult.rows[0];
+      }
+
+      // 2. 레코드가 없으면 기본 레코드 생성
+      logger.info('포럼 레코드 자동 생성 시작', { forumPostId });
+      
+      return await this.createDefaultForumRecord(forumPostId);
+      
+    } catch (error) {
+      logger.error('포럼 레코드 조회/생성 오류', {
+        method: 'getOrCreateForumRecord',
+        forumPostId,
+        error: error.message,
+        code: error.code
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 기본 포럼 레코드 생성
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @returns {Promise<Object|null>} - 생성된 레코드 또는 null
+   */
+  async createDefaultForumRecord(forumPostId) {
+    try {
+      // 기본값으로 독립형 포럼 레코드 생성
+      const insertQuery = `
+        INSERT INTO post_integrations (
+          guild_id, 
+          voice_channel_id, 
+          forum_post_id, 
+          forum_channel_id,
+          forum_state,
+          auto_track_enabled,
+          is_active,
+          participant_message_ids,
+          emoji_reaction_message_ids
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9
+        )
+        ON CONFLICT (guild_id, forum_post_id) DO UPDATE SET
+          forum_state = EXCLUDED.forum_state,
+          auto_track_enabled = EXCLUDED.auto_track_enabled,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+      `;
+
+      // 기본값 설정 (추후 실제 값으로 업데이트 가능)
+      const values = [
+        'UNKNOWN_GUILD',     // guild_id (추후 업데이트)
+        'STANDALONE',        // voice_channel_id
+        forumPostId,         // forum_post_id
+        'UNKNOWN_CHANNEL',   // forum_channel_id (추후 업데이트)
+        'standalone',        // forum_state
+        true,                // auto_track_enabled
+        true,                // is_active
+        '[]',                // participant_message_ids
+        '[]'                 // emoji_reaction_message_ids
+      ];
+
+      const result = await this.pool.query(insertQuery, values);
+      
+      if (result.rows.length > 0) {
+        logger.info('기본 포럼 레코드 생성 성공', {
+          forumPostId,
+          forum_state: result.rows[0].forum_state,
+          auto_track_enabled: result.rows[0].auto_track_enabled
+        });
+        return result.rows[0];
+      }
+      
+      return null;
+      
+    } catch (error) {
+      logger.error('기본 포럼 레코드 생성 실패', {
+        method: 'createDefaultForumRecord',
+        forumPostId,
+        error: error.message,
+        code: error.code
+      });
+      return null;
+    }
+  }
+
+  /**
+   * 음성 채널과 포럼 연동
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @param {string} voiceChannelId - 음성 채널 ID
+   * @param {string} requestedBy - 요청자 사용자 ID
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async linkVoiceChannel(forumPostId, voiceChannelId, requestedBy = null) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'linkVoiceChannel' });
+      return false;
+    }
+
+    try {
+      const query = `
+        UPDATE post_integrations 
+        SET voice_channel_id = $2,
+            forum_state = 'voice_linked',
+            voice_linked_at = CURRENT_TIMESTAMP,
+            link_requested_by = $3,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE forum_post_id = $1
+        RETURNING *
+      `;
+      
+      const result = await this.pool.query(query, [forumPostId, voiceChannelId, requestedBy]);
+      
+      if (result.rowCount > 0) {
+        logger.info('음성 채널 연동 완료', {
+          forumPostId,
+          voiceChannelId,
+          requestedBy,
+          forum_state: result.rows[0].forum_state
+        });
+        return true;
+      }
+      
+      return false;
+      
+    } catch (error) {
+      logger.error('음성 채널 연동 실패', {
+        method: 'linkVoiceChannel',
+        forumPostId,
+        voiceChannelId,
+        requestedBy,
+        error: error.message,
+        code: error.code
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 독립형 포럼으로 설정
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async setStandaloneMode(forumPostId) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'setStandaloneMode' });
+      return false;
+    }
+
+    try {
+      const query = `
+        UPDATE post_integrations 
+        SET forum_state = 'standalone',
+            voice_channel_id = 'STANDALONE',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE forum_post_id = $1
+        RETURNING *
+      `;
+      
+      const result = await this.pool.query(query, [forumPostId]);
+      
+      if (result.rowCount > 0) {
+        logger.info('독립형 포럼 설정 완료', {
+          forumPostId,
+          forum_state: result.rows[0].forum_state
+        });
+        return true;
+      }
+      
+      return false;
+      
+    } catch (error) {
+      logger.error('독립형 포럼 설정 실패', {
+        method: 'setStandaloneMode',
+        forumPostId,
+        error: error.message,
+        code: error.code
+      });
+      return false;
+    }
+  }
+
+  // 포럼 메시지 추적 호환성 (개선된 버전)
   async trackForumMessage(threadId, messageType, messageId) {
     if (!this.isInitialized) {
       logger.error('데이터베이스 초기화되지 않음', { method: 'trackForumMessage' });
@@ -894,7 +1100,19 @@ export class DatabaseManager {
         return false;
       }
 
-      // 포럼 포스트 ID로 post_integrations 레코드 찾기 및 메시지 ID 추가
+      // 1. 포럼 레코드가 존재하는지 확인하고 없으면 생성
+      const record = await this.getOrCreateForumRecord(threadId);
+      if (!record) {
+        logger.error('포럼 레코드 생성/조회 실패', {
+          method: 'trackForumMessage',
+          threadId,
+          messageType,
+          messageId
+        });
+        return false;
+      }
+
+      // 2. 메시지 ID 추가
       const query = `
           UPDATE post_integrations
           SET ${columnName} = COALESCE(${columnName}, '[]'::jsonb) || $2::jsonb,
@@ -909,11 +1127,12 @@ export class DatabaseManager {
           threadId,
           messageType,
           messageId,
-          columnName
+          columnName,
+          forum_state: record.forum_state
         });
         return true;
       } else {
-        logger.warn('포럼 메시지 추적 저장 실패: 대상 레코드 없음', {
+        logger.warn('포럼 메시지 추적 저장 실패: 업데이트 실패', {
           threadId,
           messageType,
           messageId

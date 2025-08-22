@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS post_integrations (
     emoji_reaction_message_ids JSONB DEFAULT '[]'::jsonb, -- 이모지 반응 메시지 ID들
     other_message_types JSONB DEFAULT '{}'::jsonb,        -- 기타 메시지 타입들 {"type": [ids]}
     
+    -- 포럼 상태 관리 (새로 추가)
+    forum_state VARCHAR(20) DEFAULT 'created',            -- 포럼 상태: created, voice_pending, voice_linked, standalone, archived
+    voice_linked_at TIMESTAMP NULL,                       -- 음성 채널 연동 시점
+    auto_track_enabled BOOLEAN DEFAULT true,              -- 자동 추적 활성화 여부
+    link_requested_by VARCHAR(20) NULL,                   -- 연동 요청자 ID
+    
     -- 연동 상태 및 아카이빙 관리
     is_active BOOLEAN DEFAULT true,             -- 연동 활성 상태
     archived_at TIMESTAMP NULL,                -- 아카이빙 처리 시간
@@ -76,6 +82,8 @@ CREATE INDEX IF NOT EXISTS idx_users_inactive_dates ON users(inactive_start_date
 CREATE INDEX IF NOT EXISTS idx_post_integrations_forum_post ON post_integrations(forum_post_id);
 CREATE INDEX IF NOT EXISTS idx_post_integrations_voice_channel ON post_integrations(voice_channel_id);
 CREATE INDEX IF NOT EXISTS idx_post_integrations_active ON post_integrations(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_post_integrations_forum_state ON post_integrations(forum_state);
+CREATE INDEX IF NOT EXISTS idx_post_integrations_auto_track ON post_integrations(auto_track_enabled) WHERE auto_track_enabled = true;
 
 -- 월별 활동 테이블 생성 함수
 DROP FUNCTION IF EXISTS create_monthly_activity_table(TEXT) CASCADE;
