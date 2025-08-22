@@ -88,7 +88,8 @@ BEGIN
     -- 테이블이 존재하지 않으면 생성
     IF NOT EXISTS (
         SELECT FROM information_schema.tables 
-        WHERE table_name = table_name
+        WHERE information_schema.tables.table_name = create_monthly_activity_table.table_name
+          AND table_schema = 'public'
     ) THEN
         EXECUTE format('
             CREATE TABLE %I (
