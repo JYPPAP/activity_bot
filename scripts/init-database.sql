@@ -124,25 +124,57 @@ CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
+RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- 트리거 생성: updated_at 자동 업데이트
+-- 트리거 생성: updated_at 자동 업데이트 (존재하지 않으면 생성)
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    WHERE t.tgname = 'update_users_updated_at'
+      AND c.relname = 'users'
+  ) THEN
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+END IF;
+END $$;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    WHERE t.tgname = 'update_guild_settings_updated_at'
+      AND c.relname = 'guild_settings'
+  ) THEN
 CREATE TRIGGER update_guild_settings_updated_at
     BEFORE UPDATE ON guild_settings
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+END IF;
+END $$;
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_trigger t
+    JOIN pg_class c ON c.oid = t.tgrelid
+    WHERE t.tgname = 'update_post_integrations_updated_at'
+      AND c.relname = 'post_integrations'
+  ) THEN
 CREATE TRIGGER update_post_integrations_updated_at
     BEFORE UPDATE ON post_integrations
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
+END IF;
+END $$;
+
 
 -- 초기화 완료 메시지
 DO $$

@@ -161,6 +161,11 @@ async function executeSqlStatements(client, sqlScript) {
       
     } catch (error) {
       console.error(`❌ [${i + 1}/${sortedStatements.length}] SQL 구문 실행 실패:`);
+      // ✅ 멱등 허용: 이미 존재하는 객체 에러는 스킵
+      if (error.code === '42710' || /already exists/i.test(error.message)) {
+        console.warn(`📎 [${i + 1}/${sortedStatements.length}] 이미 존재: 건너뜀 (${statementData.type})`);
+        continue;
+      }
       console.error(`   유형: ${statementType} (우선순위: ${priority})`);
       console.error(`   구문: ${statement.substring(0, 200)}...`);
       console.error(`   에러: ${error.message}`);
