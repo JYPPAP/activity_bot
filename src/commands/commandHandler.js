@@ -12,7 +12,6 @@ export class CommandHandler {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
-    this.calendarLogService = calendarLogService;
     this.voiceForumService = voiceForumService;
     this.userClassificationService = userClassificationService;
 
