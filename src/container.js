@@ -56,11 +56,13 @@ export function createDIContainer(client) {
   // 기반 서비스들
   container.register({
     dbManager: asClass(DatabaseManager).singleton(),
-    databaseManager: asClass(DatabaseManager).singleton(), // alias
+    databaseManager: asFunction((dbManager) => dbManager).singleton(),
     logService: asClass(LogService).singleton(),
     eventManager: asClass(EventManager).singleton(),
     participantTracker: asClass(ParticipantTracker).singleton(),
   });
+
+  console.log('DB alias same?', container.resolve('dbManager') === container.resolve('databaseManager'));
 
   // 음성/포럼 관련 개별 서비스
   container.register({
