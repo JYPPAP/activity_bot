@@ -76,9 +76,8 @@ export function createDIContainer(client) {
     emojiReactionService: asClass(EmojiReactionService).singleton(),
 
     // 5. 최종 통합 서비스 (가장 복잡한 의존성)
-    // 생성자가 모든 의존성을 담은 객체 하나를 인자로 받으므로, 팩토리 함수로 컨테이너 프록시(c)를 전달
-    voiceChannelForumIntegrationService: asFunction((c) => new VoiceChannelForumIntegrationService(c)).singleton(),
-    voiceForumService: asFunction((c) => new VoiceChannelForumIntegrationService(c)).singleton(), // Alias
+    voiceChannelForumIntegrationService: asFunction((dependencies) => new VoiceChannelForumIntegrationService(dependencies)).singleton(),
+    voiceForumService: asFunction((dependencies) => new VoiceChannelForumIntegrationService(dependencies)).singleton(), // Alias
 
     // 6. 명령어 (각자 필요한 서비스에 의존)
     gapConfigCommand: asClass(GapConfigCommand).singleton(),
@@ -86,12 +85,10 @@ export function createDIContainer(client) {
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
-    // 생성자가 services 객체를 받으므로, 필요한 서비스를 담아 팩토리 함수로 생성
     recruitmentCommand: asFunction(({ voiceForumService }) => new RecruitmentCommand({ voiceForumService })).singleton(),
     nicknameCommand: asFunction(({ voiceChannelManager }) => new NicknameCommand({ voiceChannelManager })).singleton(),
 
     // 7. 명령어 핸들러 (최상위)
-    // CommandHandler의 생성자가 여러 인자를 받으므로 asClass로 자동 주입
     commandHandler: asClass(CommandHandler).singleton()
   });
 
