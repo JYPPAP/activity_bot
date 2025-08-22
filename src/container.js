@@ -62,8 +62,6 @@ export function createDIContainer(client) {
     participantTracker: asClass(ParticipantTracker).singleton(),
   });
 
-  console.log('DB alias same?', container.resolve('dbManager') === container.resolve('databaseManager'));
-
   // 음성/포럼 관련 개별 서비스
   container.register({
     voiceChannelManager: asClass(VoiceChannelManager).singleton(),

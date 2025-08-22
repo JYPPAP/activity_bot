@@ -862,6 +862,21 @@ export class DatabaseManager {
 
   // 포럼 메시지 추적 호환성
   async trackForumMessage(threadId, messageType, messageId) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'trackForumMessage' });
+      return false;
+    }
+
+    if (!threadId || !messageType || !messageId) {
+      logger.error('필수 파라미터 누락', { 
+        method: 'trackForumMessage',
+        threadId: !!threadId,
+        messageType: !!messageType,
+        messageId: !!messageId
+      });
+      return false;
+    }
+
     try {
       // messageType에 따라 적절한 컬럼 선택
       let columnName;
@@ -870,7 +885,12 @@ export class DatabaseManager {
       } else if (messageType === 'emoji_reaction') {
         columnName = 'emoji_reaction_message_ids';
       } else {
-        console.warn(`[DatabaseManager] 알 수 없는 메시지 타입: ${messageType}`);
+        logger.warn('알 수 없는 메시지 타입', { 
+          method: 'trackForumMessage',
+          messageType,
+          threadId,
+          messageId
+        });
         return false;
       }
 
@@ -883,14 +903,52 @@ export class DatabaseManager {
       `;
 
       const result = await this.pool.query(query, [threadId, JSON.stringify([messageId])]);
-      return result.rowCount > 0;
+      
+      if (result.rowCount > 0) {
+        logger.debug('포럼 메시지 추적 저장 성공', {
+          threadId,
+          messageType,
+          messageId,
+          columnName
+        });
+        return true;
+      } else {
+        logger.warn('포럼 메시지 추적 저장 실패: 대상 레코드 없음', {
+          threadId,
+          messageType,
+          messageId
+        });
+        return false;
+      }
+      
     } catch (error) {
-      console.error('[DatabaseManager] 포럼 메시지 추적 저장 오류:', error);
+      logger.error('포럼 메시지 추적 저장 오류', {
+        method: 'trackForumMessage',
+        threadId,
+        messageType,
+        messageId,
+        error: error.message,
+        code: error.code
+      });
       return false;
     }
   }
 
   async getTrackedMessages(threadId, messageType) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'getTrackedMessages' });
+      return [];
+    }
+
+    if (!threadId || !messageType) {
+      logger.error('필수 파라미터 누락', { 
+        method: 'getTrackedMessages',
+        threadId: !!threadId,
+        messageType: !!messageType
+      });
+      return [];
+    }
+
     try {
       // messageType에 따라 적절한 컬럼 선택
       let columnName;
@@ -899,7 +957,11 @@ export class DatabaseManager {
       } else if (messageType === 'emoji_reaction') {
         columnName = 'emoji_reaction_message_ids';
       } else {
-        console.warn(`[DatabaseManager] 알 수 없는 메시지 타입: ${messageType}`);
+        logger.warn('알 수 없는 메시지 타입', { 
+          method: 'getTrackedMessages',
+          messageType,
+          threadId
+        });
         return [];
       }
 
@@ -913,16 +975,60 @@ export class DatabaseManager {
       const result = await this.pool.query(query, [threadId]);
 
       if (result.rows.length > 0 && result.rows[0].message_ids) {
-        return result.rows[0].message_ids;
+        const messageIds = result.rows[0].message_ids;
+        
+        // JSONB 배열인지 확인
+        if (Array.isArray(messageIds)) {
+          logger.debug('추적된 메시지 조회 성공', {
+            threadId,
+            messageType,
+            messageCount: messageIds.length
+          });
+          return messageIds;
+        } else {
+          logger.warn('추적된 메시지 데이터 형식 오류', {
+            threadId,
+            messageType,
+            dataType: typeof messageIds
+          });
+          return [];
+        }
       }
+      
+      logger.debug('추적된 메시지 없음', {
+        threadId,
+        messageType,
+        foundRecords: result.rows.length
+      });
       return [];
+      
     } catch (error) {
-      console.error('[DatabaseManager] 추적된 메시지 조회 오류:', error);
+      logger.error('추적된 메시지 조회 오류', {
+        method: 'getTrackedMessages',
+        threadId,
+        messageType,
+        error: error.message,
+        code: error.code
+      });
       return [];
     }
   }
 
   async clearTrackedMessages(threadId, messageType) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'clearTrackedMessages' });
+      return false;
+    }
+
+    if (!threadId || !messageType) {
+      logger.error('필수 파라미터 누락', { 
+        method: 'clearTrackedMessages',
+        threadId: !!threadId,
+        messageType: !!messageType
+      });
+      return false;
+    }
+
     try {
       // messageType에 따라 적절한 컬럼 선택
       let columnName;
@@ -931,9 +1037,17 @@ export class DatabaseManager {
       } else if (messageType === 'emoji_reaction') {
         columnName = 'emoji_reaction_message_ids';
       } else {
-        console.warn(`[DatabaseManager] 알 수 없는 메시지 타입: ${messageType}`);
+        logger.warn('알 수 없는 메시지 타입', { 
+          method: 'clearTrackedMessages',
+          messageType,
+          threadId
+        });
         return false;
       }
+
+      // 현재 추적된 메시지 수 확인 (로깅용)
+      const currentMessages = await this.getTrackedMessages(threadId, messageType);
+      const currentCount = currentMessages.length;
 
       // 해당 메시지 타입의 추적 정보 초기화
       const query = `
@@ -944,9 +1058,32 @@ export class DatabaseManager {
       `;
 
       const result = await this.pool.query(query, [threadId]);
-      return result.rowCount > 0;
+      
+      if (result.rowCount > 0) {
+        logger.debug('추적된 메시지 정리 성공', {
+          threadId,
+          messageType,
+          clearedCount: currentCount,
+          columnName
+        });
+        this.invalidateCache(); // 캐시 무효화
+        return true;
+      } else {
+        logger.warn('추적된 메시지 정리 실패: 대상 레코드 없음', {
+          threadId,
+          messageType
+        });
+        return false;
+      }
+      
     } catch (error) {
-      console.error('[DatabaseManager] 추적된 메시지 삭제 오류:', error);
+      logger.error('추적된 메시지 정리 오류', {
+        method: 'clearTrackedMessages',
+        threadId,
+        messageType,
+        error: error.message,
+        code: error.code
+      });
       return false;
     }
   }
