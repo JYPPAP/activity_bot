@@ -68,8 +68,8 @@ module.exports = {
     min_uptime: '15s', // 더 빠른 재시작 판단
     
     // Node.js 메모리 설정 (PM2 메모리 제한과 일치)
-    node_args: '--max-old-space-size=256 --expose-gc',
-    
+    node_args: '--max-old-space-size=256 --expose-gc --unhandled-rejections=strict',
+
     // 정상 종료 설정
     kill_timeout: 10000, // Termux에서는 종료 시간이 더 오래 걸릴 수 있음
     listen_timeout: 5000,
