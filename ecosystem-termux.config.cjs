@@ -3,6 +3,16 @@ module.exports = {
   apps: [{
     name: 'discord-bot',
     script: 'src/index.js',
+
+    stop_exit_codes: [0],
+
+    ignore_watch: [
+      'node_modules',
+      'logs',          // Errsole .sqlite 포함
+      '*.sqlite',
+      '*.db',
+      '.env'
+    ],
     
     // 환경 변수
     env: {
@@ -42,17 +52,17 @@ module.exports = {
     max_memory_restart: '256M', // 더 빈번한 재시작으로 메모리 누수 방지
     
     // 로그 설정
-    log_file: './logs/combined.log',
-    out_file: './logs/out.log',
-    error_file: './logs/error.log',
+    out_file: './logs/pm2-out.log',
+    error_file: './logs/pm2-error.log',
     log_type: 'json',
     log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
     
-    merge_logs: true,
+    merge_logs: false,
     
     // 크래시 시 재시작 지연 (더 빠른 복구를 위해 단축)
+    exp_backoff_restart_delay: 2000,
     restart_delay: 3000,
-    
+
     // 최대 재시작 횟수 (SQLite 잠금 문제 대응을 위해 증가)
     max_restarts: 10,
     min_uptime: '15s', // 더 빠른 재시작 판단
