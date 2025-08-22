@@ -42,54 +42,186 @@ export function createDIContainer(client) {
     injectionMode: InjectionMode.CLASSIC
   });
 
-  // 모든 의존성을 한 번에 등록 (의존성 순서를 고려하여 정렬)
+  // 외부 의존성 등록 (값으로 등록)
   container.register({
-    // 1. 외부 의존성 (값)
+    // Discord 클라이언트 (외부에서 주입)
     client: asValue(client),
+
+    // 환경 설정 값들
     token: asValue(config.TOKEN),
     guildId: asValue(config.GUILDID),
     logChannelId: asValue(config.LOG_CHANNEL_ID),
     forumChannelId: asValue(config.FORUM_CHANNEL_ID),
     voiceCategoryId: asValue(config.VOICE_CATEGORY_ID),
     forumTagId: asValue(config.FORUM_TAG_ID),
+  });
 
-    // 2. 기반 서비스 (의존성이 거의 없거나 외부 의존성만 가짐)
+  // 기반 서비스들 등록 (Singleton으로 관리)
+  container.register({
+    // 데이터베이스 관리자 (의존성 없음)
     dbManager: asClass(DatabaseManager).singleton(),
-    databaseManager: asClass(DatabaseManager).singleton(), // Alias
-    logService: asClass(LogService).singleton(),
-    eventManager: asClass(EventManager).singleton(),
-    participantTracker: asClass(ParticipantTracker).singleton(),
-    voiceChannelManager: asClass(VoiceChannelManager).singleton(),
-    forumPostManager: asClass(ForumPostManager).singleton(),
-    recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
+    databaseManager: asClass(DatabaseManager).singleton(), // Alias for compatibility
 
-    // 3. 복합 서비스 (기반 서비스에 의존)
+    // 로그 서비스 (client, logChannelId 의존)
+    logService: asClass(LogService).singleton(),
+
+    // 이벤트 매니저 (client 의존)
+    eventManager: asClass(EventManager).singleton(),
+
+    // 참가자 추적기 (client 의존)
+    participantTracker: asClass(ParticipantTracker).singleton(),
+  });
+
+  // 음성 채널 관련 서비스들 등록
+  container.register({
+    // 음성 채널 매니저 (client, voiceCategoryId 의존)
+    voiceChannelManager: asClass(VoiceChannelManager).singleton(),
+
+    // 포럼 포스트 매니저 (client, forumChannelId, forumTagId, dbManager 의존)
+    forumPostManager: asClass(ForumPostManager).singleton(),
+  });
+
+  // 복합 서비스들 등록
+  container.register({
+    // 매핑 서비스 (client, voiceChannelManager, forumPostManager, dbManager 의존)
     mappingService: asClass(MappingService).singleton(),
+
+    // 활동 추적기 (client, dbManager, logService 의존)
     activityTracker: asClass(ActivityTracker).singleton(),
+
+    // 사용자 분류 서비스 (dbManager, activityTracker 의존)
     userClassificationService: asClass(UserClassificationService).singleton(),
-    recruitmentService: asClass(RecruitmentService).singleton(),
-    
-    // 4. UI 핸들러 (복합 서비스에 의존)
-    modalHandler: asClass(ModalHandler).singleton(),
-    buttonHandler: asClass(ButtonHandler).singleton(),
-    interactionRouter: asClass(InteractionRouter).singleton(),
+  });
+
+  // 통합 서비스들 등록
+  container.register({
+    // 이모지 반응 서비스 (client, forumPostManager 의존)
     emojiReactionService: asClass(EmojiReactionService).singleton(),
 
-    // 5. 최종 통합 서비스 (가장 복잡한 의존성)
-    voiceChannelForumIntegrationService: asFunction((dependencies) => new VoiceChannelForumIntegrationService(dependencies)).singleton(),
-    voiceForumService: asFunction((dependencies) => new VoiceChannelForumIntegrationService(dependencies)).singleton(), // Alias
+    // 구인구직 서비스 (복잡한 의존성)
+    recruitmentService: asClass(RecruitmentService).singleton(),
+  });
 
-    // 6. 명령어 (각자 필요한 서비스에 의존)
+  // UI 관련 서비스들 등록
+  container.register({
+    // UI 빌더
+    recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
+
+    // 버튼 핸들러 (voiceChannelManager, recruitmentService, modalHandler 의존)
+    buttonHandler: asClass(ButtonHandler).singleton(),
+
+    // 모달 핸들러 (recruitmentService, forumPostManager 의존)
+    modalHandler: asClass(ModalHandler).singleton(),
+
+    // 인터랙션 라우터 (buttonHandler, modalHandler, recruitmentService 의존)
+    interactionRouter: asClass(InteractionRouter).singleton(),
+  });
+
+  // 명령어들 등록
+  container.register({
+    // 기본 명령어들
     gapConfigCommand: asClass(GapConfigCommand).singleton(),
     timeConfirmCommand: asClass(TimeConfirmCommand).singleton(),
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
-    recruitmentCommand: asFunction(({ voiceForumService }) => new RecruitmentCommand({ voiceForumService })).singleton(),
-    nicknameCommand: asFunction(({ voiceChannelManager }) => new NicknameCommand({ voiceChannelManager })).singleton(),
+    recruitmentCommand: asClass(RecruitmentCommand).singleton(),
+    nicknameCommand: asClass(NicknameCommand).singleton(),
+  });
 
-    // 7. 명령어 핸들러 (최상위)
-    commandHandler: asClass(CommandHandler).singleton()
+  // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
+  container.register({
+    commandHandler: asFunction(({
+      client,
+      activityTracker,
+      dbManager,
+      voiceForumService,
+      userClassificationService,
+      gapConfigCommand,
+      timeConfirmCommand,
+      timeCheckCommand,
+      gapReportCommand,
+      gapAfkCommand,
+      recruitmentCommand,
+      nicknameCommand
+    }) => {
+      return new CommandHandler(
+        client,
+        activityTracker,
+        dbManager,
+        voiceForumService,
+        userClassificationService,
+        gapConfigCommand,
+        timeConfirmCommand,
+        timeCheckCommand,
+        gapReportCommand,
+        gapAfkCommand,
+        recruitmentCommand,
+        nicknameCommand
+      );
+    }).singleton(),
+  });
+
+  // 복잡한 의존성을 가진 VoiceChannelForumIntegrationService를 Factory로 등록
+  container.register({
+    voiceChannelForumIntegrationService: asFunction(({
+      client,
+      forumChannelId,
+      voiceCategoryId,
+      dbManager,
+      voiceChannelManager,
+      forumPostManager,
+      participantTracker,
+      mappingService,
+      recruitmentService,
+      modalHandler,
+      buttonHandler,
+      interactionRouter
+    }) => {
+      return new VoiceChannelForumIntegrationService({
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      });
+    }).singleton(),
+    voiceForumService: asFunction(({
+      client,
+      forumChannelId,
+      voiceCategoryId,
+      dbManager,
+      voiceChannelManager,
+      forumPostManager,
+      participantTracker,
+      mappingService,
+      recruitmentService,
+      modalHandler,
+      buttonHandler,
+      interactionRouter
+    }) => {
+      return new VoiceChannelForumIntegrationService({
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      });
+    }).singleton() // Alias for CommandHandler compatibility
   });
 
   return container;
@@ -127,7 +259,7 @@ export async function disposeContainer(container) {
 
     // 컨테이너 해제
     container.dispose();
-    
+
     console.log('DI Container가 안전하게 해제되었습니다.');
   } catch (error) {
     console.error('DI Container 해제 중 오류 발생:', error);
