@@ -13,23 +13,32 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-// SQL 구문별 실행 함수
+// SQL 구문별 실행 함수 (스마트 정렬 적용)
 async function executeSqlStatements(client, sqlScript) {
-  // SQL 스크립트를 구문별로 분할 (기본적인 방식)
-  const statements = sqlScript
+  // SQL 스크립트를 구문별로 분할
+  const rawStatements = sqlScript
     .split(';')
     .map(stmt => stmt.trim())
     .filter(stmt => stmt.length > 0 && !stmt.startsWith('--'));
   
-  console.log(`📋 총 ${statements.length}개의 SQL 구문을 실행합니다.\n`);
+  console.log(`📋 총 ${rawStatements.length}개의 SQL 구문을 발견했습니다.`);
   
-  for (let i = 0; i < statements.length; i++) {
-    const statement = statements[i];
+  // 스마트 정렬 적용
+  const sortedStatements = sortSqlStatements(rawStatements);
+  
+  console.log(`🧠 의존성을 고려하여 스마트 정렬을 적용했습니다:`);
+  console.log(`   1순위: 함수 삭제 → 2순위: 테이블 생성 → 3순위: 함수 생성 → 4순위: 인덱스 생성 → ...`);
+  console.log(`📋 정렬된 순서로 ${sortedStatements.length}개 구문을 실행합니다.\n`);
+  
+  for (let i = 0; i < sortedStatements.length; i++) {
+    const statementData = sortedStatements[i];
+    const statement = statementData.statement;
+    const statementType = statementData.type;
+    const originalIndex = statementData.originalIndex;
+    const priority = statementData.priority;
     
     try {
-      // 구문 유형 감지 및 로그
-      const statementType = detectStatementType(statement);
-      console.log(`🔄 [${i + 1}/${statements.length}] ${statementType} 실행 중...`);
+      console.log(`🔄 [${i + 1}/${sortedStatements.length}] ${statementType} 실행 중... (우선순위: ${priority}, 원래위치: ${originalIndex + 1})`);
       
       // 실행할 SQL 구문 출력 (처음 100자)
       console.log(`   SQL: ${statement.substring(0, 100)}...`);
@@ -39,10 +48,11 @@ async function executeSqlStatements(client, sqlScript) {
       await client.query(statement);
       const duration = Date.now() - startTime;
       
-      console.log(`✅ [${i + 1}/${statements.length}] ${statementType} 완료 (${duration}ms)`);
+      console.log(`✅ [${i + 1}/${sortedStatements.length}] ${statementType} 완료 (${duration}ms)`);
       
     } catch (error) {
-      console.error(`❌ [${i + 1}/${statements.length}] SQL 구문 실행 실패:`);
+      console.error(`❌ [${i + 1}/${sortedStatements.length}] SQL 구문 실행 실패:`);
+      console.error(`   유형: ${statementType} (우선순위: ${priority})`);
       console.error(`   구문: ${statement.substring(0, 200)}...`);
       console.error(`   에러: ${error.message}`);
       
@@ -61,19 +71,44 @@ async function executeSqlStatements(client, sqlScript) {
   }
 }
 
-// SQL 구문 유형 감지
+// SQL 구문 유형 감지 및 우선순위
 function detectStatementType(statement) {
   const upperStatement = statement.toUpperCase().trim();
   
-  if (upperStatement.startsWith('CREATE TABLE')) return '테이블 생성';
-  if (upperStatement.startsWith('CREATE OR REPLACE FUNCTION')) return '함수 생성';
-  if (upperStatement.startsWith('DROP FUNCTION')) return '함수 삭제';
-  if (upperStatement.startsWith('CREATE INDEX')) return '인덱스 생성';
-  if (upperStatement.startsWith('CREATE TRIGGER')) return '트리거 생성';
-  if (upperStatement.startsWith('SELECT')) return '함수 호출';
-  if (upperStatement.startsWith('DO $$')) return '스크립트 블록';
+  if (upperStatement.startsWith('DROP FUNCTION')) return { type: '함수 삭제', priority: 1 };
+  if (upperStatement.startsWith('CREATE TABLE')) return { type: '테이블 생성', priority: 2 };
+  if (upperStatement.startsWith('CREATE OR REPLACE FUNCTION')) return { type: '함수 생성', priority: 3 };
+  if (upperStatement.startsWith('CREATE INDEX')) return { type: '인덱스 생성', priority: 4 };
+  if (upperStatement.startsWith('CREATE TRIGGER')) return { type: '트리거 생성', priority: 5 };
+  if (upperStatement.startsWith('SELECT')) return { type: '함수 호출', priority: 6 };
+  if (upperStatement.startsWith('DO $$')) return { type: '스크립트 블록', priority: 7 };
   
-  return 'SQL 구문';
+  return { type: 'SQL 구문', priority: 8 };
+}
+
+// SQL 구문 스마트 정렬
+function sortSqlStatements(statements) {
+  // 각 구문에 유형과 우선순위 정보 추가
+  const statementsWithMetadata = statements.map((statement, index) => {
+    const metadata = detectStatementType(statement);
+    return {
+      statement,
+      originalIndex: index,
+      type: metadata.type,
+      priority: metadata.priority
+    };
+  });
+  
+  // 우선순위별로 정렬 (낮은 숫자가 먼저 실행)
+  const sortedStatements = statementsWithMetadata.sort((a, b) => {
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
+    }
+    // 같은 우선순위면 원래 순서 유지
+    return a.originalIndex - b.originalIndex;
+  });
+  
+  return sortedStatements;
 }
 
 async function initializeDatabase() {
