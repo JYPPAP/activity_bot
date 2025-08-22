@@ -39,15 +39,12 @@ import { NicknameCommand } from './commands/NicknameCommand.js';
  */
 export function createDIContainer(client) {
   const container = createContainer({
-    injectionMode: InjectionMode.PROXY
+    injectionMode: InjectionMode.CLASSIC
   });
 
   // 외부 의존성 등록 (값으로 등록)
   container.register({
-    // Discord 클라이언트 (외부에서 주입)
     client: asValue(client),
-
-    // 환경 설정 값들
     token: asValue(config.TOKEN),
     guildId: asValue(config.GUILDID),
     logChannelId: asValue(config.LOG_CHANNEL_ID),
@@ -56,76 +53,72 @@ export function createDIContainer(client) {
     forumTagId: asValue(config.FORUM_TAG_ID),
   });
 
-  // 기반 서비스들 등록 (Singleton으로 관리)
+  // 기반 서비스들 등록 (Singleton)
   container.register({
-    // 데이터베이스 관리자 (의존성 없음)
     dbManager: asClass(DatabaseManager).singleton(),
-    databaseManager: asClass(DatabaseManager).singleton(), // Alias for compatibility
-
-    // 로그 서비스 (client, logChannelId 의존)
+    databaseManager: asClass(DatabaseManager).singleton(), // Alias 유지
     logService: asClass(LogService).singleton(),
-
-    // 이벤트 매니저 (client 의존)
     eventManager: asClass(EventManager).singleton(),
-
-    // 참가자 추적기 (client 의존)
     participantTracker: asClass(ParticipantTracker).singleton(),
   });
 
-  // 음성 채널 관련 서비스들 등록
+  // 음성/포럼 관련 기본 서비스
   container.register({
-    // 음성 채널 매니저 (client, voiceCategoryId 의존)
     voiceChannelManager: asClass(VoiceChannelManager).singleton(),
-
-    // 포럼 포스트 매니저 (client, forumChannelId, forumTagId, dbManager 의존)
     forumPostManager: asClass(ForumPostManager).singleton(),
   });
 
-  // 복합 서비스들 등록
+  // 복합 서비스들
   container.register({
-    // 매핑 서비스 (client, voiceChannelManager, forumPostManager, dbManager 의존)
     mappingService: asClass(MappingService).singleton(),
-
-    // 활동 추적기 (client, dbManager, logService 의존)
     activityTracker: asClass(ActivityTracker).singleton(),
-
-    // 사용자 분류 서비스 (dbManager, activityTracker 의존)
     userClassificationService: asClass(UserClassificationService).singleton(),
   });
 
-  // 통합 서비스들 등록
+  // UI 레이어 (통합 서비스가 의존하므로 먼저 등록)
   container.register({
-    // 이모지 반응 서비스 (client, forumPostManager 의존)
-    emojiReactionService: asClass(EmojiReactionService).singleton(),
-
-    // 구인구직 서비스 (복잡한 의존성)
-    recruitmentService: asClass(RecruitmentService).singleton(),
-  });
-
-  // UI 관련 서비스들 등록
-  container.register({
-    // UI 빌더
     recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
-
-    // 버튼 핸들러 (voiceChannelManager, recruitmentService, modalHandler 의존)
     buttonHandler: asClass(ButtonHandler).singleton(),
-
-    // 모달 핸들러 (recruitmentService, forumPostManager 의존)
     modalHandler: asClass(ModalHandler).singleton(),
-
-    // 인터랙션 라우터 (buttonHandler, modalHandler, recruitmentService 의존)
     interactionRouter: asClass(InteractionRouter).singleton(),
   });
 
+  // 통합 서비스 (Voice ↔ Forum) 및 별칭 등록
+  container.register({
+    voiceChannelForumIntegrationService: asFunction((cradle) =>
+      new VoiceChannelForumIntegrationService({
+        client: cradle.client,
+        forumChannelId: cradle.forumChannelId,
+        voiceCategoryId: cradle.voiceCategoryId,
+        dbManager: cradle.dbManager,
+        voiceChannelManager: cradle.voiceChannelManager,
+        forumPostManager: cradle.forumPostManager,
+        participantTracker: cradle.participantTracker,
+        mappingService: cradle.mappingService,
+        recruitmentService: cradle.recruitmentService,
+        modalHandler: cradle.modalHandler,
+        buttonHandler: cradle.buttonHandler,
+        interactionRouter: cradle.interactionRouter
+      })
+    ).singleton(),
+
+    // 기존 코드 호환을 위한 alias (voiceForumService)
+    voiceForumService: asFunction((cradle) => cradle.voiceChannelForumIntegrationService).singleton(),
+  });
+
+  // 기타 통합/유틸 서비스
+  container.register({
+    emojiReactionService: asClass(EmojiReactionService).singleton(),
+    recruitmentService: asClass(RecruitmentService).singleton(),
+  });
+
+  // services 번들 (RecruitmentCommand 등에서 참조)
   container.register({
     services: asFunction(({
-      // 필수(RecruitmentCommand/CommandBase에서 참조)
       client,
       dbManager,
       activityTracker,
       voiceForumService,
-
-      // 여유분(다른 커맨드/서비스에서 쓸 수 있는 것들)
       voiceChannelManager,
       forumPostManager,
       mappingService,
@@ -135,13 +128,10 @@ export function createDIContainer(client) {
       emojiReactionService,
       userClassificationService
     }) => ({
-      // 필수
       client,
       dbManager,
       activityTracker,
       voiceForumService,
-
-      // 여유분
       voiceChannelManager,
       forumPostManager,
       mappingService,
@@ -153,9 +143,8 @@ export function createDIContainer(client) {
     })).singleton()
   });
 
-  // 명령어들 등록
+  // 명령어들
   container.register({
-    // 기본 명령어들
     gapConfigCommand: asClass(GapConfigCommand).singleton(),
     timeConfirmCommand: asClass(TimeConfirmCommand).singleton(),
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
@@ -165,7 +154,7 @@ export function createDIContainer(client) {
     nicknameCommand: asClass(NicknameCommand).singleton(),
   });
 
-  // 명령어 핸들러 등록 (모든 의존성을 가지는 최상위 서비스)
+  // 명령어 핸들러 (의존성 주입 순서 고정)
   container.register({
     commandHandler: asFunction((cradle) =>
       new CommandHandler(
@@ -185,45 +174,18 @@ export function createDIContainer(client) {
     ).singleton(),
   });
 
-  // 복잡한 의존성을 가진 VoiceChannelForumIntegrationService를 Factory로 등록
-  container.register({
-    voiceChannelForumIntegrationService: asFunction((cradle) =>
-      new VoiceChannelForumIntegrationService({
-        client: cradle.client,
-        forumChannelId: cradle.forumChannelId,
-        voiceCategoryId: cradle.voiceCategoryId,
-        dbManager: cradle.dbManager,
-        voiceChannelManager: cradle.voiceChannelManager,
-        forumPostManager: cradle.forumPostManager,
-        participantTracker: cradle.participantTracker,
-        mappingService: cradle.mappingService,
-        recruitmentService: cradle.recruitmentService,
-        modalHandler: cradle.modalHandler,
-        buttonHandler: cradle.buttonHandler,
-        interactionRouter: cradle.interactionRouter
-      })
-    ).singleton(),
-  });
-
-  container.register({
-    voiceForumService: asFunction((cradle) => cradle.voiceChannelForumIntegrationService).singleton()
-  });
-
+  // 디버그용 출력
   console.log('REG_KEYS', Object.keys(container.registrations));
   return container;
 }
 
 /**
  * 컨테이너 초기화
- * 모든 서비스들의 초기화 메서드를 순서대로 호출
- * @param {AwilixContainer} container - DI 컨테이너
  */
 export async function initializeContainer(container) {
   try {
-    // 1. 데이터베이스 초기화 (가장 먼저)
     const dbManager = container.resolve('dbManager');
     await dbManager.initialize();
-
     console.log('DI Container 및 서비스들이 성공적으로 초기화되었습니다.');
     return true;
   } catch (error) {
@@ -234,18 +196,12 @@ export async function initializeContainer(container) {
 
 /**
  * 컨테이너 해제
- * 모든 리소스를 정리
- * @param {AwilixContainer} container - DI 컨테이너
  */
 export async function disposeContainer(container) {
   try {
-    // 데이터베이스 연결 종료
     const dbManager = container.resolve('dbManager');
     await dbManager.close();
-
-    // 컨테이너 해제
     container.dispose();
-
     console.log('DI Container가 안전하게 해제되었습니다.');
   } catch (error) {
     console.error('DI Container 해제 중 오류 발생:', error);
