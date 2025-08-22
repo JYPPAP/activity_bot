@@ -117,6 +117,42 @@ export function createDIContainer(client) {
     interactionRouter: asClass(InteractionRouter).singleton(),
   });
 
+  container.register({
+    services: asFunction(({
+      // 필수(RecruitmentCommand/CommandBase에서 참조)
+      client,
+      dbManager,
+      activityTracker,
+      voiceForumService,
+
+      // 여유분(다른 커맨드/서비스에서 쓸 수 있는 것들)
+      voiceChannelManager,
+      forumPostManager,
+      mappingService,
+      recruitmentService,
+      logService,
+      participantTracker,
+      emojiReactionService,
+      userClassificationService
+    }) => ({
+      // 필수
+      client,
+      dbManager,
+      activityTracker,
+      voiceForumService,
+
+      // 여유분
+      voiceChannelManager,
+      forumPostManager,
+      mappingService,
+      recruitmentService,
+      logService,
+      participantTracker,
+      emojiReactionService,
+      userClassificationService
+    })).singleton()
+  });
+
   // 명령어들 등록
   container.register({
     // 기본 명령어들
@@ -223,7 +259,7 @@ export function createDIContainer(client) {
       });
     }).singleton() // Alias for CommandHandler compatibility
   });
-
+  console.log('REG_KEYS', Object.keys(container.registrations));
   return container;
 }
 
