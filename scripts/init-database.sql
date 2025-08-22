@@ -78,6 +78,7 @@ CREATE INDEX IF NOT EXISTS idx_post_integrations_voice_channel ON post_integrati
 CREATE INDEX IF NOT EXISTS idx_post_integrations_active ON post_integrations(is_active) WHERE is_active = true;
 
 -- 월별 활동 테이블 생성 함수
+DROP FUNCTION IF EXISTS create_monthly_activity_table(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION create_monthly_activity_table(table_suffix TEXT)
 RETURNS VOID AS $$
 DECLARE
