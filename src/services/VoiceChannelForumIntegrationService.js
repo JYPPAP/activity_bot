@@ -1,6 +1,7 @@
 // src/services/VoiceChannelForumIntegrationService.js - 음성채널-포럼 통합 서비스 (DI 적용 버전)
 import { PermissionService } from './PermissionService.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
+import { InteractionRouter } from '../ui/InteractionRouter.js';
 
 export class VoiceChannelForumIntegrationService {
   constructor({ client, forumChannelId, voiceCategoryId, dbManager, voiceChannelManager, forumPostManager, participantTracker, mappingService, recruitmentService, modalHandler, buttonHandler, interactionRouter }) {
