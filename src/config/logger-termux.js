@@ -31,10 +31,10 @@ async function optimizeSQLiteDatabase(dbPath) {
           else console.log('✅ WAL 모드 활성화 완료');
         });
 
-        // Synchronous 모드 최적화 (WAL과 함께 사용할 때 NORMAL이 최적)
-        db.run('PRAGMA synchronous = NORMAL;', (err) => {
+        // Synchronous 모드 실시간성 우선 설정 (로그 지연 최소화)
+        db.run('PRAGMA synchronous = FULL;', (err) => {
           if (err) console.error('❌ Synchronous 모드 설정 실패:', err.message);
-          else console.log('✅ Synchronous 모드 NORMAL 설정 완료');
+          else console.log('✅ Synchronous 모드 FULL 설정 완료 (실시간성 우선)');
         });
 
         // 타임아웃 설정 (10초)
@@ -49,10 +49,10 @@ async function optimizeSQLiteDatabase(dbPath) {
           else console.log('✅ Cache 크기 64MB 설정 완료');
         });
 
-        // WAL 자동 체크포인트 설정 (1000 페이지마다)
-        db.run('PRAGMA wal_autocheckpoint = 1000;', (err) => {
+        // WAL 자동 체크포인트 설정 (100 페이지마다 - 실시간성 우선)
+        db.run('PRAGMA wal_autocheckpoint = 100;', (err) => {
           if (err) console.error('❌ WAL 체크포인트 설정 실패:', err.message);
-          else console.log('✅ WAL 자동 체크포인트 설정 완료');
+          else console.log('✅ WAL 자동 체크포인트 100페이지 설정 완료 (실시간성 우선)');
         });
       });
 
@@ -83,13 +83,20 @@ if (isDevelopment) {
     port: errsolePort,
     
     // 로그 레벨 설정
-    logLevel: 'debug', // debug, info, warn, error, alert
+    logLevel: 'info', // 실시간성을 위해 debug → info로 변경
     
     // 로그 보관 기간 (6개월 = 180일)
     retentionDays: 180,
     
     // 에러 알림 설정 (개발 환경에서는 비활성화)
-    enableAlerts: false
+    enableAlerts: false,
+    
+    // 실시간성 설정 추가
+    flushInterval: 1000,    // 1초마다 강제 플러시
+    maxBufferSize: 10,      // 버퍼 크기 최소화 (10개 로그마다 즉시 전송)
+    enableRealTime: true,   // 실시간 모드 활성화
+    collectLogs: true,      // 로그 수집 활성화
+    enableConsoleOutput: true  // 콘솔 출력도 유지
   });
   
   console.log(`✅ Errsole 개발 환경 설정 완료 (Termux)`);
@@ -126,7 +133,14 @@ if (isDevelopment) {
     port: errsolePort,
     logLevel: 'info',
     retentionDays: 180, // 6개월 보관
-    enableAlerts: true
+    enableAlerts: true,
+    
+    // 실시간성 설정 추가 (운영환경에서도 적용)
+    flushInterval: 2000,    // 2초마다 강제 플러시 (운영환경은 약간 보수적)
+    maxBufferSize: 20,      // 버퍼 크기 (20개 로그마다 전송)
+    enableRealTime: true,   // 실시간 모드 활성화
+    collectLogs: true,      // 로그 수집 활성화
+    enableConsoleOutput: false  // 운영환경에서는 콘솔 출력 비활성화
   });
   
   console.log(`✅ Errsole 운영 환경 설정 완료`);
@@ -347,11 +361,11 @@ export const logger = {
   },
   
   databaseOperation: (message, meta = {}) => {
-    errsole.meta({ type: 'database_operation', ...meta }).debug(message);
+    errsole.meta({ type: 'database_operation', ...meta }).info(message);
   },
   
   discordEvent: (message, meta = {}) => {
-    errsole.meta({ type: 'discord_event', ...meta }).debug(message);
+    errsole.meta({ type: 'discord_event', ...meta }).info(message);
   },
   
   // 메타데이터와 함께 로깅하는 헬퍼 함수
@@ -366,7 +380,100 @@ export const logger = {
 
 // 헬스체크 및 모니터링 시스템
 let healthCheckInterval;
+let logDelayMonitorInterval;
 let lastMemoryUsage = process.memoryUsage();
+
+// 로그 지연 모니터링 시스템
+let logDelayMetrics = {
+  samples: [],
+  maxSamples: 50, // 최근 50개 샘플 유지
+  lastReportTime: Date.now()
+};
+
+// 로그 지연 추적 함수
+function trackLogDelay(originalTimestamp) {
+  const currentTime = Date.now();
+  const delay = currentTime - originalTimestamp;
+  
+  // 샘플 추가
+  logDelayMetrics.samples.push({
+    originalTime: originalTimestamp,
+    recordedTime: currentTime,
+    delay: delay,
+    timestamp: new Date(originalTimestamp).toISOString()
+  });
+  
+  // 최대 샘플 수 유지
+  if (logDelayMetrics.samples.length > logDelayMetrics.maxSamples) {
+    logDelayMetrics.samples.shift();
+  }
+}
+
+// 로그 지연 통계 계산
+function calculateDelayStats() {
+  if (logDelayMetrics.samples.length === 0) {
+    return null;
+  }
+  
+  const delays = logDelayMetrics.samples.map(s => s.delay);
+  const avgDelay = delays.reduce((a, b) => a + b, 0) / delays.length;
+  const maxDelay = Math.max(...delays);
+  const minDelay = Math.min(...delays);
+  
+  return {
+    samples: delays.length,
+    avgDelayMs: Math.round(avgDelay),
+    maxDelayMs: maxDelay,
+    minDelayMs: minDelay,
+    avgDelayMinutes: Math.round(avgDelay / 60000 * 10) / 10,
+    maxDelayMinutes: Math.round(maxDelay / 60000 * 10) / 10
+  };
+}
+
+// 로그 지연 모니터링 시작
+function startLogDelayMonitoring() {
+  console.log('⏱️ 로그 지연 모니터링 시작 (2분 간격)');
+  
+  logDelayMonitorInterval = setInterval(async () => {
+    try {
+      // 테스트 로그로 지연 시간 측정
+      const testLogTime = Date.now();
+      trackLogDelay(testLogTime);
+      
+      // 10분마다 통계 보고
+      const now = Date.now();
+      if (now - logDelayMetrics.lastReportTime >= 10 * 60 * 1000) {
+        const stats = calculateDelayStats();
+        
+        if (stats) {
+          console.log(`📊 로그 지연 통계 보고:`);
+          console.log(`   - 평균 지연: ${stats.avgDelayMinutes}분 (${stats.avgDelayMs}ms)`);
+          console.log(`   - 최대 지연: ${stats.maxDelayMinutes}분 (${stats.maxDelayMs}ms)`);
+          console.log(`   - 샘플 수: ${stats.samples}개`);
+          
+          // 지연이 5분 이상인 경우 경고
+          if (stats.avgDelayMs > 5 * 60 * 1000) {
+            console.warn(`⚠️ 로그 지연 경고: 평균 ${stats.avgDelayMinutes}분 지연 감지`);
+            logger.warn('[LogDelayMonitor] 로그 지연 경고', {
+              ...stats,
+              recommendation: 'SQLite 최적화 설정 점검 필요'
+            });
+          } else if (stats.avgDelayMs > 30 * 1000) {
+            console.info(`ℹ️ 로그 지연 정보: 평균 ${Math.round(stats.avgDelayMs/1000)}초 지연`);
+          }
+          
+          // Errsole로 통계 전송
+          logger.info('[LogDelayMonitor] 로그 지연 통계', stats);
+        }
+        
+        logDelayMetrics.lastReportTime = now;
+      }
+      
+    } catch (error) {
+      console.error('[LogDelayMonitor] 로그 지연 모니터링 중 오류:', error.message);
+    }
+  }, 2 * 60 * 1000); // 2분마다 실행
+}
 
 function startHealthMonitoring() {
   console.log('🏥 헬스체크 모니터링 시작 (5분 간격)');
@@ -428,9 +535,10 @@ function startHealthMonitoring() {
   }, 5 * 60 * 1000); // 5분마다 실행
 }
 
-// 애플리케이션 시작 시 헬스체크 시작
+// 애플리케이션 시작 시 헬스체크 및 로그 지연 모니터링 시작
 setTimeout(() => {
   startHealthMonitoring();
+  startLogDelayMonitoring();
 }, 10000); // 10초 후 시작
 
 // 프로세스 종료 시 정리
@@ -440,6 +548,10 @@ process.on('SIGINT', () => {
     clearInterval(healthCheckInterval);
     console.log('✅ 헬스체크 모니터링 중지');
   }
+  if (logDelayMonitorInterval) {
+    clearInterval(logDelayMonitorInterval);
+    console.log('✅ 로그 지연 모니터링 중지');
+  }
   process.exit(0);
 });
 
@@ -448,6 +560,10 @@ process.on('SIGTERM', () => {
   if (healthCheckInterval) {
     clearInterval(healthCheckInterval);
     console.log('✅ 헬스체크 모니터링 중지');
+  }
+  if (logDelayMonitorInterval) {
+    clearInterval(logDelayMonitorInterval);
+    console.log('✅ 로그 지연 모니터링 중지');
   }
   process.exit(0);
 });
