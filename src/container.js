@@ -120,8 +120,9 @@ export function createDIContainer(client) {
           interactionRouter,
         })
     ).singleton(),
+  });
 
-    // 기존 호환용 alias: voiceForumService
+  container.register({
     voiceForumService: asFunction((voiceChannelForumIntegrationService) =>
       voiceChannelForumIntegrationService
     ).singleton(),
@@ -154,8 +155,8 @@ export function createDIContainer(client) {
       logService,
       participantTracker,
       emojiReactionService,
-      userClassificationService,
-    })).singleton(),
+      userClassificationService
+    })).singleton()
   });
 
   // 명령어들
@@ -172,34 +173,32 @@ export function createDIContainer(client) {
   // 명령어 핸들러 (CLASSIC 모드: 파라미터 이름과 등록 키 일치)
   container.register({
     commandHandler: asFunction((
-        client,
-        activityTracker,
-        dbManager,
-        voiceForumService,
-        userClassificationService,
-        gapConfigCommand,
-        timeConfirmCommand,
-        timeCheckCommand,
-        gapReportCommand,
-        gapAfkCommand,
-        recruitmentCommand,
-        nicknameCommand
-      ) =>
-        new CommandHandler(
-          client,
-          activityTracker,
-          dbManager,
-          voiceForumService,
-          userClassificationService,
-          gapConfigCommand,
-          timeConfirmCommand,
-          timeCheckCommand,
-          gapReportCommand,
-          gapAfkCommand,
-          recruitmentCommand,
-          nicknameCommand
-        )
-    ).singleton(),
+      client,
+      activityTracker,
+      dbManager,
+      voiceForumService,
+      userClassificationService,
+      gapConfigCommand,
+      timeConfirmCommand,
+      timeCheckCommand,
+      gapReportCommand,
+      gapAfkCommand,
+      recruitmentCommand,
+      nicknameCommand
+    ) => new CommandHandler(
+      client,
+      activityTracker,
+      dbManager,
+      voiceForumService,
+      userClassificationService,
+      gapConfigCommand,
+      timeConfirmCommand,
+      timeCheckCommand,
+      gapReportCommand,
+      gapAfkCommand,
+      recruitmentCommand,
+      nicknameCommand
+    )).singleton(),
   });
 
   return container;

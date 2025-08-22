@@ -3,26 +3,11 @@ import { PermissionService } from './PermissionService.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 
 export class VoiceChannelForumIntegrationService {
-  constructor({ 
-    client, 
-    forumChannelId, 
-    voiceCategoryId, 
-    dbManager,
-    voiceChannelManager,
-    forumPostManager,
-    participantTracker,
-    mappingService,
-    recruitmentService,
-    modalHandler,
-    buttonHandler,
-    interactionRouter
-  }) {
+  constructor({ client, forumChannelId, voiceCategoryId, dbManager, voiceChannelManager, forumPostManager, participantTracker, mappingService, recruitmentService, modalHandler, buttonHandler, interactionRouter }) {
     this.client = client;
     this.forumChannelId = forumChannelId;
     this.voiceCategoryId = voiceCategoryId;
     this.dbManager = dbManager;
-    
-    // 주입받은 서비스들 할당
     this.voiceChannelManager = voiceChannelManager;
     this.forumPostManager = forumPostManager;
     this.participantTracker = participantTracker;
