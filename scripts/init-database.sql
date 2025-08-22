@@ -82,34 +82,36 @@ DROP FUNCTION IF EXISTS create_monthly_activity_table(TEXT) CASCADE;
 CREATE OR REPLACE FUNCTION create_monthly_activity_table(table_suffix TEXT)
 RETURNS VOID AS $$
 DECLARE
-    table_name TEXT;
+v_table_name TEXT;
 BEGIN
-    table_name := 'user_activities_' || table_suffix;
-    
+    v_table_name := 'user_activities_' || table_suffix;
+
     -- 테이블이 존재하지 않으면 생성
     IF NOT EXISTS (
-        SELECT FROM information_schema.tables 
-        WHERE information_schema.tables.table_name = table_name
-          AND information_schema.tables.table_schema = 'public'
+        SELECT 1
+        FROM information_schema.tables t
+        WHERE t.table_name = v_table_name
+          AND t.table_schema = 'public'
     ) THEN
-        EXECUTE format('
+        EXECUTE format($fmt$
             CREATE TABLE %I (
                 guild_id VARCHAR(20) NOT NULL,
                 user_id VARCHAR(20) NOT NULL,
                 username VARCHAR(100) NOT NULL,
-                daily_voice_minutes JSONB DEFAULT ''{}''::jsonb, -- {"01": 120, "02": 45, ...}
+                daily_voice_minutes JSONB DEFAULT '{}'::jsonb, -- {"01": 120, ...}
                 total_voice_minutes INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY(guild_id, user_id)
-            )', table_name);
-        
+            )
+        $fmt$, v_table_name);
+
         -- 인덱스 생성
-        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_user_id ON %I(user_id)', table_name, table_name);
-        EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_guild_id ON %I(guild_id)', table_name, table_name);
-        
-        RAISE NOTICE '월별 활동 테이블 생성 완료: %', table_name;
-    END IF;
+EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_user_id ON %I(user_id)', v_table_name, v_table_name);
+EXECUTE format('CREATE INDEX IF NOT EXISTS idx_%I_guild_id ON %I(guild_id)', v_table_name, v_table_name);
+
+RAISE NOTICE '월별 활동 테이블 생성 완료: %', v_table_name;
+END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -133,7 +135,8 @@ $$ LANGUAGE plpgsql;
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_trigger t
+    SELECT 1
+    FROM pg_trigger t
     JOIN pg_class c ON c.oid = t.tgrelid
     WHERE t.tgname = 'update_users_updated_at'
       AND c.relname = 'users'
@@ -144,6 +147,7 @@ CREATE TRIGGER update_users_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 END IF;
 END $$;
+
 
 DO $$
 BEGIN
