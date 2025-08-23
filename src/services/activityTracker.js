@@ -509,4 +509,18 @@ export class ActivityTracker {
       return result;
     }
   }
+
+  /**
+   * 특정 사용자의 현재 세션 시간 조회 (분 단위)
+   * @param {string} userId - 사용자 ID
+   * @returns {number} - 현재 세션 진행 시간 (분), 세션이 없으면 0
+   */
+  getCurrentSessionTime(userId) {
+    const session = this.activeSessions.get(userId);
+    if (session) {
+      const sessionDuration = Date.now() - session.startTime;
+      return Math.floor(sessionDuration / (1000 * 60));
+    }
+    return 0;
+  }
 }

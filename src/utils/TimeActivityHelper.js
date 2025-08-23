@@ -202,19 +202,37 @@ export class TimeActivityHelper {
    * @returns {Promise<{totalTime: number, formattedTime: string}>}
    */
   static async getAndValidateActivityTime(dbManager, activityTracker, userId, startDate, endDate, component, additionalMeta = {}) {
-    // DB에서 활동 시간 조회
-    const totalTime = await dbManager.getUserActivityByDateRange(
+    // DB에서 활동 시간 조회 (밀리초)
+    const dbTime = await dbManager.getUserActivityByDateRange(
       userId,
       startDate.getTime(),
       endDate.getTime()
     );
 
-    // 데이터 일관성 검증
-    this.validateDataConsistency(activityTracker, userId, totalTime, component, additionalMeta);
+    // 현재 세션 시간 조회 (분)
+    const currentSessionMinutes = activityTracker ? activityTracker.getCurrentSessionTime(userId) : 0;
+    const currentSessionTime = currentSessionMinutes * 60 * 1000; // 밀리초로 변환
+
+    // 총 시간 계산
+    const totalTime = dbTime + currentSessionTime;
+
+    // 데이터 일관성 검증 (DB 시간만으로)
+    this.validateDataConsistency(activityTracker, userId, dbTime, component, additionalMeta);
 
     // 시간 포맷팅
     const formattedTime = formatTime(totalTime);
+    
+    // 현재 세션 시간이 있으면 별도 표시
+    let sessionInfo = '';
+    if (currentSessionMinutes > 0) {
+      sessionInfo = `\n   (현재 세션: +${currentSessionMinutes}분 진행중)`;
+    }
 
-    return { totalTime, formattedTime };
+    return { 
+      totalTime, 
+      formattedTime: formattedTime + sessionInfo,
+      dbTime,
+      currentSessionMinutes 
+    };
   }
 }
