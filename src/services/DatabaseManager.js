@@ -842,7 +842,8 @@ export class DatabaseManager {
       const { rows } = await this.query(`
           SELECT
               voice_channel_id,
-              forum_channel_id,
+              forum_post_id,
+              0 AS last_participant_count, -- 임시로 0 반환
               NULL::varchar(20) AS forum_tag_id, -- post_integrations에는 없으므로 우선 NULL
               created_at,
               updated_at
