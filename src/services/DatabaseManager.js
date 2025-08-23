@@ -127,7 +127,10 @@ export class DatabaseManager {
    * 월별 활동 테이블 자동 생성
    */
   async ensureMonthlyTable(date = new Date()) {
-    const tableSuffix = date.toISOString().slice(0, 7).replace('-', '');
+    // 시간대 안전 날짜 계산 (UTC 문제 해결)
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const tableSuffix = `${year}${month}`;
     const tableName = `user_activities_${tableSuffix}`;
 
     try {
@@ -278,7 +281,10 @@ export class DatabaseManager {
       let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
 
       while (currentDate <= endDate) {
-        const tableSuffix = currentDate.toISOString().slice(0, 7).replace('-', '');
+        // 시간대 안전 날짜 계산 (UTC 문제 해결)
+        const year = currentDate.getFullYear();
+        const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+        const tableSuffix = `${year}${month}`;
         months.push({
           suffix: tableSuffix,
           tableName: `user_activities_${tableSuffix}`,
@@ -345,7 +351,11 @@ export class DatabaseManager {
    */
   async getAllUserActivity() {
     try {
-      const currentMonth = new Date().toISOString().slice(0, 7).replace('-', '');
+      // 시간대 안전 날짜 계산 (UTC 문제 해결)
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const currentMonth = `${year}${month}`;
       const tableName = `user_activities_${currentMonth}`;
 
       const result = await this.query(`
@@ -872,20 +882,38 @@ export class DatabaseManager {
     }
 
     try {
-      // 1. 기존 레코드 확인
+      // 1. 기존 레코드 확인 (is_active 조건 제거하여 모든 레코드 확인)
       const existingQuery = `
         SELECT * FROM post_integrations 
-        WHERE forum_post_id = $1 AND is_active = true
+        WHERE forum_post_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1
       `;
       
       const existingResult = await this.pool.query(existingQuery, [forumPostId]);
       
       if (existingResult.rows.length > 0) {
+        const existing = existingResult.rows[0];
         logger.debug('기존 포럼 레코드 발견', { 
           forumPostId, 
-          forum_state: existingResult.rows[0].forum_state 
+          forum_state: existing.forum_state,
+          is_active: existing.is_active
         });
-        return existingResult.rows[0];
+        
+        // 비활성 레코드인 경우 활성화
+        if (!existing.is_active) {
+          const reactivateQuery = `
+            UPDATE post_integrations 
+            SET is_active = true, updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1
+            RETURNING *
+          `;
+          const reactivateResult = await this.pool.query(reactivateQuery, [forumPostId]);
+          logger.info('포럼 레코드 재활성화', { forumPostId });
+          return reactivateResult.rows[0];
+        }
+        
+        return existing;
       }
 
       // 2. 레코드가 없으면 기본 레코드 생성
@@ -911,53 +939,98 @@ export class DatabaseManager {
    */
   async createDefaultForumRecord(forumPostId) {
     try {
-      // 기본값으로 독립형 포럼 레코드 생성
-      const insertQuery = `
-        INSERT INTO post_integrations (
-          guild_id, 
-          voice_channel_id, 
-          forum_post_id, 
-          forum_channel_id,
-          forum_state,
-          auto_track_enabled,
-          is_active,
-          participant_message_ids,
-          emoji_reaction_message_ids
-        ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9
-        )
-        ON CONFLICT (guild_id, forum_post_id) DO UPDATE SET
-          forum_state = EXCLUDED.forum_state,
-          auto_track_enabled = EXCLUDED.auto_track_enabled,
-          updated_at = CURRENT_TIMESTAMP
-        RETURNING *
-      `;
-
-      // 기본값 설정 (추후 실제 값으로 업데이트 가능)
-      const values = [
-        'UNKNOWN_GUILD',     // guild_id (추후 업데이트)
-        'STANDALONE',        // voice_channel_id
-        forumPostId,         // forum_post_id
-        'UNKNOWN_CHANNEL',   // forum_channel_id (추후 업데이트)
-        'standalone',        // forum_state
-        true,                // auto_track_enabled
-        true,                // is_active
-        '[]',                // participant_message_ids
-        '[]'                 // emoji_reaction_message_ids
+      // 실제 길드 ID 사용 (config에서)
+      const guildId = config.GUILDID || 'UNKNOWN_GUILD';
+      
+      // 여러 ON CONFLICT 패턴 시도
+      const conflictStrategies = [
+        // 가능한 PK 조합들 시도
+        'ON CONFLICT (forum_post_id) DO UPDATE SET',
+        'ON CONFLICT (guild_id, forum_post_id) DO UPDATE SET', 
+        'ON CONFLICT (voice_channel_id, forum_post_id) DO UPDATE SET',
+        'ON CONFLICT DO NOTHING' // 마지막 시도로 중복 시 무시
       ];
 
-      const result = await this.pool.query(insertQuery, values);
-      
-      if (result.rows.length > 0) {
-        logger.info('기본 포럼 레코드 생성 성공', {
-          forumPostId,
-          forum_state: result.rows[0].forum_state,
-          auto_track_enabled: result.rows[0].auto_track_enabled
-        });
-        return result.rows[0];
+      let lastError = null;
+
+      for (let i = 0; i < conflictStrategies.length; i++) {
+        const conflictClause = conflictStrategies[i];
+        const isDoNothing = conflictClause.includes('DO NOTHING');
+        
+        try {
+          const insertQuery = `
+            INSERT INTO post_integrations (
+              guild_id, 
+              voice_channel_id, 
+              forum_post_id, 
+              forum_channel_id,
+              forum_state,
+              auto_track_enabled,
+              is_active,
+              participant_message_ids,
+              emoji_reaction_message_ids
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9
+            )
+            ${conflictClause}${isDoNothing ? '' : `
+              forum_state = EXCLUDED.forum_state,
+              auto_track_enabled = EXCLUDED.auto_track_enabled,
+              is_active = EXCLUDED.is_active,
+              updated_at = CURRENT_TIMESTAMP`}
+            RETURNING *
+          `;
+
+          // 기본값 설정
+          const values = [
+            guildId,                      // guild_id
+            `STANDALONE_${forumPostId}`,  // voice_channel_id (고유화)
+            forumPostId,                  // forum_post_id
+            config.FORUM_CHANNEL_ID,      // forum_channel_id (포럼이 생성된 채널 ID)
+            'standalone',                 // forum_state
+            true,                         // auto_track_enabled
+            true,                         // is_active
+            '[]',                         // participant_message_ids
+            '[]'                          // emoji_reaction_message_ids
+          ];
+
+          const result = await this.pool.query(insertQuery, values);
+          
+          if (result.rows.length > 0) {
+            logger.info('기본 포럼 레코드 생성 성공', {
+              forumPostId,
+              guildId,
+              forum_state: result.rows[0].forum_state,
+              conflictStrategy: conflictClause.split(' ')[0] + ' ' + conflictClause.split(' ')[1]
+            });
+            return result.rows[0];
+          } else if (isDoNothing) {
+            // DO NOTHING 인 경우 삽입되지 않았을 수 있으니 기존 레코드 조회
+            logger.info('중복 레코드로 인해 삽입 생략, 기존 레코드 조회', { forumPostId });
+            const existingQuery = `SELECT * FROM post_integrations WHERE forum_post_id = $1 LIMIT 1`;
+            const existingResult = await this.pool.query(existingQuery, [forumPostId]);
+            return existingResult.rows[0] || null;
+          }
+          
+          break; // 성공하면 루프 종료
+          
+        } catch (error) {
+          lastError = error;
+          logger.warn(`포럼 레코드 생성 실패 (${i+1}/${conflictStrategies.length} 시도)`, {
+            forumPostId,
+            conflictStrategy: conflictClause.split(' ')[0] + ' ' + conflictClause.split(' ')[1],
+            error: error.message,
+            code: error.code
+          });
+          
+          if (i === conflictStrategies.length - 1) {
+            // 모든 시도 실패
+            throw lastError;
+          }
+          
+          continue; // 다음 전략 시도
+        }
       }
-      
-      return null;
+
       
     } catch (error) {
       logger.error('기본 포럼 레코드 생성 실패', {
@@ -1304,6 +1377,105 @@ export class DatabaseManager {
         code: error.code
       });
       return false;
+    }
+  }
+
+  // ======== 추가된 메서드들 (activityTracker 호환성) ========
+  
+  /**
+   * 사용자의 현재 월 총 활동 분 조회
+   * @param {string} userId - 사용자 ID
+   * @param {string} guildId - 길드 ID
+   * @returns {Promise<number>} - 총 활동 분
+   */
+  async getUserTotalActivityMinutes(userId, guildId) {
+    try {
+      // 현재 월 기준으로 테이블 이름 생성
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const tableName = `user_activities_${year}${month}`;
+
+      const result = await this.query(`
+          SELECT total_voice_minutes
+          FROM ${tableName}
+          WHERE user_id = $1 AND guild_id = $2
+      `, [userId, guildId]);
+
+      const totalMinutes = result.rows[0]?.total_voice_minutes || 0;
+      
+      logger.debug('사용자 총 활동 분 조회', {
+        userId,
+        guildId,
+        tableName,
+        totalMinutes
+      });
+
+      return totalMinutes;
+    } catch (error) {
+      if (error.code === '42P01') {
+        logger.debug('월별 테이블 존재하지 않음 (정상)', {
+          method: 'getUserTotalActivityMinutes',
+          userId,
+          guildId
+        });
+        return 0;
+      }
+      logger.error('사용자 총 활동 분 조회 실패', {
+        method: 'getUserTotalActivityMinutes',
+        userId,
+        guildId,
+        error: error.message
+      });
+      return 0;
+    }
+  }
+
+  /**
+   * 현재 월의 모든 활성 사용자 활동 데이터 조회
+   * @param {string} guildId - 길드 ID
+   * @returns {Promise<Array>} - 활성 사용자 배열
+   */
+  async getAllActiveUsersThisMonth(guildId) {
+    try {
+      // 현재 월 기준으로 테이블 이름 생성
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = (now.getMonth() + 1).toString().padStart(2, '0');
+      const tableName = `user_activities_${year}${month}`;
+
+      const result = await this.query(`
+          SELECT 
+              user_id as "userId",
+              username as "nickname",
+              total_voice_minutes as "totalMinutes"
+          FROM ${tableName}
+          WHERE guild_id = $1 
+            AND total_voice_minutes > 0
+          ORDER BY total_voice_minutes DESC
+      `, [guildId]);
+
+      logger.debug('현재 월 활성 사용자 조회', {
+        guildId,
+        tableName,
+        userCount: result.rows.length
+      });
+
+      return result.rows;
+    } catch (error) {
+      if (error.code === '42P01') {
+        logger.debug('월별 테이블 존재하지 않음 (정상)', {
+          method: 'getAllActiveUsersThisMonth',
+          guildId
+        });
+        return [];
+      }
+      logger.error('현재 월 활성 사용자 조회 실패', {
+        method: 'getAllActiveUsersThisMonth',
+        guildId,
+        error: error.message
+      });
+      return [];
     }
   }
 }
