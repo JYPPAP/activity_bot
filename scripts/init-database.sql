@@ -8,9 +8,9 @@
 
 -- 1. 사용자 정보 테이블 (잠수 상태 관리 포함)
 CREATE TABLE IF NOT EXISTS users (
-    user_id VARCHAR(20) PRIMARY KEY,
+    user_id VARCHAR(50) PRIMARY KEY,
     username VARCHAR(100) NOT NULL,
-    guild_id VARCHAR(20) NOT NULL,
+    guild_id VARCHAR(50) NOT NULL,
     first_joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     
     -- 잠수 상태 관리 (기존 afk_status 테이블 통합)
@@ -23,11 +23,11 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- 2. 길드 설정 테이블
 CREATE TABLE IF NOT EXISTS guild_settings (
-    guild_id VARCHAR(20) PRIMARY KEY,
+    guild_id VARCHAR(50) PRIMARY KEY,
     guild_name VARCHAR(200),
     game_roles JSONB DEFAULT '[]'::jsonb,
-    log_channel_id VARCHAR(20),
-    report_channel_id VARCHAR(20),
+    log_channel_id VARCHAR(50),
+    report_channel_id VARCHAR(50),
     excluded_voice_channels JSONB DEFAULT '{"type1": [], "type2": []}'::jsonb,
     activity_tiers JSONB DEFAULT '{
         "tier1": {"min": 30, "max": null},
@@ -45,10 +45,10 @@ CREATE TABLE IF NOT EXISTS guild_settings (
 
 -- 3. 포스트 연동 + 포럼 메시지 통합 테이블
 CREATE TABLE IF NOT EXISTS post_integrations (
-    guild_id VARCHAR(20) NOT NULL,
-    voice_channel_id VARCHAR(20) NOT NULL,
-    forum_post_id VARCHAR(20) NOT NULL,        -- 포럼 포스트(스레드) ID
-    forum_channel_id VARCHAR(20) NOT NULL,     -- 포럼 채널 ID
+    guild_id VARCHAR(50) NOT NULL,
+    voice_channel_id VARCHAR(50) NOT NULL,
+    forum_post_id VARCHAR(50) NOT NULL,        -- 포럼 포스트(스레드) ID
+    forum_channel_id VARCHAR(50) NOT NULL,     -- 포럼 채널 ID
     
     -- 포럼 메시지 추적 (기존 forum_messages 통합)
     participant_message_ids JSONB DEFAULT '[]'::jsonb,    -- 참가자 수 메시지 ID들
@@ -59,7 +59,7 @@ CREATE TABLE IF NOT EXISTS post_integrations (
     forum_state VARCHAR(20) DEFAULT 'created',            -- 포럼 상태: created, voice_pending, voice_linked, standalone, archived
     voice_linked_at TIMESTAMP NULL,                       -- 음성 채널 연동 시점
     auto_track_enabled BOOLEAN DEFAULT true,              -- 자동 추적 활성화 여부
-    link_requested_by VARCHAR(20) NULL,                   -- 연동 요청자 ID
+    link_requested_by VARCHAR(50) NULL,                   -- 연동 요청자 ID
     
     -- 연동 상태 및 아카이빙 관리
     is_active BOOLEAN DEFAULT true,             -- 연동 활성 상태
@@ -103,8 +103,8 @@ BEGIN
     ) THEN
         EXECUTE format($fmt$
             CREATE TABLE %I (
-                guild_id VARCHAR(20) NOT NULL,
-                user_id VARCHAR(20) NOT NULL,
+                guild_id VARCHAR(50) NOT NULL,
+                user_id VARCHAR(50) NOT NULL,
                 username VARCHAR(100) NOT NULL,
                 daily_voice_minutes JSONB DEFAULT '{}'::jsonb, -- {"01": 120, ...}
                 total_voice_minutes INTEGER DEFAULT 0,
