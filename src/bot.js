@@ -219,9 +219,9 @@ export class Bot {
     logger.info('봇 종료 프로세스 시작');
 
     try {
-      // 남은 활동 데이터 저장
-      await this.activityTracker.saveActivityData();
-      logger.info('활동 데이터 저장 완료');
+      // 주기적 저장 중단 및 최종 활동 데이터 저장
+      await this.activityTracker.finalSaveAndCleanup();
+      logger.info('활동 데이터 최종 저장 완료');
 
       // DI Container 및 모든 리소스 해제
       await disposeContainer(this.container);

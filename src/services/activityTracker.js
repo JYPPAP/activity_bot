@@ -9,6 +9,8 @@ export class ActivityTracker {
     this.logService = logService;
     // 현재 활성 세션만 메모리에 저장 (userId -> {startTime, displayName})
     this.activeSessions = new Map();
+    // 주기적 저장 타이머
+    this.periodicSaveInterval = null;
   }
 
   /**
@@ -37,6 +39,9 @@ export class ActivityTracker {
       }
 
       console.log(`${this.activeSessions.size}명의 활성 세션을 복구했습니다.`);
+      
+      // 주기적 저장 시작
+      this.startPeriodicSaving();
     } catch (error) {
       console.error('활성 세션 로드 오류:', error);
     }
@@ -522,5 +527,98 @@ export class ActivityTracker {
       return Math.floor(sessionDuration / (1000 * 60));
     }
     return 0;
+  }
+
+  /**
+   * 현재 활성 세션들을 주기적으로 DB에 저장 (10분마다 실행)
+   */
+  async saveActiveSessionsToDB() {
+    if (this.activeSessions.size === 0) {
+      console.log('[ActivityTracker] 활성 세션이 없어 주기적 저장을 건너뜁니다.');
+      return;
+    }
+
+    const now = Date.now();
+    const savedCount = [];
+
+    console.log(`[ActivityTracker] ${this.activeSessions.size}개의 활성 세션 주기적 저장 시작...`);
+
+    for (const [userId, session] of this.activeSessions.entries()) {
+      try {
+        const sessionDuration = now - session.startTime;
+        const minutes = Math.floor(sessionDuration / (1000 * 60));
+        
+        if (minutes > 0) {
+          // DB에 누적 시간 저장
+          await this.saveSessionActivity(userId, sessionDuration, session.displayName);
+          
+          // 세션 시작 시간을 현재 시간으로 재설정 (누적 저장 방식)
+          session.startTime = now;
+          savedCount.push({ userId, displayName: session.displayName, minutes });
+          
+          console.log(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료`);
+        }
+      } catch (error) {
+        console.error(`[ActivityTracker] 사용자 ${userId} 세션 저장 실패:`, error);
+      }
+    }
+
+    console.log(`[ActivityTracker] 주기적 저장 완료: ${savedCount.length}명 처리됨`);
+  }
+
+  /**
+   * 10분마다 주기적 저장을 시작
+   */
+  startPeriodicSaving() {
+    if (this.periodicSaveInterval) {
+      console.log('[ActivityTracker] 주기적 저장이 이미 실행 중입니다.');
+      return;
+    }
+
+    // 10분 = 600,000ms
+    const SAVE_INTERVAL = 10 * 60 * 1000;
+    
+    this.periodicSaveInterval = setInterval(async () => {
+      try {
+        await this.saveActiveSessionsToDB();
+      } catch (error) {
+        console.error('[ActivityTracker] 주기적 저장 중 오류 발생:', error);
+      }
+    }, SAVE_INTERVAL);
+
+    console.log('[ActivityTracker] 10분마다 주기적 저장 시작됨');
+  }
+
+  /**
+   * 주기적 저장 중지
+   */
+  stopPeriodicSaving() {
+    if (this.periodicSaveInterval) {
+      clearInterval(this.periodicSaveInterval);
+      this.periodicSaveInterval = null;
+      console.log('[ActivityTracker] 주기적 저장이 중지되었습니다.');
+    }
+  }
+
+  /**
+   * 봇 종료 시 모든 활성 세션의 최종 저장
+   */
+  async finalSaveAndCleanup() {
+    try {
+      console.log('[ActivityTracker] 최종 세션 저장 시작...');
+      
+      // 주기적 저장 중지
+      this.stopPeriodicSaving();
+      
+      // 최종 저장
+      await this.saveActiveSessionsToDB();
+      
+      // 세션 정리
+      this.activeSessions.clear();
+      
+      console.log('[ActivityTracker] 최종 저장 및 정리 완료');
+    } catch (error) {
+      console.error('[ActivityTracker] 최종 저장 중 오류:', error);
+    }
   }
 }
