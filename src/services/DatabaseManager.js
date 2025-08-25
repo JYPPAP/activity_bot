@@ -610,10 +610,10 @@ export class DatabaseManager {
     try {
       const result = await this.query(`
           INSERT INTO post_integrations (guild_id, voice_channel_id, forum_post_id, forum_channel_id)
-          VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, voice_channel_id) 
+          VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, forum_post_id) 
         DO
           UPDATE SET
-              forum_post_id = EXCLUDED.forum_post_id,
+              voice_channel_id = EXCLUDED.voice_channel_id,
               forum_channel_id = EXCLUDED.forum_channel_id,
               is_active = true,
               updated_at = CURRENT_TIMESTAMP
