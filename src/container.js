@@ -78,7 +78,9 @@ export function createDIContainer(client) {
   // === 4. 도메인 서비스 계층 ===
   container.register({
     voiceChannelManager: asClass(VoiceChannelManager).singleton(),
-    forumPostManager: asClass(ForumPostManager).singleton(),
+    forumPostManager: asFunction((client, forumChannelId, forumTagId, dbManager) =>
+      new ForumPostManager(client, forumChannelId, forumTagId, dbManager)
+    ).singleton(),
     mappingService: asClass(MappingService).singleton(),
     userClassificationService: asClass(UserClassificationService).singleton(),
   });
