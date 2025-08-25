@@ -453,6 +453,12 @@ export class MappingService {
           continue;
         }
         
+        // STANDALONE 채널은 실제 Discord 채널이 아니므로 건너뛰기
+        if (voice_channel_id.startsWith('STANDALONE_')) {
+          console.log(`[MappingService] STANDALONE 채널 건너뛰기: ${voice_channel_id}`);
+          continue;
+        }
+        
         try {
           // 음성 채널과 포럼 포스트가 여전히 존재하는지 확인
           let voiceChannelInfo = null;
