@@ -87,8 +87,36 @@ export function createDIContainer(client) {
   container.register({
     recruitmentService: asClass(RecruitmentService).singleton(),
     emojiReactionService: asClass(EmojiReactionService).singleton(),
-    // asClass로 변경하여 복잡성 제거
-    voiceChannelForumIntegrationService: asClass(VoiceChannelForumIntegrationService).singleton(),
+    // 객체 구조분해 할당을 위해 asFunction 사용
+    voiceChannelForumIntegrationService: asFunction((
+        client,
+        forumChannelId,
+        voiceCategoryId,
+        dbManager,
+        voiceChannelManager,
+        forumPostManager,
+        participantTracker,
+        mappingService,
+        recruitmentService,
+        modalHandler,
+        buttonHandler,
+        interactionRouter
+      ) =>
+        new VoiceChannelForumIntegrationService({
+          client,
+          forumChannelId,
+          voiceCategoryId,
+          dbManager,
+          voiceChannelManager,
+          forumPostManager,
+          participantTracker,
+          mappingService,
+          recruitmentService,
+          modalHandler,
+          buttonHandler,
+          interactionRouter,
+        })
+    ).singleton(),
   });
 
   // === 6. UI 계층 ===
