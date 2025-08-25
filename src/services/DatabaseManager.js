@@ -943,12 +943,11 @@ export class DatabaseManager {
       // 실제 길드 ID 사용 (config에서)
       const guildId = config.GUILDID || 'UNKNOWN_GUILD';
       
-      // 여러 ON CONFLICT 패턴 시도
+      // 실제 제약조건에 맞는 ON CONFLICT 패턴 시도
       const conflictStrategies = [
-        // 가능한 PK 조합들 시도
-        'ON CONFLICT (forum_post_id) DO UPDATE SET',
+        // 실제 테이블 제약조건: PRIMARY KEY(guild_id, voice_channel_id), UNIQUE(guild_id, forum_post_id)
+        'ON CONFLICT (guild_id, voice_channel_id) DO UPDATE SET',
         'ON CONFLICT (guild_id, forum_post_id) DO UPDATE SET', 
-        'ON CONFLICT (voice_channel_id, forum_post_id) DO UPDATE SET',
         'ON CONFLICT DO NOTHING' // 마지막 시도로 중복 시 무시
       ];
 
