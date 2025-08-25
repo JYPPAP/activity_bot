@@ -6,13 +6,13 @@ import {SafeInteraction} from '../utils/SafeInteraction.js';
 import { logger } from '../config/logger-termux.js';
 
 export class CommandHandler {
-  constructor(client, activityTracker, dbManager, voiceForumService, userClassificationService,
+  constructor(client, activityTracker, dbManager, voiceChannelForumIntegrationService, userClassificationService,
               gapConfigCommand, timeConfirmCommand, timeCheckCommand, gapReportCommand, gapAfkCommand,
               recruitmentCommand, nicknameCommand) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
-    this.voiceForumService = voiceForumService;
+    this.voiceChannelForumIntegrationService = voiceChannelForumIntegrationService;
     this.userClassificationService = userClassificationService;
 
     this.commands = new Map();
@@ -64,7 +64,7 @@ export class CommandHandler {
     
     // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
     if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
-      await this.voiceForumService.handleInteraction(interaction);
+      await this.voiceChannelForumIntegrationService.handleInteraction(interaction);
       return;
     }
   }
