@@ -81,7 +81,9 @@ export function createDIContainer(client) {
     forumPostManager: asFunction((client, forumChannelId, forumTagId, dbManager) =>
       new ForumPostManager(client, forumChannelId, forumTagId, dbManager)
     ).singleton(),
-    mappingService: asClass(MappingService).singleton(),
+    mappingService: asFunction((client, voiceChannelManager, forumPostManager, dbManager) =>
+      new MappingService(client, voiceChannelManager, forumPostManager, dbManager)
+    ).singleton(),
     userClassificationService: asClass(UserClassificationService).singleton(),
   });
 
