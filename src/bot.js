@@ -80,6 +80,19 @@ export class Bot {
         // 매핑 초기화 실패해도 봇 전체는 계속 실행
       }
 
+      // EmojiReactionService 초기화 (기존 참가자 캐시 복구)
+      try {
+        logger.info('이모지 반응 서비스 초기화 시작');
+        await this.emojiReactionService.initialize();
+        logger.info('이모지 반응 서비스 초기화 완료');
+      } catch (error) {
+        logger.error('이모지 반응 서비스 초기화 실패', {
+          error: error.message,
+          stack: error.stack
+        });
+        // 이모지 반응 서비스 초기화 실패해도 봇 전체는 계속 실행
+      }
+
     });
   }
 

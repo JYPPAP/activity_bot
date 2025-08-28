@@ -1502,4 +1502,217 @@ export class DatabaseManager {
       return [];
     }
   }
+
+  /**
+   * 포럼 매핑 정보를 확실히 저장하는 메서드 (ensureForumMapping)
+   * @param {string} voiceChannelId - 음성 채널 ID (또는 STANDALONE_포럼ID)
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @param {string} forumState - 포럼 상태 ('created', 'voice_linked', 'standalone')
+   * @param {boolean} isActive - 활성 상태
+   * @param {Object|null} recruitmentData - 구인구직 데이터 (옵션)
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async ensureForumMapping(voiceChannelId, forumPostId, forumState = 'standalone', isActive = true, recruitmentData = null) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'ensureForumMapping' });
+      return false;
+    }
+
+    if (!voiceChannelId || !forumPostId) {
+      logger.error('필수 파라미터 누락', { 
+        method: 'ensureForumMapping',
+        voiceChannelId: !!voiceChannelId,
+        forumPostId: !!forumPostId
+      });
+      return false;
+    }
+
+    try {
+      const guildId = config.GUILDID || 'UNKNOWN_GUILD';
+      
+      // UPSERT 방식으로 매핑 정보 저장
+      const query = `
+        INSERT INTO post_integrations (
+          guild_id, 
+          voice_channel_id, 
+          forum_post_id, 
+          forum_channel_id,
+          forum_state,
+          auto_track_enabled,
+          is_active,
+          participant_message_ids,
+          emoji_reaction_message_ids,
+          recruitment_data
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        )
+        ON CONFLICT (guild_id, voice_channel_id) 
+        DO UPDATE SET
+          forum_post_id = EXCLUDED.forum_post_id,
+          forum_state = EXCLUDED.forum_state,
+          auto_track_enabled = EXCLUDED.auto_track_enabled,
+          is_active = EXCLUDED.is_active,
+          recruitment_data = EXCLUDED.recruitment_data,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
+      `;
+
+      const values = [
+        guildId,                         // guild_id
+        voiceChannelId,                  // voice_channel_id
+        forumPostId,                     // forum_post_id
+        config.FORUM_CHANNEL_ID,         // forum_channel_id
+        forumState,                      // forum_state
+        true,                            // auto_track_enabled
+        isActive,                        // is_active
+        '[]',                            // participant_message_ids
+        '[]',                            // emoji_reaction_message_ids
+        recruitmentData ? JSON.stringify(recruitmentData) : null  // recruitment_data
+      ];
+
+      const result = await this.pool.query(query, values);
+      
+      if (result.rows.length > 0) {
+        logger.info('포럼 매핑 저장 성공', {
+          voiceChannelId,
+          forumPostId,
+          forumState,
+          isActive,
+          operation: result.rows[0].created_at === result.rows[0].updated_at ? 'INSERT' : 'UPDATE'
+        });
+        this.invalidateCache(); // 캐시 무효화
+        return true;
+      }
+      
+      logger.warn('포럼 매핑 저장 실패: 결과 없음', {
+        voiceChannelId,
+        forumPostId,
+        forumState
+      });
+      return false;
+      
+    } catch (error) {
+      logger.error('포럼 매핑 저장 오류', {
+        method: 'ensureForumMapping',
+        voiceChannelId,
+        forumPostId,
+        forumState,
+        isActive,
+        error: error.message,
+        code: error.code
+      });
+      return false;
+    }
+  }
+
+  /**
+   * 포럼 상태 기반으로 활성 매핑 조회
+   * @param {Array<string>} forumStates - 조회할 포럼 상태 배열 ['created', 'voice_linked', 'standalone']
+   * @param {boolean} activeOnly - 활성 상태만 조회할지 여부 (기본값: true)
+   * @returns {Promise<Array>} - 매핑 목록
+   */
+  async getActiveMappingsByForumState(forumStates = ['created', 'voice_linked', 'standalone'], activeOnly = true) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'getActiveMappingsByForumState' });
+      return [];
+    }
+
+    try {
+      let query = `
+        SELECT 
+          voice_channel_id,
+          forum_post_id,
+          forum_state,
+          is_active,
+          auto_track_enabled,
+          voice_linked_at,
+          created_at,
+          updated_at
+        FROM post_integrations
+        WHERE forum_state = ANY($1::text[])
+      `;
+      
+      const params = [forumStates];
+      
+      if (activeOnly) {
+        query += ` AND is_active = true`;
+      }
+      
+      query += ` ORDER BY created_at DESC`;
+
+      const result = await this.pool.query(query, params);
+      
+      logger.debug('포럼 상태별 활성 매핑 조회', {
+        forumStates,
+        activeOnly,
+        foundCount: result.rows.length
+      });
+      
+      return result.rows;
+      
+    } catch (error) {
+      logger.error('포럼 상태별 활성 매핑 조회 오류', {
+        method: 'getActiveMappingsByForumState',
+        forumStates,
+        activeOnly,
+        error: error.message,
+        code: error.code
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 포럼 정보 조회 (Discord API 검증용)
+   * @param {string} forumPostId - 포럼 포스트 ID
+   * @returns {Promise<Object|null>} - 포럼 정보 (archived, locked 상태 포함)
+   */
+  async getForumPostInfo(forumPostId) {
+    if (!this.isInitialized) {
+      logger.error('데이터베이스 초기화되지 않음', { method: 'getForumPostInfo' });
+      return null;
+    }
+
+    try {
+      const query = `
+        SELECT 
+          forum_post_id,
+          voice_channel_id,
+          forum_state,
+          is_active,
+          auto_track_enabled,
+          voice_linked_at,
+          created_at,
+          updated_at,
+          recruitment_data
+        FROM post_integrations
+        WHERE forum_post_id = $1
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+
+      const result = await this.pool.query(query, [forumPostId]);
+      
+      if (result.rows.length > 0) {
+        logger.debug('포럼 정보 조회 성공', {
+          forumPostId,
+          forum_state: result.rows[0].forum_state,
+          is_active: result.rows[0].is_active
+        });
+        return result.rows[0];
+      }
+      
+      logger.debug('포럼 정보 없음', { forumPostId });
+      return null;
+      
+    } catch (error) {
+      logger.error('포럼 정보 조회 오류', {
+        method: 'getForumPostInfo',
+        forumPostId,
+        error: error.message,
+        code: error.code
+      });
+      return null;
+    }
+  }
 }

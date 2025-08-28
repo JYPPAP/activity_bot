@@ -453,10 +453,11 @@ export class MappingService {
           continue;
         }
         
-        // STANDALONE 채널은 실제 Discord 채널이 아니므로 건너뛰기
+        // STANDALONE 채널 처리: 포럼이 활성 상태인지 확인
+        let isStandalone = false;
         if (voice_channel_id.startsWith('STANDALONE_')) {
-          console.log(`[MappingService] STANDALONE 채널 건너뛰기: ${voice_channel_id}`);
-          continue;
+          isStandalone = true;
+          console.log(`[MappingService] STANDALONE 채널 발견: ${voice_channel_id}, 포럼 상태 확인 중...`);
         }
         
         try {
@@ -467,17 +468,28 @@ export class MappingService {
           let postCheckFailed = false;
 
           // 개별적으로 API 호출하여 세밀한 오류 처리
-          try {
-            voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id);
-          } catch (channelError) {
-            channelCheckFailed = true;
-            console.warn(`[MappingService] 채널 정보 확인 실패: ${voice_channel_id}`, channelError.message);
-            
-            // 토큰 관련 오류인 경우 더 이상 진행하지 않음
-            if (channelError.message?.includes('token') || channelError.message?.includes('Token')) {
-              console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
-              throw new Error('Discord API 토큰 오류');
+          // STANDALONE 채널의 경우 실제 음성 채널 확인을 건너뛰기
+          if (!isStandalone) {
+            try {
+              voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id);
+            } catch (channelError) {
+              channelCheckFailed = true;
+              console.warn(`[MappingService] 채널 정보 확인 실패: ${voice_channel_id}`, channelError.message);
+              
+              // 토큰 관련 오류인 경우 더 이상 진행하지 않음
+              if (channelError.message?.includes('token') || channelError.message?.includes('Token')) {
+                console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
+                throw new Error('Discord API 토큰 오류');
+              }
             }
+          } else {
+            // STANDALONE 채널의 경우 가상의 채널 정보 생성
+            voiceChannelInfo = {
+              id: voice_channel_id,
+              name: `독립형 포럼 (${forum_post_id})`,
+              isStandalone: true
+            };
+            console.log(`[MappingService] STANDALONE 채널 가상 정보 생성: ${voice_channel_id}`);
           }
 
           try {
@@ -494,7 +506,17 @@ export class MappingService {
           }
 
           // 매핑 유효성 판단
-          const isValidMapping = voiceChannelInfo && postInfo && !postInfo.archived && !channelCheckFailed && !postCheckFailed;
+          let isValidMapping;
+          
+          if (isStandalone) {
+            // STANDALONE 채널: 포럼이 존재하고 활성 상태인지만 확인
+            isValidMapping = postInfo && !postInfo.archived && !postInfo.locked && !postCheckFailed;
+            console.log(`[MappingService] STANDALONE 매핑 유효성 검사: ${voice_channel_id} -> 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 잠김:${postInfo?.locked}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
+          } else {
+            // 일반 채널: 기존 로직 유지
+            isValidMapping = voiceChannelInfo && postInfo && !postInfo.archived && !channelCheckFailed && !postCheckFailed;
+            console.log(`[MappingService] 일반 매핑 유효성 검사: ${voice_channel_id} -> 채널존재:${!!voiceChannelInfo}, 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 채널체크실패:${channelCheckFailed}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
+          }
 
           if (isValidMapping) {
             // 유효한 매핑인 경우 메모리에 로드
@@ -503,13 +525,17 @@ export class MappingService {
               this.lastParticipantCounts.set(voice_channel_id, last_participant_count);
             }
             validatedCount++;
-            console.log(`[MappingService] 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
+            const mappingType = isStandalone ? 'STANDALONE' : '일반';
+            console.log(`[MappingService] ${mappingType} 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
           } else {
             // 유효하지 않은 매핑인 경우 데이터베이스에서 제거
             try {
               await this.databaseManager.removeChannelMapping(voice_channel_id);
               removedCount++;
-              console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} (채널체크실패: ${channelCheckFailed}, 포스트체크실패: ${postCheckFailed}, 채널존재: ${!!voiceChannelInfo}, 포스트존재: ${!!postInfo}, 아카이브됨: ${postInfo?.archived})`);
+              const reason = isStandalone ? 
+                `(포럼체크실패: ${postCheckFailed}, 포럼존재: ${!!postInfo}, 아카이브: ${postInfo?.archived}, 잠김: ${postInfo?.locked})` :
+                `(채널체크실패: ${channelCheckFailed}, 포스트체크실패: ${postCheckFailed}, 채널존재: ${!!voiceChannelInfo}, 포럼존재: ${!!postInfo}, 아카이브: ${postInfo?.archived})`;
+              console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} ${reason}`);
             } catch (removeError) {
               console.error(`[MappingService] 매핑 제거 실패: ${voice_channel_id}`, removeError);
             }

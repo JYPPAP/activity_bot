@@ -14,6 +14,76 @@ export class EmojiReactionService {
   }
 
   /**
+   * 서비스 초기화 - 기존 포럼의 참가자 정보 복구
+   * @returns {Promise<void>}
+   */
+  async initialize() {
+    try {
+      console.log('[EmojiReactionService] 서비스 초기화 시작...');
+      
+      // 데이터베이스에서 모든 활성 포럼 레코드 조회
+      const databaseManager = this.forumPostManager.databaseManager;
+      if (!databaseManager) {
+        console.warn('[EmojiReactionService] DatabaseManager를 사용할 수 없어 초기화를 건너뜁니다.');
+        return;
+      }
+      
+      // post_integrations에서 활성 상태인 모든 포럼 가져오기
+      const query = `
+        SELECT forum_post_id, forum_state, is_active, created_at
+        FROM post_integrations 
+        WHERE is_active = true 
+        AND forum_state IN ('created', 'voice_linked', 'standalone')
+        ORDER BY created_at DESC
+      `;
+      
+      const result = await databaseManager.query(query);
+      const activeForums = result.rows || [];
+      
+      console.log(`[EmojiReactionService] ${activeForums.length}개의 활성 포럼 발견`);
+      
+      let restoredCount = 0;
+      
+      for (const forum of activeForums) {
+        try {
+          const forumPostId = forum.forum_post_id;
+          console.log(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 정보 복구 시작...`);
+          
+          // 포럼 스레드가 존재하는지 확인
+          const channel = await this.client.channels.fetch(forumPostId).catch(() => null);
+          if (!channel || !this.isForumThread(channel)) {
+            console.warn(`[EmojiReactionService] 포럼 스레드를 찾을 수 없음: ${forumPostId}`);
+            continue;
+          }
+          
+          if (channel.archived) {
+            console.log(`[EmojiReactionService] 아카이브된 포럼 건너뛰기: ${forumPostId}`);
+            continue;
+          }
+          
+          // 해당 포럼의 모든 메시지 검색하여 타겟 이모지 반응 찾기
+          const participants = await this.findExistingParticipants(channel);
+          if (participants.length > 0) {
+            this.previousParticipants.set(forumPostId, participants);
+            restoredCount++;
+            console.log(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 ${participants.length}명 복구 완료`);
+          } else {
+            console.log(`[EmojiReactionService] 포럼 ${forumPostId} 기존 참가자 없음`);
+          }
+          
+        } catch (error) {
+          console.error(`[EmojiReactionService] 포럼 ${forum.forum_post_id} 참가자 복구 실패:`, error);
+        }
+      }
+      
+      console.log(`[EmojiReactionService] 초기화 완료: ${restoredCount}개 포럼의 참가자 정보 복구`);
+      
+    } catch (error) {
+      console.error('[EmojiReactionService] 초기화 오류:', error);
+    }
+  }
+
+  /**
    * 이모지 반응 추가 이벤트 처리
    * @param {MessageReaction} reaction - 반응 객체
    * @param {User} user - 반응한 사용자
@@ -354,6 +424,65 @@ export class EmojiReactionService {
       
     } catch (error) {
       console.error('[EmojiReactionService] 참가자 변화 처리 오류:', error);
+    }
+  }
+
+  /**
+   * 포럼 채널에서 기존 참가자 정보를 추출합니다.
+   * @param {Channel} channel - 포럼 스레드 채널
+   * @returns {Promise<Array<string>>} - 참가자 닉네임 배열
+   */
+  async findExistingParticipants(channel) {
+    try {
+      console.log(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 정보 추출 중...`);
+      
+      // 스레드의 메시지들 조회 (최근 100개)
+      const messages = await channel.messages.fetch({ limit: 100 });
+      const participants = new Set();
+
+      // 각 메시지의 이모지 반응 확인
+      for (const message of messages.values()) {
+        for (const reaction of message.reactions.cache.values()) {
+          // 대상 이모지인지 확인
+          if (this.isTargetEmoji(reaction)) {
+            console.log(`[EmojiReactionService] 메시지 ${message.id}에서 대상 이모지 발견`);
+            
+            try {
+              // 반응한 사용자들 가져오기
+              const users = await reaction.users.fetch();
+              
+              for (const user of users.values()) {
+                if (!user.bot) { // 봇은 제외
+                  try {
+                    const member = await channel.guild.members.fetch(user.id);
+                    if (member) {
+                      const displayName = member.displayName || member.user.username;
+                      // 닉네임 정리 (태그 제거)
+                      const cleanedName = TextProcessor.cleanNickname(displayName);
+                      participants.add(cleanedName);
+                    }
+                  } catch (memberError) {
+                    // 멤버를 가져오지 못한 경우 전역 닉네임 사용
+                    const cleanedName = TextProcessor.cleanNickname(user.displayName || user.username);
+                    participants.add(cleanedName);
+                  }
+                }
+              }
+            } catch (reactionError) {
+              console.warn(`[EmojiReactionService] 반응 처리 실패:`, reactionError.message);
+            }
+          }
+        }
+      }
+
+      const participantArray = Array.from(participants);
+      console.log(`[EmojiReactionService] ${channel.id} 포럼에서 ${participantArray.length}명의 기존 참가자 발견:`, participantArray);
+      
+      return participantArray;
+      
+    } catch (error) {
+      console.error(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 정보 추출 실패:`, error);
+      return [];
     }
   }
 }

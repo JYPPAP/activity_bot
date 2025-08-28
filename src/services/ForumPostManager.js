@@ -105,6 +105,24 @@ export class ForumPostManager {
         console.warn('[ForumPostManager] 참가 안내 메시지 추가 실패:', guideError.message);
       }
       
+      // 독립형 포럼의 경우 데이터베이스에 매핑 정보 저장
+      if (!voiceChannelId && this.databaseManager) {
+        try {
+          const mappingKey = `STANDALONE_${thread.id}`;
+          await this.databaseManager.ensureForumMapping(
+            mappingKey,       // voice_channel_id (STANDALONE_ prefix)
+            thread.id,        // forum_post_id
+            'standalone',     // forum_state
+            true,            // is_active
+            null             // recruitment_data (null for now)
+          );
+          console.log(`[ForumPostManager] 독립형 포럼 매핑 저장 완료: ${mappingKey} -> ${thread.id}`);
+        } catch (mappingError) {
+          console.warn('[ForumPostManager] 독립형 포럼 매핑 저장 실패:', mappingError.message);
+          // 매핑 실패해도 포럼 생성은 성공으로 처리
+        }
+      }
+
       console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return { success: true, postId: thread.id };
       
