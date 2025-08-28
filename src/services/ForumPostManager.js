@@ -3,7 +3,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
-import { formatParticipantList } from '../utils/formatters.js';
+import { formatParticipantList, formatParticipantChangeMessage } from '../utils/formatters.js';
 
 export class ForumPostManager {
   constructor(client, forumChannelId, forumTagId, databaseManager = null) {
@@ -657,6 +657,51 @@ export class ForumPostManager {
       return true;
     } catch (error) {
       console.error(`[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 참가자 변화 알림 메시지를 전송합니다.
+   * @param {string} postId - 포스트 ID
+   * @param {Array<string>} joinedUsers - 참가한 사용자 닉네임 배열
+   * @param {Array<string>} leftUsers - 참가 취소한 사용자 닉네임 배열
+   * @returns {Promise<boolean>} - 성공 여부
+   */
+  async sendParticipantChangeNotification(postId, joinedUsers = [], leftUsers = []) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+      
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        return false;
+      }
+      
+      if (thread.archived) {
+        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        return false;
+      }
+
+      // 변화가 없으면 메시지를 보내지 않음
+      if (joinedUsers.length === 0 && leftUsers.length === 0) {
+        console.log(`[ForumPostManager] 참가자 변화가 없어 알림 메시지를 보내지 않음: ${postId}`);
+        return true;
+      }
+
+      // 참가자 변화 메시지 포맷팅
+      const changeMessage = formatParticipantChangeMessage(joinedUsers, leftUsers);
+      
+      // 메시지 전송
+      const sentMessage = await thread.send(changeMessage);
+      
+      // participant_change 타입으로 메시지 추적 (삭제하지 않는 타입)
+      await this._trackMessage(postId, 'participant_change', sentMessage.id);
+      
+      console.log(`[ForumPostManager] 참가자 변화 알림 메시지 전송 완료: ${postId} (참가: ${joinedUsers.length}명, 참가 취소: ${leftUsers.length}명)`);
+      return true;
+      
+    } catch (error) {
+      console.error(`[ForumPostManager] 참가자 변화 알림 메시지 전송 실패: ${postId}`, error);
       return false;
     }
   }

@@ -8,6 +8,9 @@ export class EmojiReactionService {
     
     // 감지할 이모지 ID
     this.targetEmojiId = '1319891512573689917';
+    
+    // 이전 참가자 목록을 저장하는 캐시 (channelId -> participants[])
+    this.previousParticipants = new Map();
   }
 
   /**
@@ -48,6 +51,9 @@ export class EmojiReactionService {
         console.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
         return;
       }
+
+      // 참가자 변화 감지 및 알림 메시지 전송
+      await this.handleParticipantChanges(fullReaction.message.channel.id, participants);
 
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       const success = await this.forumPostManager.sendEmojiParticipantUpdate(
@@ -103,6 +109,9 @@ export class EmojiReactionService {
         console.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
         return;
       }
+
+      // 참가자 변화 감지 및 알림 메시지 전송
+      await this.handleParticipantChanges(fullReaction.message.channel.id, participants);
 
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       const success = await this.forumPostManager.sendEmojiParticipantUpdate(
@@ -287,6 +296,64 @@ export class EmojiReactionService {
     } catch (error) {
       console.error('[EmojiReactionService] 메시지에서 참가자 가져오기 오류:', error);
       return null;
+    }
+  }
+
+  /**
+   * 참가자 목록의 변화를 감지합니다.
+   * @param {string} channelId - 채널 ID
+   * @param {Array<string>} currentParticipants - 현재 참가자 목록
+   * @returns {Object} - {joined: string[], left: string[]} 변화 정보
+   */
+  detectParticipantChanges(channelId, currentParticipants) {
+    const previousParticipants = this.previousParticipants.get(channelId) || [];
+    
+    // 새로 참가한 사용자들 (이전에 없었는데 현재에 있는)
+    const joinedUsers = currentParticipants.filter(user => !previousParticipants.includes(user));
+    
+    // 참가 취소한 사용자들 (이전에 있었는데 현재에 없는)
+    const leftUsers = previousParticipants.filter(user => !currentParticipants.includes(user));
+    
+    return { joined: joinedUsers, left: leftUsers };
+  }
+
+  /**
+   * 참가자 목록을 캐시에 저장합니다.
+   * @param {string} channelId - 채널 ID
+   * @param {Array<string>} participants - 참가자 목록
+   */
+  updateParticipantCache(channelId, participants) {
+    this.previousParticipants.set(channelId, [...participants]);
+  }
+
+  /**
+   * 참가자 변화를 처리하고 알림 메시지를 전송합니다.
+   * @param {string} channelId - 채널 ID
+   * @param {Array<string>} participants - 현재 참가자 목록
+   * @returns {Promise<void>}
+   */
+  async handleParticipantChanges(channelId, participants) {
+    try {
+      // 변화 감지
+      const changes = this.detectParticipantChanges(channelId, participants);
+      
+      // 변화가 있을 때만 알림 메시지 전송
+      if (changes.joined.length > 0 || changes.left.length > 0) {
+        console.log(`[EmojiReactionService] 참가자 변화 감지 - 참가: ${changes.joined.length}명, 참가 취소: ${changes.left.length}명`);
+        
+        // 변화 알림 메시지 전송
+        await this.forumPostManager.sendParticipantChangeNotification(
+          channelId,
+          changes.joined,
+          changes.left
+        );
+      }
+      
+      // 캐시 업데이트
+      this.updateParticipantCache(channelId, participants);
+      
+    } catch (error) {
+      console.error('[EmojiReactionService] 참가자 변화 처리 오류:', error);
     }
   }
 }

@@ -1164,13 +1164,8 @@ export class DatabaseManager {
       } else if (messageType === 'emoji_reaction') {
         columnName = 'emoji_reaction_message_ids';
       } else {
-        logger.warn('알 수 없는 메시지 타입', { 
-          method: 'trackForumMessage',
-          messageType,
-          threadId,
-          messageId
-        });
-        return false;
+        // 'participant_change' 또는 기타 타입은 other_message_types JSONB 컬럼 사용
+        columnName = 'other_message_types';
       }
 
       // 1. 포럼 레코드가 존재하는지 확인하고 없으면 생성
@@ -1186,14 +1181,32 @@ export class DatabaseManager {
       }
 
       // 2. 메시지 ID 추가
-      const query = `
-          UPDATE post_integrations
-          SET ${columnName} = COALESCE(${columnName}, '[]'::jsonb) || $2::jsonb,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE forum_post_id = $1 AND is_active = true
-      `;
+      let query, queryParams;
+      
+      if (columnName === 'other_message_types') {
+        // other_message_types JSONB 컬럼에 messageType별로 배열 저장
+        query = `
+            UPDATE post_integrations
+            SET other_message_types = COALESCE(other_message_types, '{}'::jsonb) ||
+                jsonb_build_object($3::text, 
+                  COALESCE(other_message_types->$3::text, '[]'::jsonb) || $2::jsonb
+                ),
+              updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId, JSON.stringify([messageId]), messageType];
+      } else {
+        // 기존 방식 (participant_message_ids, emoji_reaction_message_ids)
+        query = `
+            UPDATE post_integrations
+            SET ${columnName} = COALESCE(${columnName}, '[]'::jsonb) || $2::jsonb,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId, JSON.stringify([messageId])];
+      }
 
-      const result = await this.pool.query(query, [threadId, JSON.stringify([messageId])]);
+      const result = await this.pool.query(query, queryParams);
       
       if (result.rowCount > 0) {
         logger.debug('포럼 메시지 추적 저장 성공', {
@@ -1243,28 +1256,33 @@ export class DatabaseManager {
 
     try {
       // messageType에 따라 적절한 컬럼 선택
-      let columnName;
+      let query, queryParams;
+      
       if (messageType === 'participant_count') {
-        columnName = 'participant_message_ids';
+        query = `
+            SELECT participant_message_ids as message_ids
+            FROM post_integrations
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId];
       } else if (messageType === 'emoji_reaction') {
-        columnName = 'emoji_reaction_message_ids';
+        query = `
+            SELECT emoji_reaction_message_ids as message_ids
+            FROM post_integrations
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId];
       } else {
-        logger.warn('알 수 없는 메시지 타입', { 
-          method: 'getTrackedMessages',
-          messageType,
-          threadId
-        });
-        return [];
+        // 'participant_change' 또는 기타 타입은 other_message_types JSONB 컬럼에서 조회
+        query = `
+            SELECT other_message_types->$2::text as message_ids
+            FROM post_integrations
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId, messageType];
       }
 
-      const query = `
-          SELECT ${columnName} as message_ids
-          FROM post_integrations
-          WHERE forum_post_id = $1
-            AND is_active = true
-      `;
-
-      const result = await this.pool.query(query, [threadId]);
+      const result = await this.pool.query(query, queryParams);
 
       if (result.rows.length > 0 && result.rows[0].message_ids) {
         const messageIds = result.rows[0].message_ids;
@@ -1322,41 +1340,47 @@ export class DatabaseManager {
     }
 
     try {
-      // messageType에 따라 적절한 컬럼 선택
-      let columnName;
-      if (messageType === 'participant_count') {
-        columnName = 'participant_message_ids';
-      } else if (messageType === 'emoji_reaction') {
-        columnName = 'emoji_reaction_message_ids';
-      } else {
-        logger.warn('알 수 없는 메시지 타입', { 
-          method: 'clearTrackedMessages',
-          messageType,
-          threadId
-        });
-        return false;
-      }
-
       // 현재 추적된 메시지 수 확인 (로깅용)
       const currentMessages = await this.getTrackedMessages(threadId, messageType);
       const currentCount = currentMessages.length;
 
       // 해당 메시지 타입의 추적 정보 초기화
-      const query = `
-          UPDATE post_integrations
-          SET ${columnName} = '[]'::jsonb,
-            updated_at = CURRENT_TIMESTAMP
-          WHERE forum_post_id = $1 AND is_active = true
-      `;
+      let query, queryParams;
+      
+      if (messageType === 'participant_count') {
+        query = `
+            UPDATE post_integrations
+            SET participant_message_ids = '[]'::jsonb,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId];
+      } else if (messageType === 'emoji_reaction') {
+        query = `
+            UPDATE post_integrations
+            SET emoji_reaction_message_ids = '[]'::jsonb,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId];
+      } else {
+        // 'participant_change' 또는 기타 타입은 other_message_types JSONB에서 해당 키 제거
+        query = `
+            UPDATE post_integrations
+            SET other_message_types = other_message_types - $2::text,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+        `;
+        queryParams = [threadId, messageType];
+      }
 
-      const result = await this.pool.query(query, [threadId]);
+      const result = await this.pool.query(query, queryParams);
       
       if (result.rowCount > 0) {
         logger.debug('추적된 메시지 정리 성공', {
           threadId,
           messageType,
-          clearedCount: currentCount,
-          columnName
+          clearedCount: currentCount
         });
         this.invalidateCache(); // 캐시 무효화
         return true;

@@ -76,3 +76,25 @@ export const formatParticipantList = (participants = []) => {
   const formattedNames = participants.map(name => ` \` ${name} \` `).join(',');
   return `## 👥 **참가자(${participants.length}명)**: ${formattedNames}`;
 };
+
+/**
+ * 참가자 변화 알림 메시지를 포맷팅합니다.
+ * @param {Array<string>} joinedUsers - 참가한 사용자 닉네임 배열
+ * @param {Array<string>} leftUsers - 참가 취소한 사용자 닉네임 배열
+ * @returns {string} - 작은 헤더 형태의 변화 알림 메시지
+ */
+export const formatParticipantChangeMessage = (joinedUsers = [], leftUsers = []) => {
+  const messages = [];
+  
+  // 참가한 사용자들
+  joinedUsers.forEach(username => {
+    messages.push(`-# ${username}님이 참가했습니다.`);
+  });
+  
+  // 참가 취소한 사용자들
+  leftUsers.forEach(username => {
+    messages.push(`-# ${username}님이 참가 취소했습니다.`);
+  });
+  
+  return messages.join('\n');
+};
