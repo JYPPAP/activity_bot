@@ -113,8 +113,7 @@ export class ForumPostManager {
             mappingKey,       // voice_channel_id (STANDALONE_ prefix)
             thread.id,        // forum_post_id
             'standalone',     // forum_state
-            true,            // is_active
-            null             // recruitment_data (null for now)
+            true             // is_active
           );
           console.log(`[ForumPostManager] 독립형 포럼 매핑 저장 완료: ${mappingKey} -> ${thread.id}`);
         } catch (mappingError) {

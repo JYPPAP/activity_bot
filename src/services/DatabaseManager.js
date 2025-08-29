@@ -1509,10 +1509,9 @@ export class DatabaseManager {
    * @param {string} forumPostId - 포럼 포스트 ID
    * @param {string} forumState - 포럼 상태 ('created', 'voice_linked', 'standalone')
    * @param {boolean} isActive - 활성 상태
-   * @param {Object|null} recruitmentData - 구인구직 데이터 (옵션)
    * @returns {Promise<boolean>} - 성공 여부
    */
-  async ensureForumMapping(voiceChannelId, forumPostId, forumState = 'standalone', isActive = true, recruitmentData = null) {
+  async ensureForumMapping(voiceChannelId, forumPostId, forumState = 'standalone', isActive = true) {
     if (!this.isInitialized) {
       logger.error('데이터베이스 초기화되지 않음', { method: 'ensureForumMapping' });
       return false;
@@ -1541,10 +1540,9 @@ export class DatabaseManager {
           auto_track_enabled,
           is_active,
           participant_message_ids,
-          emoji_reaction_message_ids,
-          recruitment_data
+          emoji_reaction_message_ids
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+          $1, $2, $3, $4, $5, $6, $7, $8, $9
         )
         ON CONFLICT (guild_id, voice_channel_id) 
         DO UPDATE SET
@@ -1552,7 +1550,6 @@ export class DatabaseManager {
           forum_state = EXCLUDED.forum_state,
           auto_track_enabled = EXCLUDED.auto_track_enabled,
           is_active = EXCLUDED.is_active,
-          recruitment_data = EXCLUDED.recruitment_data,
           updated_at = CURRENT_TIMESTAMP
         RETURNING *
       `;
@@ -1566,8 +1563,7 @@ export class DatabaseManager {
         true,                            // auto_track_enabled
         isActive,                        // is_active
         '[]',                            // participant_message_ids
-        '[]',                            // emoji_reaction_message_ids
-        recruitmentData ? JSON.stringify(recruitmentData) : null  // recruitment_data
+        '[]'                             // emoji_reaction_message_ids
       ];
 
       const result = await this.pool.query(query, values);
@@ -1683,8 +1679,7 @@ export class DatabaseManager {
           auto_track_enabled,
           voice_linked_at,
           created_at,
-          updated_at,
-          recruitment_data
+          updated_at
         FROM post_integrations
         WHERE forum_post_id = $1
         ORDER BY created_at DESC
