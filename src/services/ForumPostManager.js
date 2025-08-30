@@ -201,12 +201,17 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
+    const createRoomButton = new ButtonBuilder()
+      .setCustomId(`voice_${DiscordConstants.CUSTOM_ID_PREFIXES.CREATE_ROOM}_${voiceChannelId}`)
+      .setLabel('🏠 방 만들기')
+      .setStyle(ButtonStyle.Success);
+
     const deleteButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE}${voiceChannelId}`)
       .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
       .setStyle(ButtonStyle.Danger);
 
-    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, deleteButton);
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, createRoomButton, deleteButton);
   }
   
   /**
@@ -235,12 +240,17 @@ export class ForumPostManager {
       .setLabel(`${DiscordConstants.EMOJIS.RESET} 초기화`)
       .setStyle(ButtonStyle.Primary);
 
+    const createRoomButton = new ButtonBuilder()
+      .setCustomId(`general_${DiscordConstants.CUSTOM_ID_PREFIXES.CREATE_ROOM}`)
+      .setLabel('🏠 방 만들기')
+      .setStyle(ButtonStyle.Success);
+
     const deleteButton = new ButtonBuilder()
       .setCustomId('general_delete')
       .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
       .setStyle(ButtonStyle.Danger);
 
-    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, deleteButton);
+    return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, createRoomButton, deleteButton);
   }
   
   /**

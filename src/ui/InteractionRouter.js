@@ -73,6 +73,10 @@ export class InteractionRouter {
     if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
       await this.recruitmentService.handleVoiceConnectButton(interaction);
     }
+    // 방 만들기 버튼
+    else if (customId.includes(DiscordConstants.CUSTOM_ID_PREFIXES.CREATE_ROOM)) {
+      await this.buttonHandler.handleCreateRoomButton(interaction);
+    }
     // 역할 태그 및 음성 채널 관련 버튼
     else {
       await this.buttonHandler.routeButtonInteraction(interaction);
@@ -113,6 +117,7 @@ export class InteractionRouter {
       DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT,
       DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE,
       DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET,
+      DiscordConstants.CUSTOM_ID_PREFIXES.CREATE_ROOM,
       DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_MODAL,
       DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_METHOD,
       DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON,
@@ -121,7 +126,7 @@ export class InteractionRouter {
       DiscordConstants.CUSTOM_ID_PREFIXES.EXISTING_POST_SELECT
     ];
     
-    return recruitmentPrefixes.some(prefix => customId.startsWith(prefix)) ||
+    return recruitmentPrefixes.some(prefix => customId.startsWith(prefix) || customId.includes(prefix)) ||
            customId === DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE ||
            customId === 'standalone_recruitment_modal';
   }

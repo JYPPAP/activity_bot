@@ -16,6 +16,7 @@ export class DiscordConstants {
     VOICE_WAIT: 'voice_wait_',
     VOICE_RESET: 'voice_reset_',
     VOICE_DELETE: 'voice_delete_',
+    CREATE_ROOM: 'create_room',
     RECRUITMENT_MODAL: 'recruitment_modal_',
     RECRUITMENT_METHOD: 'recruitment_method_',
     ROLE_BUTTON: 'role_btn_',
@@ -58,6 +59,11 @@ export class DiscordConstants {
   static SPECIAL_TAGS = {
     WAITING: '[대기]',
     SPECTATING: '[관전]'
+  };
+  
+  // ========== 채널 ID ==========
+  static CHANNEL_IDS = {
+    VOICE_CATEGORY: '1243578210684243970'
   };
   
   // ========== Discord 제한사항 ==========

@@ -189,4 +189,34 @@ export class TextProcessor {
     // 매칭되지 않으면 null 반환
     return null;
   }
+  
+  /**
+   * 포럼 포스트 제목에서 음성채널명 생성
+   * [별명] 부분과 숫자/ 뒤의 모든 내용을 제거하여 깔끔한 채널명 생성
+   * @param {string} title - 포럼 포스트 제목
+   * @returns {string|null} - 생성된 음성채널명 또는 null
+   */
+  static extractVoiceChannelNameFromTitle(title) {
+    if (!title || typeof title !== 'string') {
+      return null;
+    }
+    
+    try {
+      // 1단계: [별명] 부분 제거
+      let channelName = title.replace(/^\[([^\]]+)\]\s*/, '');
+      
+      // 2단계: 숫자/로 시작하는 부분부터 끝까지 제거 (예: "2/5 오후 3시" → 모두 제거)
+      channelName = channelName.replace(/\s+\d+\/.*$/, '');
+      
+      // 3단계: 앞뒤 공백 제거
+      channelName = channelName.trim();
+      
+      // 빈 문자열이면 null 반환
+      return channelName || null;
+      
+    } catch (error) {
+      console.error('[TextProcessor] 음성채널명 추출 중 오류:', error);
+      return null;
+    }
+  }
 }

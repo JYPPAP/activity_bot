@@ -629,4 +629,144 @@ export class ButtonHandler {
     // 제외 채널이 아닌 경우 처리되지 않은 버튼으로 분류
     console.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
   }
+  
+  /**
+   * 방 만들기 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @returns {Promise<void>}
+   */
+  async handleCreateRoomButton(interaction) {
+    try {
+      // 즉시 defer 처리하여 3초 제한시간 해결
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      
+      // 포럼 포스트인지 확인
+      if (!interaction.channel.isThread() || !interaction.channel.parent?.type === DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
+        await interaction.editReply({
+          content: '❌ 포럼 포스트에서만 방 만들기를 사용할 수 있습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      const postId = interaction.channel.id;
+      const postTitle = interaction.channel.name;
+      
+      // 1단계: 연동 상태 확인
+      const existingVoiceChannelId = this.recruitmentService.mappingService.getVoiceChannelId(postId);
+      if (existingVoiceChannelId) {
+        await interaction.editReply({
+          content: '❌ 이미 음성채널과 연동된 포스트입니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 2단계: 권한 확인 - 포스트 작성자인지 확인
+      const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
+      const clickerNickname = TextProcessor.cleanNickname(interaction.member.displayName);
+      
+      if (!postOwner || postOwner !== clickerNickname) {
+        await interaction.editReply({
+          content: '❌ 포스트 작성자만 방을 만들 수 있습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 3단계: 음성채널명 생성
+      const voiceChannelName = TextProcessor.extractVoiceChannelNameFromTitle(postTitle);
+      if (!voiceChannelName) {
+        await interaction.editReply({
+          content: '❌ 포스트 제목에서 음성채널명을 추출할 수 없습니다.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 4단계: 봇 권한 확인
+      const guild = interaction.guild;
+      const botMember = guild.members.me;
+      
+      if (!botMember.permissions.has(['ManageChannels', 'MoveMembers'])) {
+        await interaction.editReply({
+          content: '❌ 봇에게 "채널 관리"와 "구성원 이동" 권한이 필요합니다.\n관리자에게 문의해 주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 5단계: 카테고리 확인 및 음성채널 생성
+      const category = await guild.channels.fetch(DiscordConstants.CHANNEL_IDS.VOICE_CATEGORY);
+      
+      if (!category) {
+        await interaction.editReply({
+          content: '❌ 음성채널 카테고리를 찾을 수 없습니다.\n관리자에게 문의해 주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 카테고리 권한도 확인
+      const categoryPerms = category.permissionsFor(botMember);
+      if (!categoryPerms.has('ManageChannels')) {
+        await interaction.editReply({
+          content: '❌ 해당 카테고리에서 채널을 생성할 권한이 없습니다.\n관리자에게 문의해 주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      const voiceChannel = await guild.channels.create({
+        name: voiceChannelName,
+        type: DiscordConstants.CHANNEL_TYPES.GUILD_VOICE,
+        parent: category.id
+      });
+      
+      // 6단계: 매핑 정보 저장
+      const mappingSuccess = await this.recruitmentService.mappingService.addMapping(voiceChannel.id, postId);
+      if (!mappingSuccess) {
+        // 매핑 실패 시 생성된 채널 삭제
+        try {
+          await voiceChannel.delete();
+        } catch (deleteError) {
+          console.error('[ButtonHandler] 생성된 채널 삭제 실패:', deleteError);
+        }
+        
+        await interaction.editReply({
+          content: '❌ 음성채널 연동 정보 저장에 실패했습니다.\n잠시 후 다시 시도해 주세요.',
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+      
+      // 7단계: 사용자를 음성채널로 이동
+      let moveMessage = '';
+      try {
+        if (interaction.member.voice?.channel) {
+          await interaction.member.voice.setChannel(voiceChannel.id);
+          moveMessage = '\n👤 음성채널로 이동되었습니다.';
+        } else {
+          moveMessage = '\n💡 음성채널에 참여하려면 직접 입장해 주세요.';
+        }
+      } catch (moveError) {
+        console.warn('[ButtonHandler] 사용자 음성채널 이동 실패:', moveError.message);
+        moveMessage = '\n⚠️ 자동 이동에 실패했습니다. 직접 입장해 주세요.';
+      }
+      
+      // 8단계: 성공 메시지
+      await interaction.editReply({
+        content: `✅ 음성채널이 생성되었습니다!\n🔊 **${voiceChannelName}**\n\n<#${voiceChannel.id}>${moveMessage}`,
+        flags: MessageFlags.Ephemeral
+      });
+      
+      console.log(`[ButtonHandler] 방 만들기 성공: ${postTitle} -> ${voiceChannelName} (${voiceChannel.id})`);
+      
+    } catch (error) {
+      console.error('[ButtonHandler] 방 만들기 버튼 처리 오류:', error);
+      await SafeInteraction.safeReply(interaction, 
+        SafeInteraction.createErrorResponse('방 만들기', error)
+      );
+    }
+  }
 }
