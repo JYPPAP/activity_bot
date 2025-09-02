@@ -139,7 +139,14 @@ export class RecruitmentService {
       }
       
       // 채널-포스트 매핑 추가
-      this.mappingService.addMapping(voiceChannelId, createResult.postId);
+      const mappingResult = await this.mappingService.addMapping(voiceChannelId, createResult.postId);
+      
+      if (!mappingResult.success) {
+        return {
+          success: false,
+          message: mappingResult.message
+        };
+      }
       
       console.log(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${createResult.postId}`);
       
@@ -193,7 +200,14 @@ export class RecruitmentService {
       );
 
       // 채널-포스트 매핑 저장
-      this.mappingService.addMapping(voiceChannelId, existingPostId);
+      const mappingResult = await this.mappingService.addMapping(voiceChannelId, existingPostId);
+      
+      if (!mappingResult.success) {
+        await interaction.editReply({
+          content: `❌ 연동 실패: ${mappingResult.message}`
+        });
+        return;
+      }
 
       await interaction.editReply({
         content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`

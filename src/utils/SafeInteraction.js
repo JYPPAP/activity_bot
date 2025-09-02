@@ -10,6 +10,8 @@ export class SafeInteraction {
   // ========== 처리 상태 관리 ==========
   static processingInteractions = new Set();
   static processingStartTimes = new Map();
+  static interactionStates = new Map(); // 인터랙션 상태 캐시
+  static responseAttempts = new Map(); // 응답 시도 횟수 추적
 
   // ========== 통계 관리 ==========
   static statistics = {
@@ -34,6 +36,9 @@ export class SafeInteraction {
     MAX_RESPONSE_TIME_HISTORY: 100,
     RETRY_DELAY: 1000, // 1초
     MAX_RETRIES: 3,
+    STATE_CACHE_TTL: 60000, // 1분
+    CLEANUP_INTERVAL: 300000, // 5분
+    MAX_RESPONSE_ATTEMPTS: 5, // 최대 응답 시도 횟수
   };
 
   // ========== 중복 처리 방지 ==========
@@ -49,14 +54,45 @@ export class SafeInteraction {
       return false;
     }
 
-    if (this.processingInteractions.has(interaction.id)) {
-      this.statistics.duplicateInteractions++;
-      logger.warn('중복 처리 방지', { component: 'SafeInteraction', interactionId: interaction.id, duplicates: this.statistics.duplicateInteractions });
-      return false;
+    const interactionId = interaction.id;
+    const currentTime = Date.now();
+
+    // 강화된 중복 검사
+    if (this.processingInteractions.has(interactionId)) {
+      const startTime = this.processingStartTimes.get(interactionId);
+      const processingDuration = currentTime - startTime;
+      
+      // 처리 시간이 너무 오래된 경우 강제 정리
+      if (processingDuration > this.CONFIG.PROCESSING_TIMEOUT) {
+        logger.warn('오래된 처리 상태 강제 정리', { 
+          component: 'SafeInteraction', 
+          method: 'startProcessing',
+          interactionId, 
+          processingDuration 
+        });
+        this.finishProcessing(interaction);
+      } else {
+        this.statistics.duplicateInteractions++;
+        logger.warn('중복 처리 방지', { 
+          component: 'SafeInteraction', 
+          method: 'startProcessing',
+          interactionId, 
+          duplicates: this.statistics.duplicateInteractions,
+          processingDuration
+        });
+        return false;
+      }
     }
 
-    this.processingInteractions.add(interaction.id);
-    this.processingStartTimes.set(interaction.id, Date.now());
+    // 응답 시도 횟수 초기화
+    this.responseAttempts.set(interactionId, 0);
+    
+    // 처리 상태 등록
+    this.processingInteractions.add(interactionId);
+    this.processingStartTimes.set(interactionId, currentTime);
+    
+    // 초기 상태 캐싱
+    this.cacheInteractionState(interaction);
 
     // 자동 정리 설정
     setTimeout(() => {
@@ -73,14 +109,19 @@ export class SafeInteraction {
   static finishProcessing(interaction) {
     if (!interaction?.id) return;
 
-    const startTime = this.processingStartTimes.get(interaction.id);
+    const interactionId = interaction.id;
+    const startTime = this.processingStartTimes.get(interactionId);
+    
     if (startTime) {
       const responseTime = Date.now() - startTime;
       this.updateResponseTimeStatistics(responseTime);
-      this.processingStartTimes.delete(interaction.id);
+      this.processingStartTimes.delete(interactionId);
     }
 
-    this.processingInteractions.delete(interaction.id);
+    // 모든 관련 상태 정리
+    this.processingInteractions.delete(interactionId);
+    this.responseAttempts.delete(interactionId);
+    this.interactionStates.delete(interactionId);
   }
 
   /**
@@ -127,11 +168,28 @@ export class SafeInteraction {
   }
 
   /**
-   * 인터랙션 상태 조회
+   * 인터랙션 상태 캐싱
    * @param interaction - Discord 인터랙션
+   */
+  static cacheInteractionState(interaction) {
+    if (!interaction?.id) return;
+    
+    const state = this.getInteractionStateInternal(interaction);
+    const cacheEntry = {
+      ...state,
+      cachedAt: Date.now()
+    };
+    
+    this.interactionStates.set(interaction.id, cacheEntry);
+  }
+
+  /**
+   * 인터랙션 상태 조회 (캐시 우선)
+   * @param interaction - Discord 인터랙션
+   * @param useCache - 캐시 사용 여부
    * @returns 상태 정보
    */
-  static getInteractionState(interaction) {
+  static getInteractionState(interaction, useCache = true) {
     if (!interaction) {
       return {
         valid: false,
@@ -144,6 +202,37 @@ export class SafeInteraction {
       };
     }
 
+    // 캐시된 상태 확인 (신뢰성을 위해 최근 캐시만 사용)
+    if (useCache) {
+      const cached = this.interactionStates.get(interaction.id);
+      if (cached && (Date.now() - cached.cachedAt) < this.CONFIG.STATE_CACHE_TTL) {
+        // 캐시된 상태에 현재 나이 정보 업데이트
+        const age = Date.now() - interaction.createdTimestamp;
+        const expired = age > this.CONFIG.MAX_INTERACTION_AGE;
+        
+        return {
+          ...cached,
+          age,
+          expired
+        };
+      }
+    }
+
+    // 실시간 상태 조회
+    const state = this.getInteractionStateInternal(interaction);
+    
+    // 새로운 상태 캐싱
+    this.cacheInteractionState(interaction);
+    
+    return state;
+  }
+
+  /**
+   * 내부 상태 조회 메서드
+   * @param interaction - Discord 인터랙션
+   * @returns 상태 정보
+   */
+  static getInteractionStateInternal(interaction) {
     const age = Date.now() - interaction.createdTimestamp;
     const expired = age > this.CONFIG.MAX_INTERACTION_AGE;
 
@@ -171,6 +260,7 @@ export class SafeInteraction {
    */
   static async safeReply(interaction, options) {
     const startTime = Date.now();
+    const interactionId = interaction?.id;
 
     try {
       // 통계 업데이트
@@ -184,16 +274,38 @@ export class SafeInteraction {
         return null;
       }
 
+      // 응답 시도 횟수 확인
+      const currentAttempts = this.responseAttempts.get(interactionId) || 0;
+      if (currentAttempts >= this.CONFIG.MAX_RESPONSE_ATTEMPTS) {
+        logger.warn('최대 응답 시도 횟수 초과', {
+          component: 'SafeInteraction',
+          method: 'safeReply',
+          interactionId,
+          attempts: currentAttempts
+        });
+        return null;
+      }
+
+      // 시도 횟수 증가
+      this.responseAttempts.set(interactionId, currentAttempts + 1);
+
       // 옵션 정규화
       const normalizedOptions = this.normalizeReplyOptions(options);
 
-      // 현재 상태 확인
-      const state = this.getInteractionState(interaction);
-      logger.debug('인터랙션 상태 확인', { component: 'SafeInteraction', method: 'safeReply', replied: state.replied, deferred: state.deferred, interactionId: interaction.id });
+      // 현재 상태 확인 (캐시 우선 사용)
+      const state = this.getInteractionState(interaction, true);
+      logger.debug('인터랙션 상태 확인', { 
+        component: 'SafeInteraction', 
+        method: 'safeReply', 
+        replied: state.replied, 
+        deferred: state.deferred, 
+        interactionId,
+        attempts: currentAttempts + 1
+      });
 
       // 상태 일관성 검증
       if (state.expired) {
-        logger.warn('인터랙션이 만료되었습니다', { component: 'SafeInteraction', method: 'safeReply', interactionId: interaction.id, age: state.age });
+        logger.warn('인터랙션이 만료되었습니다', { component: 'SafeInteraction', method: 'safeReply', interactionId, age: state.age });
         return null;
       }
 
@@ -227,17 +339,34 @@ export class SafeInteraction {
           const errorCode = Number(editError.code) || 0;
           const unrecoverableErrors = [10062, 10008, 40060];
           if (unrecoverableErrors.includes(errorCode)) {
-            logger.warn('editReply 복구 불가능한 에러', { component: 'SafeInteraction', method: 'safeReply', errorCode, interactionId: interaction.id, error: editError.message });
+            logger.warn('editReply 복구 불가능한 에러', { component: 'SafeInteraction', method: 'safeReply', errorCode, interactionId, error: editError.message });
             throw editError;
           }
 
-          // editReply가 실패한 경우 followUp으로 대체
-          logger.warn('editReply 실패, followUp으로 대체', { component: 'SafeInteraction', method: 'safeReply', error: editError.message, code: editError.code, status: editError.status, interactionId: interaction.id });
+          // editReply가 실패한 경우 상태 무효화 후 followUp으로 대체
+          this.interactionStates.delete(interactionId);
+          logger.warn('editReply 실패, 상태 캐시 무효화 후 followUp으로 대체', { 
+            component: 'SafeInteraction', 
+            method: 'safeReply', 
+            error: editError.message, 
+            code: editError.code, 
+            status: editError.status, 
+            interactionId 
+          });
 
           try {
+            // 지연 후 재시도
+            await this.delay(this.CONFIG.RETRY_DELAY);
             result = await interaction.followUp(normalizedOptions);
           } catch (followUpError) {
-            logger.error('followUp도 실패', { component: 'SafeInteraction', method: 'safeReply', error: followUpError.message, code: followUpError.code, status: followUpError.status, interactionId: interaction.id });
+            logger.error('followUp도 실패', { 
+              component: 'SafeInteraction', 
+              method: 'safeReply', 
+              error: followUpError.message, 
+              code: followUpError.code, 
+              status: followUpError.status, 
+              interactionId 
+            });
             throw followUpError;
           }
         }
@@ -257,16 +386,40 @@ export class SafeInteraction {
             throw replyError;
           }
 
-          // reply 실패 시 상태 재확인 후 적절한 메서드 선택
-          const retryState = this.getInteractionState(interaction);
-          logger.debug('재시도를 위한 상태 확인', { component: 'SafeInteraction', method: 'safeReply', replied: retryState.replied, deferred: retryState.deferred, interactionId: interaction.id });
+          // reply 실패 시 캐시 무효화 후 상태 재확인
+          this.interactionStates.delete(interactionId);
+          
+          // 지연 후 상태 재확인
+          await this.delay(this.CONFIG.RETRY_DELAY);
+          const retryState = this.getInteractionState(interaction, false); // 캐시 사용 안 함
+          
+          logger.debug('재시도를 위한 상태 확인', { 
+            component: 'SafeInteraction', 
+            method: 'safeReply', 
+            replied: retryState.replied, 
+            deferred: retryState.deferred, 
+            interactionId 
+          });
 
           if (retryState.replied) {
             result = await interaction.followUp(normalizedOptions);
           } else if (retryState.deferred) {
             result = await interaction.editReply(normalizedOptions);
           } else {
-            throw replyError; // 상태가 변하지 않았으면 원래 에러 던지기
+            // 마지막 시도로 defer 후 editReply
+            try {
+              await interaction.deferReply({ flags: normalizedOptions.flags });
+              await this.delay(500); // Discord API 상태 동기화 대기
+              result = await interaction.editReply(normalizedOptions);
+            } catch (lastAttemptError) {
+              logger.warn('최종 재시도 실패', { 
+                component: 'SafeInteraction', 
+                method: 'safeReply', 
+                error: lastAttemptError.message,
+                interactionId
+              });
+              throw replyError; // 원래 에러 던지기
+            }
           }
         }
       }
@@ -674,19 +827,65 @@ export class SafeInteraction {
   }
 
   /**
-   * 처리 상태 정리 (메모리 누수 방지)
+   * 지연 유틸리티
+   * @param ms - 지연 시간 (밀리초)
+   */
+  static async delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * 강화된 상태 정리 (메모리 누수 방지)
    */
   static cleanup() {
     const now = Date.now();
-    const expiredThreshold = now - this.CONFIG.PROCESSING_TIMEOUT;
+    const processingExpiredThreshold = now - this.CONFIG.PROCESSING_TIMEOUT;
+    const cacheExpiredThreshold = now - this.CONFIG.STATE_CACHE_TTL;
 
     // 만료된 처리 상태 정리
     for (const [interactionId, startTime] of this.processingStartTimes.entries()) {
-      if (startTime < expiredThreshold) {
+      if (startTime < processingExpiredThreshold) {
         this.processingInteractions.delete(interactionId);
         this.processingStartTimes.delete(interactionId);
+        this.responseAttempts.delete(interactionId);
+        logger.debug('만료된 처리 상태 정리', { 
+          component: 'SafeInteraction', 
+          method: 'cleanup',
+          interactionId,
+          age: now - startTime
+        });
       }
     }
+
+    // 만료된 상태 캐시 정리
+    for (const [interactionId, cacheEntry] of this.interactionStates.entries()) {
+      if (cacheEntry.cachedAt < cacheExpiredThreshold) {
+        this.interactionStates.delete(interactionId);
+      }
+    }
+
+    logger.debug('정리 완료', {
+      component: 'SafeInteraction',
+      method: 'cleanup',
+      activeProcessing: this.processingInteractions.size,
+      cachedStates: this.interactionStates.size,
+      responseAttempts: this.responseAttempts.size
+    });
+  }
+
+  /**
+   * 자동 정리 시작
+   */
+  static startAutoCleanup() {
+    setInterval(() => {
+      this.cleanup();
+    }, this.CONFIG.CLEANUP_INTERVAL);
+    
+    logger.info('SafeInteraction 자동 정리 시작', {
+      component: 'SafeInteraction',
+      method: 'startAutoCleanup',
+      interval: this.CONFIG.CLEANUP_INTERVAL
+    });
   }
 
   /**
@@ -705,6 +904,9 @@ export class SafeInteraction {
       successRate: this.getSuccessRate(),
       averageResponseTime: this.statistics.averageResponseTime,
       commonErrors,
+      cachedStates: this.interactionStates.size,
+      responseAttempts: this.responseAttempts.size,
+      duplicateInteractions: this.statistics.duplicateInteractions,
     };
   }
 }

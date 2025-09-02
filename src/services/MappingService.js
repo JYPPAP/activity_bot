@@ -28,16 +28,42 @@ export class MappingService {
           console.error(`[MappingService] 데이터베이스 저장 실패: ${voiceChannelId} -> ${postId}`);
           // 메모리에서도 제거
           this.channelPostMap.delete(voiceChannelId);
-          return false;
+          return { success: false, error: 'DB_SAVE_FAILED', message: '데이터베이스 저장에 실패했습니다.' };
         }
       }
       
       console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
       this.logCurrentMappings();
-      return true;
+      return { success: true };
     } catch (error) {
       console.error(`[MappingService] 매핑 추가 오류: ${voiceChannelId} -> ${postId}`, error);
-      return false;
+      
+      // 메모리에서 제거 (rollback)
+      this.channelPostMap.delete(voiceChannelId);
+      
+      // 에러 타입별 처리
+      if (error.code === '23505') {
+        // Primary Key 중복 - 이미 연동된 경우
+        return { 
+          success: false, 
+          error: 'ALREADY_LINKED', 
+          message: '이미 연동된 음성 채널입니다. 기존 연동을 확인해주세요.' 
+        };
+      } else if (error.code === '23503') {
+        // Foreign Key 제약 위반
+        return { 
+          success: false, 
+          error: 'INVALID_REFERENCE', 
+          message: '유효하지 않은 채널이나 포스트 정보입니다.' 
+        };
+      } else {
+        // 기타 DB 오류
+        return { 
+          success: false, 
+          error: 'DB_ERROR', 
+          message: '데이터베이스 오류가 발생했습니다. 잠시 후 다시 시도해주세요.' 
+        };
+      }
     }
   }
   

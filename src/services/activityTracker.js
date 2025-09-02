@@ -105,7 +105,9 @@ export class ActivityTracker {
             const sessionDuration = now - session.startTime;
             
             // 현재 세션의 활동 분 저장
-            await this.saveSessionActivity(userId, sessionDuration, member.displayName);
+            // 세션 시작 날짜 기준으로 저장
+            const sessionStartDate = new Date(session.startTime);
+            await this.saveSessionActivity(userId, sessionDuration, member.displayName, sessionStartDate);
             
             // 현재 음성 채널에 있다면 새 세션 시작, 없다면 세션 제거
             if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
@@ -249,8 +251,9 @@ export class ActivityTracker {
         const session = this.activeSessions.get(userId);
         const sessionDuration = now - session.startTime;
         
-        // 즉시 PostgreSQL에 일일 활동 분 업데이트
-        await this.saveSessionActivity(userId, sessionDuration, member.displayName);
+        // 즉시 PostgreSQL에 일일 활동 분 업데이트 (세션 시작 날짜 기준)
+        const sessionStartDate = new Date(session.startTime);
+        await this.saveSessionActivity(userId, sessionDuration, member.displayName, sessionStartDate);
         
         // 메모리에서 세션 제거
         this.activeSessions.delete(userId);
@@ -306,7 +309,9 @@ export class ActivityTracker {
         const session = this.activeSessions.get(userId);
         const sessionDuration = now - session.startTime;
         
-        await this.saveSessionActivity(userId, sessionDuration, newMember.displayName);
+        // 세션 시작 날짜 기준으로 저장
+        const sessionStartDate = new Date(session.startTime);
+        await this.saveSessionActivity(userId, sessionDuration, newMember.displayName, sessionStartDate);
         this.activeSessions.delete(userId);
         console.log(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
       }
@@ -549,8 +554,9 @@ export class ActivityTracker {
         const minutes = Math.floor(sessionDuration / (1000 * 60));
         
         if (minutes > 0) {
-          // DB에 누적 시간 저장
-          await this.saveSessionActivity(userId, sessionDuration, session.displayName);
+          // DB에 누적 시간 저장 (세션 시작 날짜 기준)
+          const sessionStartDate = new Date(session.startTime);
+          await this.saveSessionActivity(userId, sessionDuration, session.displayName, sessionStartDate);
           
           // 세션 시작 시간을 현재 시간으로 재설정 (누적 저장 방식)
           session.startTime = now;
