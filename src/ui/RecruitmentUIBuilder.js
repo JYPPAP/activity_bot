@@ -96,7 +96,7 @@ export class RecruitmentUIBuilder {
 
     // 기존 포스트가 있으면 선택 옵션 추가
     existingPosts.forEach((post, index) => {
-      if (index < 8) { // 최대 8개까지만 (새 포럼 생성 + 7개 기존 포스트)
+      if (index < 16) { // 최대 16개까지만 (새 포럼 생성 + 15개 기존 포스트)
         options.push({
           label: `🔗 ${post.name}`,
           description: `기존 구인구직에 연동 (멤버: ${post.memberCount}명)`,

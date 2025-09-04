@@ -355,6 +355,67 @@ export class ForumPostManager {
   }
   
   /**
+   * 사용자 별명 기반으로 필터링된 기존 포럼 포스트 목록 가져오기
+   * @param {number} limit - 가져올 포스트 수 (기본값: 15)
+   * @param {string} userDisplayName - 필터링할 사용자 별명
+   * @returns {Promise<Array>} - 필터링된 포스트 목록
+   */
+  async getExistingPostsFilteredByUser(limit = 15, userDisplayName = null) {
+    try {
+      // 전체 포스트 목록 가져오기 (더 많이 가져와서 필터링 후 부족할 경우 대비)
+      const allPosts = await this.getExistingPosts(limit * 2);
+      
+      if (!userDisplayName || allPosts.length === 0) {
+        return allPosts.slice(0, limit);
+      }
+      
+      // 사용자 별명에서 태그 제거
+      const cleanedUserName = TextProcessor.cleanNickname(userDisplayName);
+      
+      // 포스트를 두 그룹으로 나누기: 사용자 포스트와 다른 사용자 포스트
+      const userPosts = [];
+      const otherPosts = [];
+      
+      for (const post of allPosts) {
+        // 포스트 제목에서 소유자 이름 추출
+        const ownerName = TextProcessor.extractOwnerFromTitle(post.name);
+        
+        if (ownerName) {
+          // 소유자 이름 정리 (태그 제거)
+          const cleanedOwnerName = TextProcessor.cleanNickname(ownerName);
+          
+          // 대소문자 구분 없이 비교
+          if (cleanedOwnerName.toLowerCase() === cleanedUserName.toLowerCase()) {
+            userPosts.push(post);
+          } else {
+            otherPosts.push(post);
+          }
+        } else {
+          // 소유자 이름을 추출할 수 없는 경우 다른 포스트로 분류
+          otherPosts.push(post);
+        }
+      }
+      
+      // 사용자 포스트를 먼저 넣고, 부족한 만큼 다른 포스트로 채움
+      const filteredPosts = [...userPosts];
+      const remainingSlots = limit - userPosts.length;
+      
+      if (remainingSlots > 0) {
+        filteredPosts.push(...otherPosts.slice(0, remainingSlots));
+      }
+      
+      console.log(`[ForumPostManager] 필터링된 포스트 목록: 총 ${filteredPosts.length}개 (사용자: ${userPosts.length}개, 다른 사용자: ${Math.min(remainingSlots, otherPosts.length)}개)`);
+      
+      return filteredPosts.slice(0, limit);
+      
+    } catch (error) {
+      console.error('[ForumPostManager] 필터링된 포스트 목록 가져오기 실패:', error);
+      // 오류 발생 시 일반 메서드로 fallback
+      return await this.getExistingPosts(limit);
+    }
+  }
+  
+  /**
    * 포럼 포스트 아카이브 처리
    * @param {string} postId - 포스트 ID
    * @param {string} reason - 아카이브 사유

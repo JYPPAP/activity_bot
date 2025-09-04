@@ -44,8 +44,9 @@ export class RecruitmentService {
         return;
       }
       
-      // 기존 포스트 목록 가져오기
-      const existingPosts = await this.forumPostManager.getExistingPosts(7);
+      // 기존 포스트 목록 가져오기 (사용자 별명 기반 필터링 적용)
+      const userDisplayName = interaction.member?.displayName || interaction.user.displayName || interaction.user.username;
+      const existingPosts = await this.forumPostManager.getExistingPostsFilteredByUser(15, userDisplayName);
       
       // 연동 방법 선택 UI 생성
       const embed = RecruitmentUIBuilder.createMethodSelectionEmbed(voiceChannelInfo.name);
