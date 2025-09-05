@@ -621,13 +621,58 @@ export class DatabaseManager {
         WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
       `, [guildId, voiceChannelId]);
 
-      // 동일한 포럼에 다른 채널이 이미 연결된 경우
+      // 동일한 포럼에 다른 채널이 이미 연결된 경우 확인
       if (existingByPost.rows.length > 0 && existingByPost.rows[0].voice_channel_id !== voiceChannelId) {
-        const conflictError = new Error('이미 다른 음성 채널이 연결된 포럼 포스트입니다.');
-        conflictError.code = '23505';
-        conflictError.constraint = 'post_integrations_guild_id_forum_post_id_key';
-        conflictError.detail = `Voice channel ${existingByPost.rows[0].voice_channel_id} is already linked to forum post ${forumPostId}`;
-        throw conflictError;
+        const existingChannelId = existingByPost.rows[0].voice_channel_id;
+        const isExistingStandalone = existingChannelId.startsWith('STANDALONE_');
+        
+        // STANDALONE 채널인 경우: 실제 채널로 업그레이드 허용
+        if (isExistingStandalone) {
+          logger.info('STANDALONE 포럼을 실제 음성채널로 업그레이드', {
+            guildId,
+            existingChannelId,
+            newVoiceChannelId: voiceChannelId,
+            forumPostId
+          });
+          
+          // STANDALONE → 실제 채널 업그레이드 처리
+          const updateResult = await this.query(`
+            UPDATE post_integrations 
+            SET 
+              voice_channel_id = $1,
+              forum_state = 'voice_linked',
+              voice_linked_at = CURRENT_TIMESTAMP,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE guild_id = $2 AND forum_post_id = $3 AND is_active = true
+            RETURNING *
+          `, [voiceChannelId, guildId, forumPostId]);
+          
+          if (updateResult.rows.length > 0) {
+            logger.databaseOperation('STANDALONE 포럼 업그레이드 완료', {
+              voiceChannelId, 
+              forumPostId,
+              previousChannelId: existingChannelId,
+              newState: 'voice_linked',
+              upgradeType: 'standalone_to_voice'
+            });
+            this.invalidateCache();
+            return updateResult.rows[0];
+          } else {
+            logger.error('STANDALONE 포럼 업그레이드 실패 - 업데이트된 행이 없음', {
+              voiceChannelId,
+              forumPostId,
+              existingChannelId
+            });
+            throw new Error('STANDALONE 포럼 업그레이드 실패: 업데이트된 행이 없습니다');
+          }
+        } else {
+          // 일반 채널끼리의 중복만 에러 처리
+          const conflictError = new Error('이미 다른 음성 채널이 연결된 포럼 포스트입니다.');
+          conflictError.code = '23505';
+          conflictError.constraint = 'post_integrations_guild_id_forum_post_id_key';
+          conflictError.detail = `Voice channel ${existingChannelId} is already linked to forum post ${forumPostId}`;
+          throw conflictError;
+        }
       }
 
       // UPSERT 쿼리 실행 - 두 unique constraint 모두 처리

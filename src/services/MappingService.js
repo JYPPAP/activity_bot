@@ -45,7 +45,8 @@ export class MappingService {
       if (error.code === '23505') {
         // Unique constraint 위반 - 구체적인 constraint에 따라 다른 메시지
         if (error.constraint === 'post_integrations_guild_id_forum_post_id_key') {
-          // 포럼 포스트 중복 연결
+          // 포럼 포스트 중복 연결 - STANDALONE은 DatabaseManager에서 처리됨
+          console.log(`[MappingService] 포럼 포스트 중복 연결 시도: ${postId} (이미 처리된 에러)`);
           return { 
             success: false, 
             error: 'FORUM_ALREADY_LINKED', 
