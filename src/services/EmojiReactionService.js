@@ -247,15 +247,25 @@ export class EmojiReactionService {
 
       for (const user of realUsers.values()) {
         try {
-          const member = await guild.members.fetch(user.id);
-          // 서버 닉네임이 있으면 사용, 없으면 전역 닉네임 사용
-          const displayName = member.displayName || user.displayName || user.username;
-          // 닉네임 정리 (태그 제거)
-          const cleanedName = TextProcessor.cleanNickname(displayName);
-          participants.push(cleanedName);
+          const member = await guild.members.fetch(user.id).catch(err => {
+            console.warn(`[EmojiReactionService] 멤버 정보 가져오기 실패: ${user.username} -`, err.message);
+            return null;
+          });
+          
+          if (member) {
+            // 서버 닉네임이 있으면 사용, 없으면 전역 닉네임 사용
+            const displayName = member.displayName || user.displayName || user.username;
+            // 닉네임 정리 (태그 제거)
+            const cleanedName = TextProcessor.cleanNickname(displayName);
+            participants.push(cleanedName);
+          } else {
+            // 멤버를 가져오지 못한 경우 전역 닉네임 사용
+            const cleanedName = TextProcessor.cleanNickname(user.displayName || user.username);
+            participants.push(cleanedName);
+          }
         } catch (error) {
-          // 멤버를 가져오지 못한 경우 전역 닉네임 사용
-          console.warn(`[EmojiReactionService] 멤버 정보 가져오기 실패: ${user.username}`);
+          // 예외 상황에 대한 최종 fallback
+          console.warn(`[EmojiReactionService] 사용자 처리 중 예외 발생: ${user.username}`, error.message);
           const cleanedName = TextProcessor.cleanNickname(user.displayName || user.username);
           participants.push(cleanedName);
         }
