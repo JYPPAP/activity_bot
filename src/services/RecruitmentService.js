@@ -5,6 +5,7 @@ import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 import { PermissionService } from './PermissionService.js';
+import { logger } from '../config/logger-termux.js';
 
 export class RecruitmentService {
   constructor(client, forumPostManager, voiceChannelManager, mappingService, participantTracker) {
@@ -191,21 +192,57 @@ export class RecruitmentService {
         return;
       }
 
-      // 음성 채널 연동 메시지 전송
-      await this.forumPostManager.sendVoiceChannelLinkMessage(
+      // 트랜잭션 처리: DB 저장 먼저 시도
+      logger.info(`[RecruitmentService] 연동 시도: ${voiceChannelInfo.name} -> ${postInfo.name}`, {
+        voiceChannelId,
         existingPostId,
-        voiceChannelInfo.name,
-        voiceChannelInfo.id,
-        voiceChannelInfo.guild.id,
-        interaction.user.id
-      );
+        userId: interaction.user.id
+      });
 
-      // 채널-포스트 매핑 저장
+      // 1단계: DB 매핑 저장 먼저 시도
       const mappingResult = await this.mappingService.addMapping(voiceChannelId, existingPostId);
       
       if (!mappingResult.success) {
+        logger.warn(`[RecruitmentService] DB 매핑 저장 실패`, {
+          voiceChannelId,
+          existingPostId,
+          error: mappingResult.error,
+          message: mappingResult.message
+        });
         await interaction.editReply({
           content: `❌ 연동 실패: ${mappingResult.message}`
+        });
+        return;
+      }
+
+      logger.info(`[RecruitmentService] DB 매핑 저장 성공`, { voiceChannelId, existingPostId });
+
+      // 2단계: DB 저장 성공 후 포럼 메시지 전송
+      try {
+        await this.forumPostManager.sendVoiceChannelLinkMessage(
+          existingPostId,
+          voiceChannelInfo.name,
+          voiceChannelInfo.id,
+          voiceChannelInfo.guild.id,
+          interaction.user.id
+        );
+        
+        logger.info(`[RecruitmentService] 포럼 연동 메시지 전송 성공`, { 
+          voiceChannelId, 
+          existingPostId 
+        });
+      } catch (messageError) {
+        logger.error(`[RecruitmentService] 포럼 메시지 전송 실패, 매핑 롤백`, {
+          voiceChannelId,
+          existingPostId,
+          error: messageError.message
+        });
+        
+        // 메시지 전송 실패 시 매핑 롤백
+        await this.mappingService.removeMapping(voiceChannelId);
+        
+        await interaction.editReply({
+          content: '❌ 연동 중 오류가 발생했습니다. 다시 시도해주세요.'
         });
         return;
       }
@@ -214,10 +251,22 @@ export class RecruitmentService {
         content: `✅ 기존 구인구직에 성공적으로 연동되었습니다!\n🔗 포럼: <#${existingPostId}>`
       });
 
-      console.log(`[RecruitmentService] 기존 포럼 연동 완료: ${voiceChannelInfo.name} -> ${postInfo.name}`);
+      logger.info(`[RecruitmentService] 기존 포럼 연동 완료: ${voiceChannelInfo.name} -> ${postInfo.name}`, {
+        voiceChannelId,
+        voiceChannelName: voiceChannelInfo.name,
+        forumPostId: existingPostId,
+        forumPostName: postInfo.name,
+        userId: interaction.user.id
+      });
       
     } catch (error) {
-      console.error('[RecruitmentService] 기존 포럼 연동 오류:', error);
+      logger.error('[RecruitmentService] 기존 포럼 연동 오류:', {
+        voiceChannelId,
+        existingPostId,
+        userId: interaction.user.id,
+        error: error.message,
+        stack: error.stack
+      });
       try {
         await interaction.editReply({
           content: RecruitmentConfig.MESSAGES.LINK_FAILED
@@ -373,20 +422,53 @@ export class RecruitmentService {
   async handleChannelDelete(channel) {
     try {
       if (!this.voiceChannelManager.shouldHandleChannelDeletion(channel)) {
+        logger.debug(`[RecruitmentService] 채널 삭제 무시: ${channel.name} (${channel.id}) - 타입: ${channel.type}`);
         return;
       }
       
-      console.log(`[RecruitmentService] 음성 채널 삭제 감지: ${channel.name} (ID: ${channel.id})`);
+      logger.info(`[RecruitmentService] 음성 채널 삭제 감지: ${channel.name} (${channel.id})`, {
+        channelId: channel.id,
+        channelName: channel.name,
+        guildId: channel.guild?.id
+      });
       
       const postId = this.mappingService.getPostId(channel.id);
       if (postId) {
-        // 포럼 포스트 아카이브
-        await this.forumPostManager.archivePost(postId, '음성 채널 삭제됨');
+        logger.info(`[RecruitmentService] 연동된 포럼 포스트 발견: ${postId}`, {
+          voiceChannelId: channel.id,
+          forumPostId: postId
+        });
+
+        // 포럼 포스트 아카이브 (스레드 잠금 포함)
+        const archiveSuccess = await this.forumPostManager.archivePost(
+          postId, 
+          '연결된 음성 채널이 삭제되었습니다', 
+          true // 스레드 잠금
+        );
         
-        // 매핑 제거
-        this.mappingService.removeMapping(channel.id);
+        if (archiveSuccess) {
+          logger.info(`[RecruitmentService] 포럼 포스트 아카이브 성공: ${postId}`, {
+            voiceChannelId: channel.id,
+            forumPostId: postId,
+            reason: '음성 채널 삭제'
+          });
+        } else {
+          logger.error(`[RecruitmentService] 포럼 포스트 아카이브 실패: ${postId}`, {
+            voiceChannelId: channel.id,
+            forumPostId: postId
+          });
+        }
         
-        console.log(`[RecruitmentService] 채널 삭제로 인한 포스트 아카이브: ${postId}`);
+        // 매핑 제거 (await 추가)
+        const mappingRemoved = await this.mappingService.removeMapping(channel.id);
+        
+        if (mappingRemoved) {
+          logger.info(`[RecruitmentService] 채널 매핑 제거 완료: ${channel.id}`);
+        } else {
+          logger.warn(`[RecruitmentService] 채널 매핑 제거 실패 또는 매핑이 없었음: ${channel.id}`);
+        }
+      } else {
+        logger.debug(`[RecruitmentService] 삭제된 채널에 연동된 포럼 포스트 없음: ${channel.id}`);
       }
       
     } catch (error) {

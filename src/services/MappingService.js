@@ -43,12 +43,22 @@ export class MappingService {
       
       // 에러 타입별 처리
       if (error.code === '23505') {
-        // Primary Key 중복 - 이미 연동된 경우
-        return { 
-          success: false, 
-          error: 'ALREADY_LINKED', 
-          message: '이미 연동된 음성 채널입니다. 기존 연동을 확인해주세요.' 
-        };
+        // Unique constraint 위반 - 구체적인 constraint에 따라 다른 메시지
+        if (error.constraint === 'post_integrations_guild_id_forum_post_id_key') {
+          // 포럼 포스트 중복 연결
+          return { 
+            success: false, 
+            error: 'FORUM_ALREADY_LINKED', 
+            message: '이미 다른 음성 채널이 연결된 포럼 포스트입니다. 다른 포럼을 선택하거나 기존 연결을 해제해주세요.' 
+          };
+        } else {
+          // 음성 채널 중복 연결 (기존 케이스)
+          return { 
+            success: false, 
+            error: 'CHANNEL_ALREADY_LINKED', 
+            message: '이미 연동된 음성 채널입니다. 기존 연동을 확인해주세요.' 
+          };
+        }
       } else if (error.code === '23503') {
         // Foreign Key 제약 위반
         return { 

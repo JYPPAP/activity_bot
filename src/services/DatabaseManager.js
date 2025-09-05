@@ -608,16 +608,39 @@ export class DatabaseManager {
    */
   async createPostIntegration(guildId, voiceChannelId, forumPostId, forumChannelId) {
     try {
+      // 먼저 기존 연동 상태를 확인
+      const existingByPost = await this.query(`
+        SELECT voice_channel_id, forum_post_id 
+        FROM post_integrations 
+        WHERE guild_id = $1 AND forum_post_id = $2 AND is_active = true
+      `, [guildId, forumPostId]);
+
+      const existingByChannel = await this.query(`
+        SELECT voice_channel_id, forum_post_id 
+        FROM post_integrations 
+        WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
+      `, [guildId, voiceChannelId]);
+
+      // 동일한 포럼에 다른 채널이 이미 연결된 경우
+      if (existingByPost.rows.length > 0 && existingByPost.rows[0].voice_channel_id !== voiceChannelId) {
+        const conflictError = new Error('이미 다른 음성 채널이 연결된 포럼 포스트입니다.');
+        conflictError.code = '23505';
+        conflictError.constraint = 'post_integrations_guild_id_forum_post_id_key';
+        conflictError.detail = `Voice channel ${existingByPost.rows[0].voice_channel_id} is already linked to forum post ${forumPostId}`;
+        throw conflictError;
+      }
+
+      // UPSERT 쿼리 실행 - 두 unique constraint 모두 처리
       const result = await this.query(`
-          INSERT INTO post_integrations (guild_id, voice_channel_id, forum_post_id, forum_channel_id)
-          VALUES ($1, $2, $3, $4) ON CONFLICT (guild_id, voice_channel_id) 
-        DO
-          UPDATE SET
-              forum_post_id = EXCLUDED.forum_post_id,
-              forum_channel_id = EXCLUDED.forum_channel_id,
-              is_active = true,
-              updated_at = CURRENT_TIMESTAMP
-              RETURNING *
+        INSERT INTO post_integrations (guild_id, voice_channel_id, forum_post_id, forum_channel_id)
+        VALUES ($1, $2, $3, $4) 
+        ON CONFLICT (guild_id, voice_channel_id) 
+        DO UPDATE SET
+          forum_post_id = EXCLUDED.forum_post_id,
+          forum_channel_id = EXCLUDED.forum_channel_id,
+          is_active = true,
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
       `, [guildId, voiceChannelId, forumPostId, forumChannelId]);
 
       logger.databaseOperation('포스트 연동 생성', {voiceChannelId, forumPostId});
