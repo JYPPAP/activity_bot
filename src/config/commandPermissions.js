@@ -14,7 +14,7 @@ export const ROLE_BASED_PERMISSIONS = {
   'gap_config': SUPER_ADMIN_ROLES,
   'gap_reset': SUPER_ADMIN_ROLES,
   'gap_save': SUPER_ADMIN_ROLES,
-  'gap_report': SUPER_ADMIN_ROLES,
+  '보고서': SUPER_ADMIN_ROLES,
   'gap_cycle': SUPER_ADMIN_ROLES,
   'gap_afk': SUPER_ADMIN_ROLES,
   'gap_calendar': SUPER_ADMIN_ROLES,

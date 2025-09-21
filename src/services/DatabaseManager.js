@@ -636,6 +636,22 @@ export class DatabaseManager {
           });
           
           // STANDALONE → 실제 채널 업그레이드 처리
+          // 먼저 target voice_channel_id가 이미 사용 중인지 확인
+          const existingTargetChannel = await this.query(`
+            SELECT voice_channel_id, forum_post_id 
+            FROM post_integrations 
+            WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
+          `, [guildId, voiceChannelId]);
+
+          // 기존 레코드가 있다면 비활성화
+          if (existingTargetChannel.rows.length > 0) {
+            await this.query(`
+              UPDATE post_integrations 
+              SET is_active = false, updated_at = CURRENT_TIMESTAMP
+              WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
+            `, [guildId, voiceChannelId]);
+          }
+
           const updateResult = await this.query(`
             UPDATE post_integrations 
             SET 

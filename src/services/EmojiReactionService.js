@@ -248,7 +248,8 @@ export class EmojiReactionService {
       for (const user of realUsers.values()) {
         try {
           const member = await guild.members.fetch(user.id).catch(err => {
-            console.warn(`[EmojiReactionService] 멤버 정보 가져오기 실패: ${user.username} -`, err.message);
+            // 일반적인 상황이므로 debug 레벨로 낮춤 (사용자가 서버를 나간 경우 등)
+            console.debug(`[EmojiReactionService] 멤버 정보 조회 불가: ${user.username} (${user.id}) - ${err.message}`);
             return null;
           });
           

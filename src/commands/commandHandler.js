@@ -28,7 +28,7 @@ export class CommandHandler {
       this.commands.set('gap_config', gapConfigCommand);
       this.commands.set('시간확인', timeConfirmCommand);
       this.commands.set('시간체크', timeCheckCommand);
-      this.commands.set('gap_report', gapReportCommand);
+      this.commands.set('보고서', gapReportCommand);
       this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
       this.commands.set('닉네임설정', nicknameCommand);

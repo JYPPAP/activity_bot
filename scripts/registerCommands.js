@@ -53,10 +53,10 @@ commands.push(
     )
 );
 
-// gap_report 명령어
+// 보고서 명령어
 commands.push(
   new SlashCommandBuilder()
-    .setName('gap_report')
+    .setName('보고서')
     .setDescription('역할별 활동 보고서를 생성합니다.')
     .addStringOption(option =>
       option.setName('role')

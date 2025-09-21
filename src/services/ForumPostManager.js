@@ -257,6 +257,9 @@ export class ForumPostManager {
       
       if (!thread || !thread.isThread() || thread.archived) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        
+        // 아카이브되거나 삭제된 스레드의 연동 정리
+        await this._cleanupArchivedThread(postId);
         return false;
       }
       
@@ -295,6 +298,9 @@ export class ForumPostManager {
       
       if (!thread || !thread.isThread() || thread.archived) {
         console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        
+        // 아카이브되거나 삭제된 스레드의 연동 정리
+        await this._cleanupArchivedThread(postId);
         return false;
       }
       
@@ -781,6 +787,49 @@ export class ForumPostManager {
     } catch (error) {
       console.error(`[ForumPostManager] 참가자 변화 알림 메시지 전송 실패: ${postId}`, error);
       return false;
+    }
+  }
+
+  /**
+   * 아카이브되거나 삭제된 스레드의 연동 정리
+   * @param {string} postId - 포럼 포스트 ID
+   * @returns {Promise<void>}
+   */
+  async _cleanupArchivedThread(postId) {
+    try {
+      console.log(`[ForumPostManager] 아카이브된 스레드 정리 시작: ${postId}`);
+      
+      // 데이터베이스에서 해당 포럼 포스트와 연결된 연동 정보 조회
+      if (this.databaseManager) {
+        const integration = await this.databaseManager.query(`
+          SELECT voice_channel_id, forum_post_id 
+          FROM post_integrations 
+          WHERE forum_post_id = $1 AND is_active = true
+        `, [postId]);
+        
+        if (integration.rows.length > 0) {
+          const voiceChannelId = integration.rows[0].voice_channel_id;
+          console.log(`[ForumPostManager] 아카이브된 스레드와 연결된 음성 채널: ${voiceChannelId}`);
+          
+          // 포스트 연동 비활성화
+          await this.databaseManager.query(`
+            UPDATE post_integrations 
+            SET is_active = false, archived_at = CURRENT_TIMESTAMP
+            WHERE forum_post_id = $1 AND is_active = true
+          `, [postId]);
+          
+          console.log(`[ForumPostManager] 아카이브된 스레드의 연동 정보 비활성화 완료: ${postId}`);
+        }
+      }
+      
+      // 메시지 추적 정보 정리
+      if (this.trackedMessages) {
+        delete this.trackedMessages[postId];
+      }
+      
+      console.log(`[ForumPostManager] 아카이브된 스레드 정리 완료: ${postId}`);
+    } catch (error) {
+      console.error(`[ForumPostManager] 아카이브된 스레드 정리 실패: ${postId}`, error);
     }
   }
 }

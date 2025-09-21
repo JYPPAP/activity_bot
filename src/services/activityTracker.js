@@ -535,6 +535,20 @@ export class ActivityTracker {
   }
 
   /**
+   * 활동 데이터를 DB에 저장 (인터페이스 호환성을 위한 래퍼 메서드)
+   * @returns {Promise<{savedUsers: number, dataSize: number}>}
+   */
+  async saveActivityData() {
+    const initialSessionCount = this.activeSessions.size;
+    await this.saveActiveSessionsToDB();
+    
+    return {
+      savedUsers: initialSessionCount,
+      dataSize: initialSessionCount
+    };
+  }
+
+  /**
    * 현재 활성 세션들을 주기적으로 DB에 저장 (10분마다 실행)
    */
   async saveActiveSessionsToDB() {
