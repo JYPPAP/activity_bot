@@ -93,80 +93,192 @@ export class EmbedFactory {
       }
     }
 
-    // 활성 사용자 임베드
-    const activeEmbed = new EmbedBuilder()
-      .setColor(COLORS.ACTIVE)
-      .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
-      .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`);
+    const embeds = [];
 
-    activeEmbed.addFields(
-      {name: `✅ 활동 기준 달성 멤버 (${activeUsers.length}명)`, value: '\u200B'}
+    // 활성 사용자 페이지 생성
+    const activeEmbeds = this.createUserPageEmbeds(
+      activeUsers, 
+      cleanedRoleName, 
+      title, 
+      startDateStr, 
+      endDateStr, 
+      minHours, 
+      cycleText,
+      '✅ 활동 기준 달성 멤버',
+      COLORS.ACTIVE,
+      '기준 달성 멤버가 없습니다.'
     );
+    embeds.push(...activeEmbeds);
 
-    if (activeUsers.length > 0) {
-      activeEmbed.addFields(
-        {name: '이름', value: activeUsers.map(user => user.nickname || user.userId).join('\n'), inline: true},
-        {name: '총 활동 시간', value: activeUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true}
-      );
-    } else {
-      activeEmbed.addFields(
-        {name: '\u200B', value: '기준 달성 멤버가 없습니다.', inline: false}
-      );
-    }
-
-    // 비활성 사용자 임베드
-    const inactiveEmbed = new EmbedBuilder()
-      .setColor(COLORS.INACTIVE)
-      .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
-      .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`);
-
-    inactiveEmbed.addFields(
-      {name: `❌ 활동 기준 미달성 멤버 (${inactiveUsers.length}명)`, value: '\u200B'}
+    // 비활성 사용자 페이지 생성
+    const inactiveEmbeds = this.createUserPageEmbeds(
+      inactiveUsers, 
+      cleanedRoleName, 
+      title, 
+      startDateStr, 
+      endDateStr, 
+      minHours, 
+      cycleText,
+      '❌ 활동 기준 미달성 멤버',
+      COLORS.INACTIVE,
+      '기준 미달성 멤버가 없습니다.'
     );
-
-    if (inactiveUsers.length > 0) {
-      inactiveEmbed.addFields(
-        {name: '이름', value: inactiveUsers.map(user => user.nickname || user.userId).join('\n'), inline: true},
-        {name: '총 활동 시간', value: inactiveUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true}
-      );
-    } else {
-      inactiveEmbed.addFields(
-        {name: '\u200B', value: '기준 미달성 멤버가 없습니다.', inline: false}
-      );
-    }
-
-    // 여기서 embeds 배열을 초기화해야 합니다!
-    const embeds = [activeEmbed, inactiveEmbed];
+    embeds.push(...inactiveEmbeds);
 
     // 잠수 사용자가 있을 경우에만 잠수 임베드 추가
     if (afkUsers && afkUsers.length > 0) {
-      // 잠수 사용자 임베드
-      const afkEmbed = new EmbedBuilder()
-        .setColor(COLORS.SLEEP)
-        .setTitle(`📊 ${cleanedRoleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
-        .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`);
-
-      afkEmbed.addFields(
-        {name: `💤 잠수 중인 멤버 (${afkUsers.length}명)`, value: '\u200B'}
+      const afkEmbeds = this.createAfkUserPageEmbeds(
+        afkUsers, 
+        cleanedRoleName, 
+        title, 
+        startDateStr, 
+        endDateStr, 
+        minHours, 
+        cycleText
       );
-
-      if (afkUsers.length > 0) {
-        afkEmbed.addFields(
-          {name: '이름', value: afkUsers.map(user => user.nickname || user.userId).join('\n'), inline: true},
-          {name: '총 활동 시간', value: afkUsers.map(user => formatTime(user.totalTime)).join('\n'), inline: true},
-          {
-            name: '잠수 해제 예정일',
-            value: afkUsers.map(user => formatSimpleDate(new Date(user.afkUntil || Date.now()))).join('\n'),
-            inline: true
-          }
-        );
-      }
-
-      // 잠수 임베드 추가
-      embeds.push(afkEmbed);
+      embeds.push(...afkEmbeds);
     }
 
     return embeds;
+  }
+
+  /**
+   * 사용자 목록을 페이지별로 분할하여 임베드 생성
+   * @param {Array} users - 사용자 배열
+   * @param {string} roleName - 역할 이름
+   * @param {string} title - 제목
+   * @param {string} startDateStr - 시작 날짜 문자열
+   * @param {string} endDateStr - 종료 날짜 문자열
+   * @param {number} minHours - 최소 시간
+   * @param {string} cycleText - 주기 텍스트
+   * @param {string} categoryName - 카테고리 이름
+   * @param {string} color - 색상
+   * @param {string} emptyMessage - 빈 메시지
+   * @returns {Array<EmbedBuilder>} - 페이지별 임베드 배열
+   */
+  static createUserPageEmbeds(users, roleName, title, startDateStr, endDateStr, minHours, cycleText, categoryName, color, emptyMessage) {
+    const embeds = [];
+    
+    if (users.length === 0) {
+      const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle(`📊 ${roleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+        .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`)
+        .addFields(
+          {name: `${categoryName} (0명)`, value: '\u200B'},
+          {name: '\u200B', value: emptyMessage, inline: false}
+        );
+      embeds.push(embed);
+      return embeds;
+    }
+
+    // 사용자를 페이지별로 분할
+    const userPages = this.splitUsersIntoPages(users, 900); // 900자로 제한하여 안전 마진 확보
+
+    userPages.forEach((pageUsers, pageIndex) => {
+      const pageInfo = userPages.length > 1 ? ` (${pageIndex + 1}/${userPages.length} 페이지)` : '';
+      
+      const embed = new EmbedBuilder()
+        .setColor(color)
+        .setTitle(`📊 ${roleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+        .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`)
+        .addFields(
+          {name: `${categoryName} (${users.length}명)${pageInfo}`, value: '\u200B'}
+        );
+
+      if (pageUsers.length > 0) {
+        const names = pageUsers.map(user => user.nickname || user.userId).join('\n');
+        const times = pageUsers.map(user => formatTime(user.totalTime)).join('\n');
+        
+        embed.addFields(
+          {name: '이름', value: names, inline: true},
+          {name: '총 활동 시간', value: times, inline: true}
+        );
+      }
+
+      embeds.push(embed);
+    });
+
+    return embeds;
+  }
+
+  /**
+   * 잠수 사용자 목록을 페이지별로 분할하여 임베드 생성
+   * @param {Array} afkUsers - 잠수 사용자 배열
+   * @param {string} roleName - 역할 이름
+   * @param {string} title - 제목
+   * @param {string} startDateStr - 시작 날짜 문자열
+   * @param {string} endDateStr - 종료 날짜 문자열
+   * @param {number} minHours - 최소 시간
+   * @param {string} cycleText - 주기 텍스트
+   * @returns {Array<EmbedBuilder>} - 페이지별 임베드 배열
+   */
+  static createAfkUserPageEmbeds(afkUsers, roleName, title, startDateStr, endDateStr, minHours, cycleText) {
+    const embeds = [];
+    
+    // 잠수 사용자를 페이지별로 분할 (3개 필드이므로 더 작게)
+    const userPages = this.splitUsersIntoPages(afkUsers, 600);
+
+    userPages.forEach((pageUsers, pageIndex) => {
+      const pageInfo = userPages.length > 1 ? ` (${pageIndex + 1}/${userPages.length} 페이지)` : '';
+      
+      const embed = new EmbedBuilder()
+        .setColor(COLORS.SLEEP)
+        .setTitle(`📊 ${roleName} 역할 ${title} (${startDateStr} ~ ${endDateStr})`)
+        .setDescription(`최소 활동 시간: ${minHours}시간\n보고서 출력 주기: ${cycleText}`)
+        .addFields(
+          {name: `💤 잠수 중인 멤버 (${afkUsers.length}명)${pageInfo}`, value: '\u200B'}
+        );
+
+      if (pageUsers.length > 0) {
+        const names = pageUsers.map(user => user.nickname || user.userId).join('\n');
+        const times = pageUsers.map(user => formatTime(user.totalTime)).join('\n');
+        const dates = pageUsers.map(user => formatSimpleDate(new Date(user.afkUntil || Date.now()))).join('\n');
+        
+        embed.addFields(
+          {name: '이름', value: names, inline: true},
+          {name: '총 활동 시간', value: times, inline: true},
+          {name: '잠수 해제 예정일', value: dates, inline: true}
+        );
+      }
+
+      embeds.push(embed);
+    });
+
+    return embeds;
+  }
+
+  /**
+   * 사용자 배열을 페이지별로 분할
+   * @param {Array} users - 사용자 배열
+   * @param {number} maxFieldLength - 필드 최대 길이
+   * @returns {Array<Array>} - 페이지별로 분할된 사용자 배열
+   */
+  static splitUsersIntoPages(users, maxFieldLength = 900) {
+    const pages = [];
+    let currentPage = [];
+    let currentLength = 0;
+    
+    for (const user of users) {
+      const nickname = user.nickname || user.userId;
+      const timeStr = formatTime(user.totalTime);
+      const userLineLength = nickname.length + timeStr.length + 2; // +2 for newlines
+      
+      if (currentLength + userLineLength > maxFieldLength && currentPage.length > 0) {
+        pages.push([...currentPage]);
+        currentPage = [user];
+        currentLength = userLineLength;
+      } else {
+        currentPage.push(user);
+        currentLength += userLineLength;
+      }
+    }
+    
+    if (currentPage.length > 0) {
+      pages.push(currentPage);
+    }
+    
+    return pages.length > 0 ? pages : [[]];
   }
 
   /**
