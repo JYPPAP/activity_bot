@@ -9,8 +9,35 @@ export class ActivityTracker {
     this.logService = logService;
     // 현재 활성 세션만 메모리에 저장 (userId -> {startTime, displayName})
     this.activeSessions = new Map();
-    // 주기적 저장 타이머
+    // 주기적 작업 타이머들
     this.periodicSaveInterval = null;
+    this.validationInterval = null;
+    this.abnormalDetectionInterval = null;
+    
+    // Discord 재연결 이벤트 리스너 등록
+    this.setupDiscordEventListeners();
+  }
+
+  /**
+   * Discord 이벤트 리스너 설정
+   */
+  setupDiscordEventListeners() {
+    // Discord 재연결 시 세션 동기화
+    this.client.on('ready', async () => {
+      console.log('[ActivityTracker] Discord 재연결 감지');
+      try {
+        await this.syncSessionsWithVoiceState();
+      } catch (error) {
+        console.error('[ActivityTracker] Discord 재연결 시 세션 동기화 오류:', error);
+      }
+    });
+
+    // 길드 사용 불가 시 로그 출력
+    this.client.on('guildUnavailable', (guild) => {
+      if (guild.id === config.GUILDID) {
+        console.warn(`[ActivityTracker] 길드 사용 불가: ${guild.name} - 세션 추적 일시 중단`);
+      }
+    });
   }
 
   /**
@@ -595,9 +622,12 @@ export class ActivityTracker {
       return;
     }
 
-    // 10분 = 600,000ms
-    const SAVE_INTERVAL = 10 * 60 * 1000;
+    // 주기적 작업 간격 설정
+    const SAVE_INTERVAL = 10 * 60 * 1000;        // 10분 - 세션 저장
+    const VALIDATION_INTERVAL = 30 * 60 * 1000;  // 30분 - 세션 검증
+    const ABNORMAL_DETECTION_INTERVAL = 4 * 60 * 60 * 1000; // 4시간 - 장시간 세션 감지
     
+    // 세션 저장 타이머 (10분마다)
     this.periodicSaveInterval = setInterval(async () => {
       try {
         await this.saveActiveSessionsToDB();
@@ -606,18 +636,50 @@ export class ActivityTracker {
       }
     }, SAVE_INTERVAL);
 
-    console.log('[ActivityTracker] 10분마다 주기적 저장 시작됨');
+    // 세션 검증 타이머 (30분마다)
+    this.validationInterval = setInterval(async () => {
+      try {
+        await this.validateActiveSessions();
+      } catch (error) {
+        console.error('[ActivityTracker] 세션 검증 중 오류 발생:', error);
+      }
+    }, VALIDATION_INTERVAL);
+
+    // 장시간 세션 감지 타이머 (4시간마다)
+    this.abnormalDetectionInterval = setInterval(async () => {
+      try {
+        await this.detectAbnormalSessions();
+      } catch (error) {
+        console.error('[ActivityTracker] 장시간 세션 감지 중 오류 발생:', error);
+      }
+    }, ABNORMAL_DETECTION_INTERVAL);
+
+    console.log('[ActivityTracker] 주기적 작업 시작됨 - 저장: 10분, 검증: 30분, 장시간감지: 4시간');
   }
 
   /**
-   * 주기적 저장 중지
+   * 모든 주기적 작업 중지
    */
   stopPeriodicSaving() {
+    // 세션 저장 타이머 중지
     if (this.periodicSaveInterval) {
       clearInterval(this.periodicSaveInterval);
       this.periodicSaveInterval = null;
-      console.log('[ActivityTracker] 주기적 저장이 중지되었습니다.');
     }
+    
+    // 세션 검증 타이머 중지
+    if (this.validationInterval) {
+      clearInterval(this.validationInterval);
+      this.validationInterval = null;
+    }
+    
+    // 장시간 세션 감지 타이머 중지
+    if (this.abnormalDetectionInterval) {
+      clearInterval(this.abnormalDetectionInterval);
+      this.abnormalDetectionInterval = null;
+    }
+    
+    console.log('[ActivityTracker] 모든 주기적 작업이 중지되었습니다.');
   }
 
   /**
@@ -639,6 +701,190 @@ export class ActivityTracker {
       console.log('[ActivityTracker] 최종 저장 및 정리 완료');
     } catch (error) {
       console.error('[ActivityTracker] 최종 저장 중 오류:', error);
+    }
+  }
+
+  /**
+   * 비정상 세션을 강제로 종료합니다.
+   * @param {string} userId - 사용자 ID
+   * @param {string} reason - 종료 사유
+   */
+  async forceEndSession(userId, reason) {
+    const session = this.activeSessions.get(userId);
+    if (!session) return;
+    
+    const now = Date.now();
+    const duration = now - session.startTime;
+    const hours = duration / (1000 * 60 * 60);
+    
+    // 8시간 이상인 경우 경고 로그 기록
+    const ABNORMAL_THRESHOLD_HOURS = 8;
+    if (hours >= ABNORMAL_THRESHOLD_HOURS) {
+      console.warn(`[ABNORMAL SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 세션 강제종료 (${reason})`);
+    } else {
+      console.log(`[ActivityTracker] ${session.displayName}: 세션 강제종료 (${reason})`);
+    }
+    
+    try {
+      // 정상적으로 저장 후 종료
+      const sessionStartDate = new Date(session.startTime);
+      await this.saveSessionActivity(userId, duration, session.displayName, sessionStartDate);
+      
+      // 메모리에서 세션 제거
+      this.activeSessions.delete(userId);
+      
+      console.log(`[ActivityTracker] ${session.displayName} 세션 데이터 저장 후 종료 완료`);
+    } catch (error) {
+      console.error(`[ActivityTracker] 세션 강제종료 중 오류 (${userId}):`, error);
+      // 오류가 있어도 세션은 제거
+      this.activeSessions.delete(userId);
+    }
+  }
+
+  /**
+   * 모든 활성 세션의 유효성을 검증합니다.
+   * 실제 음성채널에 있지 않은 세션을 강제 종료합니다.
+   */
+  async validateActiveSessions() {
+    if (this.activeSessions.size === 0) {
+      return;
+    }
+
+    console.log(`[ActivityTracker] 세션 유효성 검증 시작 (${this.activeSessions.size}개 세션)`);
+    
+    const guild = this.client.guilds.cache.get(config.GUILDID);
+    if (!guild) {
+      console.error('[ActivityTracker] 길드를 찾을 수 없어 세션 검증을 건너뜁니다.');
+      return;
+    }
+
+    let invalidSessions = 0;
+    const sessionsToEnd = [];
+
+    for (const [userId, session] of this.activeSessions.entries()) {
+      try {
+        const member = guild.members.cache.get(userId);
+        
+        // 멤버가 없거나, 음성채널에 없거나, 제외 채널에 있는 경우
+        if (!member || 
+            !member.voice?.channelId || 
+            config.EXCLUDED_CHANNELS.includes(member.voice.channelId) ||
+            this.isObservationOrWaiting(member)) {
+          
+          sessionsToEnd.push({
+            userId,
+            reason: !member ? '멤버 없음' : 
+                   !member.voice?.channelId ? '음성채널 없음' : 
+                   config.EXCLUDED_CHANNELS.includes(member.voice.channelId) ? '제외 채널' : 
+                   '관전/대기 상태'
+          });
+          invalidSessions++;
+        }
+      } catch (error) {
+        console.error(`[ActivityTracker] 사용자 ${userId} 검증 중 오류:`, error);
+        sessionsToEnd.push({ userId, reason: '검증 오류' });
+        invalidSessions++;
+      }
+    }
+
+    // 비정상 세션들을 강제 종료
+    for (const { userId, reason } of sessionsToEnd) {
+      await this.forceEndSession(userId, `세션 검증: ${reason}`);
+    }
+
+    if (invalidSessions > 0) {
+      console.log(`[ActivityTracker] 세션 유효성 검증 완료: ${invalidSessions}개 비정상 세션 종료`);
+    } else {
+      console.log('[ActivityTracker] 세션 유효성 검증 완료: 모든 세션 정상');
+    }
+  }
+
+  /**
+   * 비정상적으로 긴 세션을 감지합니다.
+   * 8시간 이상 지속된 세션을 재검증합니다.
+   */
+  async detectAbnormalSessions() {
+    if (this.activeSessions.size === 0) {
+      return;
+    }
+
+    console.log(`[ActivityTracker] 장시간 세션 감지 시작 (${this.activeSessions.size}개 세션)`);
+    
+    const ABNORMAL_THRESHOLD = 8 * 60 * 60 * 1000; // 8시간
+    const now = Date.now();
+    let abnormalCount = 0;
+
+    for (const [userId, session] of this.activeSessions.entries()) {
+      const duration = now - session.startTime;
+      
+      if (duration > ABNORMAL_THRESHOLD) {
+        const hours = duration / (1000 * 60 * 60);
+        console.warn(`[LONG SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 지속 중 - 재검증 필요`);
+        abnormalCount++;
+        
+        // 장시간 세션에 대해서는 즉시 유효성 재검증
+        const guild = this.client.guilds.cache.get(config.GUILDID);
+        if (guild) {
+          const member = guild.members.cache.get(userId);
+          if (!member || 
+              !member.voice?.channelId || 
+              config.EXCLUDED_CHANNELS.includes(member.voice.channelId) ||
+              this.isObservationOrWaiting(member)) {
+            
+            await this.forceEndSession(userId, `장시간 세션 재검증: 음성채널 없음`);
+          }
+        }
+      }
+    }
+
+    if (abnormalCount > 0) {
+      console.log(`[ActivityTracker] 장시간 세션 감지 완료: ${abnormalCount}개 장시간 세션 발견`);
+    } else {
+      console.log('[ActivityTracker] 장시간 세션 감지 완료: 모든 세션 정상 범위');
+    }
+  }
+
+  /**
+   * Discord 재연결 시 세션 상태를 실제 음성채널 상태와 동기화합니다.
+   */
+  async syncSessionsWithVoiceState() {
+    console.log('[ActivityTracker] Discord 재연결 - 세션 상태 동기화 시작');
+    
+    const guild = this.client.guilds.cache.get(config.GUILDID);
+    if (!guild) {
+      console.error('[ActivityTracker] 길드를 찾을 수 없어 동기화를 건너뜁니다.');
+      return;
+    }
+
+    try {
+      // 현재 음성채널에 있는 사용자들 확인
+      const members = await guild.members.fetch();
+      const currentVoiceUsers = new Set();
+      
+      for (const [userId, member] of members.entries()) {
+        if (member.voice?.channelId && 
+            !config.EXCLUDED_CHANNELS.includes(member.voice.channelId) &&
+            !this.isObservationOrWaiting(member)) {
+          currentVoiceUsers.add(userId);
+        }
+      }
+
+      // 세션은 있는데 실제로는 음성채널에 없는 사용자들 정리
+      const sessionsToEnd = [];
+      for (const [userId, session] of this.activeSessions.entries()) {
+        if (!currentVoiceUsers.has(userId)) {
+          sessionsToEnd.push(userId);
+        }
+      }
+
+      // 비정상 세션들 종료
+      for (const userId of sessionsToEnd) {
+        await this.forceEndSession(userId, 'Discord 재연결 동기화');
+      }
+
+      console.log(`[ActivityTracker] 세션 동기화 완료: ${sessionsToEnd.length}개 세션 정리됨`);
+    } catch (error) {
+      console.error('[ActivityTracker] 세션 동기화 중 오류:', error);
     }
   }
 }
