@@ -163,30 +163,29 @@ export class GapReportCommand extends CommandBase {
 
   // 전체 사용자 분류 (30시간 기준)
   async classifyAllUsers(allMembers, startDate, endDate, minHours) {
-    const minActivityMinutes = minHours * 60;
+    const minActivityMs = minHours * 60 * 60 * 1000; // 시간을 밀리초로 변환
     const activeUsers = [];
     const inactiveUsers = [];
     const afkUsers = [];
 
     for (const [userId, member] of allMembers.entries()) {
       try {
-        // PostgreSQL에서 사용자 활동 분 조회 (날짜 범위 기준)
-        const totalMinutes = await this.dbManager.getUserActivityByDateRange(userId, startDate, endDate);
+        // PostgreSQL에서 사용자 활동 시간 조회 (밀리초 단위)
+        const totalTimeMs = await this.dbManager.getUserActivityByDateRange(userId, startDate, endDate);
         
-        // 현재 활성 세션이 있다면 추가
-        let currentSessionMinutes = 0;
+        // 현재 활성 세션이 있다면 추가 (밀리초로 변환)
+        let currentSessionTimeMs = 0;
         if (this.activityTracker.activeSessions?.has(userId)) {
           const session = this.activityTracker.activeSessions.get(userId);
-          const sessionDuration = Date.now() - session.startTime;
-          currentSessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+          currentSessionTimeMs = Date.now() - session.startTime;
         }
 
-        const totalWithCurrent = totalMinutes + currentSessionMinutes;
+        const totalWithCurrent = totalTimeMs + currentSessionTimeMs;
 
         const userData = {
           userId,
           nickname: member.displayName,
-          totalTime: totalWithCurrent * 60 * 1000 // 호환성을 위해 밀리초로 변환
+          totalTime: totalWithCurrent // 이미 밀리초 단위
         };
 
         // 잠수 역할이 있는 경우 afkUsers에 추가
@@ -194,7 +193,7 @@ export class GapReportCommand extends CommandBase {
           afkUsers.push(userData);
         }
         // 그 외는 활동 시간 기준으로 분류
-        else if (totalWithCurrent >= minActivityMinutes) {
+        else if (totalWithCurrent >= minActivityMs) {
           activeUsers.push(userData);
         } else {
           inactiveUsers.push(userData);
