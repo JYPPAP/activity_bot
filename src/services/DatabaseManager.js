@@ -347,6 +347,106 @@ export class DatabaseManager {
   }
 
   /**
+   * 사용자의 일별 활동 시간을 날짜 범위별로 조회합니다.
+   * @param {string} userId - 사용자 ID
+   * @param {number} startTime - 시작 시간 (타임스탬프)
+   * @param {number} endTime - 종료 시간 (타임스탬프)
+   * @returns {Promise<Array>} - 일별 활동 데이터 배열
+   */
+  async getUserDailyActivityByDateRange(userId, startTime, endTime) {
+    try {
+      const startDate = new Date(startTime);
+      const endDate = new Date(endTime);
+      const dailyData = [];
+
+      const months = [];
+      let currentDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+
+      while (currentDate <= endDate) {
+        const year = currentDate.getFullYear();
+        const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+        const tableSuffix = `${year}${month}`;
+        months.push({
+          suffix: tableSuffix,
+          tableName: `user_activities_${tableSuffix}`,
+          year: currentDate.getFullYear(),
+          month: currentDate.getMonth() + 1
+        });
+
+        currentDate.setMonth(currentDate.getMonth() + 1);
+      }
+
+      for (const monthInfo of months) {
+        try {
+          const result = await this.query(`
+              SELECT daily_voice_minutes
+              FROM ${monthInfo.tableName}
+              WHERE user_id = $1
+          `, [userId]);
+
+          if (result.rows[0]) {
+            const dailyMinutes = result.rows[0].daily_voice_minutes || {};
+
+            for (const [day, minutes] of Object.entries(dailyMinutes)) {
+              const fullDate = new Date(monthInfo.year, monthInfo.month - 1, parseInt(day));
+              
+              if (fullDate >= startDate && fullDate <= endDate) {
+                const minutesNum = parseInt(minutes) || 0;
+                if (minutesNum > 0) { // 활동이 있는 날만 포함
+                  dailyData.push({
+                    date: fullDate,
+                    dateString: fullDate.toISOString().split('T')[0], // YYYY-MM-DD
+                    day: parseInt(day),
+                    minutes: minutesNum,
+                    hours: Math.round((minutesNum / 60) * 10) / 10, // 소수점 1자리
+                    formattedTime: this.formatMinutesToTime(minutesNum)
+                  });
+                }
+              }
+            }
+          }
+        } catch (error) {
+          if (error.code === '42P01') {
+            logger.debug('월별 테이블 존재하지 않음 (정상)', {tableName: monthInfo.tableName});
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      // 날짜순 정렬
+      dailyData.sort((a, b) => a.date - b.date);
+
+      logger.databaseOperation('사용자 일별 활동 시간 조회 완료', {
+        userId,
+        totalDays: dailyData.length,
+        dateRange: `${startDate.toISOString().split('T')[0]} ~ ${endDate.toISOString().split('T')[0]}`
+      });
+
+      return dailyData;
+    } catch (error) {
+      logger.error('사용자 일별 활동 시간 조회 실패', {
+        userId,
+        startTime: new Date(startTime).toISOString(),
+        endTime: new Date(endTime).toISOString(),
+        error: error.message
+      });
+      return [];
+    }
+  }
+
+  /**
+   * 분을 시간:분 형태로 포맷팅합니다.
+   * @param {number} minutes - 분
+   * @returns {string} - 포맷팅된 시간 문자열
+   */
+  formatMinutesToTime(minutes) {
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    return `${hours}시간 ${mins}분`;
+  }
+
+  /**
    * 모든 사용자 활동 데이터 조회 (호환성)
    */
   async getAllUserActivity() {
