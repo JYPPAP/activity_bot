@@ -19,7 +19,7 @@ export class GapReportCommand extends CommandBase {
   }
 
   /**
-   * gap_report 명령어의 실제 실행 로직
+   * 보고서 명령어의 실제 실행 로직
    * @param interaction - 상호작용 객체
    */
   async executeCommand(interaction) {
@@ -29,23 +29,21 @@ export class GapReportCommand extends CommandBase {
     // 최신 데이터로 갱신
     await this.activityTracker.saveActivityData();
 
-    // 역할 설정 가져오기
-    const roleConfig = await this.dbManager.getRoleConfig(options.role);
-    if (!this.validateRoleConfig(roleConfig, options.role, interaction)) {
-      return;
-    }
+    // 30시간 기준 설정 가져오기
+    const settings = await this.dbManager.getGuildSettings(interaction.guild.id);
+    const minHours = settings?.monthly_target_hours || 30;
 
-    // 현재 역할을 가진 멤버 가져오기
-    const roleMembers = await this.getRoleMembers(interaction.guild, options.role);
+    // 전체 길드 멤버 가져오기
+    const allMembers = await this.getAllMembers(interaction.guild);
 
     // 날짜 범위 설정
-    const dateRange = await this.parseDateRange(options, roleConfig, interaction);
+    const dateRange = await this.parseDateRange(options, { minHours }, interaction);
     if (!dateRange) {
       return; // 날짜 파싱에 실패한 경우 함수 종료
     }
 
     // 사용자 분류 및 보고서 생성
-    const reportEmbeds = await this.generateReport(options.role, roleMembers, dateRange);
+    const reportEmbeds = await this.generateReport("전체 서버", allMembers, dateRange, minHours);
 
     // 보고서 전송
     await this.sendReport(interaction, options, reportEmbeds);
@@ -57,7 +55,6 @@ export class GapReportCommand extends CommandBase {
   // 명령어 옵션 가져오기
   getCommandOptions(interaction) {
     return {
-      role: cleanRoleName(interaction.options.getString("role")),
       startDateStr: interaction.options.getString("start_date")?.trim(),
       endDateStr: interaction.options.getString("end_date")?.trim(),
       isTestMode: interaction.options.getBoolean("test_mode") ?? false,
@@ -66,24 +63,23 @@ export class GapReportCommand extends CommandBase {
     };
   }
 
-  // 역할 설정 유효성 검사
-  validateRoleConfig(roleConfig, role, interaction) {
-    if (!roleConfig) {
-      interaction.followUp({
-        content: `역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
-        flags: MessageFlags.Ephemeral,
-      });
-      return false;
-    }
-    return true;
-  }
+  // 역할 설정 유효성 검사 (더 이상 사용하지 않음)
+  // validateRoleConfig(roleConfig, role, interaction) {
+  //   if (!roleConfig) {
+  //     interaction.followUp({
+  //       content: `역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
+  //       flags: MessageFlags.Ephemeral,
+  //     });
+  //     return false;
+  //   }
+  //   return true;
+  // }
 
-  // 역할 멤버 가져오기
-  async getRoleMembers(guild, role) {
+  // 전체 길드 멤버 가져오기
+  async getAllMembers(guild) {
     const members = await guild.members.fetch();
-    return members.filter(member =>
-      member.roles.cache.some(r => r.name === role)
-    );
+    // 봇이 아닌 실제 사용자만 반환
+    return members.filter(member => !member.user.bot);
   }
 
   // 날짜 형식 검증
@@ -165,19 +161,67 @@ export class GapReportCommand extends CommandBase {
     return { startDate, endDate };
   }
 
+  // 전체 사용자 분류 (30시간 기준)
+  async classifyAllUsers(allMembers, startDate, endDate, minHours) {
+    const minActivityMinutes = minHours * 60;
+    const activeUsers = [];
+    const inactiveUsers = [];
+    const afkUsers = [];
+
+    for (const [userId, member] of allMembers.entries()) {
+      try {
+        // PostgreSQL에서 사용자 활동 분 조회 (날짜 범위 기준)
+        const totalMinutes = await this.dbManager.getUserActivityByDateRange(userId, startDate, endDate);
+        
+        // 현재 활성 세션이 있다면 추가
+        let currentSessionMinutes = 0;
+        if (this.activityTracker.activeSessions?.has(userId)) {
+          const session = this.activityTracker.activeSessions.get(userId);
+          const sessionDuration = Date.now() - session.startTime;
+          currentSessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+        }
+
+        const totalWithCurrent = totalMinutes + currentSessionMinutes;
+
+        const userData = {
+          userId,
+          nickname: member.displayName,
+          totalTime: totalWithCurrent * 60 * 1000 // 호환성을 위해 밀리초로 변환
+        };
+
+        // 잠수 역할이 있는 경우 afkUsers에 추가
+        if (member.roles.cache.some(r => r.name.includes('잠수'))) {
+          afkUsers.push(userData);
+        }
+        // 그 외는 활동 시간 기준으로 분류
+        else if (totalWithCurrent >= minActivityMinutes) {
+          activeUsers.push(userData);
+        } else {
+          inactiveUsers.push(userData);
+        }
+      } catch (error) {
+        console.error(`사용자 ${userId} 분류 중 오류:`, error);
+      }
+    }
+
+    // 활동 시간 기준으로 정렬
+    activeUsers.sort((a, b) => b.totalTime - a.totalTime);
+    inactiveUsers.sort((a, b) => b.totalTime - a.totalTime);
+    afkUsers.sort((a, b) => b.totalTime - a.totalTime);
+
+    return { activeUsers, inactiveUsers, afkUsers };
+  }
+
   // 보고서 생성
-  async generateReport(role, roleMembers, dateRange) {
+  async generateReport(roleName, allMembers, dateRange, minHours) {
     const { startDate, endDate } = dateRange;
 
-    // 사용자 분류 서비스로 사용자 분류 (날짜 범위 기준)
-    const { activeUsers, inactiveUsers, afkUsers, minHours, reportCycle } =
-      await this.userClassificationService.classifyUsersByDateRange(
-        role, roleMembers, startDate, endDate
-      );
+    // 전체 사용자를 30시간 기준으로 분류
+    const { activeUsers, inactiveUsers, afkUsers } = await this.classifyAllUsers(allMembers, startDate, endDate, minHours);
 
     // 보고서 임베드 생성
     return EmbedFactory.createActivityEmbeds(
-      role, activeUsers, inactiveUsers, afkUsers, startDate, endDate, minHours, reportCycle, '활동 보고서'
+      roleName, activeUsers, inactiveUsers, afkUsers, startDate, endDate, minHours, null, '활동 보고서'
     );
   }
 
@@ -211,11 +255,10 @@ export class GapReportCommand extends CommandBase {
 
   // 리셋 처리
   async handleReset(interaction, options) {
-    // 테스트 모드가 아니고, 리셋 옵션이 켜져 있을 경우에만 리셋 시간 업데이트
+    // 전체 서버 보고서에서는 리셋 기능 비활성화
     if (!options.isTestMode && options.resetOption) {
-      await this.dbManager.updateRoleResetTime(options.role, Date.now(), '보고서 출력 시 리셋');
       await interaction.followUp({
-        content: `✅ ${options.role} 역할의 활동 시간이 리셋되었습니다.`,
+        content: `⚠️ 전체 서버 보고서에서는 리셋 기능을 사용할 수 없습니다.`,
         flags: MessageFlags.Ephemeral,
       });
     }

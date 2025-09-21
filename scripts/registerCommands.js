@@ -57,12 +57,7 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('보고서')
-    .setDescription('역할별 활동 보고서를 생성합니다.')
-    .addStringOption(option =>
-      option.setName('role')
-            .setDescription('보고서를 생성할 역할')
-            .setRequired(true)
-    )
+    .setDescription('전체 서버 활동 보고서를 생성합니다.')
     .addStringOption(option =>
       option.setName('start_date')
             .setDescription('시작 날짜 (YYMMDD 형식, 예: 250413)')
