@@ -1,0 +1,151 @@
+// src/commands/NicknameSetupCommand.js - 닉네임 설정 명령어 (사용자용)
+
+import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
+import { CommandBase } from './CommandBase.js';
+import { NicknameConstants } from '../config/NicknameConstants.js';
+import { SafeInteraction } from '../utils/SafeInteraction.js';
+
+export class NicknameSetupCommand extends CommandBase {
+  constructor(services) {
+    super(services);
+    this.platformTemplateService = services.platformTemplateService;
+    this.userNicknameService = services.userNicknameService;
+  }
+
+  /**
+   * 명령어 실행
+   */
+  async execute(interaction) {
+    try {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      const channelId = interaction.options.getString('channel');
+      const guildId = interaction.guild.id;
+
+      // 채널 유효성 검사
+      let channel = null;
+      try {
+        channel = await interaction.client.channels.fetch(channelId);
+        if (!channel) {
+          await interaction.editReply({
+            content: '❌ 유효하지 않은 채널 ID입니다.',
+          });
+          return;
+        }
+      } catch (error) {
+        await interaction.editReply({
+          content: '❌ 유효하지 않은 채널 ID입니다.',
+        });
+        return;
+      }
+
+      // 채널 권한 확인
+      const botMember = await interaction.guild.members.fetch(interaction.client.user.id);
+      const permissions = channel.permissionsFor(botMember);
+
+      if (!permissions.has('SendMessages')) {
+        await interaction.editReply({
+          content: `❌ **${channel.name}** 채널에 메시지를 보낼 권한이 없습니다.`,
+        });
+        return;
+      }
+
+      // 플랫폼 목록 가져오기
+      const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
+
+      if (platforms.length === 0) {
+        await interaction.editReply({
+          content: NicknameConstants.MESSAGES.NO_PLATFORMS,
+        });
+        return;
+      }
+
+      // UI 생성
+      const embed = this.createNicknameEmbed(channel.name);
+      const selectMenu = this.createMainSelectMenu(channelId, platforms);
+      const buttons = this.createActionButtons(channelId);
+
+      // 채널에 메시지 전송
+      await channel.send({
+        embeds: [embed],
+        components: [selectMenu, buttons],
+      });
+
+      // 성공 메시지
+      await interaction.editReply({
+        content: `✅ **${channel.name}** 채널에 닉네임 관리 UI가 설정되었습니다.`,
+      });
+    } catch (error) {
+      console.error('[NicknameSetupCommand] 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: `❌ 오류: ${error.message}`,
+        flags: MessageFlags.Ephemeral,
+      });
+    }
+  }
+
+  /**
+   * 닉네임 관리 임베드 생성
+   */
+  createNicknameEmbed(channelName) {
+    return new EmbedBuilder()
+      .setColor(NicknameConstants.COLORS.PRIMARY)
+      .setTitle(`${NicknameConstants.DEFAULT_EMOJIS.REGISTER} 닉네임 관리`)
+      .setDescription(
+        '아래에서 작업을 선택하세요.\n\n' +
+        '**드롭다운 사용법:**\n' +
+        '• "➕ 닉네임 등록!" → 플랫폼 선택 → ID 입력\n' +
+        '• 플랫폼 직접 선택 → 등록 또는 수정\n\n' +
+        `🔊 **대상 채널**: ${channelName}`
+      )
+      .setFooter({ text: '💡 등록된 닉네임은 음성 채널 입장 시 자동으로 표시됩니다.' });
+  }
+
+  /**
+   * 메인 드롭다운 생성
+   */
+  createMainSelectMenu(channelId, platforms) {
+    const options = [
+      {
+        label: '➕ 닉네임 등록!',
+        description: '새로운 플랫폼 닉네임을 등록합니다',
+        value: NicknameConstants.SPECIAL_VALUES.REGISTER,
+        emoji: NicknameConstants.DEFAULT_EMOJIS.REGISTER,
+      },
+    ];
+
+    // 플랫폼 목록 추가
+    platforms.forEach((platform) => {
+      options.push({
+        label: platform.platform_name,
+        description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+        value: `platform_${platform.id}`,
+        emoji: platform.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+      });
+    });
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.MAIN_SELECT}${channelId}`)
+      .setPlaceholder('닉네임 등록!')
+      .addOptions(options);
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+  }
+
+  /**
+   * 액션 버튼 생성
+   */
+  createActionButtons(channelId) {
+    const deleteButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN}${channelId}`)
+      .setLabel(`${NicknameConstants.DEFAULT_EMOJIS.DELETE} 닉네임 삭제`)
+      .setStyle(ButtonStyle.Danger);
+
+    const viewButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN}${channelId}`)
+      .setLabel(`${NicknameConstants.DEFAULT_EMOJIS.VIEW} 내 정보 조회`)
+      .setStyle(ButtonStyle.Primary);
+
+    return new ActionRowBuilder().addComponents(deleteButton, viewButton);
+  }
+}

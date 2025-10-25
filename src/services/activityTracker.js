@@ -93,6 +93,44 @@ export class ActivityTracker {
   }
 
   /**
+   * 세션 시간을 날짜별로 분할
+   * 자정을 넘어가는 세션의 경우 각 날짜에 속한 시간을 정확히 계산
+   * @param {number} startTime - 세션 시작 시간 (밀리초 타임스탬프)
+   * @param {number} endTime - 세션 종료 시간 (밀리초 타임스탬프)
+   * @returns {Array<{date: Date, minutes: number}>} - 날짜별 활동 시간 배열
+   */
+  splitSessionByDate(startTime, endTime) {
+    const sessions = [];
+    let currentStart = new Date(startTime);
+    const end = new Date(endTime);
+
+    while (currentStart < end) {
+      // 현재 날짜의 자정(다음날 00:00:00) 계산
+      const nextMidnight = new Date(currentStart);
+      nextMidnight.setHours(24, 0, 0, 0);
+
+      // 종료 시간과 다음 자정 중 빠른 시간 선택
+      const currentEnd = nextMidnight < end ? nextMidnight : end;
+
+      // 해당 날짜에 속한 시간(분) 계산
+      const durationMs = currentEnd - currentStart;
+      const minutes = Math.floor(durationMs / (1000 * 60));
+
+      if (minutes > 0) {
+        sessions.push({
+          date: new Date(currentStart),
+          minutes: minutes
+        });
+      }
+
+      // 다음 날짜로 이동
+      currentStart = nextMidnight;
+    }
+
+    return sessions;
+  }
+
+  /**
    * 세션 종료시 일일 활동 분을 즉시 DB에 업데이트
    */
   async saveSessionActivity(userId, sessionDurationMs, displayName, date = new Date()) {
@@ -130,12 +168,13 @@ export class ActivityTracker {
           if (this.activeSessions.has(userId)) {
             const session = this.activeSessions.get(userId);
             const sessionDuration = now - session.startTime;
-            
-            // 현재 세션의 활동 분 저장
-            // 세션 시작 날짜 기준으로 저장
-            const sessionStartDate = new Date(session.startTime);
-            await this.saveSessionActivity(userId, sessionDuration, member.displayName, sessionStartDate);
-            
+
+            // 현재 세션의 활동 분 저장 (날짜별 분할)
+            const sessions = this.splitSessionByDate(session.startTime, now);
+            for (const { date, minutes } of sessions) {
+              await this.saveSessionActivity(userId, minutes * 60 * 1000, member.displayName, date);
+            }
+
             // 현재 음성 채널에 있다면 새 세션 시작, 없다면 세션 제거
             if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
               session.startTime = now;
@@ -277,11 +316,13 @@ export class ActivityTracker {
       if (this.activeSessions.has(userId)) {
         const session = this.activeSessions.get(userId);
         const sessionDuration = now - session.startTime;
-        
-        // 즉시 PostgreSQL에 일일 활동 분 업데이트 (세션 시작 날짜 기준)
-        const sessionStartDate = new Date(session.startTime);
-        await this.saveSessionActivity(userId, sessionDuration, member.displayName, sessionStartDate);
-        
+
+        // 즉시 PostgreSQL에 일일 활동 분 업데이트 (날짜별 분할)
+        const sessions = this.splitSessionByDate(session.startTime, now);
+        for (const { date, minutes } of sessions) {
+          await this.saveSessionActivity(userId, minutes * 60 * 1000, member.displayName, date);
+        }
+
         // 메모리에서 세션 제거
         this.activeSessions.delete(userId);
       }
@@ -335,10 +376,12 @@ export class ActivityTracker {
       if (this.activeSessions.has(userId)) {
         const session = this.activeSessions.get(userId);
         const sessionDuration = now - session.startTime;
-        
-        // 세션 시작 날짜 기준으로 저장
-        const sessionStartDate = new Date(session.startTime);
-        await this.saveSessionActivity(userId, sessionDuration, newMember.displayName, sessionStartDate);
+
+        // 날짜별 분할하여 저장
+        const sessions = this.splitSessionByDate(session.startTime, now);
+        for (const { date, minutes } of sessions) {
+          await this.saveSessionActivity(userId, minutes * 60 * 1000, newMember.displayName, date);
+        }
         this.activeSessions.delete(userId);
         console.log(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
       }
@@ -595,15 +638,17 @@ export class ActivityTracker {
         const minutes = Math.floor(sessionDuration / (1000 * 60));
         
         if (minutes > 0) {
-          // DB에 누적 시간 저장 (세션 시작 날짜 기준)
-          const sessionStartDate = new Date(session.startTime);
-          await this.saveSessionActivity(userId, sessionDuration, session.displayName, sessionStartDate);
-          
+          // DB에 누적 시간 저장 (날짜별 분할)
+          const sessions = this.splitSessionByDate(session.startTime, now);
+          for (const { date, minutes: dailyMinutes } of sessions) {
+            await this.saveSessionActivity(userId, dailyMinutes * 60 * 1000, session.displayName, date);
+          }
+
           // 세션 시작 시간을 현재 시간으로 재설정 (누적 저장 방식)
           session.startTime = now;
-          savedCount.push({ userId, displayName: session.displayName, minutes });
-          
-          console.log(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료`);
+          savedCount.push({ userId, displayName: session.displayName, minutes, dateCount: sessions.length });
+
+          console.log(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료 (${sessions.length}개 날짜)`);
         }
       } catch (error) {
         console.error(`[ActivityTracker] 사용자 ${userId} 세션 저장 실패:`, error);
@@ -726,10 +771,12 @@ export class ActivityTracker {
     }
     
     try {
-      // 정상적으로 저장 후 종료
-      const sessionStartDate = new Date(session.startTime);
-      await this.saveSessionActivity(userId, duration, session.displayName, sessionStartDate);
-      
+      // 정상적으로 저장 후 종료 (날짜별 분할)
+      const sessions = this.splitSessionByDate(session.startTime, now);
+      for (const { date, minutes } of sessions) {
+        await this.saveSessionActivity(userId, minutes * 60 * 1000, session.displayName, date);
+      }
+
       // 메모리에서 세션 제거
       this.activeSessions.delete(userId);
       

@@ -15,12 +15,20 @@ import { VoiceChannelManager } from './services/VoiceChannelManager.js';
 import { ForumPostManager } from './services/ForumPostManager.js';
 import { MappingService } from './services/MappingService.js';
 import { RecruitmentService } from './services/RecruitmentService.js';
+import { PlatformTemplateService } from './services/PlatformTemplateService.js';
+import { UserNicknameService } from './services/UserNicknameService.js';
 
 // UI 관련 임포트
 import { ButtonHandler } from './ui/ButtonHandler.js';
 import { ModalHandler } from './ui/ModalHandler.js';
 import { InteractionRouter } from './ui/InteractionRouter.js';
 import { RecruitmentUIBuilder } from './ui/RecruitmentUIBuilder.js';
+import { NicknameButtonHandler } from './ui/NicknameButtonHandler.js';
+import { NicknameSelectMenuHandler } from './ui/NicknameSelectMenuHandler.js';
+import { NicknameModalHandler } from './ui/NicknameModalHandler.js';
+
+// 매니저 임포트
+import { VoiceChannelNicknameManager } from './managers/VoiceChannelNicknameManager.js';
 
 // 명령어 관련 임포트
 import { CommandHandler } from './commands/commandHandler.js';
@@ -31,6 +39,8 @@ import { GapReportCommand } from './commands/gapReportCommand.js';
 import { GapAfkCommand } from './commands/gapAfkCommand.js';
 import { RecruitmentCommand } from './commands/recruitmentCommand.js';
 import { NicknameCommand } from './commands/NicknameCommand.js';
+import { NicknameManagementCommand } from './commands/NicknameManagementCommand.js';
+import { NicknameSetupCommand } from './commands/NicknameSetupCommand.js';
 
 /**
  * DI Container 생성 및 설정
@@ -85,6 +95,9 @@ export function createDIContainer(client) {
       new MappingService(client, voiceChannelManager, forumPostManager, dbManager)
     ).singleton(),
     userClassificationService: asClass(UserClassificationService).singleton(),
+    platformTemplateService: asClass(PlatformTemplateService).singleton(),
+    userNicknameService: asClass(UserNicknameService).singleton(),
+    voiceChannelNicknameManager: asClass(VoiceChannelNicknameManager).singleton(),
   });
 
   // === 5. 애플리케이션 서비스 계층 ===
@@ -128,6 +141,9 @@ export function createDIContainer(client) {
     recruitmentUIBuilder: asClass(RecruitmentUIBuilder).singleton(),
     buttonHandler: asClass(ButtonHandler).singleton(),
     modalHandler: asClass(ModalHandler).singleton(),
+    nicknameButtonHandler: asClass(NicknameButtonHandler).singleton(),
+    nicknameSelectMenuHandler: asClass(NicknameSelectMenuHandler).singleton(),
+    nicknameModalHandler: asClass(NicknameModalHandler).singleton(),
     interactionRouter: asClass(InteractionRouter).singleton(),
   });
 
@@ -140,6 +156,8 @@ export function createDIContainer(client) {
     gapAfkCommand: asClass(GapAfkCommand).singleton(),
     recruitmentCommand: asClass(RecruitmentCommand).singleton(),
     nicknameCommand: asClass(NicknameCommand).singleton(),
+    nicknameManagementCommand: asClass(NicknameManagementCommand).singleton(),
+    nicknameSetupCommand: asClass(NicknameSetupCommand).singleton(),
   });
 
   // === 8. 통합 계층 ===

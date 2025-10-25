@@ -1,13 +1,24 @@
 // src/ui/InteractionRouter.js - 인터랙션 라우팅 관리
 import { InteractionType, ComponentType, MessageFlags } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
+import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 
 export class InteractionRouter {
-  constructor(buttonHandler, modalHandler, recruitmentService) {
+  constructor(
+    buttonHandler,
+    modalHandler,
+    recruitmentService,
+    nicknameButtonHandler,
+    nicknameSelectMenuHandler,
+    nicknameModalHandler
+  ) {
     this.buttonHandler = buttonHandler;
     this.modalHandler = modalHandler;
     this.recruitmentService = recruitmentService;
+    this.nicknameButtonHandler = nicknameButtonHandler;
+    this.nicknameSelectMenuHandler = nicknameSelectMenuHandler;
+    this.nicknameModalHandler = nicknameModalHandler;
   }
   
   /**
@@ -22,22 +33,56 @@ export class InteractionRouter {
         case InteractionType.MessageComponent:
           await this.routeComponentInteraction(interaction);
           break;
-          
+
         case InteractionType.ModalSubmit:
-          await this.modalHandler.handleModalSubmit(interaction);
+          await this.routeModalSubmit(interaction);
           break;
-          
+
         default:
           console.warn(`[InteractionRouter] 처리되지 않은 인터랙션 타입: ${interaction.type}`);
           break;
       }
-      
+
     } catch (error) {
       console.error('[InteractionRouter] 인터랙션 라우팅 오류:', error);
-      await SafeInteraction.safeReply(interaction, 
+      await SafeInteraction.safeReply(interaction,
         SafeInteraction.createErrorResponse('인터랙션 처리', error)
       );
     }
+  }
+
+  /**
+   * 모달 제출 라우팅
+   * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
+   * @returns {Promise<void>}
+   */
+  async routeModalSubmit(interaction) {
+    const customId = interaction.customId;
+
+    // 닉네임 관련 모달
+    if (this.isNicknameModal(customId)) {
+      await this.nicknameModalHandler.handleModalSubmit(interaction);
+    }
+    // 기타 모달
+    else {
+      await this.modalHandler.handleModalSubmit(interaction);
+    }
+  }
+
+  /**
+   * 닉네임 관련 모달인지 확인
+   * @param {string} customId - Custom ID
+   * @returns {boolean} - 닉네임 모달 여부
+   */
+  isNicknameModal(customId) {
+    const nicknamePrefixes = [
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADD_MODAL,
+      NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_MODAL,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_MODAL,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_MODAL,
+    ];
+
+    return nicknamePrefixes.some(prefix => customId.startsWith(prefix));
   }
   
   /**
@@ -68,15 +113,33 @@ export class InteractionRouter {
    */
   async routeButtonInteraction(interaction) {
     const customId = interaction.customId;
-    
+
+    // 닉네임 관련 버튼
+    if (this.isNicknameButton(customId)) {
+      await this.nicknameButtonHandler.handleButton(interaction);
+    }
     // 구인구직 연동 버튼
-    if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
+    else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
       await this.recruitmentService.handleVoiceConnectButton(interaction);
     }
     // 역할 태그 및 음성 채널 관련 버튼
     else {
       await this.buttonHandler.routeButtonInteraction(interaction);
     }
+  }
+
+  /**
+   * 닉네임 관련 버튼인지 확인
+   * @param {string} customId - Custom ID
+   * @returns {boolean} - 닉네임 버튼 여부
+   */
+  isNicknameButton(customId) {
+    const nicknamePrefixes = [
+      NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN,
+    ];
+
+    return nicknamePrefixes.some(prefix => customId.startsWith(prefix));
   }
   
   /**
@@ -86,9 +149,13 @@ export class InteractionRouter {
    */
   async routeSelectMenuInteraction(interaction) {
     const customId = interaction.customId;
-    
+
+    // 닉네임 관련 셀렉트 메뉴
+    if (this.isNicknameSelectMenu(customId)) {
+      await this.nicknameSelectMenuHandler.handleSelectMenu(interaction);
+    }
     // 구인구직 방법 선택
-    if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_METHOD)) {
+    else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_METHOD)) {
       await this.recruitmentService.handleMethodSelection(interaction);
     }
     // 기존 포스트 선택
@@ -98,6 +165,21 @@ export class InteractionRouter {
     else {
       console.warn(`[InteractionRouter] 처리되지 않은 셀렉트 메뉴: ${customId}`);
     }
+  }
+
+  /**
+   * 닉네임 관련 셀렉트 메뉴인지 확인
+   * @param {string} customId - Custom ID
+   * @returns {boolean} - 닉네임 셀렉트 메뉴 여부
+   */
+  isNicknameSelectMenu(customId) {
+    const nicknamePrefixes = [
+      NicknameConstants.CUSTOM_ID_PREFIXES.MAIN_SELECT,
+      NicknameConstants.CUSTOM_ID_PREFIXES.PLATFORM_SELECT,
+      NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_SELECT,
+    ];
+
+    return nicknamePrefixes.some(prefix => customId.startsWith(prefix));
   }
   
   /**
