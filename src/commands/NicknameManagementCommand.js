@@ -29,10 +29,13 @@ export class NicknameManagementCommand extends CommandBase {
         return;
       }
 
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-
       const subcommand = interaction.options.getSubcommand();
       const guildId = interaction.guild.id;
+
+      // 플랫폼추가는 모달을 표시하므로 defer하지 않음
+      if (subcommand !== '플랫폼추가') {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      }
 
       switch (subcommand) {
         case '플랫폼추가':
@@ -107,8 +110,8 @@ export class NicknameManagementCommand extends CommandBase {
       new ActionRowBuilder().addComponents(urlPatternInput)
     );
 
-    await interaction.editReply({ content: '모달을 표시합니다...' });
-    await interaction.followUp({ modal, flags: MessageFlags.Ephemeral });
+    // 모달은 defer 없이 직접 표시해야 함
+    await interaction.showModal(modal);
   }
 
   /**

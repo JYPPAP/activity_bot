@@ -167,11 +167,22 @@ export function createDIContainer(client) {
 
   // === 9. 호환성 서비스 번들 (기존 명령어들을 위한 최소 번들) ===
   container.register({
-    services: asFunction((client, dbManager, activityTracker, voiceChannelForumIntegrationService) => ({
+    services: asFunction((
+      client,
+      dbManager,
+      activityTracker,
+      voiceChannelForumIntegrationService,
+      platformTemplateService,
+      userNicknameService,
+      voiceChannelManager
+    ) => ({
       client,
       dbManager,
       activityTracker,
       voiceForumService: voiceChannelForumIntegrationService, // 호환성을 위한 별칭
+      platformTemplateService,
+      userNicknameService,
+      voiceChannelManager,
     })).singleton(),
   });
 
