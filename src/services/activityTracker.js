@@ -131,17 +131,47 @@ export class ActivityTracker {
   }
 
   /**
-   * 세션 종료시 일일 활동 분을 즉시 DB에 업데이트
+   * 세션 종료시 일일 활동 분을 즉시 DB에 업데이트 (재시도 로직 포함)
    */
-  async saveSessionActivity(userId, sessionDurationMs, displayName, date = new Date()) {
-    try {
-      const minutes = Math.floor(sessionDurationMs / (1000 * 60));
-      if (minutes > 0) {
+  async saveSessionActivity(userId, sessionDurationMs, displayName, date = new Date(), retries = 3) {
+    const minutes = Math.floor(sessionDurationMs / (1000 * 60));
+    if (minutes <= 0) return;
+
+    const dateStr = date.toISOString().split('T')[0];
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
         await this.db.updateDailyActivity(userId, displayName, config.GUILDID, date, minutes);
-        console.log(`[ActivityTracker] ${displayName}님의 ${minutes}분 활동 기록 완료`);
+        console.log(`[ActivityTracker] ${displayName}님의 ${minutes}분 활동 기록 완료 (${dateStr})`);
+        return; // 성공 시 즉시 반환
+      } catch (error) {
+        const isLastAttempt = attempt === retries;
+
+        if (isLastAttempt) {
+          // 최종 실패 - 상세한 에러 로그
+          console.error(`[ActivityTracker] ❌ 세션 저장 최종 실패 (${attempt}/${retries}회 시도)`, {
+            userId,
+            displayName,
+            minutes,
+            date: dateStr,
+            error: error.message,
+            stack: error.stack
+          });
+        } else {
+          // 재시도 예정
+          const delay = Math.pow(2, attempt - 1) * 1000; // 지수 백오프: 1초, 2초, 4초
+          console.warn(`[ActivityTracker] ⚠️ 세션 저장 실패 (${attempt}/${retries}회) - ${delay}ms 후 재시도`, {
+            userId,
+            displayName,
+            minutes,
+            date: dateStr,
+            error: error.message
+          });
+
+          // 재시도 전 대기
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-    } catch (error) {
-      console.error('세션 활동 저장 오류:', error);
     }
   }
 
@@ -632,11 +662,13 @@ export class ActivityTracker {
 
     console.log(`[ActivityTracker] ${this.activeSessions.size}개의 활성 세션 주기적 저장 시작...`);
 
+    const failedUsers = [];
+
     for (const [userId, session] of this.activeSessions.entries()) {
       try {
         const sessionDuration = now - session.startTime;
         const minutes = Math.floor(sessionDuration / (1000 * 60));
-        
+
         if (minutes > 0) {
           // DB에 누적 시간 저장 (날짜별 분할)
           const sessions = this.splitSessionByDate(session.startTime, now);
@@ -651,11 +683,18 @@ export class ActivityTracker {
           console.log(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료 (${sessions.length}개 날짜)`);
         }
       } catch (error) {
-        console.error(`[ActivityTracker] 사용자 ${userId} 세션 저장 실패:`, error);
+        failedUsers.push({ userId, displayName: session.displayName });
+        console.error(`[ActivityTracker] ❌ 사용자 ${session.displayName}(${userId}) 세션 저장 실패:`, error);
       }
     }
 
-    console.log(`[ActivityTracker] 주기적 저장 완료: ${savedCount.length}명 처리됨`);
+    if (failedUsers.length > 0) {
+      console.warn(`[ActivityTracker] ⚠️ 주기적 저장 완료: 성공 ${savedCount.length}명, 실패 ${failedUsers.length}명`, {
+        failed: failedUsers
+      });
+    } else {
+      console.log(`[ActivityTracker] ✅ 주기적 저장 완료: ${savedCount.length}명 처리됨`);
+    }
   }
 
   /**
@@ -731,21 +770,31 @@ export class ActivityTracker {
    * 봇 종료 시 모든 활성 세션의 최종 저장
    */
   async finalSaveAndCleanup() {
+    const startTime = Date.now();
+    const TIMEOUT_WARNING_MS = 8000; // PM2 kill_timeout(10초)보다 짧게 설정
+
     try {
-      console.log('[ActivityTracker] 최종 세션 저장 시작...');
-      
+      console.log(`[ActivityTracker] 최종 세션 저장 시작... (${this.activeSessions.size}개 세션)`);
+
       // 주기적 저장 중지
       this.stopPeriodicSaving();
-      
+
       // 최종 저장
       await this.saveActiveSessionsToDB();
-      
+
       // 세션 정리
       this.activeSessions.clear();
-      
-      console.log('[ActivityTracker] 최종 저장 및 정리 완료');
+
+      const elapsed = Date.now() - startTime;
+      if (elapsed > TIMEOUT_WARNING_MS) {
+        console.warn(`[ActivityTracker] ⚠️ 최종 저장이 ${elapsed}ms 소요됨 (PM2 타임아웃 위험)`);
+      }
+
+      console.log(`[ActivityTracker] ✅ 최종 저장 및 정리 완료 (${elapsed}ms)`);
     } catch (error) {
-      console.error('[ActivityTracker] 최종 저장 중 오류:', error);
+      const elapsed = Date.now() - startTime;
+      console.error(`[ActivityTracker] ❌ 최종 저장 중 오류 (${elapsed}ms):`, error);
+      throw error; // 상위로 에러 전파하여 종료 프로세스에 알림
     }
   }
 
