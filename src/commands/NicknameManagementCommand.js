@@ -4,6 +4,7 @@ import { MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputSt
 import { CommandBase } from './CommandBase.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { config } from '../config/env.js';
 
 export class NicknameManagementCommand extends CommandBase {
   constructor(services) {
@@ -16,8 +17,11 @@ export class NicknameManagementCommand extends CommandBase {
    */
   async execute(interaction) {
     try {
-      // 관리자 권한 확인
-      if (!interaction.member.permissions.has('ManageGuild')) {
+      // 관리자 권한 또는 DEV_ID 확인
+      const hasPermission = interaction.member.permissions.has('ManageGuild') ||
+                            interaction.user.id === config.DEV_ID;
+
+      if (!hasPermission) {
         await interaction.reply({
           content: NicknameConstants.MESSAGES.PERMISSION_DENIED,
           flags: MessageFlags.Ephemeral,
