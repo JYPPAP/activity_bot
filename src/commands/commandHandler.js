@@ -8,7 +8,7 @@ import { logger } from '../config/logger-termux.js';
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, voiceChannelForumIntegrationService, userClassificationService,
               gapConfigCommand, timeConfirmCommand, timeCheckCommand, gapReportCommand, gapAfkCommand,
-              recruitmentCommand, nicknameCommand) {
+              recruitmentCommand, nicknameCommand, nicknameSetupCommand, nicknameManagementCommand) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
@@ -31,7 +31,8 @@ export class CommandHandler {
       this.commands.set('보고서', gapReportCommand);
       this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
-      this.commands.set('닉네임설정', nicknameCommand);
+      this.commands.set('닉네임설정', nicknameSetupCommand);
+      this.commands.set('닉네임관리', nicknameManagementCommand);
 
       logger.info('명령어 초기화 완료', { component: 'CommandHandler', commands: [...this.commands.keys()], count: this.commands.size });
     } catch (error) {
