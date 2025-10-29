@@ -137,6 +137,10 @@ export class InteractionRouter {
     const nicknamePrefixes = [
       NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN,
       NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_DELETE_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_LIST_BTN,
     ];
 
     return nicknamePrefixes.some(prefix => customId.startsWith(prefix));
