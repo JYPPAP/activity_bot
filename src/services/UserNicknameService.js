@@ -233,16 +233,16 @@ export class UserNicknameService {
       return { embeds: [embed] };
     }
 
-    // 필드 추가 - URL이 있으면 플랫폼 이름 클릭 시 프로필로 이동, 없으면 링크 없이 표시
+    // 필드 추가 - URL이 있으면 프로필 보기 링크 표시, 없으면 ID만 표시
     nicknames.forEach((nickname) => {
       const emoji = nickname.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM;
-      const platformName = nickname.full_url
-        ? `[${nickname.platform_name}](${nickname.full_url})`  // URL 있음: 링크
-        : nickname.platform_name;  // URL 없음: 텍스트만
+      const value = nickname.full_url
+        ? `ID: \`${nickname.user_identifier}\`\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${nickname.full_url})`
+        : `ID: \`${nickname.user_identifier}\``;
 
       embed.addFields({
-        name: `${emoji} ${platformName}`,
-        value: `ID: \`${nickname.user_identifier}\``,
+        name: `${emoji} ${nickname.platform_name}`,
+        value: value,
         inline: false,
       });
     });
