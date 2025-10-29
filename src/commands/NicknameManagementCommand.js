@@ -132,10 +132,10 @@ export class NicknameManagementCommand extends CommandBase {
 
     const baseUrlInput = new TextInputBuilder()
       .setCustomId('base_url')
-      .setLabel('Base URL')
+      .setLabel('Base URL (선택사항)')
       .setPlaceholder('예: https://steamcommunity.com/profiles/')
       .setStyle(TextInputStyle.Short)
-      .setRequired(true)
+      .setRequired(false)
       .setMaxLength(500);
 
     const urlPatternInput = new TextInputBuilder()
@@ -218,10 +218,10 @@ export class NicknameManagementCommand extends CommandBase {
 
       const baseUrlInput = new TextInputBuilder()
         .setCustomId('base_url')
-        .setLabel('Base URL')
-        .setValue(platform.base_url)
+        .setLabel('Base URL (선택사항)')
+        .setValue(platform.base_url || '')
         .setStyle(TextInputStyle.Short)
-        .setRequired(true)
+        .setRequired(false)
         .setMaxLength(500);
 
       const urlPatternInput = new TextInputBuilder()

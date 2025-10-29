@@ -193,10 +193,15 @@ export class PlatformTemplateService {
    * URL 생성
    * @param {Object} platform - 플랫폼 정보
    * @param {string} userId - 사용자 ID
-   * @returns {string} - 생성된 URL
+   * @returns {string|null} - 생성된 URL (base_url이 없으면 null)
    */
   generateUrl(platform, userId) {
     const { base_url, url_pattern } = platform;
+
+    // Base URL이 없으면 null 반환 (링크 없이 ID만 표시)
+    if (!base_url || base_url.trim().length === 0) {
+      return null;
+    }
 
     let url = url_pattern || NicknameConstants.DEFAULT_URL_PATTERN;
 
@@ -215,7 +220,11 @@ export class PlatformTemplateService {
     const { platformName, baseUrl } = platformData;
 
     this.validatePlatformName(platformName);
-    this.validateBaseUrl(baseUrl);
+
+    // Base URL이 제공된 경우에만 검증
+    if (baseUrl) {
+      this.validateBaseUrl(baseUrl);
+    }
   }
 
   /**
@@ -237,8 +246,9 @@ export class PlatformTemplateService {
    * @param {string} baseUrl - Base URL
    */
   validateBaseUrl(baseUrl) {
+    // Base URL이 비어있으면 검증 패스 (선택사항)
     if (!baseUrl || baseUrl.trim().length === 0) {
-      throw new Error('Base URL은 필수입니다.');
+      return;
     }
 
     if (baseUrl.length > NicknameConstants.LIMITS.BASE_URL_MAX) {
