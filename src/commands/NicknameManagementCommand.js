@@ -1,6 +1,6 @@
 // src/commands/NicknameManagementCommand.js - 닉네임 관리 명령어 (관리자 전용)
 
-import { MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ComponentType } from 'discord.js';
+import { MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { CommandBase } from './CommandBase.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
@@ -29,30 +29,24 @@ export class NicknameManagementCommand extends CommandBase {
         return;
       }
 
-      const subcommand = interaction.options.getSubcommand();
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+      const channel = interaction.channel;
       const guildId = interaction.guild.id;
 
-      // 플랫폼추가는 모달을 표시하므로 defer하지 않음
-      if (subcommand !== '플랫폼추가') {
-        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-      }
+      // 관리 UI 생성
+      const embed = this.createManagementEmbed();
+      const buttons = this.createManagementButtons(guildId);
 
-      switch (subcommand) {
-        case '플랫폼추가':
-          await this.handleAddPlatform(interaction, guildId);
-          break;
-        case '플랫폼수정':
-          await this.handleEditPlatform(interaction, guildId);
-          break;
-        case '플랫폼삭제':
-          await this.handleDeletePlatform(interaction, guildId);
-          break;
-        case '플랫폼목록':
-          await this.handleListPlatforms(interaction, guildId);
-          break;
-        default:
-          await interaction.editReply({ content: '알 수 없는 서브커맨드입니다.' });
-      }
+      // 채널에 관리 UI 표시
+      await channel.send({
+        embeds: [embed],
+        components: buttons,
+      });
+
+      await interaction.editReply({
+        content: '✅ 플랫폼 관리 UI가 생성되었습니다.',
+      });
     } catch (error) {
       console.error('[NicknameManagementCommand] 오류:', error);
       await SafeInteraction.safeReply(interaction, {
@@ -60,6 +54,56 @@ export class NicknameManagementCommand extends CommandBase {
         flags: MessageFlags.Ephemeral,
       });
     }
+  }
+
+  /**
+   * 관리 UI 임베드 생성
+   */
+  createManagementEmbed() {
+    return new EmbedBuilder()
+      .setColor(NicknameConstants.COLORS.PRIMARY)
+      .setTitle('🛠️ 플랫폼 관리')
+      .setDescription('플랫폼 템플릿을 관리합니다. 아래 버튼을 사용하여 작업을 선택하세요.')
+      .addFields(
+        { name: '➕ 플랫폼 추가', value: '새로운 플랫폼 템플릿을 등록합니다.', inline: false },
+        { name: '✏️ 플랫폼 수정', value: '기존 플랫폼 템플릿을 수정합니다.', inline: false },
+        { name: '🗑️ 플랫폼 삭제', value: '플랫폼 템플릿을 삭제합니다.', inline: false },
+        { name: '📋 플랫폼 목록', value: '등록된 모든 플랫폼을 확인합니다.', inline: false }
+      )
+      .setTimestamp();
+  }
+
+  /**
+   * 관리 버튼 생성
+   */
+  createManagementButtons(guildId) {
+    const row1 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_BTN}${guildId}`)
+        .setLabel('플랫폼 추가')
+        .setEmoji('➕')
+        .setStyle(ButtonStyle.Success),
+      new ButtonBuilder()
+        .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN}${guildId}`)
+        .setLabel('플랫폼 수정')
+        .setEmoji('✏️')
+        .setStyle(ButtonStyle.Primary)
+    );
+
+    const row2 = new ActionRowBuilder().addComponents(
+      new ButtonBuilder()
+        .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_DELETE_BTN}${guildId}`)
+        .setLabel('플랫폼 삭제')
+        .setEmoji('🗑️')
+        .setStyle(ButtonStyle.Danger),
+      new ButtonBuilder()
+        .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_LIST_BTN}${guildId}`)
+        .setLabel('플랫폼 목록')
+        .setEmoji('📋')
+        .setStyle(ButtonStyle.Secondary)
+    );
+
+    return [row1, row2];
   }
 
   /**

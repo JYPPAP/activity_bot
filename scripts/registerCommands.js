@@ -114,12 +114,7 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('닉네임설정')
-    .setDescription('대상 채널에 닉네임 관리 UI를 설정합니다.')
-    .addStringOption(option =>
-      option.setName('channel')
-            .setDescription('대상 채널 ID')
-            .setRequired(true)
-    )
+    .setDescription('현재 채널에 닉네임 관리 UI를 설정합니다.')
 );
 
 // 닉네임관리 명령어 (관리자 전용)
@@ -127,26 +122,6 @@ commands.push(
   new SlashCommandBuilder()
     .setName('닉네임관리')
     .setDescription('플랫폼 템플릿을 관리합니다. (관리자 전용)')
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('플랫폼추가')
-        .setDescription('새 플랫폼 템플릿을 추가합니다.')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('플랫폼수정')
-        .setDescription('기존 플랫폼 템플릿을 수정합니다.')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('플랫폼삭제')
-        .setDescription('플랫폼 템플릿을 삭제합니다.')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('플랫폼목록')
-        .setDescription('등록된 플랫폼 목록을 확인합니다.')
-    )
 );
 
 // REST 클라이언트 생성

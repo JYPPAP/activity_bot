@@ -15,6 +15,12 @@ export const NicknameConstants = {
     REMOVE: 'nickname_remove_',              // 개별 삭제 버튼
     VISIT: 'nickname_visit_',                // 프로필 방문 버튼
 
+    // 관리자 버튼
+    ADMIN_ADD_BTN: 'nickname_admin_add_btn_',    // 관리자 플랫폼 추가 버튼
+    ADMIN_EDIT_BTN: 'nickname_admin_edit_btn_',  // 관리자 플랫폼 수정 버튼
+    ADMIN_DELETE_BTN: 'nickname_admin_delete_btn_', // 관리자 플랫폼 삭제 버튼
+    ADMIN_LIST_BTN: 'nickname_admin_list_btn_',  // 관리자 플랫폼 목록 버튼
+
     // 모달
     ADD_MODAL: 'nickname_add_modal_',        // 등록 모달
     EDIT_MODAL: 'nickname_edit_modal_',      // 수정 모달

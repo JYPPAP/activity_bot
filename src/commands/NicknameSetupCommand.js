@@ -20,36 +20,9 @@ export class NicknameSetupCommand extends CommandBase {
     try {
       await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-      const channelId = interaction.options.getString('channel');
+      const channel = interaction.channel;
+      const channelId = channel.id;
       const guildId = interaction.guild.id;
-
-      // 채널 유효성 검사
-      let channel = null;
-      try {
-        channel = await interaction.client.channels.fetch(channelId);
-        if (!channel) {
-          await interaction.editReply({
-            content: '❌ 유효하지 않은 채널 ID입니다.',
-          });
-          return;
-        }
-      } catch (error) {
-        await interaction.editReply({
-          content: '❌ 유효하지 않은 채널 ID입니다.',
-        });
-        return;
-      }
-
-      // 채널 권한 확인
-      const botMember = await interaction.guild.members.fetch(interaction.client.user.id);
-      const permissions = channel.permissionsFor(botMember);
-
-      if (!permissions.has('SendMessages')) {
-        await interaction.editReply({
-          content: `❌ **${channel.name}** 채널에 메시지를 보낼 권한이 없습니다.`,
-        });
-        return;
-      }
 
       // 플랫폼 목록 가져오기
       const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
