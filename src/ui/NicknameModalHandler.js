@@ -54,9 +54,21 @@ export class NicknameModalHandler {
     const baseUrl = interaction.fields.getTextInputValue('base_url');
     const urlPattern = interaction.fields.getTextInputValue('url_pattern') || undefined;
 
-    // 이모지 검증 (입력이 있는 경우에만)
+    // 이모지 처리 (입력이 있는 경우에만)
+    let emojiUnicode = emojiInput;
     if (emojiInput) {
-      const emojiValidation = EmojiParser.validate(emojiInput);
+      // :name: 형태를 <:name:id> 형태로 자동 변환
+      const resolveResult = EmojiParser.resolveEmoji(emojiInput, interaction.guild);
+      if (resolveResult.error) {
+        await interaction.editReply({
+          content: resolveResult.error,
+        });
+        return;
+      }
+      emojiUnicode = resolveResult.emoji;
+
+      // 변환된 이모지 검증
+      const emojiValidation = EmojiParser.validate(emojiUnicode);
       if (!emojiValidation.valid) {
         await interaction.editReply({
           content: emojiValidation.error,
@@ -67,7 +79,7 @@ export class NicknameModalHandler {
 
     const platform = await this.platformTemplateService.addPlatform(interaction.guild.id, {
       platformName,
-      emojiUnicode: emojiInput,
+      emojiUnicode,
       baseUrl,
       urlPattern,
     });
@@ -89,9 +101,21 @@ export class NicknameModalHandler {
     const baseUrl = interaction.fields.getTextInputValue('base_url');
     const urlPattern = interaction.fields.getTextInputValue('url_pattern') || undefined;
 
-    // 이모지 검증 (입력이 있는 경우에만)
+    // 이모지 처리 (입력이 있는 경우에만)
+    let emojiUnicode = emojiInput;
     if (emojiInput) {
-      const emojiValidation = EmojiParser.validate(emojiInput);
+      // :name: 형태를 <:name:id> 형태로 자동 변환
+      const resolveResult = EmojiParser.resolveEmoji(emojiInput, interaction.guild);
+      if (resolveResult.error) {
+        await interaction.editReply({
+          content: resolveResult.error,
+        });
+        return;
+      }
+      emojiUnicode = resolveResult.emoji;
+
+      // 변환된 이모지 검증
+      const emojiValidation = EmojiParser.validate(emojiUnicode);
       if (!emojiValidation.valid) {
         await interaction.editReply({
           content: emojiValidation.error,
@@ -102,7 +126,7 @@ export class NicknameModalHandler {
 
     const platform = await this.platformTemplateService.updatePlatform(platformId, interaction.guild.id, {
       platformName,
-      emojiUnicode: emojiInput,
+      emojiUnicode,
       baseUrl,
       urlPattern,
     });
