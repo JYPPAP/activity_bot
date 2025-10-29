@@ -1,7 +1,7 @@
 // src/services/UserNicknameService.js - 사용자 닉네임 관리 서비스
 
 import { NicknameConstants } from '../config/NicknameConstants.js';
-import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
 
 export class UserNicknameService {
   constructor(dbManager, platformTemplateService) {
@@ -228,28 +228,15 @@ export class UserNicknameService {
       return { embeds: [embed] };
     }
 
-    // 필드 추가
+    // 필드 추가 - 플랫폼 이름을 클릭하면 프로필로 이동
     nicknames.forEach((nickname) => {
       embed.addFields({
-        name: `${nickname.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM} ${nickname.platform_name}`,
-        value: `ID: \`${nickname.user_identifier}\`\nURL: [${nickname.full_url}](${nickname.full_url})`,
+        name: `${nickname.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM} [${nickname.platform_name}](${nickname.full_url})`,
+        value: `ID: \`${nickname.user_identifier}\``,
         inline: false,
       });
     });
 
-    // 버튼 생성
-    const buttons = nicknames.slice(0, 5).map((nickname) => {
-      return new ButtonBuilder()
-        .setLabel(`${nickname.platform_name} 프로필`)
-        .setURL(nickname.full_url)
-        .setStyle(ButtonStyle.Link);
-    });
-
-    const rows = [];
-    for (let i = 0; i < buttons.length; i += 5) {
-      rows.push(new ActionRowBuilder().addComponents(buttons.slice(i, i + 5)));
-    }
-
-    return { embeds: [embed], components: rows };
+    return { embeds: [embed] };
   }
 }
