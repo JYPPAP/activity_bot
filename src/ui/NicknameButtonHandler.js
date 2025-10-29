@@ -104,7 +104,7 @@ export class NicknameButtonHandler {
     const nicknames = await this.userNicknameService.getUserNicknames(guildId, userId);
 
     // 임베드 생성
-    const embedData = this.userNicknameService.createMyNicknamesEmbed(interaction.user, nicknames);
+    const embedData = this.userNicknameService.createMyNicknamesEmbed(interaction.user, interaction.member, nicknames);
 
     await interaction.editReply(embedData);
   }

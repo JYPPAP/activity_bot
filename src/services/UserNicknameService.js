@@ -219,14 +219,19 @@ export class UserNicknameService {
   /**
    * 내 정보 조회용 임베드 생성
    * @param {Object} user - 사용자 정보
+   * @param {Object} member - 길드 멤버 정보 (별명 표시용)
    * @param {Array} nicknames - 닉네임 목록
    * @returns {Object} - 임베드와 버튼
    */
-  createMyNicknamesEmbed(user, nicknames) {
+  createMyNicknamesEmbed(user, member, nicknames) {
+    const displayName = member?.displayName || user.displayName || user.username;
+
     const embed = new EmbedBuilder()
       .setColor(NicknameConstants.COLORS.INFO)
-      .setTitle(`${NicknameConstants.DEFAULT_EMOJIS.VIEW} ${user.displayName || user.username}님의 닉네임 정보`)
-      .setTimestamp();
+      .setAuthor({
+        name: displayName,
+        iconURL: user.displayAvatarURL()
+      });
 
     if (nicknames.length === 0) {
       embed.setDescription(NicknameConstants.MESSAGES.NO_NICKNAMES);
