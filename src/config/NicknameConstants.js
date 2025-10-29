@@ -40,7 +40,7 @@ export const NicknameConstants = {
     BASE_URL_MAX: 500,                       // Base URL 최대 길이
     URL_PATTERN_MAX: 500,                    // URL 패턴 최대 길이
     FULL_URL_MAX: 700,                       // 전체 URL 최대 길이
-    EMOJI_MAX: 50,                           // 이모지 최대 길이
+    EMOJI_MAX: 100,                          // 이모지 최대 길이 (커스텀 이모지 <:name:id> 형식 지원)
     MAX_PLATFORMS_PER_GUILD: 25,             // 길드당 최대 플랫폼 수 (드롭다운 제한)
     MAX_NICKNAMES_PER_USER: 25,              // 사용자당 최대 닉네임 수
   },

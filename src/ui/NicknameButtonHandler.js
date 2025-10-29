@@ -133,7 +133,7 @@ export class NicknameButtonHandler {
       .setPlaceholder('예: 🎮, 💬, 🎯')
       .setStyle(TextInputStyle.Short)
       .setRequired(false)
-      .setMaxLength(50);
+      .setMaxLength(100);
 
     const baseUrlInput = new TextInputBuilder()
       .setCustomId('base_url')
@@ -221,7 +221,7 @@ export class NicknameButtonHandler {
         .setValue(platform.emoji_unicode || '')
         .setStyle(TextInputStyle.Short)
         .setRequired(false)
-        .setMaxLength(50);
+        .setMaxLength(100);
 
       const baseUrlInput = new TextInputBuilder()
         .setCustomId('base_url')

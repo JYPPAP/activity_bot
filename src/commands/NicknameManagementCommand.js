@@ -128,7 +128,7 @@ export class NicknameManagementCommand extends CommandBase {
       .setPlaceholder('예: 🎮, 💬, 🎯')
       .setStyle(TextInputStyle.Short)
       .setRequired(false)
-      .setMaxLength(50);
+      .setMaxLength(100);
 
     const baseUrlInput = new TextInputBuilder()
       .setCustomId('base_url')
@@ -214,7 +214,7 @@ export class NicknameManagementCommand extends CommandBase {
         .setValue(platform.emoji_unicode || '')
         .setStyle(TextInputStyle.Short)
         .setRequired(false)
-        .setMaxLength(50);
+        .setMaxLength(100);
 
       const baseUrlInput = new TextInputBuilder()
         .setCustomId('base_url')

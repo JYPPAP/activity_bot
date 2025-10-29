@@ -183,6 +183,7 @@ export class InteractionRouter {
       NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_SELECT,
     ];
 
+    // 관리자 셀렉트 메뉴는 awaitMessageComponent로 직접 처리되므로 제외
     return nicknamePrefixes.some(prefix => customId.startsWith(prefix));
   }
   
