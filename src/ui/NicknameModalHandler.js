@@ -3,6 +3,7 @@
 import { MessageFlags } from 'discord.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { EmojiParser } from '../utils/EmojiParser.js';
 
 export class NicknameModalHandler {
   constructor(platformTemplateService, userNicknameService) {
@@ -49,13 +50,24 @@ export class NicknameModalHandler {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
     const platformName = interaction.fields.getTextInputValue('platform_name');
-    const emojiUnicode = interaction.fields.getTextInputValue('platform_emoji') || undefined;
+    const emojiInput = interaction.fields.getTextInputValue('platform_emoji') || undefined;
     const baseUrl = interaction.fields.getTextInputValue('base_url');
     const urlPattern = interaction.fields.getTextInputValue('url_pattern') || undefined;
 
+    // 이모지 검증 (입력이 있는 경우에만)
+    if (emojiInput) {
+      const emojiValidation = EmojiParser.validate(emojiInput);
+      if (!emojiValidation.valid) {
+        await interaction.editReply({
+          content: emojiValidation.error,
+        });
+        return;
+      }
+    }
+
     const platform = await this.platformTemplateService.addPlatform(interaction.guild.id, {
       platformName,
-      emojiUnicode,
+      emojiUnicode: emojiInput,
       baseUrl,
       urlPattern,
     });
@@ -73,13 +85,24 @@ export class NicknameModalHandler {
 
     const platformId = parseInt(interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_MODAL, ''), 10);
     const platformName = interaction.fields.getTextInputValue('platform_name');
-    const emojiUnicode = interaction.fields.getTextInputValue('platform_emoji') || undefined;
+    const emojiInput = interaction.fields.getTextInputValue('platform_emoji') || undefined;
     const baseUrl = interaction.fields.getTextInputValue('base_url');
     const urlPattern = interaction.fields.getTextInputValue('url_pattern') || undefined;
 
+    // 이모지 검증 (입력이 있는 경우에만)
+    if (emojiInput) {
+      const emojiValidation = EmojiParser.validate(emojiInput);
+      if (!emojiValidation.valid) {
+        await interaction.editReply({
+          content: emojiValidation.error,
+        });
+        return;
+      }
+    }
+
     const platform = await this.platformTemplateService.updatePlatform(platformId, interaction.guild.id, {
       platformName,
-      emojiUnicode,
+      emojiUnicode: emojiInput,
       baseUrl,
       urlPattern,
     });

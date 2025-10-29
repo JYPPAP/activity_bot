@@ -4,6 +4,7 @@ import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilde
 import { CommandBase } from './CommandBase.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { EmojiParser } from '../utils/EmojiParser.js';
 
 export class NicknameSetupCommand extends CommandBase {
   constructor(services) {
@@ -120,7 +121,7 @@ export class NicknameSetupCommand extends CommandBase {
         label: platform.platform_name,
         description: `${platform.platform_name} 닉네임 등록 또는 수정`,
         value: `platform_${platform.id}`,
-        emoji: platform.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+        emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
       });
     });
 

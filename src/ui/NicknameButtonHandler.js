@@ -3,6 +3,7 @@
 import { MessageFlags, StringSelectMenuBuilder, ActionRowBuilder } from 'discord.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
+import { EmojiParser } from '../utils/EmojiParser.js';
 
 export class NicknameButtonHandler {
   constructor(platformTemplateService, userNicknameService) {
@@ -58,7 +59,7 @@ export class NicknameButtonHandler {
       label: nickname.platform_name,
       description: `ID: ${nickname.user_identifier}`,
       value: nickname.platform_id.toString(),
-      emoji: nickname.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+      emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
     }));
 
     const selectMenu = new StringSelectMenuBuilder()
