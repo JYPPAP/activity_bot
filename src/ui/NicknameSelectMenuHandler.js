@@ -107,7 +107,7 @@ export class NicknameSelectMenuHandler {
   }
 
   /**
-   * 플랫폼 직접 선택 처리 (등록 또는 수정)
+   * 플랫폼 직접 선택 처리 (등록만 처리, 수정은 EDIT 버튼 사용)
    */
   async handleDirectPlatformSelect(interaction, guildId, userId, platformId) {
     // 플랫폼 정보 가져오기
@@ -120,16 +120,20 @@ export class NicknameSelectMenuHandler {
       return;
     }
 
-    // 이미 등록된 닉네임 확인
-    const existingNickname = await this.userNicknameService.getNickname(guildId, userId, platformId);
+    // 플랫폼별 계정 개수 확인
+    const accountCount = await this.userNicknameService.getAccountCount(guildId, userId, platformId);
 
-    if (existingNickname) {
-      // 수정 모달 표시
-      await this.showEditModal(interaction, platform, existingNickname);
-    } else {
-      // 추가 모달 표시
-      await this.showAddModal(interaction, platform);
+    if (accountCount >= NicknameConstants.LIMITS.MAX_ACCOUNTS_PER_PLATFORM) {
+      // 최대 개수 도달 시 에러 메시지
+      await SafeInteraction.safeReply(interaction, {
+        content: NicknameConstants.MESSAGES.ACCOUNT_LIMIT_REACHED,
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
     }
+
+    // 추가 가능 - 추가 모달 표시
+    await this.showAddModal(interaction, platform);
   }
 
   /**
@@ -176,24 +180,32 @@ export class NicknameSelectMenuHandler {
   }
 
   /**
-   * 닉네임 삭제 드롭다운 처리
+   * 닉네임 삭제 드롭다운 처리 (ID 기반)
    */
   async handleDeleteSelect(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const platformId = parseInt(interaction.values[0], 10);
+    const nicknameId = parseInt(interaction.values[0], 10);
     const guildId = interaction.guild.id;
     const userId = interaction.user.id;
 
-    // 플랫폼 정보 가져오기
-    const platform = await this.platformTemplateService.getPlatformById(platformId);
+    // 삭제할 닉네임 정보 조회 (삭제 전에 플랫폼명을 가져오기 위해)
+    const nicknames = await this.userNicknameService.getUserNicknames(guildId, userId);
+    const targetNickname = nicknames.find((n) => n.id === nicknameId);
 
-    // 닉네임 삭제
-    const success = await this.userNicknameService.deleteNickname(guildId, userId, platformId);
+    if (!targetNickname) {
+      await interaction.editReply({
+        content: NicknameConstants.MESSAGES.NICKNAME_NOT_FOUND,
+      });
+      return;
+    }
+
+    // ID 기반 닉네임 삭제
+    const success = await this.userNicknameService.deleteNicknameById(nicknameId);
 
     if (success) {
       await interaction.editReply({
-        content: `${NicknameConstants.MESSAGES.NICKNAME_DELETED}\n플랫폼: **${platform.platform_name}**`,
+        content: `${NicknameConstants.MESSAGES.NICKNAME_DELETED}\n플랫폼: **${targetNickname.platform_name}**\nID: \`${targetNickname.user_identifier}\``,
       });
     } else {
       await interaction.editReply({

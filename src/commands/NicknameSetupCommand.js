@@ -112,14 +112,22 @@ export class NicknameSetupCommand extends CommandBase {
   createActionButtons(channelId) {
     const deleteButton = new ButtonBuilder()
       .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN}${channelId}`)
-      .setLabel(`${NicknameConstants.DEFAULT_EMOJIS.DELETE} 닉네임 삭제`)
+      .setLabel('닉네임 삭제')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.DELETE)
       .setStyle(ButtonStyle.Danger);
+
+    const editButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_BTN}${channelId}`)
+      .setLabel('닉네임 수정')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.EDIT)
+      .setStyle(ButtonStyle.Primary);
 
     const viewButton = new ButtonBuilder()
       .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN}${channelId}`)
-      .setLabel(`${NicknameConstants.DEFAULT_EMOJIS.VIEW} 내 정보 조회`)
-      .setStyle(ButtonStyle.Primary);
+      .setLabel('내 정보 조회')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.VIEW)
+      .setStyle(ButtonStyle.Secondary);
 
-    return new ActionRowBuilder().addComponents(deleteButton, viewButton);
+    return new ActionRowBuilder().addComponents(deleteButton, editButton, viewButton);
   }
 }

@@ -136,6 +136,7 @@ export class InteractionRouter {
   isNicknameButton(customId) {
     const nicknamePrefixes = [
       NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN,
+      NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_BTN,
       NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN,
       NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_BTN,
       NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN,

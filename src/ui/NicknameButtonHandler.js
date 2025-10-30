@@ -22,6 +22,10 @@ export class NicknameButtonHandler {
       if (customId.startsWith(NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN)) {
         await this.handleDeleteButton(interaction);
       }
+      // 닉네임 수정 버튼
+      else if (customId.startsWith(NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_BTN)) {
+        await this.handleEditButton(interaction);
+      }
       // 내 정보 조회 버튼
       else if (customId.startsWith(NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN)) {
         await this.handleViewButton(interaction);
@@ -72,9 +76,9 @@ export class NicknameButtonHandler {
 
     // 삭제할 닉네임 선택 드롭다운 생성
     const options = nicknames.map((nickname) => ({
-      label: nickname.platform_name,
+      label: `${nickname.platform_name} - ${nickname.user_identifier}`,
       description: `ID: ${nickname.user_identifier}`,
-      value: nickname.platform_id.toString(),
+      value: nickname.id.toString(),
       emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
     }));
 
@@ -89,6 +93,78 @@ export class NicknameButtonHandler {
       content: '삭제할 닉네임을 선택하세요:',
       components: [row],
     });
+  }
+
+  /**
+   * 닉네임 수정 버튼 처리
+   */
+  async handleEditButton(interaction) {
+    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+    const guildId = interaction.guild.id;
+    const userId = interaction.user.id;
+
+    // 사용자의 모든 닉네임 가져오기
+    const nicknames = await this.userNicknameService.getUserNicknames(guildId, userId);
+
+    if (nicknames.length === 0) {
+      await interaction.editReply({
+        content: NicknameConstants.MESSAGES.NO_ACCOUNTS_TO_EDIT,
+      });
+      return;
+    }
+
+    // 수정할 닉네임 선택 드롭다운 생성
+    const options = nicknames.map((nickname) => ({
+      label: `${nickname.platform_name} - ${nickname.user_identifier}`,
+      description: `ID: ${nickname.user_identifier}`,
+      value: nickname.id.toString(),
+      emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+    }));
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_SELECT}${Date.now()}`)
+      .setPlaceholder('수정할 닉네임을 선택하세요')
+      .addOptions(options);
+
+    const row = new ActionRowBuilder().addComponents(selectMenu);
+
+    const response = await interaction.editReply({
+      content: '수정할 닉네임을 선택하세요:',
+      components: [row],
+    });
+
+    // 드롭다운 선택 대기
+    try {
+      const selectInteraction = await response.awaitMessageComponent({
+        componentType: ComponentType.StringSelect,
+        time: 60000,
+      });
+
+      const nicknameId = parseInt(selectInteraction.values[0], 10);
+      const selectedNickname = nicknames.find((n) => n.id === nicknameId);
+
+      // 수정 모달 표시
+      const modal = new ModalBuilder()
+        .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_MODAL}${nicknameId}`)
+        .setTitle(`${selectedNickname.platform_name} 닉네임 수정`);
+
+      const userIdInput = new TextInputBuilder()
+        .setCustomId('user_identifier')
+        .setLabel('사용자 ID')
+        .setValue(selectedNickname.user_identifier)
+        .setPlaceholder(`예: 76561198183295061`)
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+        .setMaxLength(NicknameConstants.LIMITS.USER_IDENTIFIER_MAX);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(userIdInput));
+
+      await selectInteraction.showModal(modal);
+    } catch (error) {
+      console.error('[NicknameButtonHandler] 수정 시간 초과:', error);
+      await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
+    }
   }
 
   /**

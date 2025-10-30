@@ -7,11 +7,13 @@ export const NicknameConstants = {
     MAIN_SELECT: 'nickname_main_',           // 메인 드롭다운
     PLATFORM_SELECT: 'nickname_platform_',   // 플랫폼 선택 드롭다운
     DELETE_SELECT: 'nickname_delete_',       // 삭제할 닉네임 선택 드롭다운
+    EDIT_SELECT: 'nickname_edit_select_',    // 수정할 닉네임 선택 드롭다운
 
     // 버튼
     DELETE_BTN: 'nickname_delete_btn_',      // 삭제 버튼
     VIEW_BTN: 'nickname_view_btn_',          // 내 정보 조회 버튼
-    EDIT: 'nickname_edit_',                  // 수정 버튼
+    EDIT_BTN: 'nickname_edit_btn_',          // 수정 버튼
+    EDIT: 'nickname_edit_',                  // 수정 버튼 (레거시)
     REMOVE: 'nickname_remove_',              // 개별 삭제 버튼
     VISIT: 'nickname_visit_',                // 프로필 방문 버튼
 
@@ -43,6 +45,7 @@ export const NicknameConstants = {
     EMOJI_MAX: 100,                          // 이모지 최대 길이 (커스텀 이모지 <:name:id> 형식 지원)
     MAX_PLATFORMS_PER_GUILD: 25,             // 길드당 최대 플랫폼 수 (드롭다운 제한)
     MAX_NICKNAMES_PER_USER: 25,              // 사용자당 최대 닉네임 수
+    MAX_ACCOUNTS_PER_PLATFORM: 5,            // 플랫폼당 최대 계정 수
   },
 
   // 메시지
@@ -60,9 +63,13 @@ export const NicknameConstants = {
     NO_NICKNAMES: 'ℹ️ 등록된 닉네임이 없습니다.',
     PLATFORM_LIMIT_REACHED: '❌ 최대 플랫폼 수에 도달했습니다.',
     NICKNAME_LIMIT_REACHED: '❌ 최대 닉네임 등록 수에 도달했습니다.',
+    ACCOUNT_LIMIT_REACHED: '❌ 해당 플랫폼에는 최대 5개의 계정만 등록할 수 있습니다.',
     ALREADY_REGISTERED: '⚠️ 이미 해당 플랫폼에 닉네임이 등록되어 있습니다.',
+    DUPLICATE_IDENTIFIER: '⚠️ 이미 동일한 ID가 해당 플랫폼에 등록되어 있습니다.',
     PLATFORM_NOT_FOUND: '❌ 플랫폼을 찾을 수 없습니다.',
     NICKNAME_NOT_FOUND: '❌ 닉네임을 찾을 수 없습니다.',
+    NO_ACCOUNTS_TO_EDIT: 'ℹ️ 수정할 닉네임이 없습니다.',
+    NO_ACCOUNTS_TO_DELETE: 'ℹ️ 삭제할 닉네임이 없습니다.',
     INVALID_URL: '❌ 유효하지 않은 URL 형식입니다.',
     INVALID_INPUT: '❌ 입력값이 올바르지 않습니다.',
     PERMISSION_DENIED: '❌ 이 기능을 사용할 권한이 없습니다.',

@@ -161,26 +161,25 @@ export class NicknameModalHandler {
   }
 
   /**
-   * 사용자 닉네임 수정 처리
+   * 사용자 닉네임 수정 처리 (ID 기반)
    */
   async handleUserEdit(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const parts = interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_MODAL, '').split('_');
-    const platformId = parseInt(parts[0], 10);
+    // customId에서 nicknameId 추출: nickname_edit_modal_<id>
+    const nicknameId = parseInt(interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_MODAL, ''), 10);
     const newUserIdentifier = interaction.fields.getTextInputValue('user_identifier');
 
-    const nickname = await this.userNicknameService.updateNickname(
-      interaction.guild.id,
-      interaction.user.id,
-      platformId,
-      newUserIdentifier
-    );
+    // ID 기반 수정
+    const nickname = await this.userNicknameService.updateNicknameById(nicknameId, newUserIdentifier);
 
-    const platform = await this.platformTemplateService.getPlatformById(platformId);
+    // 플랫폼 정보 조회
+    const platform = await this.platformTemplateService.getPlatformById(nickname.platform_id);
+
+    const fullUrlText = nickname.full_url ? `\nURL: ${nickname.full_url}` : '';
 
     await interaction.editReply({
-      content: `${NicknameConstants.MESSAGES.NICKNAME_UPDATED}\n플랫폼: **${platform.platform_name}**\n새 ID: \`${newUserIdentifier}\`\nURL: ${nickname.full_url}`,
+      content: `${NicknameConstants.MESSAGES.NICKNAME_UPDATED}\n플랫폼: **${platform.platform_name}**\n새 ID: \`${newUserIdentifier}\`${fullUrlText}`,
     });
   }
 }
