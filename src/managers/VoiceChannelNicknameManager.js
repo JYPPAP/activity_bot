@@ -46,9 +46,8 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
-    // 음성 채널의 텍스트 채널 찾기
-    const textChannel = await this.findLinkedTextChannel(channel);
-    if (!textChannel) {
+    // 음성 채널이 아니면 무시
+    if (channel.type !== ChannelType.GuildVoice) {
       return;
     }
 
@@ -60,76 +59,11 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
-    // 임베드 생성 및 전송
+    // 임베드 생성
     const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, nicknames);
 
-    await textChannel.send(embedData);
+    // 음성 채널의 채팅(스레드)에 메시지 전송
+    await channel.send(embedData);
   }
 
-  /**
-   * 음성 채널과 연결된 텍스트 채널 찾기
-   * @param {VoiceChannel} voiceChannel - 음성 채널
-   * @returns {Promise<TextChannel|null>} - 연결된 텍스트 채널
-   */
-  async findLinkedTextChannel(voiceChannel) {
-    try {
-      // 1. 같은 이름의 텍스트 채널 찾기
-      const sameNameChannel = voiceChannel.guild.channels.cache.find(
-        (channel) =>
-          channel.type === ChannelType.GuildText &&
-          channel.name === voiceChannel.name
-      );
-
-      if (sameNameChannel) {
-        return sameNameChannel;
-      }
-
-      // 2. 같은 카테고리 내의 첫 번째 텍스트 채널 찾기
-      if (voiceChannel.parent) {
-        const categoryChannel = voiceChannel.guild.channels.cache.find(
-          (channel) =>
-            channel.type === ChannelType.GuildText &&
-            channel.parentId === voiceChannel.parentId
-        );
-
-        if (categoryChannel) {
-          return categoryChannel;
-        }
-      }
-
-      // 3. 기본 텍스트 채널 사용 (일반, general 등)
-      const defaultChannel = voiceChannel.guild.channels.cache.find(
-        (channel) =>
-          channel.type === ChannelType.GuildText &&
-          (channel.name === '일반' || channel.name === 'general' || channel.name === '채팅')
-      );
-
-      return defaultChannel || null;
-    } catch (error) {
-      console.error('[VoiceChannelNicknameManager] 텍스트 채널 찾기 오류:', error);
-      return null;
-    }
-  }
-
-  /**
-   * 특정 채널에서 닉네임 표시 활성화
-   * @param {string} guildId - 길드 ID
-   * @param {string} voiceChannelId - 음성 채널 ID
-   * @param {string} textChannelId - 텍스트 채널 ID
-   */
-  async enableNicknameDisplay(guildId, voiceChannelId, textChannelId) {
-    // TODO: 데이터베이스에 채널 매핑 저장
-    // 현재는 자동으로 같은 이름의 텍스트 채널을 찾음
-    console.log(`[VoiceChannelNicknameManager] 닉네임 표시 활성화: ${voiceChannelId} -> ${textChannelId}`);
-  }
-
-  /**
-   * 특정 채널에서 닉네임 표시 비활성화
-   * @param {string} guildId - 길드 ID
-   * @param {string} voiceChannelId - 음성 채널 ID
-   */
-  async disableNicknameDisplay(guildId, voiceChannelId) {
-    // TODO: 데이터베이스에서 채널 매핑 제거
-    console.log(`[VoiceChannelNicknameManager] 닉네임 표시 비활성화: ${voiceChannelId}`);
-  }
 }
