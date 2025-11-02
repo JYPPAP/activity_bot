@@ -291,7 +291,7 @@ export class UserNicknameService {
   }
 
   /**
-   * 음성 채널용 닉네임 임베드 생성
+   * 음성 채널용 닉네임 임베드 생성 (플랫폼별 그룹화)
    * @param {Object} user - 사용자 정보
    * @param {Array} nicknames - 닉네임 목록
    * @returns {Object} - 임베드와 버튼
@@ -307,19 +307,56 @@ export class UserNicknameService {
       return { embeds: [embed] };
     }
 
-    // 필드 추가 - URL이 있으면 프로필 보기 링크 표시, 없으면 ID만 표시
+    // 플랫폼별로 그룹화
+    const groupedByPlatform = {};
     nicknames.forEach((nickname) => {
-      const emoji = nickname.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM;
-      const value = nickname.full_url
-        ? `\`${nickname.user_identifier}\`\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${nickname.full_url})`  // URL 있음
-        : `\`${nickname.user_identifier}\``;  // URL 없음: ID만
-
-      embed.addFields({
-        name: `${emoji} ${nickname.platform_name}`,
-        value: value,
-        inline: true,
-      });
+      const platformKey = `${nickname.platform_id}`;
+      if (!groupedByPlatform[platformKey]) {
+        groupedByPlatform[platformKey] = {
+          platform_name: nickname.platform_name,
+          emoji_unicode: nickname.emoji_unicode,
+          display_order: nickname.display_order,
+          accounts: [],
+        };
+      }
+      groupedByPlatform[platformKey].accounts.push(nickname);
     });
+
+    // 플랫폼별로 필드 추가
+    Object.values(groupedByPlatform)
+      .sort((a, b) => a.display_order - b.display_order)
+      .forEach((platform) => {
+        const emoji = platform.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM;
+
+        // 계정이 1개인 경우
+        if (platform.accounts.length === 1) {
+          const account = platform.accounts[0];
+          const value = account.full_url
+            ? `ID: \`${account.user_identifier}\`\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
+            : `ID: \`${account.user_identifier}\``;
+
+          embed.addFields({
+            name: `${emoji} ${platform.platform_name}`,
+            value: value,
+            inline: false,
+          });
+        }
+        // 계정이 여러 개인 경우
+        else {
+          const accountLines = platform.accounts.map((account, index) => {
+            const linkText = account.full_url
+              ? `[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
+              : '';
+            return `${index + 1}. ID: \`${account.user_identifier}\`${linkText ? ' ' + linkText : ''}`;
+          });
+
+          embed.addFields({
+            name: `${emoji} ${platform.platform_name} (${platform.accounts.length}개 계정)`,
+            value: accountLines.join('\n'),
+            inline: false,
+          });
+        }
+      });
 
     return { embeds: [embed] };
   }
