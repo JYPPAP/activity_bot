@@ -298,9 +298,11 @@ export class UserNicknameService {
    */
   createVoiceChannelNicknameEmbed(user, nicknames) {
     const embed = new EmbedBuilder()
-      .setColor(NicknameConstants.COLORS.PRIMARY)
-      .setTitle(`${NicknameConstants.DEFAULT_EMOJIS.VIEW} ${user.displayName || user.username}님의 게임 정보`)
-      .setTimestamp();
+      .setColor(NicknameConstants.COLORS.INFO)
+      .setAuthor({
+        name: user.displayName || user.username,
+        iconURL: user.displayAvatarURL()
+      });
 
     if (nicknames.length === 0) {
       embed.setDescription('등록된 닉네임이 없습니다.');
