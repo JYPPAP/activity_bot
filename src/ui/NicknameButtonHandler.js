@@ -151,7 +151,7 @@ export class NicknameButtonHandler {
 
       const userIdInput = new TextInputBuilder()
         .setCustomId('user_identifier')
-        .setLabel('사용자 ID')
+        .setLabel('닉네임 또는 친구코드')
         .setValue(selectedNickname.user_identifier)
         .setPlaceholder(`예: 76561198183295061`)
         .setStyle(TextInputStyle.Short)

@@ -146,7 +146,7 @@ export class NicknameSelectMenuHandler {
 
     const userIdInput = new TextInputBuilder()
       .setCustomId('user_identifier')
-      .setLabel('사용자 ID')
+      .setLabel('닉네임 또는 친구코드')
       .setPlaceholder(`예: 76561198183295061`)
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
