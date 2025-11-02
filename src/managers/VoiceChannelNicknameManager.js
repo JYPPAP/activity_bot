@@ -89,7 +89,7 @@ export class VoiceChannelNicknameManager {
     }
 
     // 임베드 생성
-    const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, nicknames);
+    const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, member, nicknames);
 
     // 음성 채널에 직접 메시지 전송 (RecruitmentService와 동일 방식)
     try {

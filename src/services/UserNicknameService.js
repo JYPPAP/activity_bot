@@ -293,14 +293,17 @@ export class UserNicknameService {
   /**
    * 음성 채널용 닉네임 임베드 생성 (플랫폼별 그룹화)
    * @param {Object} user - 사용자 정보
+   * @param {Object} member - 길드 멤버 정보 (별명 표시용)
    * @param {Array} nicknames - 닉네임 목록
    * @returns {Object} - 임베드와 버튼
    */
-  createVoiceChannelNicknameEmbed(user, nicknames) {
+  createVoiceChannelNicknameEmbed(user, member, nicknames) {
+    const displayName = member?.displayName || user.displayName || user.username;
+
     const embed = new EmbedBuilder()
       .setColor(NicknameConstants.COLORS.INFO)
       .setAuthor({
-        name: user.displayName || user.username,
+        name: displayName,
         iconURL: user.displayAvatarURL()
       });
 
