@@ -72,6 +72,12 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
+    // "방-생성하기" 채널은 제외 (경유 채널이므로 메시지 보내지 않음)
+    if (channel.name.includes('방-생성하기')) {
+      console.log('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
+      return;
+    }
+
     // 사용자의 닉네임 가져오기
     const nicknames = await this.userNicknameService.getUserNicknames(guild.id, member.user.id);
     console.log('[VoiceChannelNicknameManager] 닉네임 조회 결과:', nicknames.length, '개');
