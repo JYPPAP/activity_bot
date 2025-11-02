@@ -37,6 +37,7 @@ export class Bot {
     this.emojiReactionService = this.container.resolve('emojiReactionService');
     this.commandHandler = this.container.resolve('commandHandler');
     this.eventManager = this.container.resolve('eventManager');
+    this.voiceChannelNicknameManager = this.container.resolve('voiceChannelNicknameManager');
 
     Bot.instance = this;
   }
