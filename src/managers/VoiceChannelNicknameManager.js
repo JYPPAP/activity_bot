@@ -88,79 +88,18 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
-    // 연결된 텍스트 채널 찾기
-    const textChannel = await this.findLinkedTextChannel(channel);
-    if (!textChannel) {
-      console.log('[VoiceChannelNicknameManager] ❌ 텍스트 채널을 찾을 수 없음');
-      return;
-    }
-
     // 임베드 생성
     const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, nicknames);
 
-    // 텍스트 채널에 메시지 전송
+    // 음성 채널에 직접 메시지 전송 (RecruitmentService와 동일 방식)
     try {
-      await textChannel.send(embedData);
+      await channel.send(embedData);
       console.log('[VoiceChannelNicknameManager] ✅ 메시지 전송 완료:', {
-        textChannel: textChannel.name,
+        voiceChannel: channel.name,
         user: member.user.username
       });
     } catch (error) {
       console.error('[VoiceChannelNicknameManager] ❌ 메시지 전송 실패:', error.message);
-    }
-  }
-
-  /**
-   * 음성 채널과 연결된 텍스트 채널 찾기
-   * @param {VoiceChannel} voiceChannel - 음성 채널
-   * @returns {Promise<TextChannel|null>} - 연결된 텍스트 채널
-   */
-  async findLinkedTextChannel(voiceChannel) {
-    try {
-      console.log('[VoiceChannelNicknameManager] 텍스트 채널 검색 시작:', voiceChannel.name);
-
-      // 1. 같은 이름의 텍스트 채널 찾기
-      const sameNameChannel = voiceChannel.guild.channels.cache.find(
-        (channel) =>
-          channel.type === ChannelType.GuildText &&
-          channel.name === voiceChannel.name
-      );
-
-      if (sameNameChannel) {
-        console.log('[VoiceChannelNicknameManager] 같은 이름 텍스트 채널 발견:', sameNameChannel.name);
-        return sameNameChannel;
-      }
-
-      // 2. 같은 카테고리 내의 첫 번째 텍스트 채널 찾기
-      if (voiceChannel.parent) {
-        const categoryChannel = voiceChannel.guild.channels.cache.find(
-          (channel) =>
-            channel.type === ChannelType.GuildText &&
-            channel.parentId === voiceChannel.parentId
-        );
-
-        if (categoryChannel) {
-          console.log('[VoiceChannelNicknameManager] 같은 카테고리 텍스트 채널 발견:', categoryChannel.name);
-          return categoryChannel;
-        }
-      }
-
-      // 3. 기본 텍스트 채널 사용 (일반, general 등)
-      const defaultChannel = voiceChannel.guild.channels.cache.find(
-        (channel) =>
-          channel.type === ChannelType.GuildText &&
-          (channel.name === '일반' || channel.name === 'general' || channel.name === '채팅')
-      );
-
-      if (defaultChannel) {
-        console.log('[VoiceChannelNicknameManager] 기본 텍스트 채널 사용:', defaultChannel.name);
-        return defaultChannel;
-      }
-
-      return null;
-    } catch (error) {
-      console.error('[VoiceChannelNicknameManager] 텍스트 채널 찾기 오류:', error);
-      return null;
     }
   }
 
