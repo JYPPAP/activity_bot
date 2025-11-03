@@ -97,7 +97,7 @@ export const NicknameConstants = {
     ORIGIN: '🔥',
     GOG: '📦',
     REGISTER: '➕',
-    DELETE: '❌',
+    DELETE: '🗑️',
     VIEW: '📋',
     EDIT: '✏️',
     LINK: '🔗',

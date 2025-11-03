@@ -69,8 +69,7 @@ export class NicknameSetupCommand extends CommandBase {
         '아래에서 작업을 선택하세요.\n\n' +
         '**드롭다운 사용법:**\n' +
         '• "➕ 닉네임 등록!" → 플랫폼 선택 → ID 입력\n' +
-        '• 플랫폼 직접 선택 → 등록 또는 수정\n\n' +
-        `🔊 **대상 채널**: ${channelName}`
+        '• 플랫폼 직접 선택 → 등록 또는 수정'
       )
       .setFooter({ text: '💡 등록된 닉네임은 음성 채널 입장 시 자동으로 표시됩니다.' });
   }

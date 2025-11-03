@@ -90,8 +90,7 @@ export class NicknameCommand extends CommandBase {
         '📋 **사용 가능한 접두사**\n' +
         '• **관전** - [관전] [닉네임] 형태로 변경\n' +
         '• **대기** - [대기] [닉네임] 형태로 변경\n' +
-        '• **초기화** - 원래 닉네임으로 복원\n\n' +
-        `🔊 **대상 채널**: ${channelName}`
+        '• **초기화** - 원래 닉네임으로 복원'
       )
       .setColor(0x5865F2);
   }
