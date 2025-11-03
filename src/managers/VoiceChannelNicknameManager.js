@@ -88,6 +88,9 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
+    // 이전에 해당 사용자의 닉네임 메시지가 있다면 삭제
+    await this.deletePreviousNicknameMessage(channel, member.user.id);
+
     // 임베드 생성
     const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, member, nicknames);
 
@@ -100,6 +103,60 @@ export class VoiceChannelNicknameManager {
       });
     } catch (error) {
       console.error('[VoiceChannelNicknameManager] ❌ 메시지 전송 실패:', error.message);
+    }
+  }
+
+  /**
+   * 이전에 보낸 사용자의 닉네임 메시지 삭제
+   * @param {VoiceChannel} channel - 음성 채널
+   * @param {string} userId - 사용자 ID
+   */
+  async deletePreviousNicknameMessage(channel, userId) {
+    try {
+      // 최근 100개 메시지 가져오기
+      const messages = await channel.messages.fetch({ limit: 100 });
+
+      console.log('[VoiceChannelNicknameManager] 이전 메시지 검색:', {
+        channel: channel.name,
+        userId: userId,
+        totalMessages: messages.size
+      });
+
+      // 봇이 보낸 메시지 중 해당 사용자의 닉네임 정보를 담은 임베드 찾기
+      const previousMessage = messages.find(msg => {
+        // 봇이 보낸 메시지가 아니면 제외
+        if (!msg.author.bot || msg.author.id !== this.client.user.id) {
+          return false;
+        }
+
+        // 임베드가 없으면 제외
+        if (!msg.embeds || msg.embeds.length === 0) {
+          return false;
+        }
+
+        const embed = msg.embeds[0];
+
+        // author.iconURL이 해당 사용자의 아바타 URL인지 확인
+        if (embed.author && embed.author.iconURL) {
+          // 사용자 ID가 URL에 포함되어 있는지 확인
+          return embed.author.iconURL.includes(userId);
+        }
+
+        return false;
+      });
+
+      if (previousMessage) {
+        await previousMessage.delete();
+        console.log('[VoiceChannelNicknameManager] ✅ 이전 메시지 삭제 완료:', {
+          messageId: previousMessage.id,
+          userId: userId
+        });
+      } else {
+        console.log('[VoiceChannelNicknameManager] 삭제할 이전 메시지 없음');
+      }
+    } catch (error) {
+      // 메시지 삭제 실패는 치명적이지 않으므로 경고만 출력
+      console.warn('[VoiceChannelNicknameManager] ⚠️ 이전 메시지 삭제 실패:', error.message);
     }
   }
 
