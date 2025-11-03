@@ -38,7 +38,15 @@ export class VoiceChannelNicknameManager {
           from: oldState.channel.name,
           to: newState.channel.name
         });
+        // 이전 채널에서 메시지 삭제
+        await this.handleVoiceChannelLeave(oldState);
+        // 새 채널에 메시지 전송
         await this.handleVoiceChannelJoin(newState);
+      }
+      // 3. 음성 채널 퇴장 (채널 → null)
+      else if (oldState.channel && !newState.channel) {
+        console.log('[VoiceChannelNicknameManager] 음성 채널 퇴장 감지');
+        await this.handleVoiceChannelLeave(oldState);
       }
     } catch (error) {
       console.error('[VoiceChannelNicknameManager] 음성 채널 상태 변경 처리 오류:', error);
@@ -88,9 +96,6 @@ export class VoiceChannelNicknameManager {
       return;
     }
 
-    // 이전에 해당 사용자의 닉네임 메시지가 있다면 삭제
-    await this.deletePreviousNicknameMessage(channel, member.user.id);
-
     // 임베드 생성
     const embedData = this.userNicknameService.createVoiceChannelNicknameEmbed(member.user, member, nicknames);
 
@@ -107,23 +112,53 @@ export class VoiceChannelNicknameManager {
   }
 
   /**
-   * 이전에 보낸 사용자의 닉네임 메시지 삭제
+   * 음성 채널 퇴장 처리
+   * @param {VoiceState} voiceState - 음성 상태
+   */
+  async handleVoiceChannelLeave(voiceState) {
+    const { member, channel } = voiceState;
+
+    console.log('[VoiceChannelNicknameManager] 음성 채널 퇴장 처리:', {
+      user: member.user.username,
+      userId: member.user.id,
+      channel: channel.name,
+      channelId: channel.id
+    });
+
+    // 봇은 제외
+    if (member.user.bot) {
+      console.log('[VoiceChannelNicknameManager] 봇 사용자 감지, 건너뜀');
+      return;
+    }
+
+    // "방-생성하기" 채널은 제외
+    if (channel.name.includes('방-생성하기')) {
+      console.log('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
+      return;
+    }
+
+    // 해당 사용자의 닉네임 메시지 삭제
+    await this.deleteNicknameMessage(channel, member.user.id);
+  }
+
+  /**
+   * 사용자의 닉네임 메시지 삭제
    * @param {VoiceChannel} channel - 음성 채널
    * @param {string} userId - 사용자 ID
    */
-  async deletePreviousNicknameMessage(channel, userId) {
+  async deleteNicknameMessage(channel, userId) {
     try {
       // 최근 100개 메시지 가져오기
       const messages = await channel.messages.fetch({ limit: 100 });
 
-      console.log('[VoiceChannelNicknameManager] 이전 메시지 검색:', {
+      console.log('[VoiceChannelNicknameManager] 닉네임 메시지 검색:', {
         channel: channel.name,
         userId: userId,
         totalMessages: messages.size
       });
 
       // 봇이 보낸 메시지 중 해당 사용자의 닉네임 정보를 담은 임베드 찾기
-      const previousMessage = messages.find(msg => {
+      const nicknameMessage = messages.find(msg => {
         // 봇이 보낸 메시지가 아니면 제외
         if (!msg.author.bot || msg.author.id !== this.client.user.id) {
           return false;
@@ -145,18 +180,18 @@ export class VoiceChannelNicknameManager {
         return false;
       });
 
-      if (previousMessage) {
-        await previousMessage.delete();
-        console.log('[VoiceChannelNicknameManager] ✅ 이전 메시지 삭제 완료:', {
-          messageId: previousMessage.id,
+      if (nicknameMessage) {
+        await nicknameMessage.delete();
+        console.log('[VoiceChannelNicknameManager] ✅ 닉네임 메시지 삭제 완료:', {
+          messageId: nicknameMessage.id,
           userId: userId
         });
       } else {
-        console.log('[VoiceChannelNicknameManager] 삭제할 이전 메시지 없음');
+        console.log('[VoiceChannelNicknameManager] 삭제할 닉네임 메시지 없음');
       }
     } catch (error) {
       // 메시지 삭제 실패는 치명적이지 않으므로 경고만 출력
-      console.warn('[VoiceChannelNicknameManager] ⚠️ 이전 메시지 삭제 실패:', error.message);
+      console.warn('[VoiceChannelNicknameManager] ⚠️ 닉네임 메시지 삭제 실패:', error.message);
     }
   }
 
