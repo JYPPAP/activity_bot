@@ -180,37 +180,56 @@ export class NicknameSelectMenuHandler {
   }
 
   /**
-   * 닉네임 삭제 드롭다운 처리 (ID 기반)
+   * 닉네임 삭제 드롭다운 처리 (ID 기반, 다중 선택 지원)
    */
   async handleDeleteSelect(interaction) {
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
-    const nicknameId = parseInt(interaction.values[0], 10);
+    const selectedIds = interaction.values.map(id => parseInt(id, 10));
     const guildId = interaction.guild.id;
     const userId = interaction.user.id;
 
-    // 삭제할 닉네임 정보 조회 (삭제 전에 플랫폼명을 가져오기 위해)
+    // 삭제할 닉네임 정보 조회 (삭제 전에 정보를 가져오기 위해)
     const nicknames = await this.userNicknameService.getUserNicknames(guildId, userId);
-    const targetNickname = nicknames.find((n) => n.id === nicknameId);
+    const targetNicknames = nicknames.filter((n) => selectedIds.includes(n.id));
 
-    if (!targetNickname) {
+    if (targetNicknames.length === 0) {
       await interaction.editReply({
         content: NicknameConstants.MESSAGES.NICKNAME_NOT_FOUND,
       });
       return;
     }
 
-    // ID 기반 닉네임 삭제
-    const success = await this.userNicknameService.deleteNicknameById(nicknameId);
+    // 선택된 닉네임들 삭제
+    let successCount = 0;
+    let failCount = 0;
 
-    if (success) {
-      await interaction.editReply({
-        content: `${NicknameConstants.MESSAGES.NICKNAME_DELETED}\n플랫폼: **${targetNickname.platform_name}**\nID: \`${targetNickname.user_identifier}\``,
-      });
-    } else {
-      await interaction.editReply({
-        content: '❌ 닉네임 삭제에 실패했습니다.',
+    for (const nicknameId of selectedIds) {
+      const success = await this.userNicknameService.deleteNicknameById(nicknameId);
+      if (success) {
+        successCount++;
+      } else {
+        failCount++;
+      }
+    }
+
+    // 결과 메시지 생성
+    let resultMessage = '';
+
+    if (successCount > 0) {
+      resultMessage += `${NicknameConstants.MESSAGES.NICKNAME_DELETED}\n`;
+      resultMessage += `삭제된 닉네임 (${successCount}개):\n`;
+      targetNicknames.forEach((nickname, index) => {
+        resultMessage += `${index + 1}. **${nickname.platform_name}** - \`${nickname.user_identifier}\`\n`;
       });
     }
+
+    if (failCount > 0) {
+      resultMessage += `\n❌ 삭제 실패: ${failCount}개`;
+    }
+
+    await interaction.editReply({
+      content: resultMessage,
+    });
   }
 }

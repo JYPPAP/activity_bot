@@ -84,7 +84,9 @@ export class NicknameButtonHandler {
 
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_SELECT}${Date.now()}`)
-      .setPlaceholder('삭제할 닉네임을 선택하세요')
+      .setPlaceholder('삭제할 닉네임들을 선택하세요')
+      .setMinValues(1)
+      .setMaxValues(Math.min(options.length, 15)) // 최대 15개까지 선택 가능
       .addOptions(options);
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
