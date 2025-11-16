@@ -24,32 +24,97 @@ PostgreSQL 서버에서 다음 구조가 생성됩니다:
 
 ## 데이터베이스 초기화 방법
 
-### 1단계: PostgreSQL 서버 확인
+### 🚀 완전 초기화 (처음 설정 또는 initdb 후)
+
+**Termux 환경에서 실행:**
+
+```bash
+cd ~/discord_bot
+
+# 1단계: PostgreSQL 서버 시작
+pg_ctl start -D ~/postgres_data
+
+# 2단계: activity_bot 데이터베이스 생성 (아직 없는 경우)
+psql -d postgres -c "CREATE DATABASE activity_bot;"
+
+# 3단계: 사용자 및 권한 설정
+psql -d postgres -f scripts/setup-user-permissions.sql
+
+# 4단계: 데이터베이스 스키마 초기화
+psql -d activity_bot -f scripts/init-database.sql
+
+# 5단계: 추가 마이그레이션 적용
+psql -d activity_bot -f scripts/add_nickname_tables.sql
+psql -d activity_bot -f scripts/migration_multi_account_support.sql
+
+# 6단계: 현재 월 활동 테이블 생성
+psql -d activity_bot -c "SELECT create_monthly_activity_table('$(date +%Y%m)');"
+
+# 7단계: 테이블 확인
+psql -d activity_bot -c "\dt"
+
+# 8단계: 봇 시작
+npm run start:prod
+```
+
+### ⚡ 빠른 재시작 (핸드폰 재부팅 후)
+
+```bash
+cd ~/discord_bot
+npm run start:prod
+```
+
+이 명령어 하나로 PostgreSQL 시작 + 봇 재시작이 자동으로 실행됩니다!
+
+### 📋 개별 단계별 설정
+
+#### 1단계: PostgreSQL 서버 확인
 ```bash
 # PostgreSQL 서버 상태 확인
 pg_isready -h localhost -p 5432
+
+# 실행 중이 아니면 시작
+pg_ctl start -D ~/postgres_data
 
 # 버전 확인
 psql --version
 ```
 
-### 2단계: 데이터베이스 생성 (필요시)
-```sql
--- PostgreSQL 관리자로 접속하여 데이터베이스 생성
-CREATE DATABASE activity_bot;
-CREATE USER activity_bot_user WITH PASSWORD 'your_secure_password';
-GRANT ALL PRIVILEGES ON DATABASE activity_bot TO activity_bot_user;
-```
-
-### 3단계: 환경 설정
-`.env` 파일의 `DATABASE_URL`을 실제 PostgreSQL 연결 정보로 업데이트:
-```env
-DATABASE_URL=postgresql://username:password@localhost:5432/activity_bot
-```
-
-### 4단계: 데이터베이스 초기화
+#### 2단계: 데이터베이스 생성 (필요시)
 ```bash
-npm run init-db
+# activity_bot 데이터베이스 생성
+psql -d postgres -c "CREATE DATABASE activity_bot;"
+
+# 데이터베이스 목록 확인
+psql -l
+```
+
+#### 3단계: 사용자 및 권한 설정
+```bash
+# scripts/setup-user-permissions.sql 실행
+psql -d postgres -f scripts/setup-user-permissions.sql
+```
+
+이 스크립트는 다음을 수행합니다:
+- `discord_bot` 사용자 생성 (비밀번호: prod_password)
+- `activity_bot` 데이터베이스에 대한 모든 권한 부여
+- 스키마, 테이블, 시퀀스, 함수에 대한 권한 설정
+- 미래에 생성될 객체들에 대한 기본 권한 설정
+
+#### 4단계: 환경 설정
+`.env` 파일 확인 (이미 설정되어 있음):
+```env
+DATABASE_URL=postgresql://discord_bot:prod_password@localhost:5432/activity_bot?sslmode=disable
+```
+
+#### 5단계: 데이터베이스 스키마 초기화
+```bash
+# init-database.sql 실행
+psql -d activity_bot -f scripts/init-database.sql
+
+# 추가 마이그레이션 적용
+psql -d activity_bot -f scripts/add_nickname_tables.sql
+psql -d activity_bot -f scripts/migration_multi_account_support.sql
 ```
 
 ## 초기화 스크립트 상세
@@ -92,19 +157,72 @@ npm run init-db
 - 실제 운영 데이터베이스
 - SSL 연결 및 보안 설정 필요
 
+## 💾 데이터베이스 백업
+
+### 수동 백업
+```bash
+# 전체 데이터베이스 백업 (스키마 + 데이터)
+cd ~/discord_bot
+npm run backup:db
+
+# 또는 직접 실행
+pg_dump -U u0_a308 -d activity_bot -F c -f backups/activity_bot_$(date +%Y%m%d_%H%M%S).backup
+```
+
+### 백업 복원
+```bash
+# 백업 파일로부터 복원
+pg_restore -U u0_a308 -d activity_bot -c backups/activity_bot_YYYYMMDD_HHMMSS.backup
+```
+
+### 자동 백업 설정 (선택사항)
+Termux에서 cron을 사용하여 자동 백업 설정:
+```bash
+# cronie 설치
+pkg install cronie
+
+# cron 시작
+crond
+
+# crontab 편집
+crontab -e
+
+# 매일 새벽 3시에 백업 (아래 내용 추가)
+0 3 * * * cd ~/discord_bot && npm run backup:db
+```
+
 ## 문제 해결
 
 ### 연결 실패 시
-1. PostgreSQL 서버 실행 확인
-2. 사용자 권한 확인
-3. 데이터베이스 존재 확인
-4. 방화벽 설정 확인
+1. PostgreSQL 서버 실행 확인: `pg_isready -h localhost`
+2. 사용자 권한 확인: `psql -l`
+3. 데이터베이스 존재 확인: `psql -d postgres -c "\l"`
+4. 포트 확인: `netstat -tlnp | grep 5432`
 
 ### 권한 오류 시
-```sql
-GRANT ALL PRIVILEGES ON DATABASE activity_bot TO your_username;
-GRANT USAGE ON SCHEMA public TO your_username;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO your_username;
+```bash
+# setup-user-permissions.sql 재실행
+psql -d postgres -f scripts/setup-user-permissions.sql
+```
+
+### 테이블이 모두 사라진 경우
+```bash
+# 전체 초기화 프로세스 다시 실행
+psql -d activity_bot -f scripts/init-database.sql
+psql -d activity_bot -f scripts/add_nickname_tables.sql
+psql -d activity_bot -f scripts/migration_multi_account_support.sql
+```
+
+### PostgreSQL 재시작 필요 시
+```bash
+# 서버 중지
+pg_ctl stop -D ~/postgres_data
+
+# 서버 시작
+pg_ctl start -D ~/postgres_data
+
+# 또는 재시작
+pg_ctl restart -D ~/postgres_data
 ```
 
 ---
