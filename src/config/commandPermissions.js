@@ -6,7 +6,7 @@ import { config } from './env.js';
 export const SUPER_ADMIN_ROLES = ['사장'];
 
 // 일반 사용자도 사용 가능한 명령어들 (역할 없이도 사용 가능)
-export const PUBLIC_COMMANDS = ['구직', '시간확인'];
+export const PUBLIC_COMMANDS = ['구직'];
 
 // 특정 역할이 필요한 명령어들
 export const ROLE_BASED_PERMISSIONS = {
