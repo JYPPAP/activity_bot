@@ -69,6 +69,8 @@ export function createDIContainer(client) {
     forumChannelId: asValue(config.FORUM_CHANNEL_ID),
     voiceCategoryId: asValue(config.VOICE_CATEGORY_ID),
     forumTagId: asValue(config.FORUM_TAG_ID),
+    scrimmageForumChannelId: asValue(config.SCRIMMAGE_FORUM_CHANNEL_ID),
+    longTermForumChannelId: asValue(config.LONG_TERM_FORUM_CHANNEL_ID),
   });
 
   // === 2. 인프라 계층 (데이터베이스, 로깅) ===

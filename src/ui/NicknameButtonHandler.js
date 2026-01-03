@@ -1,6 +1,6 @@
 // src/ui/NicknameButtonHandler.js - 닉네임 버튼 핸들러
 
-import { MessageFlags, StringSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ComponentType, EmbedBuilder } from 'discord.js';
+import { MessageFlags, StringSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ComponentType, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { EmojiParser } from '../utils/EmojiParser.js';
@@ -377,9 +377,12 @@ export class NicknameButtonHandler {
 
       if (success) {
         await selectInteraction.update({
-          content: `${NicknameConstants.MESSAGES.PLATFORM_DELETED}\n삭제된 플랫폼: **${platform.platform_name}**`,
+          content: `${NicknameConstants.MESSAGES.PLATFORM_DELETED}\n삭제된 플랫폼: **${platform.platform_name}**\n\n✅ UI가 업데이트되었습니다.`,
           components: [],
         });
+
+        // 닉네임 UI 메시지 찾아서 업데이트
+        await this.refreshNicknameUI(interaction.channel, interaction.guild.id);
       } else {
         await selectInteraction.update({
           content: '❌ 플랫폼 삭제에 실패했습니다.',
@@ -421,5 +424,148 @@ export class NicknameButtonHandler {
     });
 
     await interaction.editReply({ embeds: [embed] });
+  }
+
+  /**
+   * 닉네임 UI 메시지 찾아서 업데이트
+   */
+  async refreshNicknameUI(channel, guildId) {
+    try {
+      // 채널에서 최근 메시지 가져오기 (최대 100개)
+      const messages = await channel.messages.fetch({ limit: 100 });
+
+      // 닉네임 UI 메시지 찾기 (봇이 보낸 메시지 중 "닉네임 관리" 임베드 포함)
+      const nicknameUIMessage = messages.find(msg =>
+        msg.author.bot &&
+        msg.embeds.length > 0 &&
+        msg.embeds[0].title === `${NicknameConstants.DEFAULT_EMOJIS.REGISTER} 닉네임 관리` &&
+        msg.components.length > 0
+      );
+
+      if (!nicknameUIMessage) {
+        console.log('[NicknameButtonHandler] 닉네임 UI 메시지를 찾을 수 없습니다.');
+        return;
+      }
+
+      // 최신 플랫폼 목록 가져오기
+      const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
+
+      if (platforms.length === 0) {
+        console.log('[NicknameButtonHandler] 플랫폼이 없습니다.');
+        return;
+      }
+
+      // 새로운 UI 컴포넌트 생성
+      const embed = this.createNicknameEmbed(channel.name);
+      const selectMenu = this.createMainSelectMenu(channel.id, platforms);
+      const buttons = this.createActionButtons(channel.id);
+
+      // 원래 메시지 삭제 (권한이 있는 경우에만)
+      try {
+        await nicknameUIMessage.delete();
+      } catch (error) {
+        console.error('[NicknameButtonHandler] 메시지 삭제 실패:', error.message);
+      }
+
+      // 새로운 메시지 전송
+      await channel.send({
+        embeds: [embed],
+        components: [selectMenu, buttons],
+      });
+
+      console.log('[NicknameButtonHandler] 닉네임 UI가 업데이트되었습니다.');
+    } catch (error) {
+      console.error('[NicknameButtonHandler] UI 업데이트 오류:', error);
+    }
+  }
+
+  /**
+   * 닉네임 관리 임베드 생성
+   */
+  createNicknameEmbed(channelName) {
+    return new EmbedBuilder()
+      .setColor(NicknameConstants.COLORS.PRIMARY)
+      .setTitle(`${NicknameConstants.DEFAULT_EMOJIS.REGISTER} 닉네임 관리`)
+      .setDescription(
+        '아래에서 작업을 선택하세요.\n\n' +
+        '**드롭다운 사용법:**\n' +
+        '• "➕ 닉네임 등록!" → 플랫폼 선택 → ID 입력\n' +
+        '• 플랫폼 직접 선택 → 등록 또는 수정'
+      )
+      .setFooter({ text: '💡 등록된 닉네임은 음성 채널 입장 시 자동으로 표시됩니다.' });
+  }
+
+  /**
+   * 메인 드롭다운 생성
+   */
+  createMainSelectMenu(channelId, platforms) {
+    const options = [
+      {
+        label: '➕ 닉네임 등록!',
+        description: '새로운 플랫폼 닉네임을 등록합니다',
+        value: NicknameConstants.SPECIAL_VALUES.REGISTER,
+        emoji: NicknameConstants.DEFAULT_EMOJIS.REGISTER,
+      },
+    ];
+
+    // 플랫폼 목록 추가
+    platforms.forEach((platform) => {
+      options.push({
+        label: platform.platform_name,
+        description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+        value: `platform_${platform.id}`,
+        emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+      });
+    });
+
+    const selectMenu = new StringSelectMenuBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.MAIN_SELECT}${channelId}`)
+      .setPlaceholder('닉네임 등록!')
+      .addOptions(options);
+
+    return new ActionRowBuilder().addComponents(selectMenu);
+  }
+
+  /**
+   * 액션 버튼 생성
+   */
+  createActionButtons(channelId) {
+    const deleteButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN}${channelId}`)
+      .setLabel('닉네임 삭제')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.DELETE)
+      .setStyle(ButtonStyle.Danger);
+
+    const viewButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN}${channelId}`)
+      .setLabel('내 정보 조회')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.VIEW)
+      .setStyle(ButtonStyle.Primary);
+
+    const adminAddButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_BTN}${channelId}`)
+      .setLabel('플랫폼 추가')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.REGISTER)
+      .setStyle(ButtonStyle.Success);
+
+    const adminEditButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN}${channelId}`)
+      .setLabel('플랫폼 수정')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.EDIT)
+      .setStyle(ButtonStyle.Secondary);
+
+    const adminDeleteButton = new ButtonBuilder()
+      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_DELETE_BTN}${channelId}`)
+      .setLabel('플랫폼 삭제')
+      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.DELETE)
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder().addComponents(
+      viewButton,
+      deleteButton,
+      adminAddButton,
+      adminEditButton,
+      adminDeleteButton
+    );
   }
 }

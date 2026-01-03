@@ -353,6 +353,18 @@ export class ModalHandler {
     try {
       const customId = interaction.customId;
 
+      // [내전] 모달 처리
+      if (customId === 'scrimmage_recruitment_modal') {
+        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'scrimmage');
+        return;
+      }
+
+      // [장기] 모달 처리
+      if (customId === 'long_term_recruitment_modal') {
+        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'long_term');
+        return;
+      }
+
       // 입력 값 추출 및 검증 (새로운 검증 시스템 사용)
       const recruitmentData = this.extractModalData(interaction);
       

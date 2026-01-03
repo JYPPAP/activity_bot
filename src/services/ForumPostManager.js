@@ -73,7 +73,6 @@ export class ForumPostManager {
       const thread = await forumChannel.threads.create({
         name: title,
         message: messageOptions,
-        appliedTags: this.forumTagId ? [this.forumTagId] : undefined,
         autoArchiveDuration: 1440
       });
 
@@ -123,9 +122,7 @@ export class ForumPostManager {
       
       // 참가 안내 메시지 추가
       try {
-        const participationGuide = voiceChannelId
-          ? '<:GAP_2:1319891512573689917> 이모지를 누르면 실시간으로 참가자 목록이 업데이트됩니다.'
-          : '👥 아래 **참가하기** 버튼을 눌러 참가하세요. 참가자 목록이 실시간으로 업데이트됩니다.';
+        const participationGuide = '👥 **참가하기** 버튼을 눌러 참가하세요.';
 
         await thread.send(participationGuide);
         console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);

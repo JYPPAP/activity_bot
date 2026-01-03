@@ -23,7 +23,9 @@ export class DiscordConstants {
     ROLE_COMPLETE: 'role_complete_',
     STANDALONE_ROLE_BUTTON: 'standalone_role_btn_',
     STANDALONE_ROLE_COMPLETE: 'standalone_role_complete',
-    EXISTING_POST_SELECT: 'existing_post_select_'
+    EXISTING_POST_SELECT: 'existing_post_select_',
+    SCRIMMAGE_RECRUITMENT: 'scrimmage_recruitment_',
+    LONG_TERM_RECRUITMENT: 'long_term_recruitment_'
   };
   
   // ========== 메서드 값 ==========

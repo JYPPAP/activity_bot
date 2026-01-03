@@ -1,5 +1,14 @@
 // src/services/RecruitmentService.js - 구인구직 비즈니스 로직
-import { MessageFlags } from 'discord.js';
+import {
+  MessageFlags,
+  ChannelType,
+  ModalBuilder,
+  TextInputBuilder,
+  TextInputStyle,
+  ActionRowBuilder,
+  EmbedBuilder
+} from 'discord.js';
+import { config } from '../config/env.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
@@ -530,16 +539,168 @@ export class RecruitmentService {
   async performPeriodicCleanup() {
     try {
       const result = await this.mappingService.performFullCleanup();
-      
+
       if (result.totalCleaned > 0) {
         console.log(`[RecruitmentService] 정기 정리 작업 완료:`, result);
       }
-      
+
     } catch (error) {
       console.error('[RecruitmentService] 정기 정리 작업 오류:', error);
     }
   }
-  
+
+  /**
+   * [내전] 또는 [장기] 버튼 처리
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @param {string} type - 'scrimmage' 또는 'long_term'
+   */
+  async handleSpecialRecruitmentButton(interaction, type) {
+    try {
+      // 권한 체크
+      if (!PermissionService.hasRecruitmentPermission(interaction.user, interaction.member)) {
+        await SafeInteraction.safeReply(interaction, {
+          content: RecruitmentConfig.MESSAGES.NO_PERMISSION,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      // 모달 표시 (구인구직 정보 입력)
+      await this.showSpecialRecruitmentModal(interaction, type);
+
+    } catch (error) {
+      console.error(`[RecruitmentService] [${type}] 버튼 처리 오류:`, error);
+      await SafeInteraction.safeReply(interaction, {
+        content: RecruitmentConfig.MESSAGES.GENERIC_ERROR,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+
+  /**
+   * [내전] 또는 [장기] 모달 표시
+   * @param {ButtonInteraction} interaction - 버튼 인터랙션
+   * @param {string} type - 'scrimmage' 또는 'long_term'
+   */
+  async showSpecialRecruitmentModal(interaction, type) {
+    const modalCustomId = type === 'scrimmage'
+      ? 'scrimmage_recruitment_modal'
+      : 'long_term_recruitment_modal';
+
+    const modalTitle = type === 'scrimmage' ? '[내전] 구인구직' : '[장기] 구인구직';
+
+    const modal = new ModalBuilder()
+      .setCustomId(modalCustomId)
+      .setTitle(modalTitle);
+
+    // 제목 입력
+    const titleInput = new TextInputBuilder()
+      .setCustomId('recruitment_title')
+      .setLabel('제목')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('구인구직 제목을 입력하세요')
+      .setRequired(true)
+      .setMaxLength(100);
+
+    // 설명 입력
+    const descriptionInput = new TextInputBuilder()
+      .setCustomId('recruitment_description')
+      .setLabel('설명')
+      .setStyle(TextInputStyle.Paragraph)
+      .setPlaceholder('구인구직 설명을 입력하세요')
+      .setRequired(false)
+      .setMaxLength(1000);
+
+    // 게임 입력
+    const gameInput = new TextInputBuilder()
+      .setCustomId('recruitment_game')
+      .setLabel('게임')
+      .setStyle(TextInputStyle.Short)
+      .setPlaceholder('게임 이름을 입력하세요')
+      .setRequired(false)
+      .setMaxLength(50);
+
+    const row1 = new ActionRowBuilder().addComponents(titleInput);
+    const row2 = new ActionRowBuilder().addComponents(descriptionInput);
+    const row3 = new ActionRowBuilder().addComponents(gameInput);
+
+    modal.addComponents(row1, row2, row3);
+
+    await interaction.showModal(modal);
+  }
+
+  /**
+   * [내전] 또는 [장기] 모달 제출 처리
+   * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
+   * @param {string} type - 'scrimmage' 또는 'long_term'
+   */
+  async handleSpecialRecruitmentModalSubmit(interaction, type) {
+    try {
+      await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+
+      // 입력 값 가져오기
+      const title = interaction.fields.getTextInputValue('recruitment_title');
+      const description = interaction.fields.getTextInputValue('recruitment_description') || '';
+      const game = interaction.fields.getTextInputValue('recruitment_game') || '';
+
+      // 포럼 채널 ID 가져오기
+      const forumChannelId = type === 'scrimmage'
+        ? config.SCRIMMAGE_FORUM_CHANNEL_ID
+        : config.LONG_TERM_FORUM_CHANNEL_ID;
+
+      if (!forumChannelId) {
+        await SafeInteraction.safeFollowUp(interaction, {
+          content: `❌ ${type === 'scrimmage' ? '[내전]' : '[장기]'} 포럼 채널이 설정되지 않았습니다.`,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      const forumChannel = await this.client.channels.fetch(forumChannelId);
+
+      if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
+        await SafeInteraction.safeFollowUp(interaction, {
+          content: RecruitmentConfig.MESSAGES.FORUM_POST_NOT_FOUND,
+          flags: MessageFlags.Ephemeral
+        });
+        return;
+      }
+
+      // 포스트 생성
+      const typeLabel = type === 'scrimmage' ? '[내전]' : '[장기]';
+      const postTitle = `${typeLabel} ${title}`;
+
+      const embed = new EmbedBuilder()
+        .setTitle(title)
+        .setDescription(description || '설명 없음')
+        .setColor(RecruitmentConfig.COLORS.STANDALONE_POST)
+        .addFields(
+          { name: '🎮 게임', value: game || '미지정', inline: true },
+          { name: '👤 작성자', value: interaction.user.displayName, inline: true }
+        )
+        .setTimestamp();
+
+      const thread = await forumChannel.threads.create({
+        name: postTitle,
+        message: {
+          embeds: [embed]
+        }
+      });
+
+      await SafeInteraction.safeFollowUp(interaction, {
+        content: `✅ ${typeLabel} 구인구직이 생성되었습니다!\n${thread.url}`,
+        flags: MessageFlags.Ephemeral
+      });
+
+    } catch (error) {
+      console.error(`[RecruitmentService] [${type}] 모달 제출 처리 오류:`, error);
+      await SafeInteraction.safeFollowUp(interaction, {
+        content: RecruitmentConfig.MESSAGES.GENERIC_ERROR,
+        flags: MessageFlags.Ephemeral
+      });
+    }
+  }
+
   /**
    * 서비스 초기화 (정기 작업 등 설정)
    * @returns {void}}

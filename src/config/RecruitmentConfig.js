@@ -22,7 +22,19 @@ export class RecruitmentConfig {
   // 버튼 그리드 설정 (4행 4열)
   static BUTTON_GRID_ROWS = 4;
   static BUTTON_GRID_COLS = 4;
-  
+
+  // 특수 버튼 설정 (내전/장기)
+  static SPECIAL_BUTTONS = {
+    SCRIMMAGE: {
+      label: '[내전]',
+      customIdPrefix: 'scrimmage_recruitment_'
+    },
+    LONG_TERM: {
+      label: '[장기]',
+      customIdPrefix: 'long_term_recruitment_'
+    }
+  };
+
   // ========== 타이밍 설정 ==========
   static CLEANUP_INTERVAL = 30000; // 30초마다 정리 작업
   static EMBED_SEND_DELAY = 5000; // 5초 후 임베드 전송

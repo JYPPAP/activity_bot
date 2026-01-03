@@ -118,6 +118,14 @@ export class InteractionRouter {
     if (this.isNicknameButton(customId)) {
       await this.nicknameButtonHandler.handleButton(interaction);
     }
+    // [내전] 버튼
+    else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.SCRIMMAGE_RECRUITMENT)) {
+      await this.recruitmentService.handleSpecialRecruitmentButton(interaction, 'scrimmage');
+    }
+    // [장기] 버튼
+    else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.LONG_TERM_RECRUITMENT)) {
+      await this.recruitmentService.handleSpecialRecruitmentButton(interaction, 'long_term');
+    }
     // 구인구직 연동 버튼
     else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
       await this.recruitmentService.handleVoiceConnectButton(interaction);

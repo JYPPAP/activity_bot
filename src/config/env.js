@@ -46,6 +46,8 @@ export const config = {
   FORUM_CHANNEL_ID: process.env.FORUM_CHANNEL_ID,
   VOICE_CATEGORY_ID: process.env.VOICE_CATEGORY_ID,
   FORUM_TAG_ID: process.env.FORUM_TAG_ID,
+  SCRIMMAGE_FORUM_CHANNEL_ID: process.env.SCRIMMAGE_FORUM_CHANNEL_ID, // 내전 전용 포럼 채널
+  LONG_TERM_FORUM_CHANNEL_ID: process.env.LONG_TERM_FORUM_CHANNEL_ID,  // 장기 전용 포럼 채널
 
   // Errsole 설정
   NODE_ENV: process.env.NODE_ENV,
