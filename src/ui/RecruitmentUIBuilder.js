@@ -176,29 +176,29 @@ export class RecruitmentUIBuilder {
         }
       }
 
+      // 마지막 행(4행)인 경우 [내전], [장기] 버튼 추가
+      if (row === RecruitmentConfig.BUTTON_GRID_ROWS - 1) {
+        // [내전] 버튼
+        const scrimmageButton = new ButtonBuilder()
+          .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.SCRIMMAGE_RECRUITMENT + 'standalone')
+          .setLabel(RecruitmentConfig.SPECIAL_BUTTONS.SCRIMMAGE.label)
+          .setStyle(ButtonStyle.Success);
+
+        // [장기] 버튼
+        const longTermButton = new ButtonBuilder()
+          .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.LONG_TERM_RECRUITMENT + 'standalone')
+          .setLabel(RecruitmentConfig.SPECIAL_BUTTONS.LONG_TERM.label)
+          .setStyle(ButtonStyle.Success);
+
+        actionRow.addComponents(scrimmageButton, longTermButton);
+        hasButtons = true;
+      }
+
       // 버튼이 있는 행만 추가
       if (hasButtons) {
         components.push(actionRow);
       }
     }
-
-    // [내전], [장기] 특수 버튼 행 추가
-    const specialButtonRow = new ActionRowBuilder();
-
-    // [내전] 버튼
-    const scrimmageButton = new ButtonBuilder()
-      .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.SCRIMMAGE_RECRUITMENT + 'standalone')
-      .setLabel(RecruitmentConfig.SPECIAL_BUTTONS.SCRIMMAGE.label)
-      .setStyle(ButtonStyle.Success);
-
-    // [장기] 버튼
-    const longTermButton = new ButtonBuilder()
-      .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.LONG_TERM_RECRUITMENT + 'standalone')
-      .setLabel(RecruitmentConfig.SPECIAL_BUTTONS.LONG_TERM.label)
-      .setStyle(ButtonStyle.Success);
-
-    specialButtonRow.addComponents(scrimmageButton, longTermButton);
-    components.push(specialButtonRow);
 
     // 완료 버튼 추가
     let completeCustomId;
