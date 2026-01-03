@@ -8,10 +8,12 @@ import { TextProcessor } from '../utils/TextProcessor.js';
 import { config } from '../config/env.js';
 
 export class ButtonHandler {
-  constructor(voiceChannelManager, recruitmentService, modalHandler) {
+  constructor(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager) {
     this.voiceChannelManager = voiceChannelManager;
     this.recruitmentService = recruitmentService;
     this.modalHandler = modalHandler;
+    this.emojiReactionService = emojiReactionService;
+    this.forumPostManager = forumPostManager;
   }
   
   /**
@@ -562,8 +564,7 @@ export class ButtonHandler {
       const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
 
       // 현재 참가자 목록 가져오기
-      const emojiReactionService = this.client.emojiReactionService;
-      let participants = emojiReactionService.previousParticipants.get(threadId) || [];
+      let participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
 
       // 참가 여부 확인 및 토글
       const isParticipating = participants.includes(cleanedNickname);
@@ -581,18 +582,17 @@ export class ButtonHandler {
       }
 
       // 캐시 업데이트
-      emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
 
       // 참가자 목록 메시지 업데이트
-      const forumPostManager = this.client.forumPostManager;
-      await forumPostManager.sendEmojiParticipantUpdate(
+      await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
         updatedParticipants,
         '참가'
       );
 
       // 변경 알림 메시지 전송
-      await forumPostManager.sendParticipantChangeNotification(
+      await this.forumPostManager.sendParticipantChangeNotification(
         threadId,
         [cleanedNickname],
         action === '참가'
