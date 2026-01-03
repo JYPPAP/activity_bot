@@ -1,5 +1,6 @@
 // src/services/EmojiReactionService.js - 이모지 반응 처리 서비스
 import { TextProcessor } from '../utils/TextProcessor.js';
+import { DiscordConstants } from '../config/DiscordConstants.js';
 
 export class EmojiReactionService {
   constructor(client, forumPostManager) {
@@ -8,9 +9,12 @@ export class EmojiReactionService {
     
     // 감지할 이모지 ID
     this.targetEmojiId = '1319891512573689917';
-    
+
     // 이전 참가자 목록을 저장하는 캐시 (channelId -> participants[])
     this.previousParticipants = new Map();
+
+    // 버튼 기반 포스트 캐시 (threadId -> boolean)
+    this.buttonBasedPosts = new Map();
   }
 
   /**
@@ -113,6 +117,13 @@ export class EmojiReactionService {
         return;
       }
 
+      // 버튼 기반 포스트인지 확인 (하위 호환성)
+      const hasParticipationButton = await this.checkForParticipationButton(fullReaction.message.channel.id);
+      if (hasParticipationButton) {
+        console.log('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
+        return;
+      }
+
       console.log(`[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${fullReaction.message.channel.name}`);
 
       // 해당 이모지에 반응한 모든 사용자 가져오기 (재시도 로직 포함)
@@ -168,6 +179,13 @@ export class EmojiReactionService {
 
       // 포럼 스레드가 아니면 무시
       if (!this.isForumThread(fullReaction.message.channel)) {
+        return;
+      }
+
+      // 버튼 기반 포스트인지 확인 (하위 호환성)
+      const hasParticipationButton = await this.checkForParticipationButton(fullReaction.message.channel.id);
+      if (hasParticipationButton) {
+        console.log('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
         return;
       }
 
@@ -277,6 +295,43 @@ export class EmojiReactionService {
     } catch (error) {
       console.error('[EmojiReactionService] 참가자 목록 가져오기 오류:', error);
       return [];
+    }
+  }
+
+  /**
+   * 포럼 포스트가 버튼 기반 참가 시스템을 사용하는지 확인
+   * @param {string} threadId - 포럼 스레드 ID
+   * @returns {Promise<boolean>}
+   */
+  async checkForParticipationButton(threadId) {
+    try {
+      // 캐시 확인
+      if (this.buttonBasedPosts.has(threadId)) {
+        return this.buttonBasedPosts.get(threadId);
+      }
+
+      // 스레드 가져오기
+      const thread = await this.client.channels.fetch(threadId);
+      if (!thread) return false;
+
+      // 첫 메시지 확인
+      const starterMessage = await thread.fetchStarterMessage();
+      if (!starterMessage?.components) return false;
+
+      // 참가 버튼 존재 여부 확인
+      const hasButton = starterMessage.components.some(row =>
+        row.components.some(component =>
+          component.customId?.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)
+        )
+      );
+
+      // 캐시에 저장
+      this.buttonBasedPosts.set(threadId, hasButton);
+      return hasButton;
+
+    } catch (error) {
+      console.error('[EmojiReactionService] 버튼 확인 중 오류:', error);
+      return false; // 오류 시 이모지 방식으로 폴백
     }
   }
 

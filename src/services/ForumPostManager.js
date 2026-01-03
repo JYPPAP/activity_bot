@@ -55,6 +55,10 @@ export class ForumPostManager {
         // 독립 포럼 포스트: 범용 별명 변경 버튼 사용
         const generalButtons = this.createGeneralNicknameButtons();
         components.push(generalButtons);
+
+        // 참가 버튼 추가 (별도 행)
+        const participationButton = this.createParticipationButton('temp', []);
+        components.push(participationButton);
       }
       
       const messageOptions = { 
@@ -72,7 +76,30 @@ export class ForumPostManager {
         appliedTags: this.forumTagId ? [this.forumTagId] : undefined,
         autoArchiveDuration: 1440
       });
-      
+
+      // 독립 포럼인 경우 참가 버튼의 customId를 실제 threadId로 업데이트
+      if (!voiceChannelId) {
+        try {
+          const starterMessage = await thread.fetchStarterMessage();
+          const updatedComponents = starterMessage.components.map((row, index) => {
+            if (index === 1) { // 두 번째 행 (참가 버튼)
+              const button = row.components[0];
+              return new ActionRowBuilder().addComponents(
+                ButtonBuilder.from(button).setCustomId(
+                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE}${thread.id}`
+                )
+              );
+            }
+            return ActionRowBuilder.from(row);
+          });
+
+          await starterMessage.edit({ components: updatedComponents });
+          console.log(`[ForumPostManager] 참가 버튼 customId 업데이트됨: ${thread.id}`);
+        } catch (updateError) {
+          console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
+        }
+      }
+
       // 모집자를 스레드에 자동으로 추가
       try {
         await thread.members.add(recruitmentData.author.id);
@@ -96,9 +123,10 @@ export class ForumPostManager {
       
       // 참가 안내 메시지 추가
       try {
-        const participationGuide = 
-          '<:GAP_2:1319891512573689917> 이모지를 누르면 실시간으로 참가자 목록이 업데이트됩니다.';
-        
+        const participationGuide = voiceChannelId
+          ? '<:GAP_2:1319891512573689917> 이모지를 누르면 실시간으로 참가자 목록이 업데이트됩니다.'
+          : '👥 아래 **참가하기** 버튼을 눌러 참가하세요. 참가자 목록이 실시간으로 업데이트됩니다.';
+
         await thread.send(participationGuide);
         console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
       } catch (guideError) {
@@ -242,7 +270,26 @@ export class ForumPostManager {
 
     return new ActionRowBuilder().addComponents(spectateButton, waitButton, resetButton, deleteButton);
   }
-  
+
+  /**
+   * 참가 버튼 생성 (독립 포럼용)
+   * @param {string} threadId - 포럼 스레드 ID
+   * @param {string[]} participants - 현재 참가자 목록
+   * @param {string} userId - 현재 사용자 ID
+   * @returns {ActionRowBuilder} 참가 버튼을 포함한 ActionRow
+   */
+  createParticipationButton(threadId, participants = [], userId = null) {
+    const isParticipating = userId && participants.includes(userId);
+
+    const participateButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE}${threadId}`)
+      .setLabel(isParticipating ? '참가 취소' : '참가하기')
+      .setStyle(isParticipating ? ButtonStyle.Secondary : ButtonStyle.Primary)
+      .setEmoji('👥');
+
+    return new ActionRowBuilder().addComponents(participateButton);
+  }
+
   /**
    * 포럼 포스트에 참여자 수 업데이트 메시지 전송
    * @param {string} postId - 포스트 ID

@@ -1,5 +1,5 @@
 // src/ui/ButtonHandler.js - 버튼 인터랙션 처리
-import { EmbedBuilder, MessageFlags } from 'discord.js';
+import { EmbedBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
@@ -211,6 +211,8 @@ export class ButtonHandler {
         await this.handleResetButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) || customId === 'general_delete') {
         await this.handleDeleteButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
+        await this.handleParticipationButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -543,7 +545,91 @@ export class ButtonHandler {
       });
     }
   }
-  
+
+  /**
+   * 참가 버튼 처리
+   * @param {ButtonInteraction} interaction
+   */
+  async handleParticipationButton(interaction) {
+    try {
+      const threadId = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE,
+        ''
+      );
+
+      // 사용자 정보 가져오기
+      const member = interaction.member;
+      const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
+
+      // 현재 참가자 목록 가져오기
+      const emojiReactionService = this.client.emojiReactionService;
+      let participants = emojiReactionService.previousParticipants.get(threadId) || [];
+
+      // 참가 여부 확인 및 토글
+      const isParticipating = participants.includes(cleanedNickname);
+      let updatedParticipants;
+      let action;
+
+      if (isParticipating) {
+        // 참가 취소
+        updatedParticipants = participants.filter(p => p !== cleanedNickname);
+        action = '참가 취소';
+      } else {
+        // 참가
+        updatedParticipants = [...participants, cleanedNickname];
+        action = '참가';
+      }
+
+      // 캐시 업데이트
+      emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+
+      // 참가자 목록 메시지 업데이트
+      const forumPostManager = this.client.forumPostManager;
+      await forumPostManager.sendEmojiParticipantUpdate(
+        threadId,
+        updatedParticipants,
+        '참가'
+      );
+
+      // 변경 알림 메시지 전송
+      await forumPostManager.sendParticipantChangeNotification(
+        threadId,
+        [cleanedNickname],
+        action === '참가'
+      );
+
+      // 버튼 UI 업데이트
+      const updatedComponents = interaction.message.components.map((row, index) => {
+        if (index === 1) { // 참가 버튼 행
+          const button = row.components[0];
+          const newIsParticipating = updatedParticipants.includes(cleanedNickname);
+          return new ActionRowBuilder().addComponents(
+            ButtonBuilder.from(button)
+              .setLabel(newIsParticipating ? '참가 취소' : '참가하기')
+              .setStyle(newIsParticipating ? ButtonStyle.Secondary : ButtonStyle.Primary)
+          );
+        }
+        return ActionRowBuilder.from(row);
+      });
+
+      // 인터랙션 응답
+      await SafeInteraction.safeReply(interaction, {
+        content: `✅ ${action}되었습니다.`,
+        ephemeral: true
+      });
+
+      // 메시지 업데이트
+      await interaction.message.edit({ components: updatedComponents });
+
+    } catch (error) {
+      console.error('[ButtonHandler] 참가 버튼 처리 중 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 참가 처리 중 오류가 발생했습니다.',
+        ephemeral: true
+      });
+    }
+  }
+
   /**
    * 버튼 처리 라우팅
    * @param {ButtonInteraction} interaction - 버튼 인터랙션
@@ -593,6 +679,7 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||

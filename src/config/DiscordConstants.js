@@ -16,6 +16,7 @@ export class DiscordConstants {
     VOICE_WAIT: 'voice_wait_',
     VOICE_RESET: 'voice_reset_',
     VOICE_DELETE: 'voice_delete_',
+    FORUM_PARTICIPATE: 'forum_participate_',
     RECRUITMENT_MODAL: 'recruitment_modal_',
     RECRUITMENT_METHOD: 'recruitment_method_',
     ROLE_BUTTON: 'role_btn_',
