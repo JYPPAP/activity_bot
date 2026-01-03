@@ -591,11 +591,11 @@ export class ButtonHandler {
         '참가'
       );
 
-      // 변경 알림 메시지 전송
+      // 변경 알림 메시지 전송 (작고 희미한 글자로 표시)
       await this.forumPostManager.sendParticipantChangeNotification(
         threadId,
-        [cleanedNickname],
-        action === '참가'
+        action === '참가' ? [cleanedNickname] : [],  // joinedUsers
+        action === '참가' ? [] : [cleanedNickname]   // leftUsers
       );
 
       // 버튼 UI 업데이트
@@ -612,11 +612,8 @@ export class ButtonHandler {
         return ActionRowBuilder.from(row);
       });
 
-      // 인터랙션 응답
-      await SafeInteraction.safeReply(interaction, {
-        content: `✅ ${action}되었습니다.`,
-        ephemeral: true
-      });
+      // 인터랙션 응답 (조용히 처리)
+      await SafeInteraction.safeDeferUpdate(interaction);
 
       // 메시지 업데이트
       await interaction.message.edit({ components: updatedComponents });
