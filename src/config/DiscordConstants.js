@@ -17,6 +17,8 @@ export class DiscordConstants {
     VOICE_RESET: 'voice_reset_',
     VOICE_DELETE: 'voice_delete_',
     FORUM_PARTICIPATE: 'forum_participate_',
+    FORUM_JOIN: 'forum_join_',
+    FORUM_LEAVE: 'forum_leave_',
     RECRUITMENT_MODAL: 'recruitment_modal_',
     RECRUITMENT_METHOD: 'recruitment_method_',
     ROLE_BUTTON: 'role_btn_',

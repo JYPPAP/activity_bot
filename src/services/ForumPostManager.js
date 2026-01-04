@@ -17,9 +17,10 @@ export class ForumPostManager {
    * 포럼 포스트 생성
    * @param {Object} recruitmentData - 구인구직 데이터
    * @param {string} voiceChannelId - 음성 채널 ID (선택사항)
+   * @param {string} specialType - 특수 구인구직 타입 (선택사항: '내전', '장기')
    * @returns {Promise<{success: boolean, postId?: string, error?: string}>} - 생성 결과
    */
-  async createForumPost(recruitmentData, voiceChannelId = null) {
+  async createForumPost(recruitmentData, voiceChannelId = null, specialType = null) {
     try {
       const forumChannel = await this.client.channels.fetch(this.forumChannelId);
       
@@ -28,7 +29,7 @@ export class ForumPostManager {
         return { success: false, error: '포럼 채널을 찾을 수 없습니다' };
       }
       
-      const embed = await this.createPostEmbed(recruitmentData, voiceChannelId);
+      const embed = await this.createPostEmbed(recruitmentData, voiceChannelId, specialType);
       const title = this.generatePostTitle(recruitmentData);
       
       // 역할 멘션 생성 및 역할 ID 추출
@@ -56,9 +57,9 @@ export class ForumPostManager {
         const generalButtons = this.createGeneralNicknameButtons();
         components.push(generalButtons);
 
-        // 참가 버튼 추가 (별도 행)
-        const participationButton = this.createParticipationButton('temp', []);
-        components.push(participationButton);
+        // 참가 버튼들 추가 (별도 행)
+        const participationButtons = this.createParticipationButtons('temp');
+        components.push(participationButtons);
       }
       
       const messageOptions = {
@@ -82,24 +83,34 @@ export class ForumPostManager {
         autoArchiveDuration: 1440
       });
 
-      // 독립 포럼인 경우 참가 버튼의 customId를 실제 threadId로 업데이트
+      // 독립 포럼인 경우 참가 버튼들의 customId를 실제 threadId로 업데이트
       if (!voiceChannelId) {
         try {
           const starterMessage = await thread.fetchStarterMessage();
           const updatedComponents = starterMessage.components.map((row, index) => {
-            if (index === 1) { // 두 번째 행 (참가 버튼)
-              const button = row.components[0];
-              return new ActionRowBuilder().addComponents(
-                ButtonBuilder.from(button).setCustomId(
-                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE}${thread.id}`
-                )
-              );
+            if (index === 1) { // 두 번째 행 (참가 버튼들)
+              const buttons = row.components.map(button => {
+                const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
+                const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
+
+                if (isJoinButton) {
+                  return ButtonBuilder.from(button).setCustomId(
+                    `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${thread.id}`
+                  );
+                } else if (isLeaveButton) {
+                  return ButtonBuilder.from(button).setCustomId(
+                    `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
+                  );
+                }
+                return ButtonBuilder.from(button);
+              });
+              return new ActionRowBuilder().addComponents(...buttons);
             }
             return ActionRowBuilder.from(row);
           });
 
           await starterMessage.edit({ components: updatedComponents });
-          console.log(`[ForumPostManager] 참가 버튼 customId 업데이트됨: ${thread.id}`);
+          console.log(`[ForumPostManager] 참가 버튼들 customId 업데이트됨: ${thread.id}`);
         } catch (updateError) {
           console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
         }
@@ -180,28 +191,32 @@ export class ForumPostManager {
    * @param {string} voiceChannelId - 음성 채널 ID (선택사항)
    * @returns {Promise<EmbedBuilder>} - 생성된 임베드
    */
-  async createPostEmbed(recruitmentData, voiceChannelId = null) {
-    let content = `# 🎮 ${recruitmentData.title}\n\n`;
-    
+  async createPostEmbed(recruitmentData, voiceChannelId = null, specialType = null) {
+    // 특수 타입 뱃지 추가
+    const titlePrefix = specialType ? `[${specialType}] ` : '';
+    let content = `# 🎮 ${titlePrefix}${recruitmentData.title}\n\n`;
+
     // embed에 역할 멘션 표시
     if (recruitmentData.tags) {
       const guild = this.client.guilds.cache.first();
       const roleMentions = await TextProcessor.convertTagsToRoleMentions(recruitmentData.tags, guild);
       content += `## 🏷️ 태그\n${roleMentions}\n\n`;
     }
-    
+
     content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
-    
+
     content += `## 👤 모집자\n<@${recruitmentData.author.id}>`;
-    
+
     const embed = new EmbedBuilder()
       .setDescription(content)
-      .setColor(voiceChannelId ? RecruitmentConfig.COLORS.SUCCESS : RecruitmentConfig.COLORS.STANDALONE_POST)
+      // 특수 포스트는 Orange 색상으로 구분
+      .setColor(specialType ? RecruitmentConfig.COLORS.STANDALONE_POST :
+                (voiceChannelId ? RecruitmentConfig.COLORS.SUCCESS : RecruitmentConfig.COLORS.STANDALONE_POST))
       .setFooter({
         text: voiceChannelId ? '음성 채널과 연동된 구인구직입니다.' : '음성 채널에서 "구인구직 연동하기" 버튼을 클릭하여 연결하세요.',
         iconURL: recruitmentData.author.displayAvatarURL()
       });
-    
+
     return embed;
   }
   
@@ -275,22 +290,24 @@ export class ForumPostManager {
   }
 
   /**
-   * 참가 버튼 생성 (독립 포럼용)
+   * 참가 버튼들 생성 (독립 포럼용) - 참가하기/참가 취소 2개 버튼
    * @param {string} threadId - 포럼 스레드 ID
-   * @param {string[]} participants - 현재 참가자 목록
-   * @param {string} userId - 현재 사용자 ID
-   * @returns {ActionRowBuilder} 참가 버튼을 포함한 ActionRow
+   * @returns {ActionRowBuilder} 참가 버튼들을 포함한 ActionRow
    */
-  createParticipationButton(threadId, participants = [], userId = null) {
-    const isParticipating = userId && participants.includes(userId);
-
-    const participateButton = new ButtonBuilder()
-      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE}${threadId}`)
-      .setLabel(isParticipating ? '참가 취소' : '참가하기')
-      .setStyle(isParticipating ? ButtonStyle.Secondary : ButtonStyle.Primary)
+  createParticipationButtons(threadId) {
+    const joinButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${threadId}`)
+      .setLabel('참가하기')
+      .setStyle(ButtonStyle.Primary)
       .setEmoji('👥');
 
-    return new ActionRowBuilder().addComponents(participateButton);
+    const leaveButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${threadId}`)
+      .setLabel('참가 취소')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('👋');
+
+    return new ActionRowBuilder().addComponents(joinButton, leaveButton);
   }
 
   /**

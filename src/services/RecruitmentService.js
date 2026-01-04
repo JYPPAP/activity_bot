@@ -14,6 +14,7 @@ import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
 import { PermissionService } from './PermissionService.js';
+import { ForumPostManager } from './ForumPostManager.js';
 import { logger } from '../config/logger-termux.js';
 
 export class RecruitmentService {
@@ -23,6 +24,21 @@ export class RecruitmentService {
     this.voiceChannelManager = voiceChannelManager;
     this.mappingService = mappingService;
     this.participantTracker = participantTracker;
+
+    // 특수 구인구직용 ForumPostManager 인스턴스 생성
+    this.scrimmageForumManager = new ForumPostManager(
+      client,
+      config.SCRIMMAGE_FORUM_CHANNEL_ID,
+      null, // 첫 번째 사용 가능한 태그 사용
+      this.forumPostManager.databaseManager
+    );
+
+    this.longTermForumManager = new ForumPostManager(
+      client,
+      config.LONG_TERM_FORUM_CHANNEL_ID,
+      null, // 첫 번째 사용 가능한 태그 사용
+      this.forumPostManager.databaseManager
+    );
   }
   
   /**
@@ -638,65 +654,50 @@ export class RecruitmentService {
     try {
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
-      // 입력 값 가져오기
+      // 모달 입력 값 추출
       const title = interaction.fields.getTextInputValue('recruitment_title');
       const description = interaction.fields.getTextInputValue('recruitment_description') || '';
       const game = interaction.fields.getTextInputValue('recruitment_game') || '';
 
-      // 포럼 채널 ID 가져오기
-      const forumChannelId = type === 'scrimmage'
-        ? config.SCRIMMAGE_FORUM_CHANNEL_ID
-        : config.LONG_TERM_FORUM_CHANNEL_ID;
-
-      if (!forumChannelId) {
-        await SafeInteraction.safeReply(interaction, {
-          content: `❌ ${type === 'scrimmage' ? '[내전]' : '[장기]'} 포럼 채널이 설정되지 않았습니다.`,
-          flags: MessageFlags.Ephemeral
-        });
-        return;
-      }
-
-      const forumChannel = await this.client.channels.fetch(forumChannelId);
-
-      if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
-        await SafeInteraction.safeReply(interaction, {
-          content: RecruitmentConfig.MESSAGES.FORUM_POST_NOT_FOUND,
-          flags: MessageFlags.Ephemeral
-        });
-        return;
-      }
-
-      // 포스트 생성
-      const typeLabel = type === 'scrimmage' ? '[내전]' : '[장기]';
-      const postTitle = `${typeLabel} ${title}`;
-
-      const embed = new EmbedBuilder()
-        .setTitle(title)
-        .setDescription(description || '설명 없음')
-        .setColor(RecruitmentConfig.COLORS.STANDALONE_POST)
-        .addFields(
-          { name: '🎮 게임', value: game || '미지정', inline: true },
-          { name: '👤 작성자', value: interaction.user.displayName, inline: true }
-        )
-        .setTimestamp();
-
-      // 포럼 채널의 첫 번째 태그 사용 (태그가 필수인 경우 대비)
-      const appliedTags = forumChannel.availableTags && forumChannel.availableTags.length > 0
-        ? [forumChannel.availableTags[0].id]
-        : [];
-
-      const thread = await forumChannel.threads.create({
-        name: postTitle,
-        appliedTags: appliedTags,
-        message: {
-          embeds: [embed]
+      // ForumPostManager 형식에 맞춘 recruitmentData 생성
+      const recruitmentData = {
+        title: title,
+        description: description
+          ? `${description}\n\n🎮 **게임**: ${game || '미지정'}`
+          : `🎮 **게임**: ${game || '미지정'}`,
+        tags: null, // 특수 구인구직은 역할 태그 없음
+        author: {
+          id: interaction.user.id,
+          displayName: interaction.user.displayName,
+          displayAvatarURL: () => interaction.user.displayAvatarURL()
         }
-      });
+      };
 
-      await SafeInteraction.safeReply(interaction, {
-        content: `✅ ${typeLabel} 구인구직이 생성되었습니다!\n${thread.url}`,
-        flags: MessageFlags.Ephemeral
-      });
+      // 타입에 따라 ForumPostManager 선택
+      const forumManager = type === 'scrimmage'
+        ? this.scrimmageForumManager
+        : this.longTermForumManager;
+
+      const specialTypeLabel = type === 'scrimmage' ? '내전' : '장기';
+
+      // ForumPostManager로 포스트 생성 (standalone 모드 + specialType)
+      const result = await forumManager.createForumPost(
+        recruitmentData,
+        null, // voiceChannelId 없음 (standalone)
+        specialTypeLabel // 특수 타입 라벨
+      );
+
+      if (result.success) {
+        await SafeInteraction.safeReply(interaction, {
+          content: `✅ [${specialTypeLabel}] 구인구직이 생성되었습니다!\nhttps://discord.com/channels/${interaction.guildId}/${result.postId}`,
+          flags: MessageFlags.Ephemeral
+        });
+      } else {
+        await SafeInteraction.safeReply(interaction, {
+          content: `❌ [${specialTypeLabel}] 구인구직 생성에 실패했습니다: ${result.error}`,
+          flags: MessageFlags.Ephemeral
+        });
+      }
 
     } catch (error) {
       console.error(`[RecruitmentService] [${type}] 모달 제출 처리 오류:`, error);

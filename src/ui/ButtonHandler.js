@@ -213,8 +213,13 @@ export class ButtonHandler {
         await this.handleResetButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) || customId === 'general_delete') {
         await this.handleDeleteButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN)) {
+        await this.handleJoinButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)) {
+        await this.handleLeaveButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
-        await this.handleParticipationButton(interaction);
+        // 하위 호환성을 위해 유지 (기존 포스트용)
+        await this.handleJoinButton(interaction);
       } else {
         console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -549,13 +554,13 @@ export class ButtonHandler {
   }
 
   /**
-   * 참가 버튼 처리
+   * 참가하기 버튼 처리
    * @param {ButtonInteraction} interaction
    */
-  async handleParticipationButton(interaction) {
+  async handleJoinButton(interaction) {
     try {
       const threadId = interaction.customId.replace(
-        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE,
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN,
         ''
       );
 
@@ -566,20 +571,17 @@ export class ButtonHandler {
       // 현재 참가자 목록 가져오기
       let participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
 
-      // 참가 여부 확인 및 토글
-      const isParticipating = participants.includes(cleanedNickname);
-      let updatedParticipants;
-      let action;
-
-      if (isParticipating) {
-        // 참가 취소
-        updatedParticipants = participants.filter(p => p !== cleanedNickname);
-        action = '참가 취소';
-      } else {
-        // 참가
-        updatedParticipants = [...participants, cleanedNickname];
-        action = '참가';
+      // 이미 참가 중인지 확인
+      if (participants.includes(cleanedNickname)) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '이미 참가 중입니다.',
+          ephemeral: true
+        });
+        return;
       }
+
+      // 참가 처리
+      const updatedParticipants = [...participants, cleanedNickname];
 
       // 캐시 업데이트
       this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
@@ -591,37 +593,79 @@ export class ButtonHandler {
         '참가'
       );
 
-      // 변경 알림 메시지 전송 (작고 희미한 글자로 표시)
+      // 변경 알림 메시지 전송
       await this.forumPostManager.sendParticipantChangeNotification(
         threadId,
-        action === '참가' ? [cleanedNickname] : [],  // joinedUsers
-        action === '참가' ? [] : [cleanedNickname]   // leftUsers
+        [cleanedNickname],  // joinedUsers
+        []                  // leftUsers
       );
-
-      // 버튼 UI 업데이트
-      const updatedComponents = interaction.message.components.map((row, index) => {
-        if (index === 1) { // 참가 버튼 행
-          const button = row.components[0];
-          const newIsParticipating = updatedParticipants.includes(cleanedNickname);
-          return new ActionRowBuilder().addComponents(
-            ButtonBuilder.from(button)
-              .setLabel(newIsParticipating ? '참가 취소' : '참가하기')
-              .setStyle(newIsParticipating ? ButtonStyle.Secondary : ButtonStyle.Primary)
-          );
-        }
-        return ActionRowBuilder.from(row);
-      });
 
       // 인터랙션 응답 (조용히 처리)
       await SafeInteraction.safeDeferUpdate(interaction);
 
-      // 메시지 업데이트
-      await interaction.message.edit({ components: updatedComponents });
-
     } catch (error) {
-      console.error('[ButtonHandler] 참가 버튼 처리 중 오류:', error);
+      console.error('[ButtonHandler] 참가하기 버튼 처리 중 오류:', error);
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 참가 처리 중 오류가 발생했습니다.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
+   * 참가 취소 버튼 처리
+   * @param {ButtonInteraction} interaction
+   */
+  async handleLeaveButton(interaction) {
+    try {
+      const threadId = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE,
+        ''
+      );
+
+      // 사용자 정보 가져오기
+      const member = interaction.member;
+      const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
+
+      // 현재 참가자 목록 가져오기
+      let participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
+
+      // 참가 중인지 확인
+      if (!participants.includes(cleanedNickname)) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '참가 중이 아닙니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // 참가 취소 처리
+      const updatedParticipants = participants.filter(p => p !== cleanedNickname);
+
+      // 캐시 업데이트
+      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+
+      // 참가자 목록 메시지 업데이트
+      await this.forumPostManager.sendEmojiParticipantUpdate(
+        threadId,
+        updatedParticipants,
+        '참가'
+      );
+
+      // 변경 알림 메시지 전송
+      await this.forumPostManager.sendParticipantChangeNotification(
+        threadId,
+        [],                  // joinedUsers
+        [cleanedNickname]    // leftUsers
+      );
+
+      // 인터랙션 응답 (조용히 처리)
+      await SafeInteraction.safeDeferUpdate(interaction);
+
+    } catch (error) {
+      console.error('[ButtonHandler] 참가 취소 버튼 처리 중 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 참가 취소 처리 중 오류가 발생했습니다.',
         ephemeral: true
       });
     }

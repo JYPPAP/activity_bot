@@ -318,10 +318,12 @@ export class EmojiReactionService {
       const starterMessage = await thread.fetchStarterMessage();
       if (!starterMessage?.components) return false;
 
-      // 참가 버튼 존재 여부 확인
+      // 참가 버튼 존재 여부 확인 (FORUM_PARTICIPATE, FORUM_JOIN, FORUM_LEAVE)
       const hasButton = starterMessage.components.some(row =>
         row.components.some(component =>
-          component.customId?.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)
+          component.customId?.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE) ||
+          component.customId?.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN) ||
+          component.customId?.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)
         )
       );
 
