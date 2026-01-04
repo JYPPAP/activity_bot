@@ -721,6 +721,8 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_RESET) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||
