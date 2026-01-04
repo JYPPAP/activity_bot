@@ -108,6 +108,15 @@ commands.push(
   new SlashCommandBuilder()
     .setName('구직')
     .setDescription('구인구직 포럼 포스트를 생성합니다.')
+    .addIntegerOption(option =>
+      option.setName('type')
+        .setDescription('구인 유형을 선택하세요')
+        .setRequired(false)
+        .addChoices(
+          { name: '장기 - 정규 팀원 모집 (장기적 활동)', value: 1 },
+          { name: '내전 - 친선전 모집', value: 2 }
+        )
+    )
 );
 
 // 닉네임설정 명령어
