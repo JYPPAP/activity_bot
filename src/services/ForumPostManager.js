@@ -139,7 +139,7 @@ export class ForumPostManager {
       
       // 참가 안내 메시지 추가
       try {
-        const participationGuide = '👥 **참가하기** 버튼을 눌러 참가하세요.';
+        const participationGuide = '**참가하기** 버튼을 눌러 참가하세요.';
 
         await thread.send(participationGuide);
         console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
