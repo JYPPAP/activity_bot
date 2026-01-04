@@ -61,17 +61,23 @@ export class ForumPostManager {
         components.push(participationButton);
       }
       
-      const messageOptions = { 
+      const messageOptions = {
         content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,  // 역할 멘션만
         embeds: [embed],
         components: components,
-        allowedMentions: { 
-          roles: roleIds 
+        allowedMentions: {
+          roles: roleIds
         }
       };
-      
+
+      // 포럼 채널의 첫 번째 태그 사용 (태그가 필수인 경우 대비)
+      const appliedTags = forumChannel.availableTags && forumChannel.availableTags.length > 0
+        ? [forumChannel.availableTags[0].id]
+        : [];
+
       const thread = await forumChannel.threads.create({
         name: title,
+        appliedTags: appliedTags,
         message: messageOptions,
         autoArchiveDuration: 1440
       });
