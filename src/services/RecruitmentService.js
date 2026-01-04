@@ -649,7 +649,7 @@ export class RecruitmentService {
         : config.LONG_TERM_FORUM_CHANNEL_ID;
 
       if (!forumChannelId) {
-        await SafeInteraction.safeFollowUp(interaction, {
+        await SafeInteraction.safeReply(interaction, {
           content: `❌ ${type === 'scrimmage' ? '[내전]' : '[장기]'} 포럼 채널이 설정되지 않았습니다.`,
           flags: MessageFlags.Ephemeral
         });
@@ -659,7 +659,7 @@ export class RecruitmentService {
       const forumChannel = await this.client.channels.fetch(forumChannelId);
 
       if (!forumChannel || forumChannel.type !== ChannelType.GuildForum) {
-        await SafeInteraction.safeFollowUp(interaction, {
+        await SafeInteraction.safeReply(interaction, {
           content: RecruitmentConfig.MESSAGES.FORUM_POST_NOT_FOUND,
           flags: MessageFlags.Ephemeral
         });
@@ -680,21 +680,27 @@ export class RecruitmentService {
         )
         .setTimestamp();
 
+      // 포럼 채널의 첫 번째 태그 사용 (태그가 필수인 경우 대비)
+      const appliedTags = forumChannel.availableTags && forumChannel.availableTags.length > 0
+        ? [forumChannel.availableTags[0].id]
+        : [];
+
       const thread = await forumChannel.threads.create({
         name: postTitle,
+        appliedTags: appliedTags,
         message: {
           embeds: [embed]
         }
       });
 
-      await SafeInteraction.safeFollowUp(interaction, {
+      await SafeInteraction.safeReply(interaction, {
         content: `✅ ${typeLabel} 구인구직이 생성되었습니다!\n${thread.url}`,
         flags: MessageFlags.Ephemeral
       });
 
     } catch (error) {
       console.error(`[RecruitmentService] [${type}] 모달 제출 처리 오류:`, error);
-      await SafeInteraction.safeFollowUp(interaction, {
+      await SafeInteraction.safeReply(interaction, {
         content: RecruitmentConfig.MESSAGES.GENERIC_ERROR,
         flags: MessageFlags.Ephemeral
       });
