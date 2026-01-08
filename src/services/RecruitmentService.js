@@ -628,12 +628,20 @@ export class RecruitmentService {
       .setCustomId(modalCustomId)
       .setTitle(modalTitle);
 
+    // 선택된 태그 표시 문구 생성
+    const tagsLabel = selectedRoles.length > 0
+      ? `제목 (선택된 태그: ${selectedRoles.join(', ')})`
+      : '제목';
+    const tagsPlaceholder = selectedRoles.length > 0
+      ? `구인구직 제목 입력 | 태그: ${selectedRoles.join(', ')}`
+      : '구인구직 제목을 입력하세요';
+
     // 제목 입력
     const titleInput = new TextInputBuilder()
       .setCustomId('recruitment_title')
-      .setLabel('제목')
+      .setLabel(tagsLabel)
       .setStyle(TextInputStyle.Short)
-      .setPlaceholder('구인구직 제목을 입력하세요')
+      .setPlaceholder(tagsPlaceholder)
       .setRequired(true)
       .setMaxLength(100);
 
@@ -688,7 +696,7 @@ export class RecruitmentService {
         tags: selectedTags, // 선택된 역할 태그 추가
         author: {
           id: interaction.user.id,
-          displayName: interaction.user.displayName,
+          displayName: interaction.member.displayName, // 길드 별명 사용
           displayAvatarURL: () => interaction.user.displayAvatarURL()
         }
       };
