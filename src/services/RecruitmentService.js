@@ -13,6 +13,7 @@ import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
+import { ModalHandler } from '../ui/ModalHandler.js';
 import { PermissionService } from './PermissionService.js';
 import { ForumPostManager } from './ForumPostManager.js';
 import { logger } from '../config/logger-termux.js';
@@ -628,46 +629,15 @@ export class RecruitmentService {
       .setCustomId(modalCustomId)
       .setTitle(modalTitle);
 
-    // 선택된 태그 표시 문구 생성
-    const tagsLabel = selectedRoles.length > 0
+    // ModalHandler의 createModalFields 재사용
+    const customTitleLabel = selectedRoles.length > 0
       ? `제목 (선택된 태그: ${selectedRoles.join(', ')})`
-      : '제목';
-    const tagsPlaceholder = selectedRoles.length > 0
-      ? `구인구직 제목 입력 | 태그: ${selectedRoles.join(', ')}`
-      : '구인구직 제목을 입력하세요';
+      : null; // null이면 기본 라벨 사용
 
-    // 제목 입력
-    const titleInput = new TextInputBuilder()
-      .setCustomId('recruitment_title')
-      .setLabel(tagsLabel)
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder(tagsPlaceholder)
-      .setRequired(true)
-      .setMaxLength(100);
+    const fields = ModalHandler.createModalFields(selectedRoles, customTitleLabel);
+    const actionRows = ModalHandler.createActionRows(fields);
 
-    // 설명 입력
-    const descriptionInput = new TextInputBuilder()
-      .setCustomId('recruitment_description')
-      .setLabel('설명')
-      .setStyle(TextInputStyle.Paragraph)
-      .setPlaceholder('구인구직 설명을 입력하세요')
-      .setRequired(false)
-      .setMaxLength(1000);
-
-    // 게임 입력
-    const gameInput = new TextInputBuilder()
-      .setCustomId('recruitment_game')
-      .setLabel('게임')
-      .setStyle(TextInputStyle.Short)
-      .setPlaceholder('게임 이름을 입력하세요')
-      .setRequired(false)
-      .setMaxLength(50);
-
-    const row1 = new ActionRowBuilder().addComponents(titleInput);
-    const row2 = new ActionRowBuilder().addComponents(descriptionInput);
-    const row3 = new ActionRowBuilder().addComponents(gameInput);
-
-    modal.addComponents(row1, row2, row3);
+    modal.addComponents(...actionRows);
 
     await interaction.showModal(modal);
   }
@@ -682,18 +652,25 @@ export class RecruitmentService {
     try {
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
-      // 모달 입력 값 추출
+      // 모달 입력 값 추출 (일반 구인구직과 동일)
       const title = interaction.fields.getTextInputValue('recruitment_title');
+      const rawTags = interaction.fields.getTextInputValue('recruitment_tags') || '';
       const description = interaction.fields.getTextInputValue('recruitment_description') || '';
-      const game = interaction.fields.getTextInputValue('recruitment_game') || '';
+
+      // 태그 배열 생성 (일반 구인구직과 동일 로직)
+      const tagsFromModal = rawTags
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0);
+
+      // selectedTags와 모달 입력 태그 병합 (모달 입력이 우선)
+      const finalTags = tagsFromModal.length > 0 ? tagsFromModal : selectedTags;
 
       // ForumPostManager 형식에 맞춘 recruitmentData 생성
       const recruitmentData = {
         title: title,
-        description: description
-          ? `${description}\n\n🎮 **게임**: ${game || '미지정'}`
-          : `🎮 **게임**: ${game || '미지정'}`,
-        tags: selectedTags, // 선택된 역할 태그 추가
+        description: description,
+        tags: finalTags, // 최종 태그 배열
         author: {
           id: interaction.user.id,
           displayName: interaction.member.displayName, // 길드 별명 사용

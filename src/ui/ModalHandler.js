@@ -216,8 +216,8 @@ export class ModalHandler {
         .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.RECRUITMENT_MODAL}${voiceChannelId}`)
         .setTitle('새 구인구직 포럼 생성');
 
-      const fields = this.createModalFields(selectedRoles);
-      const actionRows = this.createActionRows(fields);
+      const fields = ModalHandler.createModalFields(selectedRoles);
+      const actionRows = ModalHandler.createActionRows(fields);
 
       modal.addComponents(...actionRows);
 
@@ -251,8 +251,8 @@ export class ModalHandler {
         .setCustomId('standalone_recruitment_modal')
         .setTitle('구인구직 포럼 생성');
 
-      const fields = this.createModalFields(selectedRoles);
-      const actionRows = this.createActionRows(fields);
+      const fields = ModalHandler.createModalFields(selectedRoles);
+      const actionRows = ModalHandler.createActionRows(fields);
 
       modal.addComponents(...actionRows);
 
@@ -280,13 +280,13 @@ export class ModalHandler {
    * @param {string[]} selectedRoles - 선택된 게임 태그 배열
    * @returns {Array} 모달 필드 구성 배열
    */
-  createModalFields(selectedRoles) {
+  static createModalFields(selectedRoles, customTitleLabel = null) {
     const tagsValue = selectedRoles.length > 0 ? selectedRoles.join(', ') : '';
 
     return [
       {
         customId: 'recruitment_title',
-        label: '제목 (현재 인원/최대 인원) 필수',
+        label: customTitleLabel || '제목 (현재 인원/최대 인원) 필수',
         placeholder: '예: 칼바람 1/5 오후 8시',
         style: TextInputStyle.Short,
         required: true,
@@ -319,7 +319,7 @@ export class ModalHandler {
    * @param {Array} fields - 모달 필드 구성 배열
    * @returns {ActionRowBuilder[]} 액션 로우 배열
    */
-  createActionRows(fields) {
+  static createActionRows(fields) {
     return fields.map((field) => {
       const textInput = new TextInputBuilder()
         .setCustomId(field.customId)
