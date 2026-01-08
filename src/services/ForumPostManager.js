@@ -115,6 +115,16 @@ export class ForumPostManager {
         console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
       }
 
+      // 커스텀 이모지 반응 추가
+      try {
+        const customEmojiId = '1319891512573689917';
+        await starterMessage.react(customEmojiId);
+        console.log(`[ForumPostManager] 커스텀 이모지 반응 추가됨: ${thread.id}`);
+      } catch (reactionError) {
+        console.error('[ForumPostManager] 이모지 반응 추가 실패:', reactionError);
+        // 이모지 실패해도 포스트 생성은 계속 진행 (비필수 기능)
+      }
+
       // 모집자를 스레드에 자동으로 추가
       try {
         await thread.members.add(recruitmentData.author.id);

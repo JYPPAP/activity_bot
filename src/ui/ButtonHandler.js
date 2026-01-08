@@ -15,7 +15,28 @@ export class ButtonHandler {
     this.emojiReactionService = emojiReactionService;
     this.forumPostManager = forumPostManager;
   }
-  
+
+  /**
+   * 포럼 스레드의 첫 메시지 가져오기
+   * @param {string} threadId - 스레드 ID
+   * @returns {Promise<Message|null>}
+   */
+  async getStarterMessage(threadId) {
+    try {
+      const thread = await this.forumPostManager.client.channels.fetch(threadId);
+      if (!thread || !thread.isThread()) {
+        console.warn(`[ButtonHandler] 스레드를 찾을 수 없음: ${threadId}`);
+        return null;
+      }
+
+      const starterMessage = await thread.fetchStarterMessage();
+      return starterMessage;
+    } catch (error) {
+      console.error('[ButtonHandler] 첫 메시지 가져오기 실패:', error);
+      return null;
+    }
+  }
+
   /**
    * 역할 태그 버튼 처리 (다중 선택 지원)
    * @param {ButtonInteraction} interaction - 버튼 인터랙션
@@ -592,6 +613,36 @@ export class ButtonHandler {
       // 캐시 업데이트
       this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
 
+      // 커스텀 이모지 반응 추가
+      try {
+        const starterMessage = await this.getStarterMessage(threadId);
+        if (starterMessage) {
+          const customEmojiId = '1319891512573689917';
+
+          // 기존 반응 확인
+          const existingReaction = starterMessage.reactions.cache
+            .find(r => r.emoji.id === customEmojiId);
+
+          if (existingReaction) {
+            // 이미 반응이 있는 경우, 사용자가 반응했는지 확인
+            const users = await existingReaction.users.fetch();
+            const hasReacted = users.has(member.id);
+
+            if (!hasReacted) {
+              await starterMessage.react(customEmojiId);
+              console.log(`[ButtonHandler] 이모지 추가: ${cleanedNickname}`);
+            }
+          } else {
+            // 반응이 없는 경우 추가 (봇이 먼저 추가)
+            await starterMessage.react(customEmojiId);
+            console.log(`[ButtonHandler] 이모지 추가: ${cleanedNickname}`);
+          }
+        }
+      } catch (emojiError) {
+        console.warn('[ButtonHandler] 이모지 추가 실패:', emojiError);
+        // 이모지 실패해도 버튼 동작은 계속 진행 (비필수 기능)
+      }
+
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
@@ -650,6 +701,31 @@ export class ButtonHandler {
 
       // 캐시 업데이트
       this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+
+      // 커스텀 이모지 반응 제거
+      try {
+        const starterMessage = await this.getStarterMessage(threadId);
+        if (starterMessage) {
+          const customEmojiId = '1319891512573689917';
+
+          // 기존 반응 찾기
+          const existingReaction = starterMessage.reactions.cache
+            .find(r => r.emoji.id === customEmojiId);
+
+          if (existingReaction) {
+            const users = await existingReaction.users.fetch();
+            const userReaction = users.get(member.id);
+
+            if (userReaction) {
+              await existingReaction.users.remove(member.id);
+              console.log(`[ButtonHandler] 이모지 제거: ${cleanedNickname}`);
+            }
+          }
+        }
+      } catch (emojiError) {
+        console.warn('[ButtonHandler] 이모지 제거 실패:', emojiError);
+        // 이모지 실패해도 버튼 동작은 계속 진행 (비필수 기능)
+      }
 
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
