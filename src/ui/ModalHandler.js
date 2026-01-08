@@ -354,14 +354,16 @@ export class ModalHandler {
       const customId = interaction.customId;
 
       // [내전] 모달 처리
-      if (customId === 'scrimmage_recruitment_modal') {
-        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'scrimmage');
+      if (customId.startsWith('scrimmage_recruitment_modal')) {
+        const selectedTags = this.extractTagsFromCustomId(customId);
+        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'scrimmage', selectedTags);
         return;
       }
 
       // [장기] 모달 처리
-      if (customId === 'long_term_recruitment_modal') {
-        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'long_term');
+      if (customId.startsWith('long_term_recruitment_modal')) {
+        const selectedTags = this.extractTagsFromCustomId(customId);
+        await this.recruitmentService.handleSpecialRecruitmentModalSubmit(interaction, 'long_term', selectedTags);
         return;
       }
 
@@ -1017,5 +1019,18 @@ export class ModalHandler {
         forumPostManager: !!this.forumPostManager,
       },
     };
+  }
+
+  /**
+   * customId에서 태그 정보 추출
+   * @param {string} customId - 모달 customId (예: "scrimmage_recruitment_modal_tags_role1,role2")
+   * @returns {string[]} 추출된 태그 배열
+   */
+  extractTagsFromCustomId(customId) {
+    const tagsMatch = customId.match(/_tags_(.+)$/);
+    if (tagsMatch && tagsMatch[1]) {
+      return tagsMatch[1].split(',');
+    }
+    return [];
   }
 }

@@ -60,21 +60,27 @@ export class ButtonHandler {
    */
   async handleCompleteButton(interaction, customId) {
     const selectedTags = this.extractSelectedTags(interaction);
-    
+
     if (customId === DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE) {
       // 독립 구인구직 모달 표시
       await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
     } else {
-      // 음성 채널 연동의 경우
+      // 음성 채널 연동 또는 특수 구인구직의 경우
       const parts = customId.split('_');
       const voiceChannelId = parts[2];
       const methodValue = parts.slice(3).join('_');
-      
+
       console.log(`[ButtonHandler] 완료 버튼 처리 - methodValue: "${methodValue}"`);
-      
+
       if (methodValue === DiscordConstants.METHOD_VALUES.NEW_FORUM) {
         console.log(`[ButtonHandler] 새 포럼 생성 모달 표시`);
         await this.modalHandler.showRecruitmentModal(interaction, voiceChannelId, selectedTags);
+      } else if (methodValue === 'scrimmage_new') {
+        console.log(`[ButtonHandler] 내전 모달 표시`);
+        await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'scrimmage', selectedTags);
+      } else if (methodValue === 'longterm_new') {
+        console.log(`[ButtonHandler] 장기 모달 표시`);
+        await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'long_term', selectedTags);
       } else if (methodValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
         console.log(`[ButtonHandler] 기존 포럼 연동 처리`);
         const existingPostId = methodValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');

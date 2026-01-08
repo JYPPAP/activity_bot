@@ -47,7 +47,8 @@ export class ForumPostManager {
       
       // 버튼 구성
       let components = [];
-      
+
+      // 첫 번째 행: 음성채널 버튼 또는 일반 버튼
       if (voiceChannelId) {
         // 음성 채널 연동된 경우: 음성 채널 버튼 사용
         const voiceChannelButtons = this.createVoiceChannelButtons(voiceChannelId);
@@ -56,11 +57,11 @@ export class ForumPostManager {
         // 독립 포럼 포스트: 범용 별명 변경 버튼 사용
         const generalButtons = this.createGeneralNicknameButtons();
         components.push(generalButtons);
-
-        // 참가 버튼들 추가 (별도 행)
-        const participationButtons = this.createParticipationButtons('temp');
-        components.push(participationButtons);
       }
+
+      // 두 번째 행: 모든 경우에 참가 버튼 추가
+      const participationButtons = this.createParticipationButtons('temp');
+      components.push(participationButtons);
       
       const messageOptions = {
         content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,  // 역할 멘션만
@@ -83,37 +84,35 @@ export class ForumPostManager {
         autoArchiveDuration: 1440
       });
 
-      // 독립 포럼인 경우 참가 버튼들의 customId를 실제 threadId로 업데이트
-      if (!voiceChannelId) {
-        try {
-          const starterMessage = await thread.fetchStarterMessage();
-          const updatedComponents = starterMessage.components.map((row, index) => {
-            if (index === 1) { // 두 번째 행 (참가 버튼들)
-              const buttons = row.components.map(button => {
-                const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
-                const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
+      // 참가 버튼들의 customId를 실제 threadId로 업데이트 (모든 포스트)
+      try {
+        const starterMessage = await thread.fetchStarterMessage();
+        const updatedComponents = starterMessage.components.map((row, index) => {
+          if (index === 1) { // 두 번째 행 (참가 버튼들)
+            const buttons = row.components.map(button => {
+              const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
+              const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
 
-                if (isJoinButton) {
-                  return ButtonBuilder.from(button).setCustomId(
-                    `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${thread.id}`
-                  );
-                } else if (isLeaveButton) {
-                  return ButtonBuilder.from(button).setCustomId(
-                    `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
-                  );
-                }
-                return ButtonBuilder.from(button);
-              });
-              return new ActionRowBuilder().addComponents(...buttons);
-            }
-            return ActionRowBuilder.from(row);
-          });
+              if (isJoinButton) {
+                return ButtonBuilder.from(button).setCustomId(
+                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${thread.id}`
+                );
+              } else if (isLeaveButton) {
+                return ButtonBuilder.from(button).setCustomId(
+                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
+                );
+              }
+              return ButtonBuilder.from(button);
+            });
+            return new ActionRowBuilder().addComponents(...buttons);
+          }
+          return ActionRowBuilder.from(row);
+        });
 
-          await starterMessage.edit({ components: updatedComponents });
-          console.log(`[ForumPostManager] 참가 버튼들 customId 업데이트됨: ${thread.id}`);
-        } catch (updateError) {
-          console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
-        }
+        await starterMessage.edit({ components: updatedComponents });
+        console.log(`[ForumPostManager] 참가 버튼들 customId 업데이트됨: ${thread.id}`);
+      } catch (updateError) {
+        console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
       }
 
       // 모집자를 스레드에 자동으로 추가

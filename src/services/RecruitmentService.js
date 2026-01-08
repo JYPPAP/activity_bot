@@ -581,8 +581,24 @@ export class RecruitmentService {
         return;
       }
 
-      // 모달 표시 (구인구직 정보 입력)
-      await this.showSpecialRecruitmentModal(interaction, type);
+      // 태그 선택 UI 표시 (일반 구인구직과 동일)
+      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
+
+      // 특수 타입용 methodValue 생성
+      const specialMethodValue = type === 'scrimmage' ? 'scrimmage_new' : 'longterm_new';
+
+      const components = RecruitmentUIBuilder.createRoleTagButtons(
+        [],
+        null, // voiceChannelId 없음
+        specialMethodValue, // 'scrimmage_new' 또는 'longterm_new'
+        false // isStandalone = false
+      );
+
+      await SafeInteraction.safeReply(interaction, {
+        embeds: [embed],
+        components: components,
+        flags: MessageFlags.Ephemeral
+      });
 
     } catch (error) {
       console.error(`[RecruitmentService] [${type}] 버튼 처리 오류:`, error);
@@ -597,11 +613,14 @@ export class RecruitmentService {
    * [내전] 또는 [장기] 모달 표시
    * @param {ButtonInteraction} interaction - 버튼 인터랙션
    * @param {string} type - 'scrimmage' 또는 'long_term'
+   * @param {Array<string>} selectedRoles - 선택된 역할 태그 배열
    */
-  async showSpecialRecruitmentModal(interaction, type) {
+  async showSpecialRecruitmentModal(interaction, type, selectedRoles = []) {
+    // 선택된 태그를 customId에 인코딩
+    const tagsEncoded = selectedRoles.length > 0 ? `_tags_${selectedRoles.join(',')}` : '';
     const modalCustomId = type === 'scrimmage'
-      ? 'scrimmage_recruitment_modal'
-      : 'long_term_recruitment_modal';
+      ? `scrimmage_recruitment_modal${tagsEncoded}`
+      : `long_term_recruitment_modal${tagsEncoded}`;
 
     const modalTitle = type === 'scrimmage' ? '[내전] 구인구직' : '[장기] 구인구직';
 
@@ -649,8 +668,9 @@ export class RecruitmentService {
    * [내전] 또는 [장기] 모달 제출 처리
    * @param {ModalSubmitInteraction} interaction - 모달 제출 인터랙션
    * @param {string} type - 'scrimmage' 또는 'long_term'
+   * @param {Array<string>} selectedTags - 선택된 역할 태그 배열
    */
-  async handleSpecialRecruitmentModalSubmit(interaction, type) {
+  async handleSpecialRecruitmentModalSubmit(interaction, type, selectedTags = []) {
     try {
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
@@ -665,7 +685,7 @@ export class RecruitmentService {
         description: description
           ? `${description}\n\n🎮 **게임**: ${game || '미지정'}`
           : `🎮 **게임**: ${game || '미지정'}`,
-        tags: null, // 특수 구인구직은 역할 태그 없음
+        tags: selectedTags, // 선택된 역할 태그 추가
         author: {
           id: interaction.user.id,
           displayName: interaction.user.displayName,
