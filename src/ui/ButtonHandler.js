@@ -595,23 +595,35 @@ export class ButtonHandler {
       const member = interaction.member;
       const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
 
-      // 현재 참가자 목록 가져오기
-      let participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
+      // 데이터베이스에서 참가자 정보 확인
+      const databaseManager = this.forumPostManager.databaseManager;
+      if (databaseManager) {
+        const isAlreadyParticipant = await databaseManager.isParticipant(threadId, member.id);
+        if (isAlreadyParticipant) {
+          await SafeInteraction.safeReply(interaction, {
+            content: '이미 참가 중입니다.',
+            ephemeral: true
+          });
+          return;
+        }
 
-      // 이미 참가 중인지 확인
-      if (participants.includes(cleanedNickname)) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '이미 참가 중입니다.',
-          ephemeral: true
-        });
-        return;
+        // 데이터베이스에 참가자 추가
+        await databaseManager.addParticipant(threadId, member.id, cleanedNickname);
       }
 
-      // 참가 처리
-      const updatedParticipants = [...participants, cleanedNickname];
+      // 현재 참가자 목록 가져오기 (데이터베이스 우선, 없으면 캐시)
+      let participants;
+      if (databaseManager) {
+        participants = await databaseManager.getParticipantNicknames(threadId);
+      } else {
+        participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
+        // 참가 처리
+        const updatedParticipants = [...participants, cleanedNickname];
+        participants = updatedParticipants;
+      }
 
-      // 캐시 업데이트
-      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+      // 캐시 업데이트 (하위 호환성)
+      this.emojiReactionService.updateParticipantCache(threadId, participants);
 
       // 커스텀 이모지 반응 추가
       try {
@@ -646,7 +658,7 @@ export class ButtonHandler {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        updatedParticipants,
+        participants,
         '참가'
       );
 
@@ -684,23 +696,34 @@ export class ButtonHandler {
       const member = interaction.member;
       const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
 
-      // 현재 참가자 목록 가져오기
-      let participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
+      // 데이터베이스에서 참가자 정보 확인
+      const databaseManager = this.forumPostManager.databaseManager;
+      if (databaseManager) {
+        const isParticipant = await databaseManager.isParticipant(threadId, member.id);
+        if (!isParticipant) {
+          await SafeInteraction.safeReply(interaction, {
+            content: '참가 중이 아닙니다.',
+            ephemeral: true
+          });
+          return;
+        }
 
-      // 참가 중인지 확인
-      if (!participants.includes(cleanedNickname)) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '참가 중이 아닙니다.',
-          ephemeral: true
-        });
-        return;
+        // 데이터베이스에서 참가자 제거
+        await databaseManager.removeParticipant(threadId, member.id);
       }
 
-      // 참가 취소 처리
-      const updatedParticipants = participants.filter(p => p !== cleanedNickname);
+      // 현재 참가자 목록 가져오기 (데이터베이스 우선, 없으면 캐시)
+      let participants;
+      if (databaseManager) {
+        participants = await databaseManager.getParticipantNicknames(threadId);
+      } else {
+        const cachedParticipants = this.emojiReactionService.previousParticipants.get(threadId) || [];
+        // 참가 취소 처리
+        participants = cachedParticipants.filter(p => p !== cleanedNickname);
+      }
 
-      // 캐시 업데이트
-      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
+      // 캐시 업데이트 (하위 호환성)
+      this.emojiReactionService.updateParticipantCache(threadId, participants);
 
       // 커스텀 이모지 반응 제거
       try {
@@ -730,7 +753,7 @@ export class ButtonHandler {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        updatedParticipants,
+        participants,
         '참가'
       );
 
