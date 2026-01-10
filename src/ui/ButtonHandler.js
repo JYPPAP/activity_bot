@@ -25,6 +25,15 @@ export class ButtonHandler {
     try {
       const customId = interaction.customId;
 
+      // 특수 버튼 처리 ([장기], [내전])
+      if (customId === 'special_longterm_button') {
+        await this.recruitmentService.handleSpecialRecruitmentButton(interaction, 'long_term');
+        return;
+      } else if (customId === 'special_scrimmage_button') {
+        await this.recruitmentService.handleSpecialRecruitmentButton(interaction, 'scrimmage');
+        return;
+      }
+
       // 완료 버튼 처리
       if (this.isCompleteButton(customId)) {
         await this.handleCompleteButton(interaction, customId);
@@ -36,7 +45,7 @@ export class ButtonHandler {
 
     } catch (error) {
       console.error('[ButtonHandler] 역할 태그 버튼 처리 오류:', error);
-      await SafeInteraction.safeReply(interaction, 
+      await SafeInteraction.safeReply(interaction,
         SafeInteraction.createErrorResponse('버튼 처리', error)
       );
     }
