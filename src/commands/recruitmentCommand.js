@@ -24,21 +24,7 @@ export class RecruitmentCommand extends CommandBase {
       }
       // =============================
 
-      // type 옵션 확인
-      const recruitmentType = interaction.options.getInteger('type');
-
-      // type이 지정된 경우: 특수 구인구직 처리
-      if (recruitmentType === 1) {
-        // 장기 구인구직
-        await this.voiceForumService.recruitmentService.handleSpecialRecruitmentButton(interaction, 'long_term');
-        return;
-      } else if (recruitmentType === 2) {
-        // 내전 구인구직
-        await this.voiceForumService.recruitmentService.handleSpecialRecruitmentButton(interaction, 'scrimmage');
-        return;
-      }
-
-      // type이 없는 경우: 기존 일반 구인구직 처리
+      // 일반 구인구직 처리 (type 옵션 제거됨)
       await this.voiceForumService.showStandaloneRecruitmentModal(interaction);
     } catch (error) {
       console.error(`${this.constructor.name} 명령어 실행 오류:`, error);

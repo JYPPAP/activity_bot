@@ -582,17 +582,17 @@ export class RecruitmentService {
         return;
       }
 
-      // 태그 선택 UI 표시 (일반 구인구직과 동일)
-      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], false);
-
       // 특수 타입용 methodValue 생성
       const specialMethodValue = type === 'scrimmage' ? 'scrimmage_new' : 'longterm_new';
+
+      // 태그 선택 UI 표시 (타입에 따라 문구 변경)
+      const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed([], true, specialMethodValue);
 
       const components = RecruitmentUIBuilder.createRoleTagButtons(
         [],
         null, // voiceChannelId 없음
         specialMethodValue, // 'scrimmage_new' 또는 'longterm_new'
-        false // isStandalone = false
+        true // isStandalone = true (독립 구인구직)
       );
 
       await SafeInteraction.safeReply(interaction, {

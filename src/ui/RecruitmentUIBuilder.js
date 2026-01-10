@@ -118,11 +118,25 @@ export class RecruitmentUIBuilder {
    * 역할 태그 선택 임베드 생성
    * @param {Array} selectedTags - 선택된 태그 목록
    * @param {boolean} isStandalone - 독립 모드 여부
+   * @param {string} methodValue - 메서드 값 (타입 결정용)
    * @returns {EmbedBuilder} - 생성된 임베드
    */
-  static createRoleTagSelectionEmbed(selectedTags = [], isStandalone = false) {
+  static createRoleTagSelectionEmbed(selectedTags = [], isStandalone = false, methodValue = null) {
     const selectedTagsText = selectedTags.length > 0 ? selectedTags.join(', ') : '없음';
-    const modeText = isStandalone ? '독립 구인구직' : '음성 채널 연동';
+
+    // methodValue에 따라 타입 결정
+    let modeText;
+    if (isStandalone) {
+      if (methodValue === 'longterm_new') {
+        modeText = '장기 구인구직';
+      } else if (methodValue === 'scrimmage_new') {
+        modeText = '내전 구인구직';
+      } else {
+        modeText = '단기 구인구직';
+      }
+    } else {
+      modeText = '음성 채널 연동';
+    }
 
     return new EmbedBuilder()
       .setTitle('🏷️ 역할 태그 선택')

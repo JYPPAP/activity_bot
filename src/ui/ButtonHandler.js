@@ -177,13 +177,13 @@ export class ButtonHandler {
    */
   async updateTagSelectionUI(interaction, selectedTags, isStandalone, voiceChannelId, methodValue) {
     // 임베드 업데이트
-    const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed(selectedTags, isStandalone);
-    
+    const embed = RecruitmentUIBuilder.createRoleTagSelectionEmbed(selectedTags, isStandalone, methodValue);
+
     // 버튼 업데이트
     const components = RecruitmentUIBuilder.createRoleTagButtons(
-      selectedTags, 
-      voiceChannelId, 
-      methodValue, 
+      selectedTags,
+      voiceChannelId,
+      methodValue,
       isStandalone
     );
 
