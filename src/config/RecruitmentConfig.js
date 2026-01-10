@@ -15,6 +15,11 @@ export class RecruitmentConfig {
     '@넥슨', '@RPG', '@보드게임', '@기타',
     '@공포', '@생존', '@퍼즐'
   ];
+
+  // 특수 태그 (@ 없이 표시)
+  static SPECIAL_TAG_VALUES = [
+    '[장기]', '[내전]'
+  ];
   
   // 최대 선택 가능한 태그 수
   static MAX_SELECTED_TAGS = 5;

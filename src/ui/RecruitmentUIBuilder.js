@@ -182,6 +182,29 @@ export class RecruitmentUIBuilder {
       }
     }
 
+    // 특수 버튼 추가 (독립 모드일 때만 - [장기], [내전])
+    if (isStandalone) {
+      const specialRow = new ActionRowBuilder();
+
+      for (const specialTag of RecruitmentConfig.SPECIAL_TAG_VALUES) {
+        let specialCustomId;
+        if (specialTag === '[장기]') {
+          specialCustomId = 'special_longterm_button';
+        } else if (specialTag === '[내전]') {
+          specialCustomId = 'special_scrimmage_button';
+        }
+
+        const specialButton = new ButtonBuilder()
+          .setCustomId(specialCustomId)
+          .setLabel(specialTag)
+          .setStyle(ButtonStyle.Success);
+
+        specialRow.addComponents(specialButton);
+      }
+
+      components.push(specialRow);
+    }
+
     // 완료 버튼 추가
     let completeCustomId;
     if (isStandalone) {
