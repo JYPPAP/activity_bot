@@ -650,16 +650,16 @@ export class ButtonHandler {
       // 현재 참가자 목록 가져오기 (데이터베이스 우선, 없으면 캐시)
       let participants;
       if (databaseManager) {
-        participants = await databaseManager.getParticipantNicknames(threadId);
+        participants = await databaseManager.getParticipantNicknames(threadId) || [];
       } else {
         participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
-        // 참가 처리
-        const updatedParticipants = [...participants, cleanedNickname];
-        participants = updatedParticipants;
       }
 
+      // 참가 처리 (닉네임 추가)
+      const updatedParticipants = [...participants, cleanedNickname];
+
       // 캐시 업데이트 (하위 호환성)
-      this.emojiReactionService.updateParticipantCache(threadId, participants);
+      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
 
       // 데이터베이스에 참가자 목록 저장
       try {
@@ -681,7 +681,7 @@ export class ButtonHandler {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        participants,
+        updatedParticipants,
         '참가'
       );
 
@@ -738,15 +738,16 @@ export class ButtonHandler {
       // 현재 참가자 목록 가져오기 (데이터베이스 우선, 없으면 캐시)
       let participants;
       if (databaseManager) {
-        participants = await databaseManager.getParticipantNicknames(threadId);
+        participants = await databaseManager.getParticipantNicknames(threadId) || [];
       } else {
-        const cachedParticipants = this.emojiReactionService.previousParticipants.get(threadId) || [];
-        // 참가 취소 처리
-        participants = cachedParticipants.filter(p => p !== cleanedNickname);
+        participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
       }
 
+      // 참가 취소 처리 (닉네임 제거)
+      const updatedParticipants = participants.filter(p => p !== cleanedNickname);
+
       // 캐시 업데이트 (하위 호환성)
-      this.emojiReactionService.updateParticipantCache(threadId, participants);
+      this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
 
       // 데이터베이스에 참가자 목록 저장
       try {
@@ -768,8 +769,8 @@ export class ButtonHandler {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        participants,
-        '참가'
+        updatedParticipants,
+        '참가 취소'
       );
 
       // 변경 알림 메시지 전송
@@ -825,7 +826,7 @@ export class ButtonHandler {
     return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_COMPLETE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON) ||
-           customId === DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE) ||
            customId === 'special_longterm_button' ||
            customId === 'special_scrimmage_button';
   }
