@@ -175,7 +175,12 @@ export class RecruitmentUIBuilder {
 
           let buttonCustomId;
           if (isStandalone) {
-            buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}`;
+            // 독립 구인구직: methodValue 포함 (장기/내전 구분용)
+            if (methodValue) {
+              buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}_${methodValue}`;
+            } else {
+              buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_BUTTON}${tag}`;
+            }
           } else {
             buttonCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_BUTTON}${tag}_${voiceChannelId}_${methodValue}`;
           }
