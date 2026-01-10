@@ -221,7 +221,12 @@ export class RecruitmentUIBuilder {
     // 완료 버튼 추가
     let completeCustomId;
     if (isStandalone) {
-      completeCustomId = DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE;
+      // 독립 구인구직: methodValue가 있으면 포함 (타입 구분용)
+      if (methodValue) {
+        completeCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE}_${methodValue}`;
+      } else {
+        completeCustomId = DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE;
+      }
     } else {
       completeCustomId = `${DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_COMPLETE}${voiceChannelId}_${methodValue}`;
     }

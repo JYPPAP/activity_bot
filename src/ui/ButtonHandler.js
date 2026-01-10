@@ -58,7 +58,7 @@ export class ButtonHandler {
    */
   isCompleteButton(customId) {
     return customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.ROLE_COMPLETE) ||
-           customId === DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE;
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE);
   }
   
   /**
@@ -70,9 +70,33 @@ export class ButtonHandler {
   async handleCompleteButton(interaction, customId) {
     const selectedTags = this.extractSelectedTags(interaction);
 
-    if (customId === DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE) {
-      // 독립 구인구직 모달 표시
-      await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
+    if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE)) {
+      // 독립 구인구직: methodValue 파싱
+      const parts = customId.split('_');
+      // standalone_role_complete_scrimmage_new → ['standalone', 'role', 'complete', 'scrimmage', 'new']
+      // standalone_role_complete → ['standalone', 'role', 'complete']
+
+      if (parts.length > 3) {
+        // methodValue가 있는 경우 (장기/내전)
+        const methodValue = parts.slice(3).join('_');  // 'scrimmage_new' or 'longterm_new'
+
+        console.log(`[ButtonHandler] 독립 구인구직 완료 - methodValue: "${methodValue}"`);
+
+        if (methodValue === 'scrimmage_new') {
+          console.log(`[ButtonHandler] 내전 모달 표시`);
+          await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'scrimmage', selectedTags);
+        } else if (methodValue === 'longterm_new') {
+          console.log(`[ButtonHandler] 장기 모달 표시`);
+          await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'long_term', selectedTags);
+        } else {
+          console.warn(`[ButtonHandler] 알 수 없는 독립 구인구직 타입: "${methodValue}"`);
+          await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
+        }
+      } else {
+        // methodValue가 없는 경우 (일반 단기)
+        console.log(`[ButtonHandler] 일반 단기 모달 표시`);
+        await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
+      }
     } else {
       // 음성 채널 연동 또는 특수 구인구직의 경우
       const parts = customId.split('_');
