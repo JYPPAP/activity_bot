@@ -24,49 +24,38 @@ export class EmojiReactionService {
   async initialize() {
     try {
       console.log('[EmojiReactionService] 서비스 초기화 시작...');
-      
+
       // 데이터베이스에서 모든 활성 포럼 레코드 조회
       const databaseManager = this.forumPostManager.databaseManager;
       if (!databaseManager) {
         console.warn('[EmojiReactionService] DatabaseManager를 사용할 수 없어 초기화를 건너뜁니다.');
         return;
       }
-      
-      // post_integrations에서 활성 상태인 모든 포럼 가져오기
-      const query = `
-        SELECT forum_post_id, forum_state, is_active, created_at
-        FROM post_integrations 
-        WHERE is_active = true 
-        AND forum_state IN ('created', 'voice_linked', 'standalone')
-        ORDER BY created_at DESC
-      `;
-      
-      const result = await databaseManager.query(query);
-      const activeForums = result.rows || [];
-      
-      console.log(`[EmojiReactionService] ${activeForums.length}개의 활성 포럼 발견`);
-      
+
+      // 데이터베이스에서 모든 활성 포럼의 참가자 정보 복구
+      const participantsMap = await databaseManager.getAllActiveParticipants();
+
+      console.log(`[EmojiReactionService] ${participantsMap.size}개의 활성 포럼에서 참가자 정보 복구`);
+
       let restoredCount = 0;
-      
-      for (const forum of activeForums) {
+
+      for (const [forumPostId, participants] of participantsMap.entries()) {
         try {
-          const forumPostId = forum.forum_post_id;
           console.log(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 정보 복구 시작...`);
-          
+
           // 포럼 스레드가 존재하는지 확인
           const channel = await this.client.channels.fetch(forumPostId).catch(() => null);
           if (!channel || !this.isForumThread(channel)) {
             console.warn(`[EmojiReactionService] 포럼 스레드를 찾을 수 없음: ${forumPostId}`);
             continue;
           }
-          
+
           if (channel.archived) {
             console.log(`[EmojiReactionService] 아카이브된 포럼 건너뛰기: ${forumPostId}`);
             continue;
           }
-          
-          // 해당 포럼의 모든 메시지 검색하여 타겟 이모지 반응 찾기
-          const participants = await this.findExistingParticipants(channel);
+
+          // 캐시에 참가자 정보 저장
           if (participants.length > 0) {
             this.previousParticipants.set(forumPostId, participants);
             restoredCount++;
@@ -74,14 +63,14 @@ export class EmojiReactionService {
           } else {
             console.log(`[EmojiReactionService] 포럼 ${forumPostId} 기존 참가자 없음`);
           }
-          
+
         } catch (error) {
-          console.error(`[EmojiReactionService] 포럼 ${forum.forum_post_id} 참가자 복구 실패:`, error);
+          console.error(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 복구 실패:`, error);
         }
       }
-      
+
       console.log(`[EmojiReactionService] 초기화 완료: ${restoredCount}개 포럼의 참가자 정보 복구`);
-      
+
     } catch (error) {
       console.error('[EmojiReactionService] 초기화 오류:', error);
     }
@@ -474,11 +463,61 @@ export class EmojiReactionService {
     try {
       // 변화 감지
       const changes = this.detectParticipantChanges(channelId, participants);
-      
-      // 변화가 있을 때만 알림 메시지 전송
+
+      // 변화가 있을 때만 알림 메시지 전송 및 데이터베이스 동기화
       if (changes.joined.length > 0 || changes.left.length > 0) {
         console.log(`[EmojiReactionService] 참가자 변화 감지 - 참가: ${changes.joined.length}명, 참가 취소: ${changes.left.length}명`);
-        
+
+        // 데이터베이스 동기화
+        const databaseManager = this.forumPostManager.databaseManager;
+        if (databaseManager) {
+          // 참가한 사용자 추가
+          for (const nickname of changes.joined) {
+            try {
+              // 닉네임으로 유저 ID를 찾아야 함 - 포럼 스레드에서 멤버 검색
+              const channel = await this.client.channels.fetch(channelId);
+              if (channel && channel.isThread()) {
+                const guild = channel.guild;
+                const members = await guild.members.fetch();
+                const member = members.find(m => {
+                  const cleanedName = TextProcessor.cleanNickname(m.displayName);
+                  return cleanedName === nickname;
+                });
+
+                if (member) {
+                  await databaseManager.addParticipant(channelId, member.id, nickname);
+                  console.log(`[EmojiReactionService] DB에 참가자 추가: ${nickname} (${member.id})`);
+                }
+              }
+            } catch (error) {
+              console.error(`[EmojiReactionService] DB 참가자 추가 실패 (${nickname}):`, error.message);
+            }
+          }
+
+          // 참가 취소한 사용자 제거
+          for (const nickname of changes.left) {
+            try {
+              // 닉네임으로 유저 ID를 찾아야 함
+              const channel = await this.client.channels.fetch(channelId);
+              if (channel && channel.isThread()) {
+                const guild = channel.guild;
+                const members = await guild.members.fetch();
+                const member = members.find(m => {
+                  const cleanedName = TextProcessor.cleanNickname(m.displayName);
+                  return cleanedName === nickname;
+                });
+
+                if (member) {
+                  await databaseManager.removeParticipant(channelId, member.id);
+                  console.log(`[EmojiReactionService] DB에서 참가자 제거: ${nickname} (${member.id})`);
+                }
+              }
+            } catch (error) {
+              console.error(`[EmojiReactionService] DB 참가자 제거 실패 (${nickname}):`, error.message);
+            }
+          }
+        }
+
         // 변화 알림 메시지 전송
         await this.forumPostManager.sendParticipantChangeNotification(
           channelId,
@@ -486,10 +525,10 @@ export class EmojiReactionService {
           changes.left
         );
       }
-      
+
       // 캐시 업데이트
       this.updateParticipantCache(channelId, participants);
-      
+
     } catch (error) {
       console.error('[EmojiReactionService] 참가자 변화 처리 오류:', error);
     }
