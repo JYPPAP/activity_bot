@@ -182,10 +182,11 @@ export class RecruitmentUIBuilder {
       }
     }
 
+    // 마지막 행: 특수 버튼 + 완료 버튼 (최대 5개 ActionRow 제한 준수)
+    const lastRow = new ActionRowBuilder();
+
     // 특수 버튼 추가 (독립 모드일 때만 - [장기], [내전])
     if (isStandalone) {
-      const specialRow = new ActionRowBuilder();
-
       for (const specialTag of RecruitmentConfig.SPECIAL_TAG_VALUES) {
         let specialCustomId;
         if (specialTag === '[장기]') {
@@ -199,10 +200,8 @@ export class RecruitmentUIBuilder {
           .setLabel(specialTag)
           .setStyle(ButtonStyle.Success);
 
-        specialRow.addComponents(specialButton);
+        lastRow.addComponents(specialButton);
       }
-
-      components.push(specialRow);
     }
 
     // 완료 버튼 추가
@@ -220,8 +219,8 @@ export class RecruitmentUIBuilder {
       .setEmoji('✅')
       .setDisabled(selectedTags.length === 0);
 
-    const completeRow = new ActionRowBuilder().addComponents(completeButton);
-    components.push(completeRow);
+    lastRow.addComponents(completeButton);
+    components.push(lastRow);
 
     return components;
   }
