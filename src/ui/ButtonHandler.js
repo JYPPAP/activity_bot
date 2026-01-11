@@ -655,8 +655,8 @@ export class ButtonHandler {
         participants = this.emojiReactionService.previousParticipants.get(threadId) || [];
       }
 
-      // 참가 처리 (닉네임 추가)
-      const updatedParticipants = [...participants, cleanedNickname];
+      // DB에 이미 추가되었으므로 조회된 목록을 그대로 사용
+      const updatedParticipants = participants;
 
       // 캐시 업데이트 (하위 호환성)
       this.emojiReactionService.updateParticipantCache(threadId, updatedParticipants);
