@@ -75,12 +75,24 @@ export class NicknameButtonHandler {
     }
 
     // 삭제할 닉네임 선택 드롭다운 생성
-    const options = nicknames.map((nickname) => ({
-      label: `${nickname.platform_name} - ${nickname.user_identifier}`,
-      description: `ID: ${nickname.user_identifier}`,
-      value: nickname.id.toString(),
-      emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
-    }));
+    const options = nicknames.map((nickname) => {
+      try {
+        return {
+          label: `${nickname.platform_name} - ${nickname.user_identifier}`,
+          description: `ID: ${nickname.user_identifier}`,
+          value: nickname.id.toString(),
+          emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+        };
+      } catch (error) {
+        console.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}:`, error);
+        return {
+          label: `${nickname.platform_name} - ${nickname.user_identifier}`,
+          description: `ID: ${nickname.user_identifier}`,
+          value: nickname.id.toString(),
+          emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+        };
+      }
+    });
 
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_SELECT}${Date.now()}`)
@@ -117,12 +129,24 @@ export class NicknameButtonHandler {
     }
 
     // 수정할 닉네임 선택 드롭다운 생성
-    const options = nicknames.map((nickname) => ({
-      label: `${nickname.platform_name} - ${nickname.user_identifier}`,
-      description: `ID: ${nickname.user_identifier}`,
-      value: nickname.id.toString(),
-      emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
-    }));
+    const options = nicknames.map((nickname) => {
+      try {
+        return {
+          label: `${nickname.platform_name} - ${nickname.user_identifier}`,
+          description: `ID: ${nickname.user_identifier}`,
+          value: nickname.id.toString(),
+          emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+        };
+      } catch (error) {
+        console.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}:`, error);
+        return {
+          label: `${nickname.platform_name} - ${nickname.user_identifier}`,
+          description: `ID: ${nickname.user_identifier}`,
+          value: nickname.id.toString(),
+          emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+        };
+      }
+    });
 
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_SELECT}${Date.now()}`)
@@ -258,11 +282,22 @@ export class NicknameButtonHandler {
       .setCustomId(`nickname_admin_edit_select_${Date.now()}`)
       .setPlaceholder('수정할 플랫폼을 선택하세요')
       .addOptions(
-        platforms.map((platform) => ({
-          label: platform.platform_name,
-          value: platform.id.toString(),
-          emoji: platform.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
-        }))
+        platforms.map((platform) => {
+          try {
+            return {
+              label: platform.platform_name,
+              value: platform.id.toString(),
+              emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+            };
+          } catch (error) {
+            console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+            return {
+              label: platform.platform_name,
+              value: platform.id.toString(),
+              emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+            };
+          }
+        })
       );
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
@@ -349,12 +384,24 @@ export class NicknameButtonHandler {
       .setCustomId(`nickname_admin_delete_select_${Date.now()}`)
       .setPlaceholder('삭제할 플랫폼을 선택하세요')
       .addOptions(
-        platforms.map((platform) => ({
-          label: platform.platform_name,
-          value: platform.id.toString(),
-          emoji: platform.emoji_unicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
-          description: `Base URL: ${platform.base_url.substring(0, 50)}...`,
-        }))
+        platforms.map((platform) => {
+          try {
+            return {
+              label: platform.platform_name,
+              value: platform.id.toString(),
+              emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
+              description: `Base URL: ${platform.base_url.substring(0, 50)}...`,
+            };
+          } catch (error) {
+            console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+            return {
+              label: platform.platform_name,
+              value: platform.id.toString(),
+              emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+              description: `Base URL: ${platform.base_url.substring(0, 50)}...`,
+            };
+          }
+        })
       );
 
     const row = new ActionRowBuilder().addComponents(selectMenu);
@@ -510,12 +557,26 @@ export class NicknameButtonHandler {
 
     // 플랫폼 목록 추가
     platforms.forEach((platform) => {
-      options.push({
-        label: platform.platform_name,
-        description: `${platform.platform_name} 닉네임 등록 또는 수정`,
-        value: `platform_${platform.id}`,
-        emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
-      });
+      try {
+        const parsedEmoji = EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM);
+
+        options.push({
+          label: platform.platform_name,
+          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+          value: `platform_${platform.id}`,
+          emoji: parsedEmoji,
+        });
+      } catch (error) {
+        console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+
+        // 에러 발생 시 fallback 이모지 사용
+        options.push({
+          label: platform.platform_name,
+          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+          value: `platform_${platform.id}`,
+          emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+        });
+      }
     });
 
     const selectMenu = new StringSelectMenuBuilder()

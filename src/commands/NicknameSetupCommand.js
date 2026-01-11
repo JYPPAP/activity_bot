@@ -89,12 +89,26 @@ export class NicknameSetupCommand extends CommandBase {
 
     // 플랫폼 목록 추가
     platforms.forEach((platform) => {
-      options.push({
-        label: platform.platform_name,
-        description: `${platform.platform_name} 닉네임 등록 또는 수정`,
-        value: `platform_${platform.id}`,
-        emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
-      });
+      try {
+        const parsedEmoji = EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM);
+
+        options.push({
+          label: platform.platform_name,
+          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+          value: `platform_${platform.id}`,
+          emoji: parsedEmoji,
+        });
+      } catch (error) {
+        console.error(`[NicknameSetupCommand] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+
+        // 에러 발생 시 fallback 이모지 사용
+        options.push({
+          label: platform.platform_name,
+          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
+          value: `platform_${platform.id}`,
+          emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+        });
+      }
     });
 
     const selectMenu = new StringSelectMenuBuilder()

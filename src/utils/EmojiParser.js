@@ -18,10 +18,19 @@ export class EmojiParser {
     // 커스텀 이모지 파싱: <:name:id> 또는 <a:name:id>
     const customMatch = trimmed.match(/^<(a)?:([a-zA-Z0-9_]+):([0-9]+)>$/);
     if (customMatch) {
+      const emojiId = customMatch[3];
+      const emojiName = customMatch[2];
+
+      // ID가 유효한지 검증 (19자리 snowflake ID)
+      if (!/^\d{17,19}$/.test(emojiId)) {
+        console.warn(`[EmojiParser] Invalid emoji ID: ${emojiId}, using fallback`);
+        return fallback;
+      }
+
+      // Discord API 호환 형식으로 반환 (animated 필드 제거)
       return {
-        id: customMatch[3],
-        name: customMatch[2],
-        animated: !!customMatch[1]
+        id: emojiId,
+        name: emojiName
       };
     }
 
