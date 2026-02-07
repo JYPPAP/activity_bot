@@ -124,6 +124,25 @@ commands.push(
     .setDescription('플랫폼 템플릿을 관리합니다. (관리자 전용)')
 );
 
+// 팀짜기 명령어
+commands.push(
+  new SlashCommandBuilder()
+    .setName('팀짜기')
+    .setDescription('음성 채널 멤버로 랜덤 팀을 구성합니다.')
+    .addIntegerOption(option =>
+      option.setName('전체인원')
+            .setDescription('팀에 배정할 전체 인원 수')
+            .setRequired(true)
+            .setMinValue(2)
+    )
+    .addIntegerOption(option =>
+      option.setName('팀수')
+            .setDescription('나눌 팀의 수')
+            .setRequired(true)
+            .setMinValue(2)
+    )
+);
+
 // REST 클라이언트 생성
 const rest = new REST({ version: '10' }).setToken(config.TOKEN);
 

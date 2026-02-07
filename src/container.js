@@ -41,6 +41,7 @@ import { RecruitmentCommand } from './commands/recruitmentCommand.js';
 import { NicknameCommand } from './commands/NicknameCommand.js';
 import { NicknameManagementCommand } from './commands/NicknameManagementCommand.js';
 import { NicknameSetupCommand } from './commands/NicknameSetupCommand.js';
+import { TeamCommand } from './commands/TeamCommand.js';
 
 /**
  * DI Container 생성 및 설정
@@ -160,6 +161,7 @@ export function createDIContainer(client) {
     nicknameCommand: asClass(NicknameCommand).singleton(),
     nicknameManagementCommand: asClass(NicknameManagementCommand).singleton(),
     nicknameSetupCommand: asClass(NicknameSetupCommand).singleton(),
+    teamCommand: asClass(TeamCommand).singleton(),
   });
 
   // === 8. 통합 계층 ===
