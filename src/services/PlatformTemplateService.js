@@ -45,7 +45,7 @@ export class PlatformTemplateService {
       guildId,
       platformName,
       emojiUnicode || NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
-      baseUrl,
+      baseUrl || null,  // base_url은 선택사항 (NULL 허용)
       urlPattern || NicknameConstants.DEFAULT_URL_PATTERN,
       displayOrder,
     ];
@@ -78,18 +78,41 @@ export class PlatformTemplateService {
       this.validateBaseUrl(baseUrl);
     }
 
+    // 동적 SET 절 생성 (명시적으로 전달된 필드만 업데이트)
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+
+    if (platformName !== undefined) {
+      setClauses.push(`platform_name = $${paramIndex++}`);
+      values.push(platformName);
+    }
+    if (emojiUnicode !== undefined) {
+      setClauses.push(`emoji_unicode = $${paramIndex++}`);
+      values.push(emojiUnicode);
+    }
+    if (baseUrl !== undefined) {
+      // baseUrl이 빈 문자열이면 null로 저장 (base_url 제거)
+      setClauses.push(`base_url = $${paramIndex++}`);
+      values.push(baseUrl || null);
+    }
+    if (urlPattern !== undefined) {
+      setClauses.push(`url_pattern = $${paramIndex++}`);
+      values.push(urlPattern);
+    }
+
+    if (setClauses.length === 0) {
+      return platform; // 변경사항 없음
+    }
+
+    values.push(platformId, guildId);
+
     const query = `
       UPDATE platform_templates
-      SET
-        platform_name = COALESCE($1, platform_name),
-        emoji_unicode = COALESCE($2, emoji_unicode),
-        base_url = COALESCE($3, base_url),
-        url_pattern = COALESCE($4, url_pattern)
-      WHERE id = $5 AND guild_id = $6
+      SET ${setClauses.join(', ')}
+      WHERE id = $${paramIndex++} AND guild_id = $${paramIndex}
       RETURNING *
     `;
-
-    const values = [platformName, emojiUnicode, baseUrl, urlPattern, platformId, guildId];
 
     const result = await this.dbManager.query(query, values);
     return result.rows[0];

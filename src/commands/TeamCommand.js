@@ -1,6 +1,7 @@
 // src/commands/TeamCommand.js - 팀짜기 명령어
 import { logger } from '../config/logger-termux.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
+import { config } from '../config/env.js';
 
 export class TeamCommand {
   constructor(client) {
@@ -86,10 +87,13 @@ export class TeamCommand {
     }
 
     // 결과 포맷팅
-    const lines = ['🎮 **팀 구성 결과**'];
+    const teamChannelIds = config.TEAM_CHANNEL_IDS ?? [];
+    const lines = ['# 🎮 팀 구성 결과'];
     for (let i = 0; i < teams.length; i++) {
-      lines.push(`**${i + 1}팀**`);
-      lines.push(teams[i].join(' '));
+      const channelId = teamChannelIds[i];
+      const channelSuffix = channelId ? ` <#${channelId}>` : '';
+      lines.push(`## ${i + 1}팀${channelSuffix}`);
+      lines.push(`## ${teams[i].join(' ')}`);
     }
 
     // 초과/대기 인원 하단 표시
@@ -102,7 +106,18 @@ export class TeamCommand {
       lines.push(`-# [대기]: ${unusedWaiting.join(' ')}`);
     }
 
-    await interaction.reply({ content: lines.join('\n') });
+    const content = lines.join('\n');
+
+    // Discord 메시지 길이 제한 (2000자) 초과 시 사용자에게 알림
+    if (content.length > 2000) {
+      await interaction.reply({
+        content: `❌ 팀 구성 결과가 너무 길어 표시할 수 없습니다. (${content.length}자)\n팀 수나 전체 인원을 줄여주세요.`,
+        ephemeral: true,
+      });
+      return;
+    }
+
+    await interaction.reply({ content });
 
     logger.info('팀짜기 명령어 실행', {
       component: 'TeamCommand',

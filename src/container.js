@@ -4,9 +4,9 @@ import { config } from './config/env.js';
 
 // 서비스 임포트
 import { DatabaseManager } from './services/DatabaseManager.js';
-import { LogService } from './services/logService.js';
-import { ActivityTracker } from './services/activityTracker.js';
-import { EventManager } from './services/eventManager.js';
+import { LogService } from './services/LogService.js';
+import { ActivityTracker } from './services/ActivityTracker.js';
+import { EventManager } from './services/EventManager.js';
 import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
 import { EmojiReactionService } from './services/EmojiReactionService.js';
 import { UserClassificationService } from './services/UserClassificationService.js';
@@ -31,13 +31,11 @@ import { NicknameModalHandler } from './ui/NicknameModalHandler.js';
 import { VoiceChannelNicknameManager } from './managers/VoiceChannelNicknameManager.js';
 
 // 명령어 관련 임포트
-import { CommandHandler } from './commands/commandHandler.js';
-import { GapConfigCommand } from './commands/gapConfigCommand.js';
+import { CommandHandler } from './commands/CommandHandler.js';
 import { TimeConfirmCommand } from './commands/TimeConfirmCommand.js';
 import { TimeCheckCommand } from './commands/TimeCheckCommand.js';
-import { GapReportCommand } from './commands/gapReportCommand.js';
-import { GapAfkCommand } from './commands/gapAfkCommand.js';
-import { RecruitmentCommand } from './commands/recruitmentCommand.js';
+import { GapReportCommand } from './commands/GapReportCommand.js';
+import { RecruitmentCommand } from './commands/RecruitmentCommand.js';
 import { NicknameCommand } from './commands/NicknameCommand.js';
 import { NicknameManagementCommand } from './commands/NicknameManagementCommand.js';
 import { NicknameSetupCommand } from './commands/NicknameSetupCommand.js';
@@ -77,7 +75,9 @@ export function createDIContainer(client) {
   // === 2. 인프라 계층 (데이터베이스, 로깅) ===
   container.register({
     dbManager: asClass(DatabaseManager).singleton(),
-    databaseManager: asClass(DatabaseManager).singleton(), // 호환성을 위한 별칭
+    // 호환성 별칭: dbManager와 동일한 인스턴스를 참조
+    // CLASSIC 모드에서는 구조분해 할당 불가 — 위치 인수로 주입
+    databaseManager: asFunction((dbManager) => dbManager).singleton(),
     logService: asClass(LogService).singleton(),
   });
 
@@ -152,11 +152,9 @@ export function createDIContainer(client) {
 
   // === 7. 명령어 계층 ===
   container.register({
-    gapConfigCommand: asClass(GapConfigCommand).singleton(),
     timeConfirmCommand: asClass(TimeConfirmCommand).singleton(),
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
-    gapAfkCommand: asClass(GapAfkCommand).singleton(),
     recruitmentCommand: asClass(RecruitmentCommand).singleton(),
     nicknameCommand: asClass(NicknameCommand).singleton(),
     nicknameManagementCommand: asClass(NicknameManagementCommand).singleton(),

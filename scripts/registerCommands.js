@@ -7,23 +7,6 @@ import { config } from '../src/config/env.js';
 // 명령어 정의 배열 생성
 const commands = [];
 
-// gap_config 명령어
-commands.push(
-  new SlashCommandBuilder()
-    .setName('gap_config')
-    .setDescription('역할의 최소 활동 시간을 설정합니다.')
-    .addStringOption(option =>
-      option.setName('role')
-            .setDescription('설정할 역할')
-            .setRequired(true)
-    )
-    .addIntegerOption(option =>
-      option.setName('hours')
-            .setDescription('최소 활동 시간 (시)')
-            .setRequired(true)
-    )
-);
-
 // 시간확인 명령어
 commands.push(
   new SlashCommandBuilder()
@@ -85,23 +68,6 @@ commands.push(
     )
 );
 
-
-// gap_afk 명령어
-commands.push(
-  new SlashCommandBuilder()
-    .setName('gap_afk')
-    .setDescription('사용자를 지정된 날짜까지 잠수 상태로 설정합니다.')
-    .addUserOption(option =>
-      option.setName('user')
-            .setDescription('잠수 상태로 설정할 사용자')
-            .setRequired(true)
-    )
-    .addStringOption(option =>
-      option.setName('until_date')
-            .setDescription('잠수 상태 유지 기한 (YYMMDD 형식, 예: 250510)')
-            .setRequired(true)
-    )
-);
 
 // 구직 명령어
 commands.push(

@@ -1,6 +1,27 @@
+# Dependencies
 /node_modules/
+
+# Environment & Secrets
 /.env
 /config.json
+
+# IDE
+/.idea/
+/.vscode/
+*.swp
+*.swo
+
+# Claude Code
 /.claude/settings.local.json
-/logs
-/docs
+
+# Logs
+/logs/
+*.log
+
+# Legacy data files
+/activity_bot.json
+*.bak
+
+# OS files
+.DS_Store
+Thumbs.db

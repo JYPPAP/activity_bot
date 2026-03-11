@@ -161,8 +161,10 @@ export class NicknameModalHandler {
 
     const platform = await this.platformTemplateService.getPlatformById(platformId);
 
+    const fullUrlText = nickname.full_url ? `\nURL: ${nickname.full_url}` : '';
+
     await interaction.editReply({
-      content: `${NicknameConstants.MESSAGES.NICKNAME_ADDED}\n플랫폼: **${platform.platform_name}**\nID: \`${userIdentifier}\`\nURL: ${nickname.full_url}`,
+      content: `${NicknameConstants.MESSAGES.NICKNAME_ADDED}\n플랫폼: **${platform.platform_name}**\nID: \`${userIdentifier}\`${fullUrlText}`,
     });
   }
 

@@ -7,7 +7,7 @@ import { logger } from '../config/logger-termux.js';
 
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, voiceChannelForumIntegrationService, userClassificationService,
-              gapConfigCommand, timeConfirmCommand, timeCheckCommand, gapReportCommand, gapAfkCommand,
+              timeConfirmCommand, timeCheckCommand, gapReportCommand,
               recruitmentCommand, nicknameCommand, nicknameSetupCommand, nicknameManagementCommand, teamCommand) {
     this.client = client;
     this.activityTracker = activityTracker;
@@ -25,11 +25,9 @@ export class CommandHandler {
       }
 
       // 명령어 맵에 등록 (DI Container에서 주입받은 인스턴스들 사용)
-      this.commands.set('gap_config', gapConfigCommand);
       this.commands.set('시간확인', timeConfirmCommand);
       this.commands.set('시간체크', timeCheckCommand);
       this.commands.set('보고서', gapReportCommand);
-      this.commands.set('gap_afk', gapAfkCommand);
       this.commands.set('구직', recruitmentCommand);
       this.commands.set('닉네임설정', nicknameSetupCommand);
       this.commands.set('닉네임관리', nicknameManagementCommand);

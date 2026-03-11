@@ -6,7 +6,7 @@ import './config/logger-termux.js';
 import { logger } from './config/logger-termux.js';
 
 import {Bot} from './bot.js';
-import {keepAlive} from '../server.js';
+import {keepAlive} from './server.js';
 
 // 전역 봇 인스턴스 저장
 let botInstance = null;

@@ -196,21 +196,14 @@ export class ActivityTracker {
         if (hasRole) {
           // 현재 활성 세션이 있다면 종료하고 새로 시작
           if (this.activeSessions.has(userId)) {
-            const session = this.activeSessions.get(userId);
-            const sessionDuration = now - session.startTime;
+            await this.endAndSaveSession(userId, member.displayName, now);
 
-            // 현재 세션의 활동 분 저장 (날짜별 분할)
-            const sessions = this.splitSessionByDate(session.startTime, now);
-            for (const { date, minutes } of sessions) {
-              await this.saveSessionActivity(userId, minutes * 60 * 1000, member.displayName, date);
-            }
-
-            // 현재 음성 채널에 있다면 새 세션 시작, 없다면 세션 제거
+            // 현재 음성 채널에 있다면 새 세션 시작
             if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
-              session.startTime = now;
-              session.displayName = member.displayName;
-            } else {
-              this.activeSessions.delete(userId);
+              this.activeSessions.set(userId, {
+                startTime: now,
+                displayName: member.displayName
+              });
             }
           } else if (member?.voice?.channelId && !config.EXCLUDED_CHANNELS.includes(member.voice.channelId)) {
             // 세션이 없지만 음성 채널에 있다면 새 세션 시작
@@ -331,58 +324,78 @@ export class ActivityTracker {
     this.logService.logActivity(logMessage, membersInChannel, 'LEAVE');
   }
 
-  // 실시간 활동 시간 추적 (PostgreSQL 월별 테이블 직접 업데이트)
+  /**
+   * 실시간 활동 시간 추적 (PostgreSQL 월별 테이블 직접 업데이트)
+   *
+   * 채널 상태 전이 매트릭스:
+   * - 비접속 → 추적 채널: 세션 시작
+   * - 비접속 → 제외 채널: 무시
+   * - 추적 채널 → 비접속: 세션 종료 & 저장
+   * - 추적 채널 → 추적 채널: 세션 유지 (이름만 갱신)
+   * - 추적 채널 → 제외 채널: 세션 종료 & 저장
+   * - 제외 채널 → 비접속: 무시
+   * - 제외 채널 → 추적 채널: 세션 시작
+   * - 제외 채널 → 제외 채널: 무시
+   */
   async trackActivityTimeRealtime(oldState, newState, userId, member, now) {
-    // 실제 채널 입장 (첫 입장만 감지)
-    if (this.isRealChannelJoin(oldState, newState)) {
-      this.activeSessions.set(userId, {
-        startTime: now,
-        displayName: member.displayName
-      });
-      console.log(`[ActivityTracker] ${member.displayName} 세션 시작`);
+    const wasInChannel = !!oldState.channelId;
+    const isInChannel = !!newState.channelId;
+    const wasExcluded = wasInChannel && config.EXCLUDED_CHANNELS.includes(oldState.channelId);
+    const isExcluded = isInChannel && config.EXCLUDED_CHANNELS.includes(newState.channelId);
+
+    // 이전 채널이 추적 대상이었는지, 현재 채널이 추적 대상인지 판별
+    const wasTracked = wasInChannel && !wasExcluded;
+    const isTracked = isInChannel && !isExcluded;
+
+    // Case 1: 추적 대상 → 비추적 (퇴장 또는 제외 채널로 이동) → 세션 종료
+    if (wasTracked && !isTracked) {
+      await this.endAndSaveSession(userId, member.displayName, now);
     }
-    // 실제 채널 퇴장 (모든 채널에서 퇴장하는 경우만 감지)
-    else if (this.isRealChannelLeave(oldState, newState)) {
-      if (this.activeSessions.has(userId)) {
-        const session = this.activeSessions.get(userId);
-        const sessionDuration = now - session.startTime;
-
-        // 즉시 PostgreSQL에 일일 활동 분 업데이트 (날짜별 분할)
-        const sessions = this.splitSessionByDate(session.startTime, now);
-        for (const { date, minutes } of sessions) {
-          await this.saveSessionActivity(userId, minutes * 60 * 1000, member.displayName, date);
-        }
-
-        // 메모리에서 세션 제거
-        this.activeSessions.delete(userId);
+    // Case 2: 비추적 → 추적 대상 (입장 또는 제외 채널에서 이동) → 세션 시작
+    else if (!wasTracked && isTracked) {
+      if (!this.activeSessions.has(userId)) {
+        this.activeSessions.set(userId, {
+          startTime: now,
+          displayName: member.displayName
+        });
+        console.log(`[ActivityTracker] ${member.displayName} 세션 시작`);
       }
     }
-    // 채널 간 이동인 경우 - 세션 유지 (시간 계속 누적)
-    else if (this.isChannelTransfer(oldState, newState)) {
+    // Case 3: 추적 대상 → 추적 대상 (채널 간 이동) → 세션 유지
+    else if (wasTracked && isTracked) {
       if (this.activeSessions.has(userId)) {
-        // 표시 이름 업데이트만 수행, 세션 시간은 유지
         this.activeSessions.get(userId).displayName = member.displayName;
+      } else {
+        // 세션이 없는데 추적 대상 채널에 있는 경우 (안전장치)
+        this.activeSessions.set(userId, {
+          startTime: now,
+          displayName: member.displayName
+        });
+        console.log(`[ActivityTracker] ${member.displayName} 누락 세션 복구 (채널 이동 중)`);
       }
     }
+    // Case 4: 비추적 → 비추적 (제외 채널 간 이동 등) → 무시
   }
 
-  // 실제 채널 입장 (첫 입장만 감지)
-  isRealChannelJoin(oldState, newState) {
-    return !oldState.channelId &&
-      newState.channelId &&
-      !config.EXCLUDED_CHANNELS.includes(newState.channelId);
-  }
+  /**
+   * 활성 세션을 종료하고 DB에 저장합니다.
+   * @param {string} userId - 사용자 ID
+   * @param {string} displayName - 표시 이름
+   * @param {number} now - 현재 타임스탬프
+   */
+  async endAndSaveSession(userId, displayName, now) {
+    if (!this.activeSessions.has(userId)) return;
 
-  // 실제 채널 퇴장 (모든 채널에서 퇴장하는 경우만 감지)
-  isRealChannelLeave(oldState, newState) {
-    return oldState.channelId &&
-      !config.EXCLUDED_CHANNELS.includes(oldState.channelId) &&
-      !newState.channelId;
-  }
+    const session = this.activeSessions.get(userId);
 
-  // 채널 간 이동 감지
-  isChannelTransfer(oldState, newState) {
-    return oldState.channelId && newState.channelId;
+    // 날짜별 분할하여 DB에 저장
+    const sessions = this.splitSessionByDate(session.startTime, now);
+    for (const { date, minutes } of sessions) {
+      await this.saveSessionActivity(userId, minutes * 60 * 1000, displayName, date);
+    }
+
+    this.activeSessions.delete(userId);
+    console.log(`[ActivityTracker] ${displayName} 세션 종료`);
   }
 
   /**
@@ -393,7 +406,7 @@ export class ActivityTracker {
   async handleGuildMemberUpdate(oldMember, newMember) {
     const {id: userId} = newMember;
     const now = Date.now();
-    
+
     // 별명 변경이 있는 경우에만 로그 출력
     if (oldMember.displayName !== newMember.displayName) {
       console.log(`[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`);
@@ -403,16 +416,8 @@ export class ActivityTracker {
     if (newMember.displayName.includes(FILTERS.OBSERVATION) ||
       newMember.displayName.includes(FILTERS.WAITING)) {
       // 활성 세션이 있다면 종료하고 저장
-      if (this.activeSessions.has(userId)) {
-        const session = this.activeSessions.get(userId);
-        const sessionDuration = now - session.startTime;
-
-        // 날짜별 분할하여 저장
-        const sessions = this.splitSessionByDate(session.startTime, now);
-        for (const { date, minutes } of sessions) {
-          await this.saveSessionActivity(userId, minutes * 60 * 1000, newMember.displayName, date);
-        }
-        this.activeSessions.delete(userId);
+      await this.endAndSaveSession(userId, newMember.displayName, now);
+      if (!this.activeSessions.has(userId)) {
         console.log(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
       }
     } else {
@@ -806,11 +811,11 @@ export class ActivityTracker {
   async forceEndSession(userId, reason) {
     const session = this.activeSessions.get(userId);
     if (!session) return;
-    
+
     const now = Date.now();
     const duration = now - session.startTime;
     const hours = duration / (1000 * 60 * 60);
-    
+
     // 8시간 이상인 경우 경고 로그 기록
     const ABNORMAL_THRESHOLD_HOURS = 8;
     if (hours >= ABNORMAL_THRESHOLD_HOURS) {
@@ -818,18 +823,9 @@ export class ActivityTracker {
     } else {
       console.log(`[ActivityTracker] ${session.displayName}: 세션 강제종료 (${reason})`);
     }
-    
-    try {
-      // 정상적으로 저장 후 종료 (날짜별 분할)
-      const sessions = this.splitSessionByDate(session.startTime, now);
-      for (const { date, minutes } of sessions) {
-        await this.saveSessionActivity(userId, minutes * 60 * 1000, session.displayName, date);
-      }
 
-      // 메모리에서 세션 제거
-      this.activeSessions.delete(userId);
-      
-      console.log(`[ActivityTracker] ${session.displayName} 세션 데이터 저장 후 종료 완료`);
+    try {
+      await this.endAndSaveSession(userId, session.displayName, now);
     } catch (error) {
       console.error(`[ActivityTracker] 세션 강제종료 중 오류 (${userId}):`, error);
       // 오류가 있어도 세션은 제거

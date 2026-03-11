@@ -1,6 +1,6 @@
 // server.js - 봇을 활성 상태로 유지하는 간단한 웹 서버
 import express from 'express';
-import { logger } from './src/config/logger-termux.js';
+import { logger } from './config/logger-termux.js';
 
 /**
  * 봇을 활성 상태로 유지하기 위한 Express 서버를 시작합니다.

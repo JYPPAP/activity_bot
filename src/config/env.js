@@ -49,6 +49,11 @@ export const config = {
   SCRIMMAGE_FORUM_CHANNEL_ID: process.env.SCRIMMAGE_FORUM_CHANNEL_ID, // 내전 전용 포럼 채널
   LONG_TERM_FORUM_CHANNEL_ID: process.env.LONG_TERM_FORUM_CHANNEL_ID,  // 장기 전용 포럼 채널
 
+  // 팀짜기 채널 링크 (내전 1팀~N팀, 인덱스 순서대로)
+  TEAM_CHANNEL_IDS: process.env.TEAM_CHANNEL_IDS
+    ? process.env.TEAM_CHANNEL_IDS.split(',').map(id => id.trim()).filter(Boolean)
+    : [],
+
   // Errsole 설정
   NODE_ENV: process.env.NODE_ENV,
   ERRSOLE_HOST: process.env.ERRSOLE_HOST,
