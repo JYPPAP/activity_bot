@@ -122,7 +122,48 @@ export class ForumPostManager {
       } catch (addError) {
         console.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패:', addError.message);
       }
-      
+
+      // 모집자 + 미리 모인 멤버 참가자 DB 자동 등록
+      if (this.databaseManager) {
+        try {
+          // 모집자 자동 등록
+          const recruiterName = TextProcessor.cleanNickname(
+            recruitmentData.author.displayName || recruitmentData.author.username
+          );
+          await this.databaseManager.addParticipant(
+            thread.id, recruitmentData.author.id, recruiterName
+          );
+          console.log(`[ForumPostManager] 모집자 참가자 자동 등록: ${recruiterName}`);
+
+          // 미리 모인 멤버 자동 등록
+          const preMemberIds = recruitmentData.preMemberIds || [];
+          for (const userId of preMemberIds) {
+            try {
+              const member = await forumChannel.guild.members.fetch(userId);
+              const memberName = TextProcessor.cleanNickname(
+                member.displayName || member.user.username
+              );
+              await this.databaseManager.addParticipant(thread.id, userId, memberName);
+              await thread.members.add(userId);
+              console.log(`[ForumPostManager] 미리 모인 멤버 자동 등록: ${memberName}`);
+            } catch (memberError) {
+              console.warn(`[ForumPostManager] 미리 모인 멤버 추가 실패 (${userId}):`, memberError.message);
+            }
+          }
+
+          // 미리 모인 멤버 멘션 메시지 전송 (핑 알림)
+          if (preMemberIds.length > 0) {
+            const mentions = preMemberIds.map(id => `<@${id}>`).join(' ');
+            await thread.send({
+              content: `📢 **미리 모인 멤버**: ${mentions}`,
+              allowedMentions: { users: preMemberIds },
+            });
+          }
+        } catch (autoAddError) {
+          console.warn('[ForumPostManager] 참가자 자동 등록 중 오류:', autoAddError.message);
+        }
+      }
+
       // 음성 채널이 있으면 별도 메시지로 네이티브 링크 추가
       if (voiceChannelId) {
         try {
@@ -203,6 +244,12 @@ export class ForumPostManager {
     }
 
     content += `## 📝 상세 설명\n${recruitmentData.description}\n\n`;
+
+    // 미리 모인 멤버가 있으면 임베드에 표시
+    if (recruitmentData.preMemberIds && recruitmentData.preMemberIds.length > 0) {
+      const preMemberMentions = recruitmentData.preMemberIds.map(id => `<@${id}>`).join(' ');
+      content += `## 👥 미리 모인 멤버\n${preMemberMentions}\n\n`;
+    }
 
     content += `## 👤 모집자\n<@${recruitmentData.author.id}>`;
 

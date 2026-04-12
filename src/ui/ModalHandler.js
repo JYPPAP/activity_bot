@@ -311,6 +311,15 @@ export class ModalHandler {
         maxLength: DiscordConstants.LIMITS.MODAL_DESCRIPTION_MAX,
         minLength: 0,
       },
+      {
+        customId: 'recruitment_premembers',
+        label: '미리 모인 멤버 (선택)',
+        placeholder: '디스코드에서 멘션 복사 후 붙여넣기 예) @홍길동 @김철수',
+        style: TextInputStyle.Short,
+        required: false,
+        maxLength: 500,
+        minLength: 0,
+      },
     ];
   }
 
@@ -490,12 +499,25 @@ export class ModalHandler {
     const rawTitle = interaction.fields.getTextInputValue('recruitment_title');
     const rawTags = interaction.fields.getTextInputValue('recruitment_tags') || '';
     const rawDescription = interaction.fields.getTextInputValue('recruitment_description') || '';
+    const rawPreMembers = interaction.fields.getTextInputValue('recruitment_premembers') || '';
+
+    // 미리 모인 멤버 멘션 파싱 (<@USER_ID> 또는 <@!USER_ID> 형식)
+    const preMemberIds = [];
+    const mentionRegex = /<@!?(\d+)>/g;
+    let mentionMatch;
+    while ((mentionMatch = mentionRegex.exec(rawPreMembers)) !== null) {
+      const userId = mentionMatch[1];
+      if (!preMemberIds.includes(userId)) {
+        preMemberIds.push(userId);
+      }
+    }
 
     // 디버깅: 추출된 원본 값들 확인
     console.log(`[ModalHandler] 원본 입력값 추출:`);
     console.log(`  - 제목: type=${typeof rawTitle}, value="${rawTitle}", length=${rawTitle?.length || 0}`);
     console.log(`  - 태그: type=${typeof rawTags}, value="${rawTags}", length=${rawTags?.length || 0}`);
     console.log(`  - 설명: type=${typeof rawDescription}, value="${rawDescription}", length=${rawDescription?.length || 0}`);
+    console.log(`  - 미리 모인 멤버: raw="${rawPreMembers}", 파싱된 ID 수=${preMemberIds.length}`);
 
     // 입력 검증 및 정화
     const titleValidation = validateAndSanitizeInput(rawTitle, VALIDATION_PRESETS.TITLE);
@@ -559,6 +581,7 @@ export class ModalHandler {
       tags: tagsArray, // 배열로 변경하여 ForumPostManager와 타입 일치
       description: description.trim(),
       author: interaction.member || interaction.user,
+      preMemberIds, // 미리 모인 멤버 Discord ID 배열
       validationResult, // 검증 결과 추가
       ...(maxParticipants !== undefined && { maxParticipants }),
     };
