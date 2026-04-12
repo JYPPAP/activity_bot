@@ -159,6 +159,13 @@ export class ForumPostManager {
               allowedMentions: { users: preMemberIds },
             });
           }
+
+          // 초기 참가자 목록 메시지 전송 (모집자 + 미리 모인 멤버)
+          const participantNicknames = await this.databaseManager.getParticipantNicknames(thread.id);
+          const participantListMsg = formatParticipantList(participantNicknames);
+          const maxCount = recruitmentData.maxParticipants ?? 'N';
+          await thread.send(`${participantListMsg}\n-# (${participantNicknames.length}/${maxCount}명)`);
+          console.log(`[ForumPostManager] 초기 참가자 목록 메시지 전송 완료: ${participantNicknames.length}명`);
         } catch (autoAddError) {
           console.warn('[ForumPostManager] 참가자 자동 등록 중 오류:', autoAddError.message);
         }
