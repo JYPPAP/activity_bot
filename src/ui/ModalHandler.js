@@ -512,6 +512,18 @@ export class ModalHandler {
       }
     }
 
+    // @name 형식 파싱 (예: "@무지 @현호" - <@ID> 형식 제외 후 추출)
+    const preMemberNames = [];
+    const rawWithoutMentions = rawPreMembers.replace(/<@!?\d+>/g, '');
+    const nameRegex = /@(\S+)/g;
+    let nameMatch;
+    while ((nameMatch = nameRegex.exec(rawWithoutMentions)) !== null) {
+      const name = nameMatch[1];
+      if (!preMemberNames.includes(name)) {
+        preMemberNames.push(name);
+      }
+    }
+
     // 디버깅: 추출된 원본 값들 확인
     console.log(`[ModalHandler] 원본 입력값 추출:`);
     console.log(`  - 제목: type=${typeof rawTitle}, value="${rawTitle}", length=${rawTitle?.length || 0}`);
@@ -581,7 +593,8 @@ export class ModalHandler {
       tags: tagsArray, // 배열로 변경하여 ForumPostManager와 타입 일치
       description: description.trim(),
       author: interaction.member || interaction.user,
-      preMemberIds, // 미리 모인 멤버 Discord ID 배열
+      preMemberIds,    // 미리 모인 멤버 Discord ID 배열 (<@ID> 형식)
+      preMemberNames,  // 미리 모인 멤버 이름 배열 (@name 형식)
       validationResult, // 검증 결과 추가
       ...(maxParticipants !== undefined && { maxParticipants }),
     };

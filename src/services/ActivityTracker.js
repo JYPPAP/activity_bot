@@ -49,7 +49,18 @@ export class ActivityTracker {
       const guild = this.client.guilds.cache.get(config.GUILDID);
       if (!guild) return;
 
-      const members = await guild.members.fetch();
+      // GuildMembersTimeout 방어: fetch 실패 시 캐시 fallback
+      let members;
+      try {
+        members = await guild.members.fetch();
+      } catch (fetchErr) {
+        if (fetchErr.code === 'GuildMembersTimeout') {
+          console.warn('[ActivityTracker] 멤버 fetch 타임아웃, 캐시로 세션 복구 시도');
+          members = guild.members.cache;
+        } else {
+          throw fetchErr;
+        }
+      }
       const now = Date.now();
 
       for (const [userId, member] of members.entries()) {

@@ -151,6 +151,31 @@ export class ForumPostManager {
             }
           }
 
+          // @name 형식으로 입력된 미리 모인 멤버 → guild.members.search()로 ID 해석
+          const preMemberNames = recruitmentData.preMemberNames || [];
+          for (const name of preMemberNames) {
+            try {
+              const searchResults = await forumChannel.guild.members.search({ query: name, limit: 5 });
+              // cleanNickname 기준으로 정확히 일치하는 멤버 우선, 없으면 첫 번째 결과 사용
+              const matched = searchResults.find(m => {
+                const cleanName = TextProcessor.cleanNickname(m.displayName || m.user.username);
+                return cleanName === name || m.user.username === name;
+              }) ?? searchResults.first();
+
+              if (matched && !preMemberIds.includes(matched.id)) {
+                const memberName = TextProcessor.cleanNickname(matched.displayName || matched.user.username);
+                await this.databaseManager.addParticipant(thread.id, matched.id, memberName);
+                await thread.members.add(matched.id);
+                preMemberIds.push(matched.id);
+                console.log(`[ForumPostManager] @name 멤버 등록 성공: "${name}" → ${memberName} (${matched.id})`);
+              } else if (!matched) {
+                console.warn(`[ForumPostManager] @name으로 멤버를 찾을 수 없음: "${name}"`);
+              }
+            } catch (nameSearchErr) {
+              console.warn(`[ForumPostManager] @name 검색 실패 ("${name}"):`, nameSearchErr.message);
+            }
+          }
+
           // 미리 모인 멤버 멘션 메시지 전송 (핑 알림)
           if (preMemberIds.length > 0) {
             const mentions = preMemberIds.map(id => `<@${id}>`).join(' ');
