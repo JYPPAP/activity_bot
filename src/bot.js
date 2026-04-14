@@ -22,6 +22,7 @@ export class Bot {
         GatewayIntentBits.GuildMembers,
         GatewayIntentBits.GuildPresences,
         GatewayIntentBits.GuildVoiceStates,
+        GatewayIntentBits.GuildMessages,         // awaitMessages 동작에 필요
         GatewayIntentBits.GuildMessageReactions,
       ],
     });
