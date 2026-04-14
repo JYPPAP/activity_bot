@@ -316,7 +316,7 @@ export class ModalHandler {
       {
         customId: 'recruitment_premembers',
         label: '미리 모인 멤버 (선택)',
-        placeholder: '디스코드에서 멘션 복사 후 붙여넣기 예) @홍길동 @김철수',
+        placeholder: '닉네임을 @로 구분해서 입력 예) @무지 @현호',
         style: TextInputStyle.Short,
         required: false,
         maxLength: 500,

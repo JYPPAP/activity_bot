@@ -841,7 +841,7 @@ export class ButtonHandler {
         .setCustomId('premembers_new_list')
         .setLabel('참가자 목록 (수정 후 제출)')
         .setStyle(TextInputStyle.Short)
-        .setPlaceholder('@닉네임 형식으로 입력 — 빈칸이면 모두 제거')
+        .setPlaceholder('닉네임을 @로 구분해서 입력 예) @무지 @현호 — 비우면 전원 제거')
         .setValue(currentMentions)
         .setRequired(false)
         .setMaxLength(500);
