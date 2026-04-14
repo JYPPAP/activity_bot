@@ -870,6 +870,9 @@ export class ButtonHandler {
    * @param {UserSelectMenuInteraction} interaction
    */
   async handlePreMembersSelectMenu(interaction) {
+    // ① 가장 먼저 deferUpdate — 3초 제한을 15분으로 연장
+    await interaction.deferUpdate();
+
     try {
       const withoutPrefix = interaction.customId.replace(
         DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_USER_SELECT, ''
@@ -878,24 +881,18 @@ export class ButtonHandler {
       const threadId    = withoutPrefix.slice(0, underscoreIdx);
       const recruiterId = withoutPrefix.slice(underscoreIdx + 1);
 
-      // 권한 재확인 (혹시 모를 요청 위변조 대비)
+      // 권한 재확인
       if (interaction.user.id !== recruiterId) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '⚠️ 모집자만 수정할 수 있습니다.',
-          ephemeral: true,
-        });
+        await interaction.editReply({ content: '⚠️ 모집자만 수정할 수 있습니다.', components: [] });
         return;
       }
 
-      // interaction.values = 선택된 userId 배열 (Discord가 서버에서 직접 resolve)
+      // interaction.values = Discord 서버가 resolve한 선택된 userId 배열
       const newUserIds = interaction.values;
 
       const db = this.forumPostManager?.databaseManager;
       if (!db) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '❌ DB 연결 오류가 발생했습니다.',
-          ephemeral: true,
-        });
+        await interaction.editReply({ content: '❌ DB 연결 오류가 발생했습니다.', components: [] });
         return;
       }
 
@@ -905,7 +902,7 @@ export class ButtonHandler {
       const toAdd    = newUserIds.filter(id => !currentIds.includes(id));
       const toRemove = currentIds.filter(id => !newUserIds.includes(id));
 
-      // DB 업데이트: 추가
+      // ② DB 업데이트: 추가
       const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
       for (const userId of toAdd) {
         try {
@@ -913,39 +910,39 @@ export class ButtonHandler {
           const nickname = TextProcessor.cleanNickname(member.displayName || member.user.username);
           await db.addParticipant(threadId, userId, nickname);
           if (thread) await thread.members.add(userId).catch(() => {});
-        } catch { /* 스킵 */ }
+        } catch { /* 멤버 조회 실패 스킵 */ }
       }
 
-      // DB 업데이트: 제거
+      // ③ DB 업데이트: 제거
       for (const userId of toRemove) {
         await db.removeParticipant(threadId, userId).catch(() => {});
       }
 
-      // 스레드에 갱신된 참가자 목록 전송
+      // ④ 스레드에 갱신된 참가자 목록 전송
       if (thread) {
         const updatedNicknames = await db.getParticipantNicknames(threadId);
         await thread.send(`${formatParticipantList(updatedNicknames)}\n-# (멤버 수정됨)`);
       }
 
-      // ephemeral 메시지를 완료 상태로 업데이트
-      const updatedDisplay = newUserIds.length > 0
-        ? newUserIds.map(id => `<@${id}>`).join(' ')
-        : '없음';
+      // ⑤ deferUpdate 이후 완료 결과는 editReply로 전송
+      const lines = [
+        `✅ **멤버 수정 완료**`,
+        toAdd.length > 0    ? `추가: ${toAdd.map(id => `<@${id}>`).join(' ')}`    : null,
+        toRemove.length > 0 ? `제거: ${toRemove.map(id => `<@${id}>`).join(' ')}` : null,
+        toAdd.length === 0 && toRemove.length === 0 ? `변경사항 없음` : null,
+      ].filter(Boolean);
 
-      await interaction.update({
-        content: [
-          `✅ **멤버 수정 완료**`,
-          `변경된 참가자: ${updatedDisplay}`,
-          toAdd.length > 0    ? `추가: ${toAdd.map(id => `<@${id}>`).join(' ')}` : null,
-          toRemove.length > 0 ? `제거: ${toRemove.map(id => `<@${id}>`).join(' ')}` : null,
-        ].filter(Boolean).join('\n'),
-        components: [],
-      });
+      await interaction.editReply({ content: lines.join('\n'), components: [] });
 
       console.log(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 
     } catch (error) {
       console.error('[ButtonHandler] 멤버 SelectMenu 처리 오류:', error);
+      // deferUpdate 이후 에러 시 editReply로 안내
+      await interaction.editReply({
+        content: '❌ 멤버 수정 처리 중 오류가 발생했습니다.',
+        components: [],
+      }).catch(() => {});
     }
   }
 
