@@ -1,10 +1,11 @@
 // src/ui/ButtonHandler.js - 버튼 인터랙션 처리
-import { EmbedBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
+import { EmbedBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
+import { formatParticipantList } from '../utils/formatters.js';
 import { config } from '../config/env.js';
 
 export class ButtonHandler {
@@ -805,9 +806,8 @@ export class ButtonHandler {
       const withoutPrefix = interaction.customId.replace(
         DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS, ''
       );
-      // 마지막 '_' 기준으로 분리 (threadId에 '_' 없음, recruiterId도 없음)
       const underscoreIdx = withoutPrefix.lastIndexOf('_');
-      const threadId   = withoutPrefix.slice(0, underscoreIdx);
+      const threadId    = withoutPrefix.slice(0, underscoreIdx);
       const recruiterId = withoutPrefix.slice(underscoreIdx + 1);
 
       // 모집자 권한 확인
@@ -819,42 +819,101 @@ export class ButtonHandler {
         return;
       }
 
-      // 현재 참가자 목록 조회 (userId 포함)
-      const databaseManager = this.forumPostManager?.databaseManager;
-      let currentParticipants = [];
-      if (databaseManager) {
-        const rows = await databaseManager.getParticipants(threadId);
-        currentParticipants = rows ?? [];
+      const db = this.forumPostManager?.databaseManager;
+      const currentParticipants = db
+        ? (await db.getParticipants(threadId) ?? [])
+        : [];
+
+      // 현재 멤버를 @닉네임 형식으로 표시 (ID 노출 없이)
+      const currentDisplay = currentParticipants.length > 0
+        ? currentParticipants.map(p => `@${p.nickname}`).join(' ')
+        : '없음';
+
+      // 스레드 채널 가져오기
+      const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
+      if (!thread) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '❌ 스레드를 찾을 수 없습니다.',
+          ephemeral: true,
+        });
+        return;
       }
 
-      // 현재 참가자를 <@userId> 멘션 문자열로 변환 (모달 pre-fill용)
-      const currentMentions = currentParticipants
-        .map(p => `<@${p.userId}>`)
-        .join(' ');
+      // 스레드에 안내 메시지 전송 (@ 자동완성 사용 가능)
+      const promptMsg = await thread.send({
+        content: [
+          `**✏️ 멤버 수정** (<@${interaction.user.id}> 전용)`,
+          `현재 참가자: **${currentDisplay}**`,
+          ``,
+          `수정할 멤버를 **이 채널에 @멘션**으로 입력해주세요.`,
+          `예) \`@무지 @현호\`  ←  비워서 전송하면 전원 제거`,
+          `-# 60초 내에 입력이 없으면 자동 취소됩니다.`,
+        ].join('\n'),
+        allowedMentions: { users: [interaction.user.id] },
+      });
 
-      // 모달 생성 (현재 참가자 목록 pre-fill)
-      const modal = new ModalBuilder()
-        .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_EDIT_MODAL}${threadId}`)
-        .setTitle('멤버 수정');
+      // 버튼 인터랙션 응답 처리
+      await SafeInteraction.safeDeferUpdate(interaction);
 
-      const membersInput = new TextInputBuilder()
-        .setCustomId('premembers_new_list')
-        .setLabel('참가자 목록 (수정 후 제출)')
-        .setStyle(TextInputStyle.Short)
-        .setPlaceholder('닉네임을 @로 구분해서 입력 예) @무지 @현호 — 비우면 전원 제거')
-        .setValue(currentMentions)
-        .setRequired(false)
-        .setMaxLength(500);
+      // 모집자의 다음 메시지 대기 (60초)
+      let collected;
+      try {
+        collected = await thread.awaitMessages({
+          filter: (m) => m.author.id === recruiterId,
+          time: 60_000,
+          max: 1,
+          errors: ['time'],
+        });
+      } catch {
+        // 시간 초과
+        await promptMsg.edit({ content: '⏱️ 시간 초과로 멤버 수정이 취소됐습니다.' })
+          .catch(() => {});
+        return;
+      }
 
-      modal.addComponents(new ActionRowBuilder().addComponents(membersInput));
-      await interaction.showModal(modal);
+      const reply = collected.first();
+
+      // Discord가 서버에서 resolve한 mentions.users 사용
+      // → @ 자동완성으로 선택 시 정확한 userId 포함
+      const newUserIds = [...reply.mentions.users.keys()];
+
+      // 프롬프트 메시지 + 사용자 입력 정리
+      await promptMsg.delete().catch(() => {});
+      await reply.delete().catch(() => {});
+
+      if (!db) {
+        await thread.send({ content: '❌ DB 연결 오류로 수정할 수 없습니다.' });
+        return;
+      }
+
+      // diff 계산
+      const currentIds = currentParticipants.map(p => p.userId);
+      const toAdd    = newUserIds.filter(id => !currentIds.includes(id));
+      const toRemove = currentIds.filter(id => !newUserIds.includes(id));
+
+      // DB 업데이트: 추가
+      for (const userId of toAdd) {
+        try {
+          const member = await interaction.guild.members.fetch(userId);
+          const nickname = TextProcessor.cleanNickname(member.displayName || member.user.username);
+          await db.addParticipant(threadId, userId, nickname);
+          await thread.members.add(userId).catch(() => {});
+        } catch { /* 멤버 조회 실패 스킵 */ }
+      }
+
+      // DB 업데이트: 제거
+      for (const userId of toRemove) {
+        await db.removeParticipant(threadId, userId).catch(() => {});
+      }
+
+      // 갱신된 참가자 목록 전송
+      const updatedNicknames = await db.getParticipantNicknames(threadId);
+      await thread.send(`${formatParticipantList(updatedNicknames)}\n-# (멤버 수정됨)`);
+
+      console.log(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 
     } catch (error) {
       console.error('[ButtonHandler] 멤버 수정 버튼 처리 오류:', error);
-      await SafeInteraction.safeReply(interaction, {
-        content: '❌ 멤버 수정 창을 여는 중 오류가 발생했습니다.',
-        ephemeral: true,
-      });
     }
   }
 

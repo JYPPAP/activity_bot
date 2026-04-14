@@ -13,8 +13,6 @@ import { ForumPostManager } from '../services/ForumPostManager.js';
 import { RecruitmentService } from '../services/RecruitmentService.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { validateAndSanitizeInput, VALIDATION_PRESETS, getValidationErrorMessage } from '../utils/inputValidator.js';
-import { formatParticipantList } from '../utils/formatters.js';
-import { TextProcessor } from '../utils/TextProcessor.js';
 
 export class ModalHandler {
   constructor(recruitmentService, forumPostManager) {
@@ -363,12 +361,6 @@ export class ModalHandler {
 
     try {
       const customId = interaction.customId;
-
-      // 미리 모인 멤버 수정 모달 처리
-      if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_EDIT_MODAL)) {
-        await this.handleEditPreMembersModalSubmit(interaction);
-        return;
-      }
 
       // [내전] 모달 처리
       if (customId.startsWith('scrimmage_recruitment_modal')) {
@@ -1076,107 +1068,5 @@ export class ModalHandler {
       return tagsMatch[1].split(',');
     }
     return [];
-  }
-
-  /**
-   * 미리 모인 멤버 수정 모달 제출 처리
-   * customId 형식: premembers_edit_modal_{threadId}
-   * @param {import('discord.js').ModalSubmitInteraction} interaction
-   */
-  async handleEditPreMembersModalSubmit(interaction) {
-    try {
-      const threadId = interaction.customId.replace(
-        DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_EDIT_MODAL, ''
-      );
-
-      const rawInput = interaction.fields.getTextInputValue('premembers_new_list') || '';
-
-      // ── 1. <@ID> 형식 파싱 ──────────────────────────────────────
-      const newUserIds = [];
-      const mentionRegex = /<@!?(\d+)>/g;
-      let m;
-      while ((m = mentionRegex.exec(rawInput)) !== null) {
-        if (!newUserIds.includes(m[1])) newUserIds.push(m[1]);
-      }
-
-      // ── 2. @name 형식 파싱 → guild.members.search() 로 ID 해석 ──
-      const rawWithoutMentions = rawInput.replace(/<@!?\d+>/g, '');
-      const nameRegex = /@(\S+)/g;
-      while ((m = nameRegex.exec(rawWithoutMentions)) !== null) {
-        const name = m[1];
-        try {
-          const results = await interaction.guild.members.search({ query: name, limit: 5 });
-          const matched = results.find(mb => {
-            const clean = TextProcessor.cleanNickname(mb.displayName || mb.user.username);
-            return clean === name || mb.user.username === name;
-          }) ?? results.first();
-          if (matched && !newUserIds.includes(matched.id)) {
-            newUserIds.push(matched.id);
-          }
-        } catch { /* 조회 실패는 무시 */ }
-      }
-
-      // ── 3. 현재 참가자 조회 ──────────────────────────────────────
-      const db = this.forumPostManager?.databaseManager;
-      if (!db) {
-        await SafeInteraction.safeReply(interaction, {
-          content: '❌ DB 연결 오류로 수정할 수 없습니다.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      const currentRows = await db.getParticipants(threadId) ?? [];
-      const currentIds = currentRows.map(r => r.userId);
-
-      // ── 4. diff: 추가/제거 계산 ──────────────────────────────────
-      const toAdd    = newUserIds.filter(id => !currentIds.includes(id));
-      const toRemove = currentIds.filter(id => !newUserIds.includes(id));
-
-      // ── 5. DB 업데이트 ───────────────────────────────────────────
-      for (const userId of toAdd) {
-        try {
-          const member = await interaction.guild.members.fetch(userId);
-          const nickname = TextProcessor.cleanNickname(member.displayName || member.user.username);
-          await db.addParticipant(threadId, userId, nickname);
-          // 스레드 멤버에도 추가
-          const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
-          if (thread) await thread.members.add(userId).catch(() => {});
-        } catch { /* 멤버 조회 실패 시 스킵 */ }
-      }
-
-      for (const userId of toRemove) {
-        await db.removeParticipant(threadId, userId).catch(() => {});
-      }
-
-      // ── 6. 스레드에 변경 알림 메시지 전송 ───────────────────────
-      const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
-      if (thread) {
-        const updatedNicknames = await db.getParticipantNicknames(threadId);
-        const listMsg = formatParticipantList(updatedNicknames);
-        await thread.send(`${listMsg}\n-# (멤버 수정됨)`);
-      }
-
-      // ── 7. 수정 완료 응답 (ephemeral) ────────────────────────────
-      const summary = [
-        toAdd.length    > 0 ? `추가: ${toAdd.map(id => `<@${id}>`).join(' ')}`    : null,
-        toRemove.length > 0 ? `제거: ${toRemove.map(id => `<@${id}>`).join(' ')}` : null,
-        toAdd.length === 0 && toRemove.length === 0 ? '변경사항이 없습니다.' : null,
-      ].filter(Boolean).join('\n');
-
-      await SafeInteraction.safeReply(interaction, {
-        content: `✅ 멤버 수정 완료\n${summary}`,
-        ephemeral: true,
-      });
-
-      console.log(`[ModalHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
-
-    } catch (error) {
-      console.error('[ModalHandler] 멤버 수정 모달 처리 오류:', error);
-      await SafeInteraction.safeReply(interaction, {
-        content: '❌ 멤버 수정 처리 중 오류가 발생했습니다.',
-        ephemeral: true,
-      });
-    }
   }
 }
