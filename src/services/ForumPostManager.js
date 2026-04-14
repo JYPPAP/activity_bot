@@ -59,8 +59,8 @@ export class ForumPostManager {
         components.push(generalButtons);
       }
 
-      // 두 번째 행: 모든 경우에 참가 버튼 추가
-      const participationButtons = this.createParticipationButtons('temp');
+      // 두 번째 행: 모든 경우에 참가 버튼 추가 (모집자 ID 포함)
+      const participationButtons = this.createParticipationButtons('temp', recruitmentData.author.id);
       components.push(participationButtons);
       
       const messageOptions = {
@@ -93,6 +93,8 @@ export class ForumPostManager {
               const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
               const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
 
+              const isEditButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS);
+
               if (isJoinButton) {
                 return ButtonBuilder.from(button).setCustomId(
                   `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${thread.id}`
@@ -100,6 +102,10 @@ export class ForumPostManager {
               } else if (isLeaveButton) {
                 return ButtonBuilder.from(button).setCustomId(
                   `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
+                );
+              } else if (isEditButton) {
+                return ButtonBuilder.from(button).setCustomId(
+                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS}${thread.id}_${recruitmentData.author.id}`
                 );
               }
               return ButtonBuilder.from(button);
@@ -368,11 +374,12 @@ export class ForumPostManager {
   }
 
   /**
-   * 참가 버튼들 생성 (독립 포럼용) - 참가하기/참가 취소 2개 버튼
+   * 참가 버튼들 생성 (독립 포럼용) - 참가하기 / 참가 취소 / 멤버 수정(모집자 전용) 3개 버튼
    * @param {string} threadId - 포럼 스레드 ID
+   * @param {string} recruiterId - 모집자 Discord ID (멤버 수정 버튼에 인코딩)
    * @returns {ActionRowBuilder} 참가 버튼들을 포함한 ActionRow
    */
-  createParticipationButtons(threadId) {
+  createParticipationButtons(threadId, recruiterId = 'temp') {
     const joinButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${threadId}`)
       .setLabel('참가하기')
@@ -385,7 +392,15 @@ export class ForumPostManager {
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('👋');
 
-    return new ActionRowBuilder().addComponents(joinButton, leaveButton);
+    // 모집자 전용: 미리 모인 멤버 수정 버튼
+    // customId 형식: forum_edit_premembers_{threadId}_{recruiterId}
+    const editMembersButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS}${threadId}_${recruiterId}`)
+      .setLabel('멤버 수정')
+      .setStyle(ButtonStyle.Secondary)
+      .setEmoji('✏️');
+
+    return new ActionRowBuilder().addComponents(joinButton, leaveButton, editMembersButton);
   }
 
   /**

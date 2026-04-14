@@ -1,5 +1,5 @@
 // src/ui/ButtonHandler.js - 버튼 인터랙션 처리
-import { EmbedBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { EmbedBuilder, MessageFlags, ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
@@ -280,6 +280,8 @@ export class ButtonHandler {
         await this.handleJoinButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)) {
         await this.handleLeaveButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS)) {
+        await this.handleEditPreMembersButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
         // 하위 호환성을 위해 유지 (기존 포스트용)
         await this.handleJoinButton(interaction);
@@ -793,6 +795,70 @@ export class ButtonHandler {
   }
 
   /**
+   * 미리 모인 멤버 수정 버튼 처리 (모집자 전용)
+   * customId 형식: forum_edit_premembers_{threadId}_{recruiterId}
+   * @param {ButtonInteraction} interaction
+   */
+  async handleEditPreMembersButton(interaction) {
+    try {
+      // customId에서 threadId와 recruiterId 파싱
+      const withoutPrefix = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS, ''
+      );
+      // 마지막 '_' 기준으로 분리 (threadId에 '_' 없음, recruiterId도 없음)
+      const underscoreIdx = withoutPrefix.lastIndexOf('_');
+      const threadId   = withoutPrefix.slice(0, underscoreIdx);
+      const recruiterId = withoutPrefix.slice(underscoreIdx + 1);
+
+      // 모집자 권한 확인
+      if (interaction.user.id !== recruiterId) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '⚠️ 모집자만 멤버를 수정할 수 있습니다.',
+          ephemeral: true,
+        });
+        return;
+      }
+
+      // 현재 참가자 목록 조회 (userId 포함)
+      const databaseManager = this.forumPostManager?.databaseManager;
+      let currentParticipants = [];
+      if (databaseManager) {
+        const rows = await databaseManager.getParticipants(threadId);
+        currentParticipants = rows ?? [];
+      }
+
+      // 현재 참가자를 <@userId> 멘션 문자열로 변환 (모달 pre-fill용)
+      const currentMentions = currentParticipants
+        .map(p => `<@${p.userId}>`)
+        .join(' ');
+
+      // 모달 생성 (현재 참가자 목록 pre-fill)
+      const modal = new ModalBuilder()
+        .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_EDIT_MODAL}${threadId}`)
+        .setTitle('멤버 수정');
+
+      const membersInput = new TextInputBuilder()
+        .setCustomId('premembers_new_list')
+        .setLabel('참가자 목록 (수정 후 제출)')
+        .setStyle(TextInputStyle.Short)
+        .setPlaceholder('@닉네임 형식으로 입력 — 빈칸이면 모두 제거')
+        .setValue(currentMentions)
+        .setRequired(false)
+        .setMaxLength(500);
+
+      modal.addComponents(new ActionRowBuilder().addComponents(membersInput));
+      await interaction.showModal(modal);
+
+    } catch (error) {
+      console.error('[ButtonHandler] 멤버 수정 버튼 처리 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 멤버 수정 창을 여는 중 오류가 발생했습니다.',
+        ephemeral: true,
+      });
+    }
+  }
+
+  /**
    * 버튼 처리 라우팅
    * @param {ButtonInteraction} interaction - 버튼 인터랙션
    * @returns {Promise<void>}
@@ -846,6 +912,7 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||
