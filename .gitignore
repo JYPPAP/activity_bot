@@ -12,7 +12,9 @@
 *.swo
 
 # Claude Code
-/.claude/settings.local.json
+/.claude/
+CLAUDE.md
+CODEBASE_MAP.md
 
 # Logs
 /logs/
