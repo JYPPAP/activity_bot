@@ -28,8 +28,8 @@ export class DiscordConstants {
     EXISTING_POST_SELECT: 'existing_post_select_',
     SCRIMMAGE_RECRUITMENT: 'scrimmage_recruitment_',
     LONG_TERM_RECRUITMENT: 'long_term_recruitment_',
-    FORUM_EDIT_PREMEMBERS: 'forum_edit_premembers_',  // format: forum_edit_premembers_{threadId}_{recruiterId}
-    PREMEMBERS_EDIT_MODAL: 'premembers_edit_modal_',  // format: premembers_edit_modal_{threadId}
+    FORUM_EDIT_PREMEMBERS: 'forum_edit_premembers_',   // format: forum_edit_premembers_{threadId}_{recruiterId}
+    PREMEMBERS_USER_SELECT: 'premembers_user_select_', // format: premembers_user_select_{threadId}_{recruiterId}
   };
   
   // ========== 메서드 값 ==========

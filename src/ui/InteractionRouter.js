@@ -95,11 +95,15 @@ export class InteractionRouter {
       case ComponentType.Button:
         await this.routeButtonInteraction(interaction);
         break;
-        
+
       case ComponentType.StringSelect:
         await this.routeSelectMenuInteraction(interaction);
         break;
-        
+
+      case ComponentType.UserSelect:
+        await this.routeUserSelectInteraction(interaction);
+        break;
+
       default:
         console.warn(`[InteractionRouter] 처리되지 않은 컴포넌트 타입: ${interaction.componentType}`);
         break;
@@ -169,6 +173,20 @@ export class InteractionRouter {
     }
     else {
       console.warn(`[InteractionRouter] 처리되지 않은 셀렉트 메뉴: ${customId}`);
+    }
+  }
+
+  /**
+   * UserSelect 인터랙션 라우팅 (멤버 수정 등)
+   * @param {UserSelectMenuInteraction} interaction
+   */
+  async routeUserSelectInteraction(interaction) {
+    const customId = interaction.customId;
+
+    if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_USER_SELECT)) {
+      await this.buttonHandler.handlePreMembersSelectMenu(interaction);
+    } else {
+      console.warn(`[InteractionRouter] 처리되지 않은 UserSelect: ${customId}`);
     }
   }
 
