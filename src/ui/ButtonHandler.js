@@ -823,10 +823,6 @@ export class ButtonHandler {
         ? (await db.getParticipants(threadId) ?? [])
         : [];
 
-      const currentDisplay = currentParticipants.length > 0
-        ? currentParticipants.map(p => `@${p.nickname}`).join(' ')
-        : '없음';
-
       const thread = await interaction.client.channels.fetch(threadId).catch(() => null);
       if (!thread) {
         await SafeInteraction.safeReply(interaction, {
@@ -836,22 +832,34 @@ export class ButtonHandler {
         return;
       }
 
-      // 스레드에 안내 메시지 전송 (@ 자동완성 사용 가능)
+      // ① 모집자에게만 보이는 ephemeral: 현재 참가자 목록을 복사하기 편한 형태로 출력
+      const copyText = currentParticipants.length > 0
+        ? currentParticipants.map(p => `@${p.nickname}`).join(' ')
+        : '(참가자 없음)';
+
+      await SafeInteraction.safeReply(interaction, {
+        content: [
+          `**📋 현재 참가자 목록** (${currentParticipants.length}명)`,
+          `아래를 복사한 후 수정해서 채널에 입력해주세요:`,
+          `\`\`\``,
+          copyText,
+          `\`\`\``,
+        ].join('\n'),
+        ephemeral: true,
+      });
+
+      // ② 스레드에 입력 안내 메시지 전송
       const promptMsg = await thread.send({
         content: [
           `**✏️ 멤버 수정** (<@${interaction.user.id}> 전용)`,
-          `현재 참가자: **${currentDisplay}**`,
-          ``,
-          `수정할 멤버를 **이 채널에 @멘션**으로 입력해주세요.`,
+          `수정할 멤버를 **@닉네임** 형식으로 입력해주세요.`,
           `예) \`@무지 @현호\`  ←  비워서 전송하면 전원 제거`,
           `-# 5분 내에 입력이 없으면 자동 취소됩니다.`,
         ].join('\n'),
-        allowedMentions: { users: [interaction.user.id] },
+        allowedMentions: { users: [] },
       });
 
-      await SafeInteraction.safeDeferUpdate(interaction);
-
-      // 모집자의 다음 메시지 대기 (5분)
+      // ③ 모집자의 다음 메시지 대기 (5분)
       let collected;
       try {
         collected = await thread.awaitMessages({
@@ -868,6 +876,7 @@ export class ButtonHandler {
       const reply = collected.first();
       const newUserIds = [...reply.mentions.users.keys()];
 
+      // 안내 메시지 + 입력 메시지 정리
       await promptMsg.delete().catch(() => {});
       await reply.delete().catch(() => {});
 
@@ -893,8 +902,9 @@ export class ButtonHandler {
         await db.removeParticipant(threadId, userId).catch(() => {});
       }
 
+      // ④ 이전 참가자 목록 메시지 삭제 후 새 목록 전송 (참가하기 버튼과 동일한 방식)
       const updatedNicknames = await db.getParticipantNicknames(threadId);
-      await thread.send(`${formatParticipantList(updatedNicknames)}\n-# (멤버 수정됨)`);
+      await this.forumPostManager.sendEmojiParticipantUpdate(threadId, updatedNicknames, '멤버수정');
 
       console.log(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 
