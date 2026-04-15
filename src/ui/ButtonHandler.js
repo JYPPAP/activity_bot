@@ -874,7 +874,28 @@ export class ButtonHandler {
       }
 
       const reply = collected.first();
+
+      // ① <@ID> 형식 파싱 (Discord 자동완성으로 선택한 멘션)
       const newUserIds = [...reply.mentions.users.keys()];
+
+      // ② @name 형식 파싱 → guild.members.search()로 ID 해석
+      //    (텍스트로 직접 입력한 "@무지 @현호" 처리)
+      const rawWithoutMentions = reply.content.replace(/<@!?\d+>/g, '');
+      const nameRegex = /@(\S+)/g;
+      let nameMatch;
+      while ((nameMatch = nameRegex.exec(rawWithoutMentions)) !== null) {
+        const name = nameMatch[1];
+        try {
+          const results = await interaction.guild.members.search({ query: name, limit: 5 });
+          const matched = results.find(m => {
+            const clean = TextProcessor.cleanNickname(m.displayName || m.user.username);
+            return clean === name || m.user.username === name;
+          }) ?? results.first();
+          if (matched && !newUserIds.includes(matched.id)) {
+            newUserIds.push(matched.id);
+          }
+        } catch { /* 검색 실패 스킵 */ }
+      }
 
       // 안내 메시지 + 입력 메시지 정리
       await promptMsg.delete().catch(() => {});
