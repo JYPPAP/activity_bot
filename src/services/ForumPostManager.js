@@ -159,14 +159,51 @@ export class ForumPostManager {
 
           // @name 형식으로 입력된 미리 모인 멤버 → guild.members.search()로 ID 해석
           const preMemberNames = recruitmentData.preMemberNames || [];
+          console.log(`[ForumPostManager] @name 멤버 처리 시작: ${preMemberNames.length}명 [${preMemberNames.join(', ')}]`);
           for (const name of preMemberNames) {
             try {
-              const searchResults = await forumChannel.guild.members.search({ query: name, limit: 5 });
-              // cleanNickname 기준으로 정확히 일치하는 멤버 우선, 없으면 첫 번째 결과 사용
-              const matched = searchResults.find(m => {
-                const cleanName = TextProcessor.cleanNickname(m.displayName || m.user.username);
-                return cleanName === name || m.user.username === name;
-              }) ?? searchResults.first();
+              let matched = null;
+
+              // 1차: Discord REST API 검색 (닉네임/username 기반)
+              try {
+                const searchResults = await forumChannel.guild.members.search({ query: name, limit: 10 });
+                console.log(`[ForumPostManager] "${name}" API 검색 결과: ${searchResults.size}명`);
+
+                // 정확히 일치하는 멤버 우선 탐색
+                matched = searchResults.find(m => {
+                  const cleanName = TextProcessor.cleanNickname(m.displayName || m.user.username);
+                  const globalName = m.user.globalName || '';
+                  return (
+                    cleanName === name ||
+                    m.user.username === name ||
+                    globalName === name ||
+                    TextProcessor.cleanNickname(globalName) === name
+                  );
+                }) ?? searchResults.first();
+              } catch (apiErr) {
+                console.warn(`[ForumPostManager] "${name}" API 검색 오류:`, apiErr.message);
+              }
+
+              // 2차 폴백: 캐시에서 검색 (글로벌 이름 / 부분 일치 포함)
+              if (!matched) {
+                console.log(`[ForumPostManager] "${name}" 캐시 폴백 검색 시도...`);
+                matched = forumChannel.guild.members.cache.find(m => {
+                  const cleanNick = TextProcessor.cleanNickname(m.displayName || m.user.username);
+                  const globalName = m.user.globalName || '';
+                  const cleanGlobal = TextProcessor.cleanNickname(globalName);
+                  return (
+                    cleanNick === name ||
+                    m.user.username === name ||
+                    globalName === name ||
+                    cleanGlobal === name ||
+                    cleanNick.includes(name) ||
+                    cleanGlobal.includes(name)
+                  );
+                }) ?? null;
+                if (matched) {
+                  console.log(`[ForumPostManager] "${name}" 캐시에서 발견: ${matched.displayName} (${matched.id})`);
+                }
+              }
 
               if (matched && !preMemberIds.includes(matched.id)) {
                 const memberName = TextProcessor.cleanNickname(matched.displayName || matched.user.username);
@@ -175,7 +212,9 @@ export class ForumPostManager {
                 preMemberIds.push(matched.id);
                 console.log(`[ForumPostManager] @name 멤버 등록 성공: "${name}" → ${memberName} (${matched.id})`);
               } else if (!matched) {
-                console.warn(`[ForumPostManager] @name으로 멤버를 찾을 수 없음: "${name}"`);
+                console.warn(`[ForumPostManager] @name으로 멤버를 찾을 수 없음: "${name}" (API+캐시 모두 실패)`);
+              } else {
+                console.log(`[ForumPostManager] "${name}" 이미 등록된 멤버 (${matched.id}), 스킵`);
               }
             } catch (nameSearchErr) {
               console.warn(`[ForumPostManager] @name 검색 실패 ("${name}"):`, nameSearchErr.message);

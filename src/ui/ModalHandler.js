@@ -529,7 +529,7 @@ export class ModalHandler {
     console.log(`  - 제목: type=${typeof rawTitle}, value="${rawTitle}", length=${rawTitle?.length || 0}`);
     console.log(`  - 태그: type=${typeof rawTags}, value="${rawTags}", length=${rawTags?.length || 0}`);
     console.log(`  - 설명: type=${typeof rawDescription}, value="${rawDescription}", length=${rawDescription?.length || 0}`);
-    console.log(`  - 미리 모인 멤버: raw="${rawPreMembers}", 파싱된 ID 수=${preMemberIds.length}`);
+    console.log(`  - 미리 모인 멤버: raw="${rawPreMembers}", 파싱된 ID 수=${preMemberIds.length}, 파싱된 @name 수=${preMemberNames.length}, names=[${preMemberNames.join(', ')}]`);
 
     // 입력 검증 및 정화
     const titleValidation = validateAndSanitizeInput(rawTitle, VALIDATION_PRESETS.TITLE);
