@@ -9,11 +9,11 @@ export class TeamCommand {
   }
 
   // ──────────────────────────────────────────────────────────────
-  // 이전 팀 페어 이력 (길드 ID → Set<"A|||B"> 형태)
-  // 봇 재시작 전까지 메모리에 유지. 같은 팀이었던 두 플레이어의
-  // 정렬된 이름 쌍을 키로 저장해 다음 팀짜기에서 분리에 활용한다.
+  // 이전 팀 페어 이력 (길드 ID → { pairs: Set<string>, timestamp: number })
+  // 마지막 팀짜기로부터 HISTORY_TTL_MS 이내에만 유효. 만료 시 무시.
   // ──────────────────────────────────────────────────────────────
-  static lastPairHistory = new Map(); // guildId → Set<string>
+  static lastPairHistory = new Map(); // guildId → { pairs: Set<string>, timestamp: number }
+  static HISTORY_TTL_MS = 60 * 60 * 1000; // 1시간
 
   /**
    * 두 플레이어 이름으로 방향성 없는 페어 키 생성
@@ -155,7 +155,15 @@ export class TeamCommand {
     // CANDIDATE_COUNT번 셔플 후 이전 페어 중복이 가장 적은 배치 채택
     // ──────────────────────────────────────────────────────────────
     const guildId = interaction.guildId;
-    const history = TeamCommand.lastPairHistory.get(guildId) ?? new Set();
+    const historyEntry = TeamCommand.lastPairHistory.get(guildId);
+    const isHistoryValid = historyEntry &&
+      (Date.now() - historyEntry.timestamp < TeamCommand.HISTORY_TTL_MS);
+    const history = isHistoryValid ? historyEntry.pairs : new Set();
+
+    if (historyEntry && !isHistoryValid) {
+      logger.info('팀짜기 페어 이력 만료 — 이력 초기화', { component: 'TeamCommand', guildId });
+      TeamCommand.lastPairHistory.delete(guildId);
+    }
 
     const CANDIDATE_COUNT = 40; // 시도 횟수 (많을수록 다양성↑, 처리 시간↑)
     let bestTeams = null;
@@ -177,14 +185,18 @@ export class TeamCommand {
 
     const teams = bestTeams;
 
-    // 선택된 팀 배치의 페어를 다음 팀짜기를 위해 저장
-    TeamCommand.lastPairHistory.set(guildId, TeamCommand.extractPairs(teams));
+    // 선택된 팀 배치의 페어를 다음 팀짜기를 위해 저장 (타임스탬프 포함)
+    TeamCommand.lastPairHistory.set(guildId, {
+      pairs: TeamCommand.extractPairs(teams),
+      timestamp: Date.now(),
+    });
 
     logger.info('팀짜기 페어 히스토리 업데이트', {
       component: 'TeamCommand',
       guildId,
       overlapScore: bestScore,
-      historyPairCount: TeamCommand.lastPairHistory.get(guildId).size,
+      historyPairCount: TeamCommand.lastPairHistory.get(guildId).pairs.size,
+      historyExpiresAt: new Date(Date.now() + TeamCommand.HISTORY_TTL_MS).toISOString(),
     });
 
     // 결과 포맷팅
