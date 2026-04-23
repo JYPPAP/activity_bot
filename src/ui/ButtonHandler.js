@@ -7,7 +7,6 @@ import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
 import { formatParticipantList } from '../utils/formatters.js';
 import { config } from '../config/env.js';
-import { SUPER_ADMIN_ROLES } from '../config/commandPermissions.js';
 
 export class ButtonHandler {
   constructor(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager) {
@@ -585,11 +584,11 @@ export class ButtonHandler {
       const cleanedClickerNickname = TextProcessor.cleanNickname(clickerNickname);
 
       // 닫기 권한 판별
-      // ① 포스트 소유자  ② DEV_ID(무지)  ③ 사장 역할 보유자
+      // ① 포스트 소유자  ② DEV_ID(무지)  ③ 마왕 역할 보유자
       const isOwner = postOwner === cleanedClickerNickname;
       const isDev = config.DEV_ID && interaction.member.id === config.DEV_ID;
       const isSuperAdmin = interaction.member.roles.cache.some(role =>
-        SUPER_ADMIN_ROLES.includes(role.name)
+        role.name === '마왕'
       );
       const canClose = isOwner || isDev || isSuperAdmin;
 
