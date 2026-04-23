@@ -72,8 +72,11 @@ export const formatParticipantList = (participants = []) => {
   if (!participants || participants.length === 0) {
     return '## 👥 **참가자(0명)**: 없음';
   }
-  
-  const formattedNames = participants.map(name => ` \` ${name} \` `).join(',');
+
+  // 백틱 표시용 이름: 공백 앞 첫 번째 단어만 사용 (예: "하루 ᙙ천사ᙖ" → "하루")
+  const formattedNames = participants
+    .map(name => ` \` ${name.split(' ')[0]} \` `)
+    .join(',');
   return `## 👥 **참가자(${participants.length}명)**: ${formattedNames}`;
 };
 
