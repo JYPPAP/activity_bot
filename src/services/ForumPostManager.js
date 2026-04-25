@@ -3,7 +3,7 @@ import { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'disc
 import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
-import { formatParticipantList, formatParticipantChangeMessage } from '../utils/formatters.js';
+import { formatParticipantList, formatParticipantChangeMessage, formatWaitlist } from '../utils/formatters.js';
 
 export class ForumPostManager {
   constructor(client, forumChannelId, forumTagId, databaseManager = null) {
@@ -92,7 +92,7 @@ export class ForumPostManager {
             const buttons = row.components.map(button => {
               const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
               const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
-
+              const isWaitButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT);
               const isEditButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS);
 
               if (isJoinButton) {
@@ -102,6 +102,10 @@ export class ForumPostManager {
               } else if (isLeaveButton) {
                 return ButtonBuilder.from(button).setCustomId(
                   `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
+                );
+              } else if (isWaitButton) {
+                return ButtonBuilder.from(button).setCustomId(
+                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT}${thread.id}`
                 );
               } else if (isEditButton) {
                 return ButtonBuilder.from(button).setCustomId(
@@ -431,6 +435,13 @@ export class ForumPostManager {
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('👋');
 
+    // 대기하기 버튼: 참가 불가 시 대기자 명단에 등록 (토글)
+    const waitButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT}${threadId}`)
+      .setLabel('대기하기')
+      .setStyle(ButtonStyle.Success)
+      .setEmoji('⏳');
+
     // 모집자 전용: 미리 모인 멤버 수정 버튼
     // customId 형식: forum_edit_premembers_{threadId}_{recruiterId}
     const editMembersButton = new ButtonBuilder()
@@ -439,7 +450,7 @@ export class ForumPostManager {
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('✏️');
 
-    return new ActionRowBuilder().addComponents(joinButton, leaveButton, editMembersButton);
+    return new ActionRowBuilder().addComponents(joinButton, leaveButton, waitButton, editMembersButton);
   }
 
   /**
@@ -794,6 +805,42 @@ export class ForumPostManager {
       
     } catch (error) {
       console.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, error);
+      return false;
+    }
+  }
+
+  /**
+   * 대기자 목록 메시지 전송/갱신 (추적 메시지로 관리)
+   * @param {string} postId - 포럼 스레드 ID
+   * @param {Array<string>} waitlist - 대기자 닉네임 배열
+   * @returns {Promise<boolean>}
+   */
+  async sendWaitlistUpdate(postId, waitlist = []) {
+    try {
+      const thread = await this.client.channels.fetch(postId);
+
+      if (!thread || !thread.isThread() || thread.archived) {
+        console.warn(`[ForumPostManager] 대기자 업데이트 불가 — 스레드 없음/아카이브: ${postId}`);
+        return false;
+      }
+
+      // 기존 대기자 메시지 삭제
+      await this._deleteTrackedMessages(postId, 'waitlist');
+
+      // 대기자가 없으면 메시지 삭제만 하고 종료
+      const text = formatWaitlist(waitlist);
+      if (!text) {
+        console.log(`[ForumPostManager] 대기자 없음 — 메시지 삭제 완료: ${postId}`);
+        return true;
+      }
+
+      const sentMessage = await thread.send(text);
+      await this._trackMessage(postId, 'waitlist', sentMessage.id);
+
+      console.log(`[ForumPostManager] 대기자 목록 업데이트 완료: ${postId} (${waitlist.length}명)`);
+      return true;
+    } catch (error) {
+      console.error(`[ForumPostManager] 대기자 목록 업데이트 실패: ${postId}`, error);
       return false;
     }
   }

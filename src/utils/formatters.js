@@ -81,6 +81,20 @@ export const formatParticipantList = (participants = []) => {
 };
 
 /**
+ * 대기자 목록을 포맷팅합니다. (대기자가 없으면 null 반환)
+ * @param {Array<string>} waitlist - 대기자 닉네임 배열
+ * @returns {string|null} - "-# 📋 대기자(N명): ..." 형식 또는 null
+ */
+export const formatWaitlist = (waitlist = []) => {
+  if (!waitlist || waitlist.length === 0) return null;
+
+  const formattedNames = waitlist
+    .map(name => ` \` ${name.split(' ')[0]} \` `)
+    .join(',');
+  return `-# 📋 **대기자(${waitlist.length}명)**: ${formattedNames}`;
+};
+
+/**
  * 참가자 변화 알림 메시지를 포맷팅합니다.
  * @param {Array<string>} joinedUsers - 참가한 사용자 닉네임 배열
  * @param {Array<string>} leftUsers - 참가 취소한 사용자 닉네임 배열

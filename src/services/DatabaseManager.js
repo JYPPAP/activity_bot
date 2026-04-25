@@ -54,9 +54,10 @@ export class DatabaseManager {
       await client.query('SELECT NOW()');
       client.release();
 
-      // 참가자 테이블 마이그레이션 실행 (pool 생성 후, isInitialized 설정 전)
+      // 참가자/대기자 테이블 마이그레이션 실행 (pool 생성 후, isInitialized 설정 전)
       // query()는 this.pool 존재 여부로 가드하므로 이 시점에 호출 가능
       await this.forumRepo.ensureForumParticipantsTable();
+      await this.forumRepo.ensureForumWaitlistTable();
 
       // 모든 초기화 완료 후 플래그 설정 — 부분 실패 시 상태 불일치 방지
       this.isInitialized = true;
@@ -314,6 +315,14 @@ export class DatabaseManager {
   async getParticipantCount(...args) { return this.forumRepo.getParticipantCount(...args); }
   async clearParticipants(...args) { return this.forumRepo.clearParticipants(...args); }
   async getAllActiveParticipants() { return this.forumRepo.getAllActiveParticipants(); }
+
+  // 포럼 대기자 관리
+  async ensureForumWaitlistTable() { return this.forumRepo.ensureForumWaitlistTable(); }
+  async addToWaitlist(...args) { return this.forumRepo.addToWaitlist(...args); }
+  async removeFromWaitlist(...args) { return this.forumRepo.removeFromWaitlist(...args); }
+  async getWaitlistNicknames(...args) { return this.forumRepo.getWaitlistNicknames(...args); }
+  async isInWaitlist(...args) { return this.forumRepo.isInWaitlist(...args); }
+  async clearWaitlist(...args) { return this.forumRepo.clearWaitlist(...args); }
 
   // 채널 매핑 호환성
   async saveChannelMapping(...args) { return this.forumRepo.saveChannelMapping(...args); }

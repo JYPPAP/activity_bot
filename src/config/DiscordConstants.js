@@ -19,6 +19,7 @@ export class DiscordConstants {
     FORUM_PARTICIPATE: 'forum_participate_',
     FORUM_JOIN: 'forum_join_',
     FORUM_LEAVE: 'forum_leave_',
+    FORUM_WAIT: 'forum_wait_',          // format: forum_wait_{threadId}
     RECRUITMENT_MODAL: 'recruitment_modal_',
     RECRUITMENT_METHOD: 'recruitment_method_',
     ROLE_BUTTON: 'role_btn_',

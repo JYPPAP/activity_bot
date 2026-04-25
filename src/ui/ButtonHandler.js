@@ -281,6 +281,8 @@ export class ButtonHandler {
         await this.handleJoinButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)) {
         await this.handleLeaveButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT)) {
+        await this.handleForumWaitButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS)) {
         await this.handleEditPreMembersButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
@@ -664,6 +666,13 @@ export class ButtonHandler {
 
         // 데이터베이스에 참가자 추가
         await databaseManager.addParticipant(threadId, member.id, cleanedNickname);
+
+        // 참가자로 전환 시 대기자 명단에서 자동 제거
+        const wasWaiting = await databaseManager.isInWaitlist(threadId, member.id);
+        if (wasWaiting) {
+          await databaseManager.removeFromWaitlist(threadId, member.id);
+          console.log(`[ButtonHandler] 대기자 → 참가자 전환: ${cleanedNickname}`);
+        }
       }
 
       // 현재 참가자 목록 가져오기 (데이터베이스 우선, 없으면 캐시)
@@ -710,6 +719,14 @@ export class ButtonHandler {
         [cleanedNickname],  // joinedUsers
         []                  // leftUsers
       );
+
+      // 참가자 변동 시 현재 대기자 목록 갱신 표시
+      if (databaseManager) {
+        const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
+        if (waitlistNicknames.length > 0) {
+          await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
+        }
+      }
 
       // 인터랙션 응답 (조용히 처리)
       await SafeInteraction.safeDeferUpdate(interaction);
@@ -799,6 +816,14 @@ export class ButtonHandler {
         [cleanedNickname]    // leftUsers
       );
 
+      // 참가자 변동 시 현재 대기자 목록 갱신 표시
+      if (databaseManager) {
+        const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
+        if (waitlistNicknames.length > 0) {
+          await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
+        }
+      }
+
       // 인터랙션 응답 (조용히 처리)
       await SafeInteraction.safeDeferUpdate(interaction);
 
@@ -806,6 +831,75 @@ export class ButtonHandler {
       console.error('[ButtonHandler] 참가 취소 버튼 처리 중 오류:', error);
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 참가 취소 처리 중 오류가 발생했습니다.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
+   * 대기하기 버튼 처리 (포럼 대기자 명단 등록/취소 토글)
+   * customId 형식: forum_wait_{threadId}
+   * @param {ButtonInteraction} interaction
+   */
+  async handleForumWaitButton(interaction) {
+    try {
+      const threadId = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT,
+        ''
+      );
+
+      const member = interaction.member;
+      const cleanedNickname = TextProcessor.cleanNickname(member.displayName);
+      const databaseManager = this.forumPostManager.databaseManager;
+
+      if (!databaseManager) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '❌ 데이터베이스 연결이 없습니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // 이미 참가 중이면 대기 불가
+      const isParticipant = await databaseManager.isParticipant(threadId, member.id);
+      if (isParticipant) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '이미 참가 중입니다. 대기자 명단은 참가 중이 아닌 분들만 등록할 수 있습니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      // 대기자 토글: 이미 대기 중이면 취소, 아니면 등록
+      const isWaiting = await databaseManager.isInWaitlist(threadId, member.id);
+      if (isWaiting) {
+        await databaseManager.removeFromWaitlist(threadId, member.id);
+        console.log(`[ButtonHandler] 대기자 취소: ${cleanedNickname} (${threadId})`);
+
+        const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
+        await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
+
+        await SafeInteraction.safeReply(interaction, {
+          content: `✅ **${cleanedNickname}** 님, 대기자 명단에서 제거되었습니다.`,
+          ephemeral: true
+        });
+      } else {
+        await databaseManager.addToWaitlist(threadId, member.id, cleanedNickname);
+        console.log(`[ButtonHandler] 대기자 등록: ${cleanedNickname} (${threadId})`);
+
+        const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
+        await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
+
+        await SafeInteraction.safeReply(interaction, {
+          content: `⏳ **${cleanedNickname}** 님, 대기자 명단에 등록되었습니다.\n자리가 생기면 모집자가 직접 초대할 수 있습니다.`,
+          ephemeral: true
+        });
+      }
+
+    } catch (error) {
+      console.error('[ButtonHandler] 대기하기 버튼 처리 중 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 대기 처리 중 오류가 발생했습니다.',
         ephemeral: true
       });
     }
@@ -1086,6 +1180,7 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
