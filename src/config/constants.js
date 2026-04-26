@@ -15,7 +15,8 @@ export const PATHS = {
 
 // 시간 관련 상수 (밀리초 단위)
 export const TIME = {
-  LOG_DELAY: 30000, // 30초
+  LOG_DELAY: 3000,       // 3초 — 마지막 이벤트 후 이 시간 내 추가 이벤트 없으면 즉시 전송 (디바운스)
+  LOG_MAX_WAIT: 10000,   // 10초 — 이벤트가 계속 와도 이 시간 후에는 강제 전송 (최대 대기)
   SAVE_ACTIVITY_DELAY: 60000, // 1분
 };
 

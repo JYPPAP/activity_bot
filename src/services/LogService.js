@@ -9,7 +9,8 @@ export class LogService {
     this.client = client;
     this.logChannelId = logChannelId;
     this.logMessages = [];
-    this.logTimeout = null;
+    this.logTimeout = null;      // 디바운스 타이머 (마지막 이벤트 후 LOG_DELAY ms)
+    this.logMaxWaitTimeout = null; // 최대 대기 타이머 (첫 이벤트 후 LOG_MAX_WAIT ms 강제 전송)
   }
 
   /**
@@ -38,15 +39,26 @@ export class LogService {
       eventType
     });
 
-    // 이전 타임아웃 취소
+    // ── 디바운스: 마지막 이벤트 후 LOG_DELAY(3s) 내 추가 이벤트 없으면 전송 ──
     if (this.logTimeout) {
       clearTimeout(this.logTimeout);
     }
-
-    // 새 타임아웃 설정 - 30초(30,000ms) 후 로그 전송
     this.logTimeout = setTimeout(async () => {
+      clearTimeout(this.logMaxWaitTimeout);
+      this.logMaxWaitTimeout = null;
+      this.logTimeout = null;
       await this.sendLogMessages();
     }, TIME.LOG_DELAY);
+
+    // ── 최대 대기: 이벤트가 계속 와도 LOG_MAX_WAIT(10s) 후 강제 전송 ──
+    if (!this.logMaxWaitTimeout) {
+      this.logMaxWaitTimeout = setTimeout(async () => {
+        clearTimeout(this.logTimeout);
+        this.logTimeout = null;
+        this.logMaxWaitTimeout = null;
+        await this.sendLogMessages();
+      }, TIME.LOG_MAX_WAIT);
+    }
   }
 
   /**
