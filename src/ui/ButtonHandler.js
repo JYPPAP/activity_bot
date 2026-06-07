@@ -285,6 +285,8 @@ export class ButtonHandler {
         await this.handleForumWaitButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS)) {
         await this.handleEditPreMembersButton(interaction);
+      } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION)) {
+        await this.handleMentionButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
         // 하위 호환성을 위해 유지 (기존 포스트용)
         await this.handleJoinButton(interaction);
@@ -906,6 +908,58 @@ export class ButtonHandler {
   }
 
   /**
+   * 참가자 멘션 버튼 처리
+   * customId 형식: forum_mention_{threadId}
+   * @param {ButtonInteraction} interaction
+   */
+  async handleMentionButton(interaction) {
+    try {
+      const threadId = interaction.customId.replace(
+        DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION, ''
+      );
+
+      const databaseManager = this.forumPostManager.databaseManager;
+      if (!databaseManager) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '❌ 데이터베이스 연결이 없습니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      const participants = await databaseManager.getParticipants(threadId);
+      if (!participants || participants.length === 0) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '📢 현재 참가자가 없습니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
+      const userIds = participants.map(p => p.userId);
+      const mentions = userIds.map(id => `<@${id}>`).join(' ');
+
+      // 버튼 인터랙션 acknowledge (UI 스피너 제거)
+      await SafeInteraction.safeDeferUpdate(interaction);
+
+      // 스레드에 참가자 멘션 메시지 전송
+      await interaction.channel.send({
+        content: `📢 **참가자 멘션**: ${mentions}`,
+        allowedMentions: { users: userIds }
+      });
+
+      console.log(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명`);
+
+    } catch (error) {
+      console.error('[ButtonHandler] 참가자 멘션 버튼 처리 오류:', error);
+      await SafeInteraction.safeReply(interaction, {
+        content: '❌ 멘션 처리 중 오류가 발생했습니다.',
+        ephemeral: true
+      });
+    }
+  }
+
+  /**
    * 미리 모인 멤버 수정 버튼 처리 (모집자 전용)
    * customId 형식: forum_edit_premembers_{threadId}_{recruiterId}
    * @param {ButtonInteraction} interaction
@@ -1182,6 +1236,7 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS) ||
+           customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION) ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||

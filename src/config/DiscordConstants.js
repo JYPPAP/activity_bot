@@ -31,6 +31,7 @@ export class DiscordConstants {
     LONG_TERM_RECRUITMENT: 'long_term_recruitment_',
     FORUM_EDIT_PREMEMBERS: 'forum_edit_premembers_',   // format: forum_edit_premembers_{threadId}_{recruiterId}
     PREMEMBERS_USER_SELECT: 'premembers_user_select_', // format: premembers_user_select_{threadId}_{recruiterId}
+    FORUM_MENTION: 'forum_mention_',                   // format: forum_mention_{threadId}
   };
   
   // ========== 메서드 값 ==========

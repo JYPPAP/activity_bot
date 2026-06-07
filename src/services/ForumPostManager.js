@@ -48,20 +48,21 @@ export class ForumPostManager {
       // 버튼 구성
       let components = [];
 
-      // 첫 번째 행: 음성채널 버튼 또는 일반 버튼
       if (voiceChannelId) {
-        // 음성 채널 연동된 경우: 음성 채널 버튼 사용
-        const voiceChannelButtons = this.createVoiceChannelButtons(voiceChannelId);
-        components.push(voiceChannelButtons);
+        // 음성채널 연동 포스트:
+        // Row 1: 관전 / 대기 / 초기화 / 닫기 (음성채널 버튼 그대로 유지)
+        // Row 2: 참가하기 / 참가 취소 / 대기하기
+        // Row 3: 멤버 수정 (닫기는 Row 1에 있으므로 제외)
+        components.push(this.createVoiceChannelButtons(voiceChannelId));
+        components.push(this.createParticipationButtons('temp'));
+        components.push(this.createRecruiterButtons('temp', recruitmentData.author.id, false));
       } else {
-        // 독립 포럼 포스트: 범용 별명 변경 버튼 사용
-        const generalButtons = this.createGeneralNicknameButtons();
-        components.push(generalButtons);
+        // 독립 포럼 포스트 (구인구직 글):
+        // Row 1: 참가하기 / 참가 취소 / 대기하기
+        // Row 2: 멤버 수정 / 닫기
+        components.push(this.createParticipationButtons('temp'));
+        components.push(this.createRecruiterButtons('temp', recruitmentData.author.id, true));
       }
-
-      // 두 번째 행: 모든 경우에 참가 버튼 추가 (모집자 ID 포함)
-      const participationButtons = this.createParticipationButtons('temp', recruitmentData.author.id);
-      components.push(participationButtons);
       
       const messageOptions = {
         content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,  // 역할 멘션만
@@ -84,45 +85,33 @@ export class ForumPostManager {
         autoArchiveDuration: 1440
       });
 
-      // 참가 버튼들의 customId를 실제 threadId로 업데이트 (모든 포스트)
+      // 모든 행을 순회하며 'temp' placeholder를 실제 threadId로 교체
       try {
         const starterMessage = await thread.fetchStarterMessage();
-        const updatedComponents = starterMessage.components.map((row, index) => {
-          if (index === 1) { // 두 번째 행 (참가 버튼들)
-            const buttons = row.components.map(button => {
-              const isJoinButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN);
-              const isLeaveButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE);
-              const isWaitButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT);
-              const isEditButton = button.customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS);
-
-              if (isJoinButton) {
-                return ButtonBuilder.from(button).setCustomId(
-                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${thread.id}`
-                );
-              } else if (isLeaveButton) {
-                return ButtonBuilder.from(button).setCustomId(
-                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE}${thread.id}`
-                );
-              } else if (isWaitButton) {
-                return ButtonBuilder.from(button).setCustomId(
-                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT}${thread.id}`
-                );
-              } else if (isEditButton) {
-                return ButtonBuilder.from(button).setCustomId(
-                  `${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS}${thread.id}_${recruitmentData.author.id}`
-                );
-              }
-              return ButtonBuilder.from(button);
-            });
-            return new ActionRowBuilder().addComponents(...buttons);
-          }
-          return ActionRowBuilder.from(row);
+        const P = DiscordConstants.CUSTOM_ID_PREFIXES;
+        const updatedComponents = starterMessage.components.map(row => {
+          const buttons = row.components.map(button => {
+            const id = button.customId;
+            if (id.startsWith(P.FORUM_JOIN)) {
+              return ButtonBuilder.from(button).setCustomId(`${P.FORUM_JOIN}${thread.id}`);
+            } else if (id.startsWith(P.FORUM_LEAVE)) {
+              return ButtonBuilder.from(button).setCustomId(`${P.FORUM_LEAVE}${thread.id}`);
+            } else if (id.startsWith(P.FORUM_WAIT)) {
+              return ButtonBuilder.from(button).setCustomId(`${P.FORUM_WAIT}${thread.id}`);
+            } else if (id.startsWith(P.FORUM_EDIT_PREMEMBERS)) {
+              return ButtonBuilder.from(button).setCustomId(
+                `${P.FORUM_EDIT_PREMEMBERS}${thread.id}_${recruitmentData.author.id}`
+              );
+            }
+            return ButtonBuilder.from(button);
+          });
+          return new ActionRowBuilder().addComponents(...buttons);
         });
 
         await starterMessage.edit({ components: updatedComponents });
-        console.log(`[ForumPostManager] 참가 버튼들 customId 업데이트됨: ${thread.id}`);
+        console.log(`[ForumPostManager] 버튼 customId 업데이트됨: ${thread.id}`);
       } catch (updateError) {
-        console.error('[ForumPostManager] 참가 버튼 업데이트 실패:', updateError);
+        console.error('[ForumPostManager] 버튼 customId 업데이트 실패:', updateError);
       }
 
       // 모집자를 스레드에 자동으로 추가
@@ -234,11 +223,17 @@ export class ForumPostManager {
             });
           }
 
-          // 초기 참가자 목록 메시지 전송 (모집자 + 미리 모인 멤버)
+          // 초기 참가자 목록 메시지 전송 (모집자 + 미리 모인 멤버) + 참가자 멘션 버튼
           const participantNicknames = await this.databaseManager.getParticipantNicknames(thread.id);
           const participantListMsg = formatParticipantList(participantNicknames);
           const maxCount = recruitmentData.maxParticipants ?? 'N';
-          await thread.send(`${participantListMsg}\n-# (${participantNicknames.length}/${maxCount}명)`);
+          const mentionRow = this.createMentionButton(thread.id);
+          const initParticipantMsg = await thread.send({
+            content: `${participantListMsg}\n-# (${participantNicknames.length}/${maxCount}명)`,
+            components: [mentionRow]
+          });
+          // 추적 등록: 다음 참가자 업데이트 시 자동 삭제됨
+          await this._trackMessage(thread.id, 'emoji_reaction', initParticipantMsg.id);
           console.log(`[ForumPostManager] 초기 참가자 목록 메시지 전송 완료: ${participantNicknames.length}명`);
         } catch (autoAddError) {
           console.warn('[ForumPostManager] 참가자 자동 등록 중 오류:', autoAddError.message);
@@ -417,12 +412,11 @@ export class ForumPostManager {
   }
 
   /**
-   * 참가 버튼들 생성 (독립 포럼용) - 참가하기 / 참가 취소 / 멤버 수정(모집자 전용) 3개 버튼
+   * 참가자 행 버튼 생성 - 참가하기 / 참가 취소 / 대기하기
    * @param {string} threadId - 포럼 스레드 ID
-   * @param {string} recruiterId - 모집자 Discord ID (멤버 수정 버튼에 인코딩)
    * @returns {ActionRowBuilder} 참가 버튼들을 포함한 ActionRow
    */
-  createParticipationButtons(threadId, recruiterId = 'temp') {
+  createParticipationButtons(threadId) {
     const joinButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN}${threadId}`)
       .setLabel('참가하기')
@@ -442,7 +436,17 @@ export class ForumPostManager {
       .setStyle(ButtonStyle.Success)
       .setEmoji('⏳');
 
-    // 모집자 전용: 미리 모인 멤버 수정 버튼
+    return new ActionRowBuilder().addComponents(joinButton, leaveButton, waitButton);
+  }
+
+  /**
+   * 모집자 행 버튼 생성 - 멤버 수정 / 닫기(선택)
+   * @param {string} threadId - 포럼 스레드 ID
+   * @param {string} recruiterId - 모집자 Discord ID
+   * @param {boolean} includeClose - 닫기 버튼 포함 여부 (음성채널 연동 포스트는 false)
+   * @returns {ActionRowBuilder} 모집자 버튼들을 포함한 ActionRow
+   */
+  createRecruiterButtons(threadId, recruiterId = 'temp', includeClose = true) {
     // customId 형식: forum_edit_premembers_{threadId}_{recruiterId}
     const editMembersButton = new ButtonBuilder()
       .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS}${threadId}_${recruiterId}`)
@@ -450,7 +454,31 @@ export class ForumPostManager {
       .setStyle(ButtonStyle.Secondary)
       .setEmoji('✏️');
 
-    return new ActionRowBuilder().addComponents(joinButton, leaveButton, waitButton, editMembersButton);
+    if (!includeClose) {
+      return new ActionRowBuilder().addComponents(editMembersButton);
+    }
+
+    const closeButton = new ButtonBuilder()
+      .setCustomId('general_delete')
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setStyle(ButtonStyle.Danger);
+
+    return new ActionRowBuilder().addComponents(editMembersButton, closeButton);
+  }
+
+  /**
+   * 참가자 멘션 버튼 행 생성
+   * @param {string} threadId - 포럼 스레드 ID
+   * @returns {ActionRowBuilder} 멘션 버튼을 포함한 ActionRow
+   */
+  createMentionButton(threadId) {
+    const mentionButton = new ButtonBuilder()
+      .setCustomId(`${DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION}${threadId}`)
+      .setLabel('참가자 멘션')
+      .setStyle(ButtonStyle.Primary)
+      .setEmoji('📢');
+
+    return new ActionRowBuilder().addComponents(mentionButton);
   }
 
   /**
@@ -788,19 +816,24 @@ export class ForumPostManager {
         return false;
       }
       
-      // 이전 이모지 반응 메시지들 삭제
+      // 이전 참가자 목록 메시지 삭제 (참가자 멘션 버튼도 함께 삭제됨)
       await this._deleteTrackedMessages(postId, 'emoji_reaction');
 
       const timeString = TextProcessor.formatKoreanTime();
       const participantListText = formatParticipantList(participants);
       const updateMessage = `${participantListText}\n**⏰ 업데이트**: ${timeString}`;
-      
-      const sentMessage = await thread.send(updateMessage);
-      
-      // 새 메시지 추적 저장
+
+      // 새 참가자 목록 메시지 + 참가자 멘션 버튼
+      const mentionRow = this.createMentionButton(postId);
+      const sentMessage = await thread.send({
+        content: updateMessage,
+        components: [mentionRow]
+      });
+
+      // 새 메시지 추적 저장 (다음 업데이트 시 삭제됨)
       await this._trackMessage(postId, 'emoji_reaction', sentMessage.id);
-      
-      console.log(`[ForumPostManager] 이모지 참가자 현황 업데이트 완료: ${postId} (${participants.length}명)`);
+
+      console.log(`[ForumPostManager] 참가자 목록 업데이트 완료: ${postId} (${participants.length}명)`);
       return true;
       
     } catch (error) {
