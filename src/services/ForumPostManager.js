@@ -48,21 +48,12 @@ export class ForumPostManager {
       // 버튼 구성
       let components = [];
 
-      if (voiceChannelId) {
-        // 음성채널 연동 포스트:
-        // Row 1: 관전 / 대기 / 초기화 / 닫기 (음성채널 버튼 그대로 유지)
-        // Row 2: 참가하기 / 참가 취소 / 대기하기
-        // Row 3: 멤버 수정 (닫기는 Row 1에 있으므로 제외)
-        components.push(this.createVoiceChannelButtons(voiceChannelId));
-        components.push(this.createParticipationButtons('temp'));
-        components.push(this.createRecruiterButtons('temp', recruitmentData.author.id, false));
-      } else {
-        // 독립 포럼 포스트 (구인구직 글):
-        // Row 1: 참가하기 / 참가 취소 / 대기하기
-        // Row 2: 멤버 수정 / 닫기
-        components.push(this.createParticipationButtons('temp'));
-        components.push(this.createRecruiterButtons('temp', recruitmentData.author.id, true));
-      }
+      // 독립/음성채널 연동 포스트 모두 동일한 버튼 구조
+      // (음성채널 댓글에 이미 관전/대기/초기화 버튼이 있으므로 포스트에서는 생략)
+      // Row 1: 참가하기 / 참가 취소 / 대기하기
+      // Row 2: 멤버 수정 / 닫기
+      components.push(this.createParticipationButtons('temp'));
+      components.push(this.createRecruiterButtons('temp', recruitmentData.author.id, true));
       
       const messageOptions = {
         content: roleMentions && roleIds.length > 0 ? roleMentions : undefined,  // 역할 멘션만
