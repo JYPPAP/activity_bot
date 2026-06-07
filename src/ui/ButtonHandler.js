@@ -936,7 +936,19 @@ export class ButtonHandler {
         return;
       }
 
+      // 권한 확인: 참가자(모집자 포함) 또는 마왕 역할만 사용 가능
       const userIds = participants.map(p => p.userId);
+      const isParticipant = userIds.includes(interaction.user.id);
+      const isSuperAdmin = interaction.member?.roles?.cache?.some(role => role.name === '마왕') ?? false;
+
+      if (!isParticipant && !isSuperAdmin) {
+        await SafeInteraction.safeReply(interaction, {
+          content: '⚠️ 참가자 또는 관리자만 멘션 버튼을 사용할 수 있습니다.',
+          ephemeral: true
+        });
+        return;
+      }
+
       const mentions = userIds.map(id => `<@${id}>`).join(' ');
 
       // 버튼 인터랙션 acknowledge (UI 스피너 제거)
@@ -948,7 +960,7 @@ export class ButtonHandler {
         allowedMentions: { users: userIds }
       });
 
-      console.log(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명`);
+      console.log(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명 (요청자: ${interaction.user.id}, 참가자=${isParticipant}, 관리자=${isSuperAdmin})`);
 
     } catch (error) {
       console.error('[ButtonHandler] 참가자 멘션 버튼 처리 오류:', error);
