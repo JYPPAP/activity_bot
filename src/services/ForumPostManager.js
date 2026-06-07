@@ -451,7 +451,7 @@ export class ForumPostManager {
 
     const closeButton = new ButtonBuilder()
       .setCustomId('general_delete')
-      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 닫기`)
+      .setLabel(`${DiscordConstants.EMOJIS.CLOSE} 구직 닫기`)
       .setStyle(ButtonStyle.Danger);
 
     return new ActionRowBuilder().addComponents(editMembersButton, closeButton);
