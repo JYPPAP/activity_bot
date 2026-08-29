@@ -29,6 +29,7 @@ import { NicknameModalHandler } from './ui/NicknameModalHandler.js';
 
 // 매니저 임포트
 import { VoiceChannelNicknameManager } from './managers/VoiceChannelNicknameManager.js';
+import { InactivePostChecker } from './services/InactivePostChecker.js';
 
 // 명령어 관련 임포트
 import { CommandHandler } from './commands/CommandHandler.js';
@@ -101,6 +102,9 @@ export function createDIContainer(client) {
     platformTemplateService: asClass(PlatformTemplateService).singleton(),
     userNicknameService: asClass(UserNicknameService).singleton(),
     voiceChannelNicknameManager: asClass(VoiceChannelNicknameManager).singleton(),
+    inactivePostChecker: asFunction((client, databaseManager) =>
+      new InactivePostChecker(client, databaseManager)
+    ).singleton(),
   });
 
   // === 5. 애플리케이션 서비스 계층 ===

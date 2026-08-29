@@ -277,6 +277,10 @@ export class ButtonHandler {
         await this.handleResetButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_DELETE) || customId === 'general_delete') {
         await this.handleDeleteButton(interaction);
+      } else if (customId === DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CONFIRM) {
+        await this.handleDeleteConfirmButton(interaction);
+      } else if (customId === DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CANCEL) {
+        await this.handleDeleteCancelButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN)) {
         await this.handleJoinButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)) {
@@ -554,89 +558,114 @@ export class ButtonHandler {
   }
   
   /**
-   * 포스트 삭제(닫기) 버튼 처리
-   * @param {ButtonInteraction} interaction - 버튼 인터랙션
-   * @returns {Promise<void>}
+   * 포스트 닫기 버튼 처리 — 권한 확인 후 컨펌창 표시
+   * @param {ButtonInteraction} interaction
    */
   async handleDeleteButton(interaction) {
-    // 즉시 defer하여 3초 제한 해결
     await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
-    
-    try {
-      // 현재 채널이 포럼 스레드인지 확인
-      if (!interaction.channel || !interaction.channel.isThread()) {
-        await interaction.editReply({
-          content: '❌ 포럼 포스트에서만 사용할 수 있습니다.'
-        });
-        return;
-      }
-      
-      const postTitle = interaction.channel.name;
-      const clickerNickname = interaction.member.displayName;
-      
-      // 포스트 제목에서 실제 소유자 추출
-      const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
-      
-      if (!postOwner) {
-        await interaction.editReply({
-          content: '❌ 포스트 소유자를 확인할 수 없습니다.'
-        });
-        return;
-      }
-      
-      // 버튼을 클릭한 사용자의 닉네임 정리 (대기/관전 태그 제거)
-      const cleanedClickerNickname = TextProcessor.cleanNickname(clickerNickname);
 
-      // 닫기 권한 판별
-      // ① 포스트 소유자  ② DEV_ID(무지)  ③ 마왕 역할 보유자
+    try {
+      if (!interaction.channel?.isThread()) {
+        await interaction.editReply({ content: '❌ 포럼 포스트에서만 사용할 수 있습니다.' });
+        return;
+      }
+
+      const postTitle = interaction.channel.name;
+      const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
+      if (!postOwner) {
+        await interaction.editReply({ content: '❌ 포스트 소유자를 확인할 수 없습니다.' });
+        return;
+      }
+
+      const cleanedClickerNickname = TextProcessor.cleanNickname(interaction.member.displayName);
       const isOwner = postOwner === cleanedClickerNickname;
       const isDev = config.DEV_ID && interaction.member.id === config.DEV_ID;
-      const isSuperAdmin = interaction.member.roles.cache.some(role =>
-        role.name === '마왕'
-      );
-      const canClose = isOwner || isDev || isSuperAdmin;
+      const isSuperAdmin = interaction.member.roles.cache.some(r => r.name === '마왕');
 
-      if (!canClose) {
+      if (!isOwner && !isDev && !isSuperAdmin) {
         await interaction.editReply({
           content: `❌ 포스트를 닫을 권한이 없습니다.\n**포스트 소유자**: ${postOwner}\n**현재 사용자**: ${cleanedClickerNickname}`
         });
         return;
       }
 
-      // 종료 사유 생성 (누가 닫았는지 포함)
-      let closeReason;
-      if (isOwner) {
-        closeReason = `포스트 소유자 [${cleanedClickerNickname}]이(가) 직접 종료`;
-      } else if (isDev || isSuperAdmin) {
-        closeReason = `관리자 [${cleanedClickerNickname}]이(가) 종료`;
+      // 권한 확인 통과 → 컨펌 버튼 표시
+      const confirmRow = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CONFIRM)
+          .setLabel('✅ 확인')
+          .setStyle(ButtonStyle.Danger),
+        new ButtonBuilder()
+          .setCustomId(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CANCEL)
+          .setLabel('❌ 취소')
+          .setStyle(ButtonStyle.Secondary)
+      );
+
+      await interaction.editReply({
+        content: `⚠️ **"${postTitle}"** 구직글을 정말 닫으시겠습니까?`,
+        components: [confirmRow]
+      });
+
+    } catch (error) {
+      console.error('[ButtonHandler] 포스트 닫기 처리 오류:', error);
+      await interaction.editReply({ content: '❌ 포스트 종료 중 오류가 발생했습니다.' });
+    }
+  }
+
+  /**
+   * 포스트 닫기 확인 버튼 처리 — 실제 아카이브 실행
+   * @param {ButtonInteraction} interaction
+   */
+  async handleDeleteConfirmButton(interaction) {
+    await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+
+    try {
+      if (!interaction.channel?.isThread()) {
+        await interaction.editReply({ content: '❌ 포럼 포스트에서만 사용할 수 있습니다.', components: [] });
+        return;
       }
 
-      // 포스트 아카이브 및 잠금 처리
+      const postTitle = interaction.channel.name;
+      const postOwner = TextProcessor.extractOwnerFromTitle(postTitle);
+      const cleanedClickerNickname = TextProcessor.cleanNickname(interaction.member.displayName);
+      const isOwner = postOwner === cleanedClickerNickname;
+      const isDev = config.DEV_ID && interaction.member.id === config.DEV_ID;
+      const isSuperAdmin = interaction.member.roles.cache.some(r => r.name === '마왕');
+
+      if (!isOwner && !isDev && !isSuperAdmin) {
+        await interaction.editReply({ content: '❌ 권한이 없습니다.', components: [] });
+        return;
+      }
+
+      const closeReason = isOwner
+        ? `포스트 소유자 [${cleanedClickerNickname}]이(가) 직접 종료`
+        : `관리자 [${cleanedClickerNickname}]이(가) 종료`;
+
       const postId = interaction.channel.id;
-      const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(
-        postId,
-        closeReason,
-        true
-      );
+      const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(postId, closeReason, true);
 
       if (archiveSuccess) {
         await interaction.editReply({
-          content: `✅ 포스트가 성공적으로 종료되었습니다.\n📝 **포스트**: ${postTitle}\n👤 **종료자**: ${cleanedClickerNickname}`
+          content: `✅ 포스트가 종료되었습니다.\n📝 **포스트**: ${postTitle}\n👤 **종료자**: ${cleanedClickerNickname}`,
+          components: []
         });
-        console.log(`[ButtonHandler] 포스트 닫기 성공: ${postId} by ${cleanedClickerNickname} (${isOwner ? '소유자' : '관리자'})`);
+        console.log(`[ButtonHandler] 포스트 닫기 확인 완료: ${postId} by ${cleanedClickerNickname}`);
       } else {
-        await interaction.editReply({
-          content: '❌ 포스트 종료에 실패했습니다. 다시 시도해주세요.'
-        });
-        console.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
+        await interaction.editReply({ content: '❌ 포스트 종료에 실패했습니다.', components: [] });
       }
-      
+
     } catch (error) {
-      console.error('[ButtonHandler] 포스트 삭제 처리 오류:', error);
-      await interaction.editReply({
-        content: '❌ 포스트 종료 중 오류가 발생했습니다.'
-      });
+      console.error('[ButtonHandler] 포스트 닫기 확인 처리 오류:', error);
+      await interaction.editReply({ content: '❌ 오류가 발생했습니다.', components: [] });
     }
+  }
+
+  /**
+   * 포스트 닫기 취소 버튼 처리
+   * @param {ButtonInteraction} interaction
+   */
+  async handleDeleteCancelButton(interaction) {
+    await SafeInteraction.safeDeferUpdate(interaction);
   }
 
   /**
@@ -881,10 +910,7 @@ export class ButtonHandler {
         const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
         await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
 
-        await SafeInteraction.safeReply(interaction, {
-          content: `✅ **${cleanedNickname}** 님, 대기자 명단에서 제거되었습니다.`,
-          ephemeral: true
-        });
+        await SafeInteraction.safeDeferUpdate(interaction);
       } else {
         await databaseManager.addToWaitlist(threadId, member.id, cleanedNickname);
         console.log(`[ButtonHandler] 대기자 등록: ${cleanedNickname} (${threadId})`);
@@ -892,10 +918,7 @@ export class ButtonHandler {
         const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
         await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
 
-        await SafeInteraction.safeReply(interaction, {
-          content: `⏳ **${cleanedNickname}** 님, 대기자 명단에 등록되었습니다.\n자리가 생기면 모집자가 직접 초대할 수 있습니다.`,
-          ephemeral: true
-        });
+        await SafeInteraction.safeDeferUpdate(interaction);
       }
 
     } catch (error) {
@@ -1249,6 +1272,8 @@ export class ButtonHandler {
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS) ||
            customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION) ||
+           customId === DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CONFIRM ||
+           customId === DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CANCEL ||
            customId === 'general_wait' ||
            customId === 'general_spectate' ||
            customId === 'general_reset' ||

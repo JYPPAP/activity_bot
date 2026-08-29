@@ -32,6 +32,8 @@ export class DiscordConstants {
     FORUM_EDIT_PREMEMBERS: 'forum_edit_premembers_',   // format: forum_edit_premembers_{threadId}_{recruiterId}
     PREMEMBERS_USER_SELECT: 'premembers_user_select_', // format: premembers_user_select_{threadId}_{recruiterId}
     FORUM_MENTION: 'forum_mention_',                   // format: forum_mention_{threadId}
+    FORUM_DELETE_CONFIRM: 'forum_delete_confirm',      // 구직 닫기 확인 버튼
+    FORUM_DELETE_CANCEL: 'forum_delete_cancel',        // 구직 닫기 취소 버튼
   };
   
   // ========== 메서드 값 ==========

@@ -40,6 +40,7 @@ export class Bot {
     this.commandHandler = this.container.resolve('commandHandler');
     this.eventManager = this.container.resolve('eventManager');
     this.voiceChannelNicknameManager = this.container.resolve('voiceChannelNicknameManager');
+    this.inactivePostChecker = this.container.resolve('inactivePostChecker');
 
     Bot.instance = this;
   }
@@ -94,6 +95,14 @@ export class Bot {
           stack: error.stack
         });
         // 이모지 반응 서비스 초기화 실패해도 봇 전체는 계속 실행
+      }
+
+      // 비활동 구직글 체커 시작 (매일 실행)
+      try {
+        this.inactivePostChecker.start();
+        logger.info('비활동 구직글 체커 시작 완료');
+      } catch (error) {
+        logger.error('비활동 구직글 체커 시작 실패', { error: error.message });
       }
 
     });
@@ -238,6 +247,9 @@ export class Bot {
       // 주기적 저장 중단 및 최종 활동 데이터 저장
       await this.activityTracker.finalSaveAndCleanup();
       logger.info('활동 데이터 최종 저장 완료');
+
+      // 비활동 구직글 체커 정지
+      this.inactivePostChecker?.stop();
 
       // DI Container 및 모든 리소스 해제
       await disposeContainer(this.container);
