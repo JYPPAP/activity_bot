@@ -148,9 +148,9 @@ export class InactivePostChecker {
     const embed = new EmbedBuilder()
       .setTitle('🔔 비활동 알림')
       .setDescription(
-        `**${elapsedDays}일간의 미활동**이 확인되었습니다.\n\n` +
-        `구직이 완료되었다면 **구직 닫기** 버튼을 눌러 종료해주세요.\n` +
-        `계속 모집 중이라면 현황을 업데이트해주세요.`
+        `함께 활동하신 지 **${elapsedDays}일간 소식이 없네요.**\n\n` +
+        `팀 활동이 마무리되었다면 **구직 닫기** 버튼을 눌러 종료해주세요.\n` +
+        `아직 활동 중이시라면 현황을 업데이트해 주시면 감사하겠습니다.`
       )
       .setColor(0xF5A623)
       .setTimestamp();
