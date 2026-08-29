@@ -116,16 +116,29 @@ export class InactivePostChecker {
     // 15일 이상 비활동 → 경고 메시지 + 구직 닫기 버튼 전송
     logger.info(`[InactivePostChecker] 비활동 포스트 발견 (${elapsedDays}일): ${thread.name}`);
 
-    // 모집자 ID: forum_participants에서 가장 먼저 참가한 유저 (모집자는 항상 첫 번째로 추가됨)
+    // 모집자 ID 추출: 구직글 첫 메시지의 "## 👤 모집자\n<@userId>" 파싱
     let recruiterId = null;
     try {
-      const recruiterResult = await this.databaseManager.query(
-        `SELECT user_id FROM forum_participants WHERE forum_post_id = $1 ORDER BY joined_at ASC LIMIT 1`,
-        [post.forum_post_id]
-      );
-      recruiterId = recruiterResult?.rows?.[0]?.user_id ?? null;
+      const starterMsg = await thread.fetchStarterMessage({ cache: false }).catch(() => null);
+      if (starterMsg?.content) {
+        const match = starterMsg.content.match(/##\s*👤\s*모집자\s*\n<@!?(\d+)>/);
+        if (match) recruiterId = match[1];
+      }
     } catch (err) {
-      logger.warn('[InactivePostChecker] 모집자 조회 실패, 스킵', { error: err.message });
+      logger.warn('[InactivePostChecker] 스타터 메시지 모집자 파싱 실패', { error: err.message });
+    }
+
+    // fallback: forum_participants에서 가장 먼저 참가한 유저
+    if (!recruiterId) {
+      try {
+        const result = await this.databaseManager.query(
+          `SELECT user_id FROM forum_participants WHERE forum_post_id = $1 ORDER BY id ASC LIMIT 1`,
+          [post.forum_post_id]
+        );
+        recruiterId = result?.rows?.[0]?.user_id ?? null;
+      } catch (err) {
+        logger.warn('[InactivePostChecker] DB 모집자 조회도 실패', { error: err.message });
+      }
     }
 
     if (!recruiterId) {
