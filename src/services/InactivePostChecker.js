@@ -116,6 +116,22 @@ export class InactivePostChecker {
     // 15일 이상 비활동 → 경고 메시지 + 구직 닫기 버튼 전송
     logger.info(`[InactivePostChecker] 비활동 포스트 발견 (${elapsedDays}일): ${thread.name}`);
 
+    // 모집자 ID: forum_participants에서 가장 먼저 참가한 유저 (모집자는 항상 첫 번째로 추가됨)
+    let recruiterId = null;
+    try {
+      const recruiterResult = await this.databaseManager.query(
+        `SELECT user_id FROM forum_participants WHERE forum_post_id = $1 ORDER BY joined_at ASC LIMIT 1`,
+        [post.forum_post_id]
+      );
+      recruiterId = recruiterResult?.rows?.[0]?.user_id ?? null;
+    } catch (err) {
+      logger.warn('[InactivePostChecker] 모집자 조회 실패, 스킵', { error: err.message });
+    }
+
+    if (!recruiterId) {
+      logger.warn(`[InactivePostChecker] 모집자 ID 없음 — 멘션 없이 전송: ${thread.name}`);
+    }
+
     const embed = new EmbedBuilder()
       .setTitle('🔔 비활동 알림')
       .setDescription(
@@ -133,13 +149,16 @@ export class InactivePostChecker {
         .setStyle(ButtonStyle.Danger)
     );
 
+    const mentionContent = recruiterId ? `<@${recruiterId}>` : null;
+    const allowedUsers = recruiterId ? [recruiterId] : [];
+
     await thread.send({
-      content: `<@${thread.ownerId}>`,
+      ...(mentionContent && { content: mentionContent }),
       embeds: [embed],
       components: [closeRow],
-      allowedMentions: { users: [thread.ownerId] }
+      allowedMentions: { users: allowedUsers }
     });
 
-    logger.info(`[InactivePostChecker] 비활동 경고 전송 완료: ${thread.name} (ownerId: ${thread.ownerId})`);
+    logger.info(`[InactivePostChecker] 비활동 경고 전송 완료: ${thread.name} (recruiterId: ${recruiterId})`);
   }
 }
