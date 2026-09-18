@@ -25,7 +25,9 @@
     "update": "git pull && pm2 stop discord-bot 2>/dev/null || true && pm2 start ecosystem-termux.config.cjs --env production && pm2 logs discord-bot",
     "migrate:up": "node-pg-migrate up",
     "migrate:down": "node-pg-migrate down",
-    "migrate:create": "node-pg-migrate create --sql-file"
+    "migrate:create": "node-pg-migrate create --sql-file",
+    "docs:check": "node scripts/check-docs-drift.mjs",
+    "docs:check:strict": "node scripts/check-docs-drift.mjs --strict"
   },
   "keywords": [
     "discord",
@@ -37,14 +39,23 @@
   "license": "ISC",
   "dependencies": {
     "awilix": "^12.0.5",
-    "axios": "^1.10.0",
-    "discord.js": "^14.18.0",
+    "axios": "^1.20.0",
+    "discord.js": "^14.27.0",
     "dotenv": "^16.4.7",
-    "errsole": "^2.18.1",
+    "errsole": "^2.18.2",
     "errsole-sqlite": "^3.0.3",
-    "express": "^4.21.2",
+    "express": "^4.22.3",
     "node-pg-migrate": "^8.0.4",
     "pg": "^8.11.3"
+  },
+  "overrides": {
+    "follow-redirects": ">=1.15.12",
+    "brace-expansion": ">=2.0.2",
+    "dompurify": ">=3.4.13",
+    "ajv": ">=8.18.0",
+    "fast-uri": ">=3.1.6",
+    "ws": ">=8.20.2",
+    "form-data": ">=4.0.6"
   },
   "devDependencies": {
     "nodemon": "^3.1.9"
