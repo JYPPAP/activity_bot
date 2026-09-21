@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/utils/TextProcessor.js - 텍스트 처리 유틸리티
 import { DiscordConstants } from '../config/DiscordConstants.js';
 
@@ -61,7 +62,7 @@ export class TextProcessor {
       
       return roleMentions.join(' ');
     } catch (error) {
-      console.error('태그를 역할 멘션으로 변환 중 오류:', error);
+      logger.error('태그를 역할 멘션으로 변환 중 오류', { error: error.message, stack: error.stack });
       return tags; // 오류 시 원본 반환
     }
   }

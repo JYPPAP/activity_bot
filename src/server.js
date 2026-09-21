@@ -22,7 +22,7 @@ export const keepAlive = () => {
   // 서버 시작
   app.listen(PORT, () => {
     // Terminal output - server status only  
-    console.log(`🌐 Express 서버 시작: http://localhost:${PORT}`);
+    logger.info(`🌐 Express 서버 시작: http://localhost:${PORT}`);
     logger.info('Express 서버 시작 완료', { component: 'KeepAlive', port: PORT, uptime: process.uptime() });
   });
 };

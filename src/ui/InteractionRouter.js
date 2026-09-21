@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/ui/InteractionRouter.js - 인터랙션 라우팅 관리
 import { InteractionType, ComponentType, MessageFlags } from 'discord.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
@@ -39,12 +40,12 @@ export class InteractionRouter {
           break;
 
         default:
-          console.warn(`[InteractionRouter] 처리되지 않은 인터랙션 타입: ${interaction.type}`);
+          logger.warn(`[InteractionRouter] 처리되지 않은 인터랙션 타입: ${interaction.type}`);
           break;
       }
 
     } catch (error) {
-      console.error('[InteractionRouter] 인터랙션 라우팅 오류:', error);
+      logger.error('[InteractionRouter] 인터랙션 라우팅 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction,
         SafeInteraction.createErrorResponse('인터랙션 처리', error)
       );
@@ -105,7 +106,7 @@ export class InteractionRouter {
         break;
 
       default:
-        console.warn(`[InteractionRouter] 처리되지 않은 컴포넌트 타입: ${interaction.componentType}`);
+        logger.warn(`[InteractionRouter] 처리되지 않은 컴포넌트 타입: ${interaction.componentType}`);
         break;
     }
   }
@@ -172,7 +173,7 @@ export class InteractionRouter {
       await this.recruitmentService.handleExistingPostSelection(interaction);
     }
     else {
-      console.warn(`[InteractionRouter] 처리되지 않은 셀렉트 메뉴: ${customId}`);
+      logger.warn(`[InteractionRouter] 처리되지 않은 셀렉트 메뉴: ${customId}`);
     }
   }
 
@@ -186,7 +187,7 @@ export class InteractionRouter {
     if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.PREMEMBERS_USER_SELECT)) {
       await this.buttonHandler.handlePreMembersSelectMenu(interaction);
     } else {
-      console.warn(`[InteractionRouter] 처리되지 않은 UserSelect: ${customId}`);
+      logger.warn(`[InteractionRouter] 처리되지 않은 UserSelect: ${customId}`);
     }
   }
 
@@ -243,7 +244,7 @@ export class InteractionRouter {
     const type = interaction.type;
     const componentType = interaction.componentType || 'N/A';
     
-    console.log(`[InteractionRouter] 인터랙션 수신: 사용자=${user.displayName} (${user.id}), 타입=${type}, 컴포넌트=${componentType}, customId=${customId}`);
+    logger.info(`[InteractionRouter] 인터랙션 수신: 사용자=${user.displayName} (${user.id}), 타입=${type}, 컴포넌트=${componentType}, customId=${customId}`);
   }
   
   /**
@@ -263,7 +264,7 @@ export class InteractionRouter {
       return permissionService.hasRecruitmentPermission(interaction.user, interaction.member);
       
     } catch (error) {
-      console.error('[InteractionRouter] 권한 확인 오류:', error);
+      logger.error('[InteractionRouter] 권한 확인 오류', { error: error.message, stack: error.stack });
       return false;
     }
   }

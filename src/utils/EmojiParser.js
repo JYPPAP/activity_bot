@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 /**
  * Discord 이모지 파싱 및 검증 유틸리티
  */
@@ -23,7 +24,7 @@ export class EmojiParser {
 
       // ID가 유효한지 검증 (19자리 snowflake ID)
       if (!/^\d{17,19}$/.test(emojiId)) {
-        console.warn(`[EmojiParser] Invalid emoji ID: ${emojiId}, using fallback`);
+        logger.warn(`[EmojiParser] Invalid emoji ID: ${emojiId}, using fallback`);
         return fallback;
       }
 

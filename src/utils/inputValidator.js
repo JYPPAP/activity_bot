@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/utils/inputValidator.js - 포괄적 입력 검증 및 보안 처리
 
 /**
@@ -24,10 +25,10 @@ export function validateAndSanitizeInput(text, options = {}) {
 
   try {
     // 1. 기본 유효성 검사 (디버깅 로그 추가)
-    console.log(`[InputValidator] 입력값 확인: type=${typeof text}, value="${text}", length=${text?.length || 0}`);
+    logger.info(`[InputValidator] 입력값 확인: type=${typeof text}, value="${text}", length=${text?.length || 0}`);
     
     if (text === null || text === undefined || typeof text !== 'string') {
-      console.log(`[InputValidator] 입력 검증 실패 - text: "${text}", type: ${typeof text}, truthy: ${!!text}`);
+      logger.info(`[InputValidator] 입력 검증 실패 - text: "${text}", type: ${typeof text}, truthy: ${!!text}`);
       result.errors.push('입력 텍스트가 유효하지 않습니다.');
       result.isValid = false;
       return result;
@@ -48,7 +49,7 @@ export function validateAndSanitizeInput(text, options = {}) {
     result.sanitizedText = securityResult.sanitizedText;
     if (securityResult.threatsFound.length > 0) {
       result.warnings.push(`보안 위험 요소가 제거되었습니다: ${securityResult.threatsFound.join(', ')}`);
-      console.warn(`[InputValidator] 보안 위험 입력 감지: ${securityResult.threatsFound.join(', ')}`, {
+      logger.warn(`[InputValidator] 보안 위험 입력 감지: ${securityResult.threatsFound.join(', ')}`, {
         originalText: text.substring(0, 100),
         fieldName: config.fieldName
       });
@@ -81,7 +82,7 @@ export function validateAndSanitizeInput(text, options = {}) {
     }
 
   } catch (error) {
-    console.error('[InputValidator] 입력 검증 중 오류 발생:', error);
+    logger.error('[InputValidator] 입력 검증 중 오류 발생', { error: error.message, stack: error.stack });
     result.errors.push('입력 검증 중 오류가 발생했습니다.');
     result.isValid = false;
   }

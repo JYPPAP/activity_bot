@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/commands/NicknameSetupCommand.js - 닉네임 설정 명령어 (사용자용)
 
 import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
@@ -50,7 +51,7 @@ export class NicknameSetupCommand extends CommandBase {
         content: `✅ **${channel.name}** 채널에 닉네임 관리 UI가 설정되었습니다.`,
       });
     } catch (error) {
-      console.error('[NicknameSetupCommand] 오류:', error);
+      logger.error('[NicknameSetupCommand] 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: `❌ 오류: ${error.message}`,
         flags: MessageFlags.Ephemeral,
@@ -99,7 +100,7 @@ export class NicknameSetupCommand extends CommandBase {
           emoji: parsedEmoji,
         });
       } catch (error) {
-        console.error(`[NicknameSetupCommand] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+        logger.error(`[NicknameSetupCommand] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
 
         // 에러 발생 시 fallback 이모지 사용
         options.push({

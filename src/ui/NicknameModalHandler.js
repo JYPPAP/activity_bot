@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/ui/NicknameModalHandler.js - 닉네임 모달 핸들러
 
 import { MessageFlags, EmbedBuilder, StringSelectMenuBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
@@ -35,7 +36,7 @@ export class NicknameModalHandler {
         await this.handleUserEdit(interaction);
       }
     } catch (error) {
-      console.error('[NicknameModalHandler] 오류:', error);
+      logger.error('[NicknameModalHandler] 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: `❌ 오류: ${error.message}`,
         flags: MessageFlags.Ephemeral,
@@ -208,7 +209,7 @@ export class NicknameModalHandler {
       );
 
       if (!nicknameUIMessage) {
-        console.log('[NicknameModalHandler] 닉네임 UI 메시지를 찾을 수 없습니다.');
+        logger.info('[NicknameModalHandler] 닉네임 UI 메시지를 찾을 수 없습니다.');
         return;
       }
 
@@ -216,7 +217,7 @@ export class NicknameModalHandler {
       const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
 
       if (platforms.length === 0) {
-        console.log('[NicknameModalHandler] 플랫폼이 없습니다.');
+        logger.info('[NicknameModalHandler] 플랫폼이 없습니다.');
         return;
       }
 
@@ -229,7 +230,7 @@ export class NicknameModalHandler {
       try {
         await nicknameUIMessage.delete();
       } catch (error) {
-        console.error('[NicknameModalHandler] 메시지 삭제 실패:', error.message);
+        logger.error('[NicknameModalHandler] 메시지 삭제 실패', { error: error.message, stack: error.stack });
       }
 
       // 새로운 메시지 전송
@@ -238,9 +239,9 @@ export class NicknameModalHandler {
         components: [selectMenu, buttons],
       });
 
-      console.log('[NicknameModalHandler] 닉네임 UI가 업데이트되었습니다.');
+      logger.info('[NicknameModalHandler] 닉네임 UI가 업데이트되었습니다.');
     } catch (error) {
-      console.error('[NicknameModalHandler] UI 업데이트 오류:', error);
+      logger.error('[NicknameModalHandler] UI 업데이트 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -285,7 +286,7 @@ export class NicknameModalHandler {
           emoji: parsedEmoji,
         });
       } catch (error) {
-        console.error(`[NicknameModalHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+        logger.error(`[NicknameModalHandler] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
 
         // 에러 발생 시 fallback 이모지 사용
         options.push({

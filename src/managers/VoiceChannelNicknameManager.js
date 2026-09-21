@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/managers/VoiceChannelNicknameManager.js - 음성 채널 닉네임 표시 관리자
 
 import { ChannelType } from 'discord.js';
@@ -13,7 +14,7 @@ export class VoiceChannelNicknameManager {
    * 이벤트 리스너 설정
    */
   setupEventListeners() {
-    console.log('[VoiceChannelNicknameManager] 초기화 완료 - voiceStateUpdate 이벤트 리스너 등록');
+    logger.info('[VoiceChannelNicknameManager] 초기화 완료 - voiceStateUpdate 이벤트 리스너 등록');
     this.client.on('voiceStateUpdate', async (oldState, newState) => {
       await this.handleVoiceStateUpdate(oldState, newState);
     });
@@ -28,13 +29,13 @@ export class VoiceChannelNicknameManager {
     try {
       // 1. 음성 채널 입장 (null → 채널)
       if (!oldState.channel && newState.channel) {
-        console.log('[VoiceChannelNicknameManager] 음성 채널 입장 감지');
+        logger.info('[VoiceChannelNicknameManager] 음성 채널 입장 감지');
         await this.handleVoiceChannelJoin(newState);
       }
       // 2. 음성 채널 이동 (채널 → 다른 채널)
       // "방-생성하기" → 새 음성채널 케이스 포함
       else if (oldState.channel && newState.channel && oldState.channelId !== newState.channelId) {
-        console.log('[VoiceChannelNicknameManager] 음성 채널 이동 감지:', {
+        logger.info('[VoiceChannelNicknameManager] 음성 채널 이동 감지', {
           from: oldState.channel.name,
           to: newState.channel.name
         });
@@ -45,11 +46,11 @@ export class VoiceChannelNicknameManager {
       }
       // 3. 음성 채널 퇴장 (채널 → null)
       else if (oldState.channel && !newState.channel) {
-        console.log('[VoiceChannelNicknameManager] 음성 채널 퇴장 감지');
+        logger.info('[VoiceChannelNicknameManager] 음성 채널 퇴장 감지');
         await this.handleVoiceChannelLeave(oldState);
       }
     } catch (error) {
-      console.error('[VoiceChannelNicknameManager] 음성 채널 상태 변경 처리 오류:', error);
+      logger.error('[VoiceChannelNicknameManager] 음성 채널 상태 변경 처리 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -60,7 +61,7 @@ export class VoiceChannelNicknameManager {
   async handleVoiceChannelJoin(voiceState) {
     const { member, channel, guild } = voiceState;
 
-    console.log('[VoiceChannelNicknameManager] 음성 채널 입장 처리:', {
+    logger.info('[VoiceChannelNicknameManager] 음성 채널 입장 처리', {
       user: member.user.username,
       userId: member.user.id,
       channel: channel.name,
@@ -70,29 +71,29 @@ export class VoiceChannelNicknameManager {
 
     // 봇은 제외
     if (member.user.bot) {
-      console.log('[VoiceChannelNicknameManager] 봇 사용자 감지, 건너뜀');
+      logger.info('[VoiceChannelNicknameManager] 봇 사용자 감지, 건너뜀');
       return;
     }
 
     // 음성 채널이 아니면 무시
     if (channel.type !== ChannelType.GuildVoice) {
-      console.log('[VoiceChannelNicknameManager] 음성 채널이 아님, 건너뜀:', channel.type);
+      logger.info('[VoiceChannelNicknameManager] 음성 채널이 아님, 건너뜀', { value: channel.type });
       return;
     }
 
     // "방-생성하기" 채널은 제외 (경유 채널이므로 메시지 보내지 않음)
     if (channel.name.includes('방-생성하기')) {
-      console.log('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
+      logger.info('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
       return;
     }
 
     // 사용자의 닉네임 가져오기
     const nicknames = await this.userNicknameService.getUserNicknames(guild.id, member.user.id);
-    console.log('[VoiceChannelNicknameManager] 닉네임 조회 결과:', nicknames.length, '개');
+    logger.info('[VoiceChannelNicknameManager] 닉네임 조회 결과', { value: nicknames.length, unit: '개' });
 
     // 닉네임이 없으면 메시지 전송 안 함
     if (nicknames.length === 0) {
-      console.log('[VoiceChannelNicknameManager] 등록된 닉네임 없음, 메시지 전송 안 함');
+      logger.info('[VoiceChannelNicknameManager] 등록된 닉네임 없음, 메시지 전송 안 함');
       return;
     }
 
@@ -102,12 +103,12 @@ export class VoiceChannelNicknameManager {
     // 음성 채널에 직접 메시지 전송 (RecruitmentService와 동일 방식)
     try {
       await channel.send(embedData);
-      console.log('[VoiceChannelNicknameManager] ✅ 메시지 전송 완료:', {
+      logger.info('[VoiceChannelNicknameManager] ✅ 메시지 전송 완료', {
         voiceChannel: channel.name,
         user: member.user.username
       });
     } catch (error) {
-      console.error('[VoiceChannelNicknameManager] ❌ 메시지 전송 실패:', error.message);
+      logger.error('[VoiceChannelNicknameManager] ❌ 메시지 전송 실패', { error: error.message, stack: error.stack });
     }
   }
 
@@ -118,7 +119,7 @@ export class VoiceChannelNicknameManager {
   async handleVoiceChannelLeave(voiceState) {
     const { member, channel } = voiceState;
 
-    console.log('[VoiceChannelNicknameManager] 음성 채널 퇴장 처리:', {
+    logger.info('[VoiceChannelNicknameManager] 음성 채널 퇴장 처리', {
       user: member.user.username,
       userId: member.user.id,
       channel: channel.name,
@@ -127,13 +128,13 @@ export class VoiceChannelNicknameManager {
 
     // 봇은 제외
     if (member.user.bot) {
-      console.log('[VoiceChannelNicknameManager] 봇 사용자 감지, 건너뜀');
+      logger.info('[VoiceChannelNicknameManager] 봇 사용자 감지, 건너뜀');
       return;
     }
 
     // "방-생성하기" 채널은 제외
     if (channel.name.includes('방-생성하기')) {
-      console.log('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
+      logger.info('[VoiceChannelNicknameManager] 방-생성하기 채널 감지, 건너뜀');
       return;
     }
 
@@ -151,7 +152,7 @@ export class VoiceChannelNicknameManager {
       // 최근 100개 메시지 가져오기
       const messages = await channel.messages.fetch({ limit: 100 });
 
-      console.log('[VoiceChannelNicknameManager] 닉네임 메시지 검색:', {
+      logger.info('[VoiceChannelNicknameManager] 닉네임 메시지 검색', {
         channel: channel.name,
         userId: userId,
         totalMessages: messages.size
@@ -182,16 +183,16 @@ export class VoiceChannelNicknameManager {
 
       if (nicknameMessage) {
         await nicknameMessage.delete();
-        console.log('[VoiceChannelNicknameManager] ✅ 닉네임 메시지 삭제 완료:', {
+        logger.info('[VoiceChannelNicknameManager] ✅ 닉네임 메시지 삭제 완료', {
           messageId: nicknameMessage.id,
           userId: userId
         });
       } else {
-        console.log('[VoiceChannelNicknameManager] 삭제할 닉네임 메시지 없음');
+        logger.info('[VoiceChannelNicknameManager] 삭제할 닉네임 메시지 없음');
       }
     } catch (error) {
       // 메시지 삭제 실패는 치명적이지 않으므로 경고만 출력
-      console.warn('[VoiceChannelNicknameManager] ⚠️ 닉네임 메시지 삭제 실패:', error.message);
+      logger.warn('[VoiceChannelNicknameManager] ⚠️ 닉네임 메시지 삭제 실패', { error: error.message, stack: error.stack });
     }
   }
 

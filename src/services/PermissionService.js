@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/services/PermissionService.js - 권한 관리 서비스
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 
@@ -11,7 +12,7 @@ export class PermissionService {
   static hasRecruitmentPermission(user, member = null) {
     // 구인구직 기능이 비활성화된 경우
     if (!RecruitmentConfig.RECRUITMENT_ENABLED) {
-      console.log(`[PermissionService] ❌ 구인구직 기능이 비활성화됨`);
+      logger.info(`[PermissionService] ❌ 구인구직 기능이 비활성화됨`);
       return false;
     }
 
@@ -19,19 +20,19 @@ export class PermissionService {
     if (false) {
       // 허용된 사용자 ID 목록에 있는 경우
       if (RecruitmentConfig.ALLOWED_USER_IDS.includes(user.id)) {
-        console.log(`[PermissionService] ✅ 허용된 사용자: ${user.displayName} (${user.id})`);
+        logger.info(`[PermissionService] ✅ 허용된 사용자: ${user.displayName} (${user.id})`);
         return true;
       }
 
       // 관리자 권한이 있는 경우
       if (member && member.permissions.has('Administrator')) {
-        console.log(`[PermissionService] ✅ 관리자 권한: ${user.displayName} (${user.id})`);
+        logger.info(`[PermissionService] ✅ 관리자 권한: ${user.displayName} (${user.id})`);
         return true;
       }
     }
 
     // 구인구직 기능이 활성화된 경우 모든 사용자 접근 허용
-    console.log(`[PermissionService] ✅ 구인구직 접근 허용: ${user.displayName} (${user.id})`);
+    logger.info(`[PermissionService] ✅ 구인구직 접근 허용: ${user.displayName} (${user.id})`);
     return true;
   }
 
@@ -111,7 +112,7 @@ export class PermissionService {
     RecruitmentConfig.RECRUITMENT_ENABLED = enabled;
     const status = enabled ? '활성화' : '비활성화';
 
-    console.log(`[PermissionService] 구인구직 기능 ${status}: ${user.displayName} (${user.id})`);
+    logger.info(`[PermissionService] 구인구직 기능 ${status}: ${user.displayName} (${user.id})`);
 
     return {
       success: true,
@@ -145,7 +146,7 @@ export class PermissionService {
 
     RecruitmentConfig.ALLOWED_USER_IDS.push(userId);
 
-    console.log(`[PermissionService] 허용된 사용자 추가: ${userId} (요청자: ${requestUser.displayName})`);
+    logger.info(`[PermissionService] 허용된 사용자 추가: ${userId} (요청자: ${requestUser.displayName})`);
 
     return {
       success: true,
@@ -179,7 +180,7 @@ export class PermissionService {
 
     RecruitmentConfig.ALLOWED_USER_IDS.splice(index, 1);
 
-    console.log(`[PermissionService] 허용된 사용자 제거: ${userId} (요청자: ${requestUser.displayName})`);
+    logger.info(`[PermissionService] 허용된 사용자 제거: ${userId} (요청자: ${requestUser.displayName})`);
 
     return {
       success: true,

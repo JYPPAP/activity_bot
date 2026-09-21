@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/commands/gapReportCommand.js - gap_report 명령어
 import {MessageFlags} from 'discord.js';
 import {cleanRoleName} from '../utils/formatters.js';
@@ -109,10 +110,10 @@ export class GapReportCommand extends CommandBase {
       try {
         // 날짜 파싱
         const dates = this.parseYYMMDDDates(startDateStr, endDateStr);
-        console.log('파싱된 날짜:', dates.startDate, dates.endDate);
+        logger.info('파싱된 날짜', { startDate: dates.startDate, endDate: dates.endDate });
         return dates;
       } catch (error) {
-        console.error('날짜 파싱 오류:', error);
+        logger.error('날짜 파싱 오류', { error: error.message, stack: error.stack });
         interaction.followUp({
           content: `날짜 처리 중 오류가 발생했습니다: ${error.message}`,
           flags: MessageFlags.Ephemeral,
@@ -199,7 +200,7 @@ export class GapReportCommand extends CommandBase {
           inactiveUsers.push(userData);
         }
       } catch (error) {
-        console.error(`사용자 ${userId} 분류 중 오류:`, error);
+        logger.error(`사용자 ${userId} 분류 중 오류`, { error: error.message, stack: error.stack });
       }
     }
 

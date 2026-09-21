@@ -810,10 +810,10 @@ export class ForumRepository {
 
   async updateLastParticipantCount(voiceChannelId, count) {
     try {
-      console.log(`[ForumRepository] 참여자 수 기록: ${voiceChannelId} = ${count}`);
+      logger.info(`[ForumRepository] 참여자 수 기록: ${voiceChannelId} = ${count}`);
       return true;
     } catch (error) {
-      console.error('[ForumRepository] 참여자 수 업데이트 오류:', error);
+      logger.error('[ForumRepository] 참여자 수 업데이트 오류', { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -834,7 +834,7 @@ export class ForumRepository {
       `);
       return rows ?? [];
     } catch (err) {
-      console.error('[ForumRepository] 채널 매핑 목록 조회 오류:', err);
+      logger.error('[ForumRepository] 채널 매핑 목록 조회 오류', { error: err.message, stack: err.stack });
       return [];
     }
   }

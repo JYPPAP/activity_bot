@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/commands/NicknameCommand.js - 닉네임 변경 명령어
 import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { CommandBase } from './CommandBase.js';
@@ -68,7 +69,7 @@ export class NicknameCommand extends CommandBase {
       });
 
     } catch (error) {
-      console.error(`${this.constructor.name} 명령어 실행 오류:`, error);
+      logger.error(`${this.constructor.name} 명령어 실행 오류`, { error: error.message, stack: error.stack });
 
       // 에러 응답
       await interaction.editReply({

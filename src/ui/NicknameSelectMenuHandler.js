@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/ui/NicknameSelectMenuHandler.js - 닉네임 드롭다운 핸들러
 
 import { MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder } from 'discord.js';
@@ -30,7 +31,7 @@ export class NicknameSelectMenuHandler {
         await this.handleDeleteSelect(interaction);
       }
     } catch (error) {
-      console.error('[NicknameSelectMenuHandler] 오류:', error);
+      logger.error('[NicknameSelectMenuHandler] 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: `❌ 오류: ${error.message}`,
         flags: MessageFlags.Ephemeral,

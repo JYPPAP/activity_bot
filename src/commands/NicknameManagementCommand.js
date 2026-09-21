@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/commands/NicknameManagementCommand.js - 닉네임 관리 명령어 (관리자 전용)
 
 import { MessageFlags, EmbedBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder, StringSelectMenuBuilder, ComponentType, ButtonBuilder, ButtonStyle } from 'discord.js';
@@ -48,7 +49,7 @@ export class NicknameManagementCommand extends CommandBase {
         content: '✅ 플랫폼 관리 UI가 생성되었습니다.',
       });
     } catch (error) {
-      console.error('[NicknameManagementCommand] 오류:', error);
+      logger.error('[NicknameManagementCommand] 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: `❌ 오류: ${error.message}`,
         flags: MessageFlags.Ephemeral,
@@ -241,7 +242,7 @@ export class NicknameManagementCommand extends CommandBase {
 
       await selectInteraction.showModal(modal);
     } catch (error) {
-      console.error('[NicknameManagementCommand] 수정 시간 초과:', error);
+      logger.error('[NicknameManagementCommand] 수정 시간 초과', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
     }
   }
@@ -299,7 +300,7 @@ export class NicknameManagementCommand extends CommandBase {
         });
       }
     } catch (error) {
-      console.error('[NicknameManagementCommand] 삭제 시간 초과:', error);
+      logger.error('[NicknameManagementCommand] 삭제 시간 초과', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
     }
   }

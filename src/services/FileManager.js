@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/services/fileManager.js - 파일 관리 서비스
 import fs from 'fs';
 
@@ -12,7 +13,7 @@ export class FileManager {
       try {
         return JSON.parse(fs.readFileSync(filePath, 'utf8'));
       } catch (error) {
-        console.error("파일 데이터 파싱 오류:", error);
+        logger.error("파일 데이터 파싱 오류", { error: error.message, stack: error.stack });
       }
     }
     return {};
@@ -27,7 +28,7 @@ export class FileManager {
     try {
       fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
     } catch (error) {
-      console.error("파일 저장 오류:", error);
+      logger.error("파일 저장 오류", { error: error.message, stack: error.stack });
     }
   }
 

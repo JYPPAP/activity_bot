@@ -1,3 +1,4 @@
+import { logger } from './config/logger-termux.js';
 // src/container.js - DI Container 설정 (통합 개선 버전)
 import { createContainer, asClass, asValue, asFunction, InjectionMode } from 'awilix';
 import { config } from './config/env.js';
@@ -210,11 +211,11 @@ export async function initializeContainer(container) {
     await dbManager.initialize();
     
     const initTime = performance.now() - startTime;
-    console.log(`DI Container 초기화 완료 (${initTime.toFixed(2)}ms)`);
+    logger.info(`DI Container 초기화 완료 (${initTime.toFixed(2)}ms)`);
     
     return true;
   } catch (error) {
-    console.error('DI Container 초기화 중 오류 발생:', error);
+    logger.error('DI Container 초기화 중 오류 발생', { error: error.message, stack: error.stack });
     throw error;
   }
 }
@@ -237,9 +238,9 @@ export async function disposeContainer(container) {
     // 3. 컨테이너 해제
     await container.dispose();
     
-    console.log('DI Container가 안전하게 해제되었습니다.');
+    logger.info('DI Container가 안전하게 해제되었습니다.');
   } catch (error) {
-    console.error('DI Container 해제 중 오류 발생:', error);
+    logger.error('DI Container 해제 중 오류 발생', { error: error.message, stack: error.stack });
     throw error;
   }
 }
@@ -259,9 +260,9 @@ async function validateDependencyGraph(container) {
       container.resolve(service);
     }
     
-    console.log('의존성 그래프 검증 완료');
+    logger.info('의존성 그래프 검증 완료');
   } catch (error) {
-    console.error('의존성 그래프 검증 실패:', error);
+    logger.error('의존성 그래프 검증 실패', { error: error.message, stack: error.stack });
     throw new Error(`의존성 해결 실패: ${error.message}`);
   }
 }

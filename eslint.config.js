@@ -17,7 +17,7 @@ export default [
       globals: globals.node,
     },
     rules: {
-      'no-console': 'warn',
+      'no-console': 'error',
       'no-restricted-imports': [
         'error',
         {
@@ -41,7 +41,7 @@ export default [
     },
   },
   {
-    files: ['tests/**/*.test.js'],
+    files: ['tests/**/*.js'],
     languageOptions: {
       ecmaVersion: 2024,
       sourceType: 'module',

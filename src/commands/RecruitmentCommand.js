@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/commands/recruitmentCommand.js - 구인구직 명령어
 import { MessageFlags } from 'discord.js';
 import { CommandBase } from './CommandBase.js';
@@ -27,7 +28,7 @@ export class RecruitmentCommand extends CommandBase {
       // 일반 구인구직 처리 (type 옵션 제거됨)
       await this.voiceForumService.showStandaloneRecruitmentModal(interaction);
     } catch (error) {
-      console.error(`${this.constructor.name} 명령어 실행 오류:`, error);
+      logger.error(`${this.constructor.name} 명령어 실행 오류`, { error: error.message, stack: error.stack });
 
       // 에러 응답 (SafeInteraction이 자동으로 상태 확인)
       await this.safeReply(interaction, {

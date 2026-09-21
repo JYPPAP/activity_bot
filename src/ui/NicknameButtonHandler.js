@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/ui/NicknameButtonHandler.js - 닉네임 버튼 핸들러
 
 import { MessageFlags, StringSelectMenuBuilder, ActionRowBuilder, ModalBuilder, TextInputBuilder, TextInputStyle, ComponentType, EmbedBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
@@ -47,7 +48,7 @@ export class NicknameButtonHandler {
         await this.handleAdminListButton(interaction);
       }
     } catch (error) {
-      console.error('[NicknameButtonHandler] 오류:', error);
+      logger.error('[NicknameButtonHandler] 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: `❌ 오류: ${error.message}`,
         flags: MessageFlags.Ephemeral,
@@ -84,7 +85,7 @@ export class NicknameButtonHandler {
           emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
         };
       } catch (error) {
-        console.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}:`, error);
+        logger.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}`, { error: error.message, stack: error.stack });
         return {
           label: `${nickname.platform_name} - ${nickname.user_identifier}`,
           description: `ID: ${nickname.user_identifier}`,
@@ -138,7 +139,7 @@ export class NicknameButtonHandler {
           emoji: EmojiParser.parse(nickname.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
         };
       } catch (error) {
-        console.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}:`, error);
+        logger.error(`[NicknameButtonHandler] Failed to parse emoji for ${nickname.platform_name}`, { error: error.message, stack: error.stack });
         return {
           label: `${nickname.platform_name} - ${nickname.user_identifier}`,
           description: `ID: ${nickname.user_identifier}`,
@@ -188,7 +189,7 @@ export class NicknameButtonHandler {
 
       await selectInteraction.showModal(modal);
     } catch (error) {
-      console.error('[NicknameButtonHandler] 수정 시간 초과:', error);
+      logger.error('[NicknameButtonHandler] 수정 시간 초과', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
     }
   }
@@ -290,7 +291,7 @@ export class NicknameButtonHandler {
               emoji: EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM),
             };
           } catch (error) {
-            console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+            logger.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
             return {
               label: platform.platform_name,
               value: platform.id.toString(),
@@ -361,7 +362,7 @@ export class NicknameButtonHandler {
 
       await selectInteraction.showModal(modal);
     } catch (error) {
-      console.error('[NicknameButtonHandler] 수정 시간 초과:', error);
+      logger.error('[NicknameButtonHandler] 수정 시간 초과', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
     }
   }
@@ -393,7 +394,7 @@ export class NicknameButtonHandler {
               description: `Base URL: ${platform.base_url.substring(0, 50)}...`,
             };
           } catch (error) {
-            console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+            logger.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
             return {
               label: platform.platform_name,
               value: platform.id.toString(),
@@ -437,7 +438,7 @@ export class NicknameButtonHandler {
         });
       }
     } catch (error) {
-      console.error('[NicknameButtonHandler] 삭제 시간 초과:', error);
+      logger.error('[NicknameButtonHandler] 삭제 시간 초과', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '시간 초과되었습니다.', components: [] });
     }
   }
@@ -490,7 +491,7 @@ export class NicknameButtonHandler {
       );
 
       if (!nicknameUIMessage) {
-        console.log('[NicknameButtonHandler] 닉네임 UI 메시지를 찾을 수 없습니다.');
+        logger.info('[NicknameButtonHandler] 닉네임 UI 메시지를 찾을 수 없습니다.');
         return;
       }
 
@@ -498,7 +499,7 @@ export class NicknameButtonHandler {
       const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
 
       if (platforms.length === 0) {
-        console.log('[NicknameButtonHandler] 플랫폼이 없습니다.');
+        logger.info('[NicknameButtonHandler] 플랫폼이 없습니다.');
         return;
       }
 
@@ -511,7 +512,7 @@ export class NicknameButtonHandler {
       try {
         await nicknameUIMessage.delete();
       } catch (error) {
-        console.error('[NicknameButtonHandler] 메시지 삭제 실패:', error.message);
+        logger.error('[NicknameButtonHandler] 메시지 삭제 실패', { error: error.message, stack: error.stack });
       }
 
       // 새로운 메시지 전송
@@ -520,9 +521,9 @@ export class NicknameButtonHandler {
         components: [selectMenu, buttons],
       });
 
-      console.log('[NicknameButtonHandler] 닉네임 UI가 업데이트되었습니다.');
+      logger.info('[NicknameButtonHandler] 닉네임 UI가 업데이트되었습니다.');
     } catch (error) {
-      console.error('[NicknameButtonHandler] UI 업데이트 오류:', error);
+      logger.error('[NicknameButtonHandler] UI 업데이트 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -567,7 +568,7 @@ export class NicknameButtonHandler {
           emoji: parsedEmoji,
         });
       } catch (error) {
-        console.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}:`, error);
+        logger.error(`[NicknameButtonHandler] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
 
         // 에러 발생 시 fallback 이모지 사용
         options.push({

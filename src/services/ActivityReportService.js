@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/services/activityReportService.js - 활동 보고서 서비스
 import {EmbedBuilder} from 'discord.js';
 import {config} from '../config/env.js';
@@ -32,7 +33,7 @@ export class ActivityReportService {
         // 역할 객체 찾기
         const role = guild.roles.cache.find(r => r.name === roleName);
         if (!role) {
-          console.log(`역할 [${roleName}]을 찾을 수 없습니다.`);
+          logger.info(`역할 [${roleName}]을 찾을 수 없습니다.`);
           continue;
         }
 
@@ -43,7 +44,7 @@ export class ActivityReportService {
 
         // 멤버가 없으면 건너뛰기
         if (members.size === 0) {
-          console.log(`역할 [${roleName}]에 멤버가 없습니다.`);
+          logger.info(`역할 [${roleName}]에 멤버가 없습니다.`);
           continue;
         }
 
@@ -63,10 +64,10 @@ export class ActivityReportService {
           await channel.send({embeds: [embed]});
         }
 
-        console.log(`역할 [${roleName}]의 활동 보고서가 전송되었습니다.`);
+        logger.info(`역할 [${roleName}]의 활동 보고서가 전송되었습니다.`);
       }
     } catch (error) {
-      console.error('역할 활동 보고서 생성 오류:', error);
+      logger.error('역할 활동 보고서 생성 오류', { error: error.message, stack: error.stack });
       await channel.send('역할 활동 보고서 생성 중 오류가 발생했습니다.');
     }
   }
@@ -91,9 +92,9 @@ export class ActivityReportService {
 
       await channel.send({embeds: [embed]});
 
-      console.log(`주간 요약 보고서가 성공적으로 전송되었습니다.`);
+      logger.info(`주간 요약 보고서가 성공적으로 전송되었습니다.`);
     } catch (error) {
-      console.error('주간 요약 보고서 생성 오류:', error);
+      logger.error('주간 요약 보고서 생성 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -133,7 +134,7 @@ export class ActivityReportService {
                 user.displayName = member.displayName;
               }
             } catch (error) {
-              console.error(`사용자 정보 조회 실패: ${user.userId}`, error);
+              logger.error(`사용자 정보 조회 실패: ${user.userId}`, { error: error.message, stack: error.stack });
             }
           }
         }
@@ -159,7 +160,7 @@ export class ActivityReportService {
         mostActiveChannels: activeChannelStats
       };
     } catch (error) {
-      console.error('주간 요약 데이터 생성 오류:', error);
+      logger.error('주간 요약 데이터 생성 오류', { error: error.message, stack: error.stack });
       return {
         totalJoins: 0,
         totalLeaves: 0,
@@ -197,7 +198,7 @@ export class ActivityReportService {
                    .sort((a, b) => b.count - a.count)
                    .slice(0, limit);
     } catch (error) {
-      console.error('활동적인 채널 조회 오류:', error);
+      logger.error('활동적인 채널 조회 오류', { error: error.message, stack: error.stack });
       return [];
     }
   }

@@ -1,3 +1,4 @@
+import { logger } from '../config/logger-termux.js';
 // src/services/VoiceChannelForumIntegrationService.js - 음성채널-포럼 통합 서비스 (DI 적용 버전)
 import { PermissionService } from './PermissionService.js';
 import { RecruitmentUIBuilder } from '../ui/RecruitmentUIBuilder.js';
@@ -19,7 +20,7 @@ export class VoiceChannelForumIntegrationService {
     this.buttonHandler = buttonHandler;
     this.interactionRouter = interactionRouter;
     
-    console.log(`[VoiceForumService] 통합 서비스 DI 초기화 완료`);
+    logger.info(`[VoiceForumService] 통합 서비스 DI 초기화 완료`);
   }
   
   /**
@@ -87,7 +88,7 @@ export class VoiceChannelForumIntegrationService {
       await this.interactionRouter.routeInteraction(interaction);
       
     } catch (error) {
-      console.error('[VoiceForumService] 인터랙션 처리 오류:', error);
+      logger.error('[VoiceForumService] 인터랙션 처리 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -130,7 +131,7 @@ export class VoiceChannelForumIntegrationService {
       });
       
     } catch (error) {
-      console.error('[VoiceForumService] 독립 구인구직 모달 표시 오류:', error);
+      logger.error('[VoiceForumService] 독립 구인구직 모달 표시 오류', { error: error.message, stack: error.stack });
       
       // SafeInteraction을 사용하여 안전한 에러 응답
       await SafeInteraction.safeReply(interaction, {
@@ -223,21 +224,21 @@ export class VoiceChannelForumIntegrationService {
    */
   async initializeMappingService() {
     try {
-      console.log('[VoiceForumService] MappingService 초기화 시작...');
+      logger.info('[VoiceForumService] MappingService 초기화 시작...');
       
       if (this.mappingService && typeof this.mappingService.initialize === 'function') {
         const initResult = await this.mappingService.initialize();
         
         if (initResult) {
-          console.log('[VoiceForumService] MappingService 초기화 성공');
+          logger.info('[VoiceForumService] MappingService 초기화 성공');
         } else {
-          console.warn('[VoiceForumService] MappingService 초기화 실패');
+          logger.warn('[VoiceForumService] MappingService 초기화 실패');
         }
       } else {
-        console.warn('[VoiceForumService] MappingService 또는 initialize 메서드가 없습니다.');
+        logger.warn('[VoiceForumService] MappingService 또는 initialize 메서드가 없습니다.');
       }
     } catch (error) {
-      console.error('[VoiceForumService] MappingService 초기화 오류:', error);
+      logger.error('[VoiceForumService] MappingService 초기화 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -258,7 +259,7 @@ export class VoiceChannelForumIntegrationService {
     const allHealthy = components.every(component => !!component);
     
     if (!allHealthy) {
-      console.error('[VoiceForumService] 일부 컴포넌트가 초기화되지 않았습니다.');
+      logger.error('[VoiceForumService] 일부 컴포넌트가 초기화되지 않았습니다.');
     }
     
     return allHealthy;

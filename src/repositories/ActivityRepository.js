@@ -381,12 +381,12 @@ export class ActivityRepository {
 
   // ActivityReportService 호환성 스텁 메서드
   async getDailyActivityStats(startTime, endTime) {
-    console.warn('[ActivityRepository] getDailyActivityStats: activity_logs 제거로 인해 빈 데이터 반환');
+    logger.warn('[ActivityRepository] getDailyActivityStats: activity_logs 제거로 인해 빈 데이터 반환');
     return [];
   }
 
   async getActivityLogs(startTime, endTime) {
-    console.warn('[ActivityRepository] getActivityLogs: activity_logs 제거로 인해 빈 데이터 반환');
+    logger.warn('[ActivityRepository] getActivityLogs: activity_logs 제거로 인해 빈 데이터 반환');
     return [];
   }
 }
