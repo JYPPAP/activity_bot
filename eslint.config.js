@@ -40,4 +40,15 @@ export default [
       'no-console': 'off',
     },
   },
+  {
+    files: ['tests/**/*.test.js'],
+    languageOptions: {
+      ecmaVersion: 2024,
+      sourceType: 'module',
+      globals: {
+        ...globals.node,
+        ...globals.vitest,
+      },
+    },
+  },
 ];

@@ -35,7 +35,7 @@
 - **주의**: 초기엔 `no-console`을 `warn`으로 두고 T-010 완료 후 `error`로 승격. 기존 코드 스타일 변경 금지(Prettier 도입 안 함).
 - **완료 조건**: `npm run lint` 실행 가능, 신규 에러 0 (warn 허용).
 
-### T-002 `todo` Vitest 도입 + 첫 테스트
+### T-002 `done` Vitest 도입 + 첫 테스트
 - **범위**: `vitest` devDep, `npm test` → `vitest run`, `tests/` 디렉토리.
 - **첫 테스트 대상** (순수 함수, 외부 의존 없음): `src/utils/TextProcessor.js`의 `cleanNickname`, `src/utils/inputValidator.js`.
 - **완료 조건**: 테스트 10개 이상, 모두 통과. 기존 `npm test` 로거 스모크는 `test:logger`로 이름 변경.
@@ -44,7 +44,7 @@
 - **범위**: `.husky/pre-commit` = `npm run lint && npm run docs:check:strict`, `prepare` 스크립트.
 - **주의**: Termux에서 `git pull`만 하는 prod 환경엔 영향 없어야 함(`prepare` 실패 시 무시: `husky || true`).
 
-### T-004 `todo` CODEBASE_MAP 드리프트 수정
+### T-004 `done` CODEBASE_MAP 드리프트 수정
 - `services/InactivePostChecker.js` 항목 추가 (역할: 15일 비활동 구직글 경고, 커밋 00d1f53 참고). 한 줄 작업.
 
 ---
