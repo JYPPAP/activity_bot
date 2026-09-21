@@ -47,11 +47,14 @@
 ### T-004 `done` CODEBASE_MAP 드리프트 수정
 - `services/InactivePostChecker.js` 항목 추가 (역할: 15일 비활동 구직글 경고, 커밋 00d1f53 참고). 한 줄 작업.
 
+
+### T-005 `todo` Slack 알림 기능 완전 제거 (사용자 요청 2026-09-21)
+- `sendSlackAlert` 및 관련 env/스크립트/axios 의존성 제거. 브리프: `docs/tasks/T-005.md`.
 ---
 
 ## Phase 1 — 불변식 위반 청소 (동작 변경 없음)
 
-### T-010 `todo` `console.*` → `logger` 치환 (파일 단위로 분할)
+### T-010 `doing` `console.*` → `logger` 치환 (파일 단위로 분할)
 - 순서(건수 많은 순): ForumPostManager(87) → MappingService(64) → ActivityTracker(57) → ButtonHandler(55) → EmojiReactionService(50) → ModalHandler(39) → RecruitmentService(35) → 나머지.
 - **매핑**: `console.log`→`logger.info`, `console.warn`→`logger.warn`, `console.error`→`logger.error`. 두 번째 인자로 객체를 넘기는 Errsole 스타일 유지.
 - **주입**: 각 클래스에 `logger`가 이미 주입되어 있으면 사용, 없으면 `import { logger } from '../config/logger-termux.js'` (DI 생성자 시그니처 변경 금지 — I-01).

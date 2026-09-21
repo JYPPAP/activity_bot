@@ -4,6 +4,7 @@ import { DiscordConstants } from '../config/DiscordConstants.js';
 import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
 import { formatParticipantList, formatParticipantChangeMessage, formatWaitlist } from '../utils/formatters.js';
+import { logger } from '../config/logger-termux.js';
 
 export class ForumPostManager {
   constructor(client, forumChannelId, forumTagId, databaseManager = null) {
@@ -25,7 +26,7 @@ export class ForumPostManager {
       const forumChannel = await this.client.channels.fetch(this.forumChannelId);
       
       if (!forumChannel || forumChannel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
-        console.error('[ForumPostManager] 포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.');
+        logger.error('[ForumPostManager] 포럼 채널을 찾을 수 없거나 올바른 포럼 채널이 아닙니다.');
         return { success: false, error: '포럼 채널을 찾을 수 없습니다' };
       }
       
@@ -100,17 +101,17 @@ export class ForumPostManager {
         });
 
         await starterMessage.edit({ components: updatedComponents });
-        console.log(`[ForumPostManager] 버튼 customId 업데이트됨: ${thread.id}`);
+        logger.info(`[ForumPostManager] 버튼 customId 업데이트됨: ${thread.id}`);
       } catch (updateError) {
-        console.error('[ForumPostManager] 버튼 customId 업데이트 실패:', updateError);
+        logger.error('[ForumPostManager] 버튼 customId 업데이트 실패', { error: updateError.message, stack: updateError.stack });
       }
 
       // 모집자를 스레드에 자동으로 추가
       try {
         await thread.members.add(recruitmentData.author.id);
-        console.log(`[ForumPostManager] 모집자가 스레드에 추가됨: ${recruitmentData.author.displayName}`);
+        logger.info(`[ForumPostManager] 모집자가 스레드에 추가됨: ${recruitmentData.author.displayName}`);
       } catch (addError) {
-        console.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패:', addError.message);
+        logger.warn('[ForumPostManager] 모집자를 스레드에 추가하는데 실패', { error: addError.message });
       }
 
       // 모집자 + 미리 모인 멤버 참가자 DB 자동 등록
@@ -123,7 +124,7 @@ export class ForumPostManager {
           await this.databaseManager.addParticipant(
             thread.id, recruitmentData.author.id, recruiterName
           );
-          console.log(`[ForumPostManager] 모집자 참가자 자동 등록: ${recruiterName}`);
+          logger.info(`[ForumPostManager] 모집자 참가자 자동 등록: ${recruiterName}`);
 
           // 미리 모인 멤버 자동 등록
           const preMemberIds = recruitmentData.preMemberIds || [];
@@ -135,15 +136,15 @@ export class ForumPostManager {
               );
               await this.databaseManager.addParticipant(thread.id, userId, memberName);
               await thread.members.add(userId);
-              console.log(`[ForumPostManager] 미리 모인 멤버 자동 등록: ${memberName}`);
+              logger.info(`[ForumPostManager] 미리 모인 멤버 자동 등록: ${memberName}`);
             } catch (memberError) {
-              console.warn(`[ForumPostManager] 미리 모인 멤버 추가 실패 (${userId}):`, memberError.message);
+              logger.warn(`[ForumPostManager] 미리 모인 멤버 추가 실패 (${userId})`, { error: memberError.message });
             }
           }
 
           // @name 형식으로 입력된 미리 모인 멤버 → guild.members.search()로 ID 해석
           const preMemberNames = recruitmentData.preMemberNames || [];
-          console.log(`[ForumPostManager] @name 멤버 처리 시작: ${preMemberNames.length}명 [${preMemberNames.join(', ')}]`);
+          logger.info(`[ForumPostManager] @name 멤버 처리 시작: ${preMemberNames.length}명 [${preMemberNames.join(', ')}]`);
           for (const name of preMemberNames) {
             try {
               let matched = null;
@@ -151,7 +152,7 @@ export class ForumPostManager {
               // 1차: Discord REST API 검색 (닉네임/username 기반)
               try {
                 const searchResults = await forumChannel.guild.members.search({ query: name, limit: 10 });
-                console.log(`[ForumPostManager] "${name}" API 검색 결과: ${searchResults.size}명`);
+                logger.info(`[ForumPostManager] "${name}" API 검색 결과: ${searchResults.size}명`);
 
                 // 정확히 일치하는 멤버 우선 탐색
                 matched = searchResults.find(m => {
@@ -165,12 +166,12 @@ export class ForumPostManager {
                   );
                 }) ?? searchResults.first();
               } catch (apiErr) {
-                console.warn(`[ForumPostManager] "${name}" API 검색 오류:`, apiErr.message);
+                logger.warn(`[ForumPostManager] "${name}" API 검색 오류`, { error: apiErr.message });
               }
 
               // 2차 폴백: 캐시에서 검색 (글로벌 이름 / 부분 일치 포함)
               if (!matched) {
-                console.log(`[ForumPostManager] "${name}" 캐시 폴백 검색 시도...`);
+                logger.info(`[ForumPostManager] "${name}" 캐시 폴백 검색 시도...`);
                 matched = forumChannel.guild.members.cache.find(m => {
                   const cleanNick = TextProcessor.cleanNickname(m.displayName || m.user.username);
                   const globalName = m.user.globalName || '';
@@ -185,7 +186,7 @@ export class ForumPostManager {
                   );
                 }) ?? null;
                 if (matched) {
-                  console.log(`[ForumPostManager] "${name}" 캐시에서 발견: ${matched.displayName} (${matched.id})`);
+                  logger.info(`[ForumPostManager] "${name}" 캐시에서 발견: ${matched.displayName} (${matched.id})`);
                 }
               }
 
@@ -194,14 +195,14 @@ export class ForumPostManager {
                 await this.databaseManager.addParticipant(thread.id, matched.id, memberName);
                 await thread.members.add(matched.id);
                 preMemberIds.push(matched.id);
-                console.log(`[ForumPostManager] @name 멤버 등록 성공: "${name}" → ${memberName} (${matched.id})`);
+                logger.info(`[ForumPostManager] @name 멤버 등록 성공: "${name}" → ${memberName} (${matched.id})`);
               } else if (!matched) {
-                console.warn(`[ForumPostManager] @name으로 멤버를 찾을 수 없음: "${name}" (API+캐시 모두 실패)`);
+                logger.warn(`[ForumPostManager] @name으로 멤버를 찾을 수 없음: "${name}" (API+캐시 모두 실패)`);
               } else {
-                console.log(`[ForumPostManager] "${name}" 이미 등록된 멤버 (${matched.id}), 스킵`);
+                logger.info(`[ForumPostManager] "${name}" 이미 등록된 멤버 (${matched.id}), 스킵`);
               }
             } catch (nameSearchErr) {
-              console.warn(`[ForumPostManager] @name 검색 실패 ("${name}"):`, nameSearchErr.message);
+              logger.warn(`[ForumPostManager] @name 검색 실패 ("${name}")`, { error: nameSearchErr.message });
             }
           }
 
@@ -225,9 +226,9 @@ export class ForumPostManager {
           });
           // 추적 등록: 다음 참가자 업데이트 시 자동 삭제됨
           await this._trackMessage(thread.id, 'emoji_reaction', initParticipantMsg.id);
-          console.log(`[ForumPostManager] 초기 참가자 목록 메시지 전송 완료: ${participantNicknames.length}명`);
+          logger.info(`[ForumPostManager] 초기 참가자 목록 메시지 전송 완료: ${participantNicknames.length}명`);
         } catch (autoAddError) {
-          console.warn('[ForumPostManager] 참가자 자동 등록 중 오류:', autoAddError.message);
+          logger.warn('[ForumPostManager] 참가자 자동 등록 중 오류', { error: autoAddError.message });
         }
       }
 
@@ -237,10 +238,10 @@ export class ForumPostManager {
           const voiceChannel = await this.client.channels.fetch(voiceChannelId);
           if (voiceChannel) {
             await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${voiceChannel.guild.id}/${voiceChannelId}`);
-            console.log(`[ForumPostManager] 음성 채널 링크 메시지 추가됨: ${voiceChannel.name}`);
+            logger.info(`[ForumPostManager] 음성 채널 링크 메시지 추가됨: ${voiceChannel.name}`);
           }
         } catch (linkError) {
-          console.warn('[ForumPostManager] 음성 채널 링크 메시지 추가 실패:', linkError.message);
+          logger.warn('[ForumPostManager] 음성 채널 링크 메시지 추가 실패', { error: linkError.message });
         }
       }
       
@@ -249,9 +250,9 @@ export class ForumPostManager {
         const participationGuide = '**참가하기** 버튼을 눌러 참가하세요.';
 
         await thread.send(participationGuide);
-        console.log(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
+        logger.info(`[ForumPostManager] 참가 안내 메시지 추가됨: ${thread.name}`);
       } catch (guideError) {
-        console.warn('[ForumPostManager] 참가 안내 메시지 추가 실패:', guideError.message);
+        logger.warn('[ForumPostManager] 참가 안내 메시지 추가 실패', { error: guideError.message });
       }
       
       // 독립형 포럼의 경우 데이터베이스에 매핑 정보 저장
@@ -264,18 +265,18 @@ export class ForumPostManager {
             'standalone',     // forum_state
             true             // is_active
           );
-          console.log(`[ForumPostManager] 독립형 포럼 매핑 저장 완료: ${mappingKey} -> ${thread.id}`);
+          logger.info(`[ForumPostManager] 독립형 포럼 매핑 저장 완료: ${mappingKey} -> ${thread.id}`);
         } catch (mappingError) {
-          console.warn('[ForumPostManager] 독립형 포럼 매핑 저장 실패:', mappingError.message);
+          logger.warn('[ForumPostManager] 독립형 포럼 매핑 저장 실패', { error: mappingError.message });
           // 매핑 실패해도 포럼 생성은 성공으로 처리
         }
       }
 
-      console.log(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
+      logger.info(`[ForumPostManager] 포럼 포스트 생성 완료: ${thread.name} (ID: ${thread.id})`);
       return { success: true, postId: thread.id };
       
     } catch (error) {
-      console.error('[ForumPostManager] 포럼 포스트 생성 오류:', error);
+      logger.error('[ForumPostManager] 포럼 포스트 생성 오류', { error: error.message, stack: error.stack });
       return { success: false, error: error.message };
     }
   }
@@ -485,7 +486,7 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread() || thread.archived) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
         
         // 아카이브되거나 삭제된 스레드의 연동 정리
         await this._cleanupArchivedThread(postId);
@@ -503,11 +504,11 @@ export class ForumPostManager {
       // 새 메시지 추적 저장
       await this._trackMessage(postId, 'participant_count', sentMessage.id);
       
-      console.log(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
+      logger.info(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 완료: ${postId} (${currentCount}/${maxCount})`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 참여자 수 업데이트 메시지 전송 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -526,7 +527,7 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread() || thread.archived) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없거나 아카이브됨: ${postId}`);
         
         // 아카이브되거나 삭제된 스레드의 연동 정리
         await this._cleanupArchivedThread(postId);
@@ -545,11 +546,11 @@ export class ForumPostManager {
       // Embed와 별도로 네이티브 채널 링크 전송
       await thread.send({ embeds: [linkEmbed] });
       await thread.send(`🔊 **음성 채널**: https://discord.com/channels/${guildId}/${voiceChannelId}`);
-      console.log(`[ForumPostManager] 음성 채널 연동 메시지 전송 완료: ${postId}`);
+      logger.info(`[ForumPostManager] 음성 채널 연동 메시지 전송 완료: ${postId}`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 음성 채널 연동 메시지 전송 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 음성 채널 연동 메시지 전송 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -564,7 +565,7 @@ export class ForumPostManager {
       const forumChannel = await this.client.channels.fetch(this.forumChannelId);
       
       if (!forumChannel || forumChannel.type !== DiscordConstants.CHANNEL_TYPES.GUILD_FORUM) {
-        console.error('[ForumPostManager] 포럼 채널을 찾을 수 없습니다.');
+        logger.error('[ForumPostManager] 포럼 채널을 찾을 수 없습니다.');
         return [];
       }
       
@@ -584,7 +585,7 @@ export class ForumPostManager {
       }));
       
     } catch (error) {
-      console.error('[ForumPostManager] 기존 포스트 목록 가져오기 실패:', error);
+      logger.error('[ForumPostManager] 기존 포스트 목록 가져오기 실패', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -639,12 +640,12 @@ export class ForumPostManager {
         filteredPosts.push(...otherPosts.slice(0, remainingSlots));
       }
       
-      console.log(`[ForumPostManager] 필터링된 포스트 목록: 총 ${filteredPosts.length}개 (사용자: ${userPosts.length}개, 다른 사용자: ${Math.min(remainingSlots, otherPosts.length)}개)`);
+      logger.info(`[ForumPostManager] 필터링된 포스트 목록: 총 ${filteredPosts.length}개 (사용자: ${userPosts.length}개, 다른 사용자: ${Math.min(remainingSlots, otherPosts.length)}개)`);
       
       return filteredPosts.slice(0, limit);
       
     } catch (error) {
-      console.error('[ForumPostManager] 필터링된 포스트 목록 가져오기 실패:', error);
+      logger.error('[ForumPostManager] 필터링된 포스트 목록 가져오기 실패', { error: error.message, stack: error.stack });
       // 오류 발생 시 일반 메서드로 fallback
       return await this.getExistingPosts(limit);
     }
@@ -662,12 +663,12 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread()) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
       
       if (thread.archived) {
-        console.log(`[ForumPostManager] 이미 아카이브된 스레드: ${postId}`);
+        logger.info(`[ForumPostManager] 이미 아카이브된 스레드: ${postId}`);
         return true;
       }
       
@@ -684,9 +685,9 @@ export class ForumPostManager {
       if (lockThread && !thread.locked) {
         try {
           await thread.setLocked(true, reason);
-          console.log(`[ForumPostManager] 스레드 잠금 완료: ${postId}`);
+          logger.info(`[ForumPostManager] 스레드 잠금 완료: ${postId}`);
         } catch (lockError) {
-          console.error(`[ForumPostManager] 스레드 잠금 실패: ${postId}`, lockError);
+          logger.error(`[ForumPostManager] 스레드 잠금 실패: ${postId}`, { error: lockError.message, stack: lockError.stack });
           // 잠금 실패해도 아카이브는 계속 진행
         }
       }
@@ -694,11 +695,11 @@ export class ForumPostManager {
       // 스레드 아카이브
       await thread.setArchived(true, reason);
       
-      console.log(`[ForumPostManager] 포럼 포스트 아카이브 완료: ${postId} (${reason})`);
+      logger.info(`[ForumPostManager] 포럼 포스트 아카이브 완료: ${postId} (${reason})`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 포럼 포스트 아카이브 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 포럼 포스트 아카이브 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -716,7 +717,7 @@ export class ForumPostManager {
       if (error.code === 10003) { // Unknown Channel
         return false;
       }
-      console.error(`[ForumPostManager] 포스트 존재 확인 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 포스트 존재 확인 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -746,7 +747,7 @@ export class ForumPostManager {
       };
       
     } catch (error) {
-      console.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 포스트 정보 가져오기 실패: ${postId}`, { error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -762,12 +763,12 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread()) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
       
       if (thread.archived) {
-        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        logger.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
         return false;
       }
       
@@ -777,11 +778,11 @@ export class ForumPostManager {
       // 메시지 전송
       await thread.send(participantListText);
       
-      console.log(`[ForumPostManager] 참가자 목록 메시지 전송 완료: ${postId} (${participants.length}명)`);
+      logger.info(`[ForumPostManager] 참가자 목록 메시지 전송 완료: ${postId} (${participants.length}명)`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 참가자 목록 메시지 전송 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 참가자 목록 메시지 전송 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -798,12 +799,12 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread()) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
       
       if (thread.archived) {
-        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        logger.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
         return false;
       }
       
@@ -824,11 +825,11 @@ export class ForumPostManager {
       // 새 메시지 추적 저장 (다음 업데이트 시 삭제됨)
       await this._trackMessage(postId, 'emoji_reaction', sentMessage.id);
 
-      console.log(`[ForumPostManager] 참가자 목록 업데이트 완료: ${postId} (${participants.length}명)`);
+      logger.info(`[ForumPostManager] 참가자 목록 업데이트 완료: ${postId} (${participants.length}명)`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 이모지 참가자 현황 업데이트 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -844,7 +845,7 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
 
       if (!thread || !thread.isThread() || thread.archived) {
-        console.warn(`[ForumPostManager] 대기자 업데이트 불가 — 스레드 없음/아카이브: ${postId}`);
+        logger.warn(`[ForumPostManager] 대기자 업데이트 불가 — 스레드 없음/아카이브: ${postId}`);
         return false;
       }
 
@@ -854,17 +855,17 @@ export class ForumPostManager {
       // 대기자가 없으면 메시지 삭제만 하고 종료
       const text = formatWaitlist(waitlist);
       if (!text) {
-        console.log(`[ForumPostManager] 대기자 없음 — 메시지 삭제 완료: ${postId}`);
+        logger.info(`[ForumPostManager] 대기자 없음 — 메시지 삭제 완료: ${postId}`);
         return true;
       }
 
       const sentMessage = await thread.send(text);
       await this._trackMessage(postId, 'waitlist', sentMessage.id);
 
-      console.log(`[ForumPostManager] 대기자 목록 업데이트 완료: ${postId} (${waitlist.length}명)`);
+      logger.info(`[ForumPostManager] 대기자 목록 업데이트 완료: ${postId} (${waitlist.length}명)`);
       return true;
     } catch (error) {
-      console.error(`[ForumPostManager] 대기자 목록 업데이트 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 대기자 목록 업데이트 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -880,13 +881,13 @@ export class ForumPostManager {
    */
   async _deleteTrackedMessages(threadId, messageType) {
     if (!this.databaseManager) {
-      console.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
+      logger.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
       return false;
     }
 
     // 데이터베이스 초기화 상태 확인
     if (!this.databaseManager.isInitialized) {
-      console.warn('[ForumPostManager] 데이터베이스가 초기화되지 않음');
+      logger.warn('[ForumPostManager] 데이터베이스가 초기화되지 않음');
       return false;
     }
 
@@ -895,7 +896,7 @@ export class ForumPostManager {
       const messageIds = await this.databaseManager.getTrackedMessages(threadId, messageType);
       
       if (messageIds.length === 0) {
-        console.log(`[ForumPostManager] 삭제할 메시지가 없음: ${threadId}, ${messageType}`);
+        logger.info(`[ForumPostManager] 삭제할 메시지가 없음: ${threadId}, ${messageType}`);
         return true; // 삭제할 메시지가 없음
       }
 
@@ -909,20 +910,20 @@ export class ForumPostManager {
           }
         } catch (fetchError) {
           if (fetchError.code === 10003) { // Unknown Channel
-            console.warn(`[ForumPostManager] 스레드가 삭제됨: ${threadId}`);
+            logger.warn(`[ForumPostManager] 스레드가 삭제됨: ${threadId}`);
             // 스레드가 삭제된 경우 추적 정보만 정리
             await this.databaseManager.clearTrackedMessages(threadId, messageType);
             return true;
           }
           
           if (retry === 2) throw fetchError;
-          console.warn(`[ForumPostManager] 스레드 가져오기 재시도 ${retry + 1}/3: ${threadId}`);
+          logger.warn(`[ForumPostManager] 스레드 가져오기 재시도 ${retry + 1}/3: ${threadId}`);
           await new Promise(resolve => setTimeout(resolve, 1000)); // 1초 대기
         }
       }
 
       if (!thread || !thread.isThread()) {
-        console.warn(`[ForumPostManager] 유효하지 않은 스레드: ${threadId}`);
+        logger.warn(`[ForumPostManager] 유효하지 않은 스레드: ${threadId}`);
         // 유효하지 않은 스레드의 경우 추적 정보만 정리
         await this.databaseManager.clearTrackedMessages(threadId, messageType);
         return false;
@@ -938,15 +939,15 @@ export class ForumPostManager {
           if (message) {
             await message.delete();
             deletedCount++;
-            console.log(`[ForumPostManager] 메시지 삭제 완료: ${messageId}`);
+            logger.info(`[ForumPostManager] 메시지 삭제 완료: ${messageId}`);
             return { success: true, messageId };
           }
         } catch (deleteError) {
           if (deleteError.code === 10008) { // Unknown Message
-            console.log(`[ForumPostManager] 메시지가 이미 삭제됨: ${messageId}`);
+            logger.info(`[ForumPostManager] 메시지가 이미 삭제됨: ${messageId}`);
             return { success: true, messageId }; // 이미 삭제된 것으로 간주
           } else {
-            console.warn(`[ForumPostManager] 메시지 삭제 실패: ${messageId}`, deleteError.message);
+            logger.warn(`[ForumPostManager] 메시지 삭제 실패: ${messageId}`, { error: deleteError.message });
             failedIds.push(messageId);
             return { success: false, messageId, error: deleteError.message };
           }
@@ -957,34 +958,34 @@ export class ForumPostManager {
       try {
         await Promise.allSettled(deletePromises);
       } catch (error) {
-        console.error(`[ForumPostManager] 메시지 삭제 배치 처리 오류: ${threadId}`, error);
+        logger.error(`[ForumPostManager] 메시지 삭제 배치 처리 오류: ${threadId}`, { error: error.message, stack: error.stack });
       }
 
       // 데이터베이스에서 추적 정보 삭제 (실패한 메시지가 있어도 진행)
       try {
         await this.databaseManager.clearTrackedMessages(threadId, messageType);
-        console.log(`[ForumPostManager] 추적 정보 정리 완료: ${threadId}, ${messageType}`);
+        logger.info(`[ForumPostManager] 추적 정보 정리 완료: ${threadId}, ${messageType}`);
       } catch (clearError) {
-        console.error(`[ForumPostManager] 추적 정보 정리 실패: ${threadId}, ${messageType}`, clearError);
+        logger.error(`[ForumPostManager] 추적 정보 정리 실패: ${threadId}, ${messageType}`, { error: clearError.message, stack: clearError.stack });
         // 추적 정보 정리 실패해도 계속 진행
       }
       
       if (failedIds.length > 0) {
-        console.warn(`[ForumPostManager] 일부 메시지 삭제 실패: ${threadId}, ${messageType}, 실패 ${failedIds.length}개: ${failedIds.join(', ')}`);
+        logger.warn(`[ForumPostManager] 일부 메시지 삭제 실패: ${threadId}, ${messageType}, 실패 ${failedIds.length}개: ${failedIds.join(', ')}`);
       }
       
-      console.log(`[ForumPostManager] 추적된 메시지 삭제 완료: ${threadId}, ${messageType}, 성공 ${deletedCount}/${messageIds.length}개`);
+      logger.info(`[ForumPostManager] 추적된 메시지 삭제 완료: ${threadId}, ${messageType}, 성공 ${deletedCount}/${messageIds.length}개`);
       return failedIds.length === 0; // 모든 메시지가 성공적으로 삭제된 경우에만 true
 
     } catch (error) {
-      console.error(`[ForumPostManager] 추적된 메시지 삭제 오류: ${threadId}, ${messageType}`, error);
+      logger.error(`[ForumPostManager] 추적된 메시지 삭제 오류: ${threadId}, ${messageType}`, { error: error.message, stack: error.stack });
       
       // 심각한 오류 발생 시에도 추적 정보는 정리 시도
       try {
         await this.databaseManager.clearTrackedMessages(threadId, messageType);
-        console.log(`[ForumPostManager] 오류 발생 후 추적 정보 정리 완료: ${threadId}, ${messageType}`);
+        logger.info(`[ForumPostManager] 오류 발생 후 추적 정보 정리 완료: ${threadId}, ${messageType}`);
       } catch (clearError) {
-        console.error(`[ForumPostManager] 오류 발생 후 추적 정보 정리 실패: ${threadId}, ${messageType}`, clearError);
+        logger.error(`[ForumPostManager] 오류 발생 후 추적 정보 정리 실패: ${threadId}, ${messageType}`, { error: clearError.message, stack: clearError.stack });
       }
       
       return false;
@@ -1001,16 +1002,16 @@ export class ForumPostManager {
    */
   async _trackMessage(threadId, messageType, messageId) {
     if (!this.databaseManager) {
-      console.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
+      logger.warn('[ForumPostManager] DatabaseManager가 설정되지 않음');
       return false;
     }
 
     try {
       await this.databaseManager.trackForumMessage(threadId, messageType, messageId);
-      console.log(`[ForumPostManager] 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
+      logger.info(`[ForumPostManager] 메시지 추적 저장: ${threadId}, ${messageType}, ${messageId}`);
       return true;
     } catch (error) {
-      console.error(`[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`, error);
+      logger.error(`[ForumPostManager] 메시지 추적 저장 오류: ${threadId}, ${messageType}, ${messageId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -1027,18 +1028,18 @@ export class ForumPostManager {
       const thread = await this.client.channels.fetch(postId);
       
       if (!thread || !thread.isThread()) {
-        console.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
+        logger.warn(`[ForumPostManager] 스레드를 찾을 수 없음: ${postId}`);
         return false;
       }
       
       if (thread.archived) {
-        console.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
+        logger.warn(`[ForumPostManager] 아카이브된 스레드: ${postId}`);
         return false;
       }
 
       // 변화가 없으면 메시지를 보내지 않음
       if (joinedUsers.length === 0 && leftUsers.length === 0) {
-        console.log(`[ForumPostManager] 참가자 변화가 없어 알림 메시지를 보내지 않음: ${postId}`);
+        logger.info(`[ForumPostManager] 참가자 변화가 없어 알림 메시지를 보내지 않음: ${postId}`);
         return true;
       }
 
@@ -1051,11 +1052,11 @@ export class ForumPostManager {
       // participant_change 타입으로 메시지 추적 (삭제하지 않는 타입)
       await this._trackMessage(postId, 'participant_change', sentMessage.id);
       
-      console.log(`[ForumPostManager] 참가자 변화 알림 메시지 전송 완료: ${postId} (참가: ${joinedUsers.length}명, 참가 취소: ${leftUsers.length}명)`);
+      logger.info(`[ForumPostManager] 참가자 변화 알림 메시지 전송 완료: ${postId} (참가: ${joinedUsers.length}명, 참가 취소: ${leftUsers.length}명)`);
       return true;
       
     } catch (error) {
-      console.error(`[ForumPostManager] 참가자 변화 알림 메시지 전송 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 참가자 변화 알림 메시지 전송 실패: ${postId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -1067,7 +1068,7 @@ export class ForumPostManager {
    */
   async _cleanupArchivedThread(postId) {
     try {
-      console.log(`[ForumPostManager] 아카이브된 스레드 정리 시작: ${postId}`);
+      logger.info(`[ForumPostManager] 아카이브된 스레드 정리 시작: ${postId}`);
       
       // 데이터베이스에서 해당 포럼 포스트와 연결된 연동 정보 조회
       if (this.databaseManager) {
@@ -1079,7 +1080,7 @@ export class ForumPostManager {
         
         if (integration.rows.length > 0) {
           const voiceChannelId = integration.rows[0].voice_channel_id;
-          console.log(`[ForumPostManager] 아카이브된 스레드와 연결된 음성 채널: ${voiceChannelId}`);
+          logger.info(`[ForumPostManager] 아카이브된 스레드와 연결된 음성 채널: ${voiceChannelId}`);
           
           // 포스트 연동 비활성화
           await this.databaseManager.query(`
@@ -1088,7 +1089,7 @@ export class ForumPostManager {
             WHERE forum_post_id = $1 AND is_active = true
           `, [postId]);
           
-          console.log(`[ForumPostManager] 아카이브된 스레드의 연동 정보 비활성화 완료: ${postId}`);
+          logger.info(`[ForumPostManager] 아카이브된 스레드의 연동 정보 비활성화 완료: ${postId}`);
         }
       }
       
@@ -1097,9 +1098,9 @@ export class ForumPostManager {
         delete this.trackedMessages[postId];
       }
       
-      console.log(`[ForumPostManager] 아카이브된 스레드 정리 완료: ${postId}`);
+      logger.info(`[ForumPostManager] 아카이브된 스레드 정리 완료: ${postId}`);
     } catch (error) {
-      console.error(`[ForumPostManager] 아카이브된 스레드 정리 실패: ${postId}`, error);
+      logger.error(`[ForumPostManager] 아카이브된 스레드 정리 실패: ${postId}`, { error: error.message, stack: error.stack });
     }
   }
 }

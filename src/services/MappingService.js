@@ -1,4 +1,6 @@
 // src/services/MappingService.js - 채널-포스트 매핑 관리
+import { logger } from '../config/logger-termux.js';
+
 export class MappingService {
   constructor(client, voiceChannelManager, forumPostManager, databaseManager) {
     this.client = client;
@@ -25,18 +27,18 @@ export class MappingService {
       if (this.databaseManager) {
         const saved = await this.databaseManager.saveChannelMapping(voiceChannelId, postId, 0);
         if (!saved) {
-          console.error(`[MappingService] 데이터베이스 저장 실패: ${voiceChannelId} -> ${postId}`);
+          logger.error(`[MappingService] 데이터베이스 저장 실패: ${voiceChannelId} -> ${postId}`);
           // 메모리에서도 제거
           this.channelPostMap.delete(voiceChannelId);
           return { success: false, error: 'DB_SAVE_FAILED', message: '데이터베이스 저장에 실패했습니다.' };
         }
       }
       
-      console.log(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
+      logger.info(`[MappingService] 매핑 추가: ${voiceChannelId} -> ${postId}`);
       this.logCurrentMappings();
       return { success: true };
     } catch (error) {
-      console.error(`[MappingService] 매핑 추가 오류: ${voiceChannelId} -> ${postId}`, error);
+      logger.error(`[MappingService] 매핑 추가 오류: ${voiceChannelId} -> ${postId}`, { error: error.message, stack: error.stack });
       
       // 메모리에서 제거 (rollback)
       this.channelPostMap.delete(voiceChannelId);
@@ -46,7 +48,7 @@ export class MappingService {
         // Unique constraint 위반 - 구체적인 constraint에 따라 다른 메시지
         if (error.constraint === 'post_integrations_guild_id_forum_post_id_key') {
           // 포럼 포스트 중복 연결 - STANDALONE은 DatabaseManager에서 처리됨
-          console.log(`[MappingService] 포럼 포스트 중복 연결 시도: ${postId} (이미 처리된 에러)`);
+          logger.info(`[MappingService] 포럼 포스트 중복 연결 시도: ${postId} (이미 처리된 에러)`);
           return { 
             success: false, 
             error: 'FORUM_ALREADY_LINKED', 
@@ -95,17 +97,17 @@ export class MappingService {
         if (this.databaseManager) {
           const removed = await this.databaseManager.removeChannelMapping(voiceChannelId);
           if (!removed) {
-            console.warn(`[MappingService] 데이터베이스에서 매핑 제거 실패: ${voiceChannelId}`);
+            logger.warn(`[MappingService] 데이터베이스에서 매핑 제거 실패: ${voiceChannelId}`);
           }
         }
         
-        console.log(`[MappingService] 매핑 제거: ${voiceChannelId}`);
+        logger.info(`[MappingService] 매핑 제거: ${voiceChannelId}`);
         this.logCurrentMappings();
       }
       
       return existed;
     } catch (error) {
-      console.error(`[MappingService] 매핑 제거 오류: ${voiceChannelId}`, error);
+      logger.error(`[MappingService] 매핑 제거 오류: ${voiceChannelId}`, { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -177,7 +179,7 @@ export class MappingService {
     }, delay);
     
     this.updateQueue.set(voiceChannelId, timer);
-    console.log(`[MappingService] 업데이트 큐에 추가: ${voiceChannelId} (${delay}ms 후 실행)`);
+    logger.info(`[MappingService] 업데이트 큐에 추가: ${voiceChannelId} (${delay}ms 후 실행)`);
   }
   
   /**
@@ -187,33 +189,33 @@ export class MappingService {
    */
   async processQueuedUpdate(voiceChannelId) {
     try {
-      console.log(`[MappingService] 큐된 업데이트 처리 시작: ${voiceChannelId}`);
+      logger.info(`[MappingService] 큐된 업데이트 처리 시작: ${voiceChannelId}`);
       
       const postId = this.getPostId(voiceChannelId);
       if (!postId) {
-        console.log(`[MappingService] 매핑된 포스트가 없음: ${voiceChannelId}`);
-        console.log(`[MappingService] 현재 매핑 상태:`, Array.from(this.channelPostMap.entries()));
+        logger.info(`[MappingService] 매핑된 포스트가 없음: ${voiceChannelId}`);
+        logger.info(`[MappingService] 현재 매핑 상태`, { value: Array.from(this.channelPostMap.entries()) });
         return;
       }
       
-      console.log(`[MappingService] 매핑된 포스트 ID: ${postId}`);
+      logger.info(`[MappingService] 매핑된 포스트 ID: ${postId}`);
       
       // 음성 채널 정보 가져오기
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
       if (!voiceChannelInfo) {
-        console.log(`[MappingService] 음성 채널을 찾을 수 없음: ${voiceChannelId}`);
+        logger.info(`[MappingService] 음성 채널을 찾을 수 없음: ${voiceChannelId}`);
         await this.removeMapping(voiceChannelId);
         return;
       }
       
       // 채널이 삭제된 경우 매핑 정리
       if (voiceChannelInfo.deleted) {
-        console.log(`[MappingService] 삭제된 채널 매핑 정리: ${voiceChannelId}`);
+        logger.info(`[MappingService] 삭제된 채널 매핑 정리: ${voiceChannelId}`);
         await this.removeMapping(voiceChannelId);
         return;
       }
       
-      console.log(`[MappingService] 음성 채널 정보:`, {
+      logger.info(`[MappingService] 음성 채널 정보`, {
         name: voiceChannelInfo.name,
         memberCount: voiceChannelInfo.members?.size || 0,
         categoryId: voiceChannelInfo.parentId
@@ -224,34 +226,34 @@ export class MappingService {
       const participantTracker = new ParticipantTracker(this.client);
       const currentCount = participantTracker.countActiveParticipants(voiceChannelInfo);
       
-      console.log(`[MappingService] 활성 참여자 수: ${currentCount}`);
+      logger.info(`[MappingService] 활성 참여자 수: ${currentCount}`);
       
       // 제목에서 최대 인원 수 추출
       const postInfo = await this.forumPostManager.getPostInfo(postId);
       if (!postInfo) {
-        console.log(`[MappingService] 포스트 정보를 가져올 수 없음: ${postId}`);
+        logger.info(`[MappingService] 포스트 정보를 가져올 수 없음: ${postId}`);
         this.removeMapping(voiceChannelId);
         return;
       }
       
-      console.log(`[MappingService] 포스트 정보:`, {
+      logger.info(`[MappingService] 포스트 정보`, {
         name: postInfo.name,
         archived: postInfo.archived,
         messageCount: postInfo.messageCount
       });
       
       const maxCount = participantTracker.extractMaxParticipants(postInfo.name);
-      console.log(`[MappingService] 최대 인원 수: ${maxCount}`);
+      logger.info(`[MappingService] 최대 인원 수: ${maxCount}`);
       
       // 이전 참여자 수와 비교
       const lastCount = this.lastParticipantCounts.get(voiceChannelId);
       if (lastCount === currentCount) {
-        console.log(`[MappingService] 참여자 수 변경 없음 (${currentCount}/${maxCount}), 메시지 전송 건너뛰기`);
+        logger.info(`[MappingService] 참여자 수 변경 없음 (${currentCount}/${maxCount}), 메시지 전송 건너뛰기`);
         return;
       }
       
       // 참여자 수 업데이트 메시지 전송
-      console.log(`[MappingService] 참여자 수 변경 감지: ${lastCount} -> ${currentCount}, 메시지 전송 시작...`);
+      logger.info(`[MappingService] 참여자 수 변경 감지: ${lastCount} -> ${currentCount}, 메시지 전송 시작...`);
       const updateResult = await this.forumPostManager.sendParticipantUpdateMessage(
         postId, 
         currentCount, 
@@ -267,17 +269,17 @@ export class MappingService {
         if (this.databaseManager) {
           const dbUpdated = await this.databaseManager.updateLastParticipantCount(voiceChannelId, currentCount);
           if (!dbUpdated) {
-            console.warn(`[MappingService] 데이터베이스 참여자 수 업데이트 실패: ${voiceChannelId}`);
+            logger.warn(`[MappingService] 데이터베이스 참여자 수 업데이트 실패: ${voiceChannelId}`);
           }
         }
         
-        console.log(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
+        logger.info(`[MappingService] 참여자 수 업데이트 완료: ${voiceChannelId} -> ${postId} (${currentCount}/${maxCount})`);
       } else {
-        console.log(`[MappingService] 참여자 수 업데이트 실패: ${voiceChannelId} -> ${postId}`);
+        logger.info(`[MappingService] 참여자 수 업데이트 실패: ${voiceChannelId} -> ${postId}`);
       }
       
     } catch (error) {
-      console.error(`[MappingService] 큐된 업데이트 처리 오류: ${voiceChannelId}`, error);
+      logger.error(`[MappingService] 큐된 업데이트 처리 오류: ${voiceChannelId}`, { error: error.message, stack: error.stack });
     }
   }
   
@@ -304,7 +306,7 @@ export class MappingService {
     }
     
     if (cleanedCount > 0) {
-      console.log(`[MappingService] 삭제된 채널 정리 완료: ${cleanedCount}개 매핑 제거`);
+      logger.info(`[MappingService] 삭제된 채널 정리 완료: ${cleanedCount}개 매핑 제거`);
     }
     
     return cleanedCount;
@@ -323,12 +325,12 @@ export class MappingService {
       if (!postExists) {
         await this.removeMapping(channelId);
         cleanedCount++;
-        console.log(`[MappingService] 삭제된 포스트로 인한 매핑 제거: ${channelId} -> ${postId}`);
+        logger.info(`[MappingService] 삭제된 포스트로 인한 매핑 제거: ${channelId} -> ${postId}`);
       }
     }
     
     if (cleanedCount > 0) {
-      console.log(`[MappingService] 삭제된 포스트 정리 완료: ${cleanedCount}개 매핑 제거`);
+      logger.info(`[MappingService] 삭제된 포스트 정리 완료: ${cleanedCount}개 매핑 제거`);
     }
     
     return cleanedCount;
@@ -343,7 +345,7 @@ export class MappingService {
     
     // 매핑이 없으면 정리 작업 스킵
     if (currentMappings === 0) {
-      console.log(`[MappingService] 매핑이 없어 정리 작업을 스킵합니다.`);
+      logger.info(`[MappingService] 매핑이 없어 정리 작업을 스킵합니다.`);
       return {
         deletedChannels: 0,
         deletedPosts: 0,
@@ -353,7 +355,7 @@ export class MappingService {
       };
     }
     
-    console.log(`[MappingService] 전체 정리 작업 시작 (현재 매핑: ${currentMappings}개)`);
+    logger.info(`[MappingService] 전체 정리 작업 시작 (현재 매핑: ${currentMappings}개)`);
     
     const deletedChannels = await this.cleanupDeletedChannels();
     const deletedPosts = await this.cleanupDeletedPosts();
@@ -365,7 +367,7 @@ export class MappingService {
       remainingMappings: this.getMappingCount()
     };
     
-    // console.log(`[MappingService] 전체 정리 작업 완료:`, result);
+    // logger.info(`[MappingService] 전체 정리 작업 완료`, { value: result });
     return result;
   }
   
@@ -375,10 +377,10 @@ export class MappingService {
    */
   logCurrentMappings() {
     if (this.channelPostMap.size > 0) {
-      console.log(`[MappingService] 현재 매핑 상태 (${this.channelPostMap.size}개):`, 
-        Array.from(this.channelPostMap.entries()));
+      logger.info(`[MappingService] 현재 매핑 상태 (${this.channelPostMap.size}개)`,
+        { value: Array.from(this.channelPostMap.entries()) });
     } else {
-      console.log(`[MappingService] 현재 매핑된 채널 없음`);
+      logger.info(`[MappingService] 현재 매핑된 채널 없음`);
     }
   }
   
@@ -421,7 +423,7 @@ export class MappingService {
       };
       
     } catch (error) {
-      console.error(`[MappingService] 매핑 상세 정보 가져오기 실패: ${voiceChannelId}`, error);
+      logger.error(`[MappingService] 매핑 상세 정보 가져오기 실패: ${voiceChannelId}`, { error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -434,17 +436,17 @@ export class MappingService {
    */
   isClientReady() {
     if (!this.client) {
-      console.warn('[MappingService] Discord 클라이언트가 없습니다.');
+      logger.warn('[MappingService] Discord 클라이언트가 없습니다.');
       return false;
     }
 
     if (!this.client.isReady()) {
-      console.warn('[MappingService] Discord 클라이언트가 아직 준비되지 않았습니다.');
+      logger.warn('[MappingService] Discord 클라이언트가 아직 준비되지 않았습니다.');
       return false;
     }
 
     if (!this.client.token) {
-      console.warn('[MappingService] Discord 토큰이 없습니다.');
+      logger.warn('[MappingService] Discord 토큰이 없습니다.');
       return false;
     }
 
@@ -457,23 +459,23 @@ export class MappingService {
    */
   async loadMappingsFromDatabase() {
     if (!this.databaseManager) {
-      console.warn('[MappingService] DatabaseManager가 없어 매핑 로드를 건너뜁니다.');
+      logger.warn('[MappingService] DatabaseManager가 없어 매핑 로드를 건너뜁니다.');
       return { success: false, loaded: 0, validated: 0, removed: 0 };
     }
 
     // Discord 클라이언트 준비 상태 확인
     if (!this.isClientReady()) {
-      console.warn('[MappingService] Discord 클라이언트가 준비되지 않아 매핑 로드를 연기합니다.');
+      logger.warn('[MappingService] Discord 클라이언트가 준비되지 않아 매핑 로드를 연기합니다.');
       return { success: false, loaded: 0, validated: 0, removed: 0, error: '클라이언트 준비되지 않음' };
     }
 
     try {
-      console.log('[MappingService] 데이터베이스에서 매핑 로드 시작...');
+      logger.info('[MappingService] 데이터베이스에서 매핑 로드 시작...');
       
       const savedMappings = await this.databaseManager.getAllChannelMappings();
       
       if (!Array.isArray(savedMappings)) {
-        console.warn('[MappingService] 데이터베이스에서 유효하지 않은 매핑 데이터를 받았습니다.');
+        logger.warn('[MappingService] 데이터베이스에서 유효하지 않은 매핑 데이터를 받았습니다.');
         return { success: false, loaded: 0, validated: 0, removed: 0, error: '유효하지 않은 데이터 형식' };
       }
       
@@ -486,7 +488,7 @@ export class MappingService {
         
         // 필수 필드 검증
         if (!voice_channel_id || !forum_post_id) {
-          console.warn(`[MappingService] 유효하지 않은 매핑 데이터 건너뛰기:`, mapping);
+          logger.warn(`[MappingService] 유효하지 않은 매핑 데이터 건너뛰기`, { value: mapping });
           continue;
         }
         
@@ -494,7 +496,7 @@ export class MappingService {
         let isStandalone = false;
         if (voice_channel_id.startsWith('STANDALONE_')) {
           isStandalone = true;
-          console.log(`[MappingService] STANDALONE 채널 발견: ${voice_channel_id}, 포럼 상태 확인 중...`);
+          logger.info(`[MappingService] STANDALONE 채널 발견: ${voice_channel_id}, 포럼 상태 확인 중...`);
         }
         
         try {
@@ -511,11 +513,11 @@ export class MappingService {
               voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voice_channel_id);
             } catch (channelError) {
               channelCheckFailed = true;
-              console.warn(`[MappingService] 채널 정보 확인 실패: ${voice_channel_id}`, channelError.message);
+              logger.warn(`[MappingService] 채널 정보 확인 실패: ${voice_channel_id}`, { error: channelError.message });
               
               // 토큰 관련 오류인 경우 더 이상 진행하지 않음
               if (channelError.message?.includes('token') || channelError.message?.includes('Token')) {
-                console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
+                logger.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
                 throw new Error('Discord API 토큰 오류');
               }
             }
@@ -526,18 +528,18 @@ export class MappingService {
               name: `독립형 포럼 (${forum_post_id})`,
               isStandalone: true
             };
-            console.log(`[MappingService] STANDALONE 채널 가상 정보 생성: ${voice_channel_id}`);
+            logger.info(`[MappingService] STANDALONE 채널 가상 정보 생성: ${voice_channel_id}`);
           }
 
           try {
             postInfo = await this.forumPostManager.getPostInfo(forum_post_id);
           } catch (postError) {
             postCheckFailed = true;
-            console.warn(`[MappingService] 포스트 정보 확인 실패: ${forum_post_id}`, postError.message);
+            logger.warn(`[MappingService] 포스트 정보 확인 실패: ${forum_post_id}`, { error: postError.message });
             
             // 토큰 관련 오류인 경우 더 이상 진행하지 않음
             if (postError.message?.includes('token') || postError.message?.includes('Token')) {
-              console.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
+              logger.error('[MappingService] 토큰 오류로 인해 매핑 로드를 중단합니다.');
               throw new Error('Discord API 토큰 오류');
             }
           }
@@ -548,11 +550,11 @@ export class MappingService {
           if (isStandalone) {
             // STANDALONE 채널: 포럼이 존재하고 활성 상태인지만 확인
             isValidMapping = postInfo && !postInfo.archived && !postInfo.locked && !postCheckFailed;
-            console.log(`[MappingService] STANDALONE 매핑 유효성 검사: ${voice_channel_id} -> 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 잠김:${postInfo?.locked}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
+            logger.info(`[MappingService] STANDALONE 매핑 유효성 검사: ${voice_channel_id} -> 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 잠김:${postInfo?.locked}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
           } else {
             // 일반 채널: 기존 로직 유지
             isValidMapping = voiceChannelInfo && postInfo && !postInfo.archived && !channelCheckFailed && !postCheckFailed;
-            console.log(`[MappingService] 일반 매핑 유효성 검사: ${voice_channel_id} -> 채널존재:${!!voiceChannelInfo}, 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 채널체크실패:${channelCheckFailed}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
+            logger.info(`[MappingService] 일반 매핑 유효성 검사: ${voice_channel_id} -> 채널존재:${!!voiceChannelInfo}, 포럼존재:${!!postInfo}, 아카이브:${postInfo?.archived}, 채널체크실패:${channelCheckFailed}, 포스트체크실패:${postCheckFailed} => 유효:${isValidMapping}`);
           }
 
           if (isValidMapping) {
@@ -563,7 +565,7 @@ export class MappingService {
             }
             validatedCount++;
             const mappingType = isStandalone ? 'STANDALONE' : '일반';
-            console.log(`[MappingService] ${mappingType} 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
+            logger.info(`[MappingService] ${mappingType} 매핑 복구: ${voice_channel_id} -> ${forum_post_id}`);
           } else {
             // 유효하지 않은 매핑인 경우 데이터베이스에서 제거
             try {
@@ -572,9 +574,9 @@ export class MappingService {
               const reason = isStandalone ? 
                 `(포럼체크실패: ${postCheckFailed}, 포럼존재: ${!!postInfo}, 아카이브: ${postInfo?.archived}, 잠김: ${postInfo?.locked})` :
                 `(채널체크실패: ${channelCheckFailed}, 포스트체크실패: ${postCheckFailed}, 채널존재: ${!!voiceChannelInfo}, 포럼존재: ${!!postInfo}, 아카이브: ${postInfo?.archived})`;
-              console.log(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} ${reason}`);
+              logger.info(`[MappingService] 유효하지 않은 매핑 제거: ${voice_channel_id} -> ${forum_post_id} ${reason}`);
             } catch (removeError) {
-              console.error(`[MappingService] 매핑 제거 실패: ${voice_channel_id}`, removeError);
+              logger.error(`[MappingService] 매핑 제거 실패: ${voice_channel_id}`, { error: removeError.message, stack: removeError.stack });
             }
           }
           
@@ -585,14 +587,14 @@ export class MappingService {
             throw error; // 상위로 전파
           }
           
-          console.error(`[MappingService] 매핑 검증 중 예상치 못한 오류: ${voice_channel_id} -> ${forum_post_id}`, error);
+          logger.error(`[MappingService] 매핑 검증 중 예상치 못한 오류: ${voice_channel_id} -> ${forum_post_id}`, { error: error.message, stack: error.stack });
           
           // 일반적인 오류의 경우 해당 매핑만 제거하고 계속 진행
           try {
             await this.databaseManager.removeChannelMapping(voice_channel_id);
             removedCount++;
           } catch (removeError) {
-            console.error(`[MappingService] 오류 발생 매핑 제거 실패: ${voice_channel_id}`, removeError);
+            logger.error(`[MappingService] 오류 발생 매핑 제거 실패: ${voice_channel_id}`, { error: removeError.message, stack: removeError.stack });
           }
         }
       }
@@ -604,12 +606,12 @@ export class MappingService {
         removed: removedCount
       };
 
-      console.log(`[MappingService] 매핑 로드 완료:`, result);
+      logger.info(`[MappingService] 매핑 로드 완료`, { value: result });
       this.logCurrentMappings();
       
       return result;
     } catch (error) {
-      console.error('[MappingService] 매핑 로드 오류:', error);
+      logger.error('[MappingService] 매핑 로드 오류', { error: error.message, stack: error.stack });
       return { success: false, loaded: 0, validated: 0, removed: 0, error: error.message };
     }
   }
@@ -624,7 +626,7 @@ export class MappingService {
     }
 
     try {
-      console.log('[MappingService] 데이터베이스 동기화 시작...');
+      logger.info('[MappingService] 데이터베이스 동기화 시작...');
       
       // 현재 메모리의 모든 매핑을 데이터베이스에 저장
       for (const [voiceChannelId, postId] of this.channelPostMap.entries()) {
@@ -632,10 +634,10 @@ export class MappingService {
         await this.databaseManager.saveChannelMapping(voiceChannelId, postId, lastCount);
       }
 
-      console.log(`[MappingService] 데이터베이스 동기화 완료: ${this.channelPostMap.size}개 매핑`);
+      logger.info(`[MappingService] 데이터베이스 동기화 완료: ${this.channelPostMap.size}개 매핑`);
       return true;
     } catch (error) {
-      console.error('[MappingService] 데이터베이스 동기화 오류:', error);
+      logger.error('[MappingService] 데이터베이스 동기화 오류', { error: error.message, stack: error.stack });
       return false;
     }
   }
@@ -646,20 +648,20 @@ export class MappingService {
    */
   async initialize() {
     try {
-      console.log('[MappingService] 서비스 초기화 시작...');
+      logger.info('[MappingService] 서비스 초기화 시작...');
       
       // 데이터베이스에서 기존 매핑 로드
       const loadResult = await this.loadMappingsFromDatabase();
       
       if (loadResult.success) {
-        console.log(`[MappingService] 초기화 완료: ${loadResult.validated}개 매핑 복구, ${loadResult.removed}개 매핑 정리`);
+        logger.info(`[MappingService] 초기화 완료: ${loadResult.validated}개 매핑 복구, ${loadResult.removed}개 매핑 정리`);
         return true;
       } else {
-        console.error('[MappingService] 초기화 실패');
+        logger.error('[MappingService] 초기화 실패');
         return false;
       }
     } catch (error) {
-      console.error('[MappingService] 초기화 오류:', error);
+      logger.error('[MappingService] 초기화 오류', { error: error.message, stack: error.stack });
       return false;
     }
   }
