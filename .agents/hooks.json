@@ -1,0 +1,12 @@
+{
+  "agy-guard": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node agy-guard.mjs", "timeout": 10 }
+        ]
+      }
+    ]
+  }
+}

@@ -130,6 +130,7 @@ scripts/                  # 배포·DB·문서 자동화 스크립트
 
 - **태스크 브리프가 주어지면** (`docs/tasks/T-XXX.md`) 그 범위 밖 파일은 건드리지 않는다. 전체 계획: `docs/IMPROVEMENT_PLAN.md`.
 - **작업 종료 시** 완료 조건의 검증 명령 출력과 `git diff --stat`을 마지막 메시지에 포함한다 (Claude 검토 입력).
+- **agy(Antigravity CLI)로 실행될 때**는 `.agents/rules/agy-guardrails.md` 의 하드 제약이 추가 적용되며 `.agents/hooks.json` 훅이 금지 명령·경로를 차단한다.
 
 - **큰 변경 전**: 먼저 `CODEBASE_MAP.md`의 DI 섹션을 다시 읽어 의존성 방향을 확인한다.
 - **새 커맨드 추가**: `docs/13-playbooks.md` §A 순서를 그대로 따른다.
