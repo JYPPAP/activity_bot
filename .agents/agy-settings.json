@@ -37,8 +37,7 @@
       "write_file(C:\\Users\\yungs\\WebstormProjects\\activity_bot\\CLAUDE.md)",
       "write_file(C:\\Users\\yungs\\.gemini)",
       "read_url(*)",
-      "execute_url(*)",
-      "unsandboxed(*)"
+      "execute_url(*)"
     ]
   }
 }

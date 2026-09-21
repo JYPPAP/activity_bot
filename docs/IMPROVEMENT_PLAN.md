@@ -70,7 +70,7 @@
 
 ## Phase 2 — 테스트 안전망 (리팩터링 전에)
 
-### T-020 `doing` 순수 로직 테스트 확장
+### T-020 `done` 순수 로직 테스트 확장
 - `embedBuilder.js`, 팀짜기 페어 최소화 알고리즘(TeamCommand 관련 유틸), `RecruitmentUIBuilder` 출력 스냅샷.
 - 목표: Phase 3 분할 대상 파일이 의존하는 유틸 커버.
 
