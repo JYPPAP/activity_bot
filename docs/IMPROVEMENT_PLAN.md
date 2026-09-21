@@ -90,7 +90,7 @@
 
 > 각 태스크는 **파일 이동 + 재export**로만 구성. 로직 수정 금지. CustomId 맵·DI 키 불변.
 
-### T-030 `todo` ButtonHandler(1312) 도메인별 분할
+### T-030 `done` ButtonHandler(1312) 도메인별 분할
 - `ui/buttons/RecruitmentButtons.js`(참가/취소/관전/대기), `ui/buttons/MemberEditButtons.js`, `ui/buttons/PostControlButtons.js`(닫기/멘션).
 - `ButtonHandler.js`는 라우팅만 남김(<200줄). `CUSTOM_ID_PREFIXES` 매핑 표를 CODEBASE_MAP과 동기화.
 

@@ -75,7 +75,12 @@ src/
 │
 ├── ui/                   # 인터랙션 핸들러
 │   ├── InteractionRouter.js   # 최상위 인터랙션 라우터
-│   ├── ButtonHandler.js       # 버튼 인터랙션 (참가/취소/관전/대기/멤버수정)
+│   ├── ButtonHandler.js       # 버튼 인터랙션 라우팅 Facade
+│   ├── buttons/
+│   │   ├── RoleTagButtons.js       # 역할 태그 선택·완료 버튼
+│   │   ├── VoiceChannelButtons.js  # 음성 채널 관전·대기·초기화·삭제 버튼
+│   │   ├── ForumPostButtons.js     # 포럼 참가·취소·대기·멘션 버튼
+│   │   └── PreMembersButtons.js    # 미리 모인 멤버 수정 버튼·선택 메뉴
 │   ├── ModalHandler.js        # 모달 인터랙션 (구직 작성/멤버수정)
 │   ├── RecruitmentUIBuilder.js # 구직 UI 빌더 (Embed, Select)
 │   ├── NicknameButtonHandler.js
