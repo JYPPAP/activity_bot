@@ -73,7 +73,12 @@ src/
 │   ├── ActivityRepository.js  # monthly activity 테이블
 │   ├── AfkRepository.js       # AFK 상태 관리
 │   ├── ConfigRepository.js    # guild_settings, role_configs
-│   ├── ForumRepository.js     # post_integrations, forum_participants
+│   ├── ForumRepository.js     # 포럼 Repository Facade
+│   ├── forum/
+│   │   ├── PostIntegrationRepository.js  # post_integrations 및 채널 매핑
+│   │   ├── ForumMessageRepository.js     # 포럼 메시지 추적
+│   │   ├── ForumParticipantRepository.js # forum_participants
+│   │   └── ForumWaitlistRepository.js    # forum_waitlist
 │   └── index.js               # export all
 │
 ├── managers/

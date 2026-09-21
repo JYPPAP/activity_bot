@@ -99,7 +99,7 @@
 ### T-032 `done` ForumPostManager(1104) 분할
 - 포스트 CRUD / 버튼·임베드 빌드 / 참가자 관리 세 책임으로. DI 키 `forumPostManager`는 Facade로 유지.
 
-### T-033 `todo` ForumRepository(1167) 분할
+### T-033 `done` ForumRepository(1167) 분할
 - `PostIntegrationRepository`, `ForumParticipantRepository`로. `DatabaseManager` Facade가 위임하므로 외부 시그니처 불변.
 
 ### T-034 `todo` SafeInteraction(911) 점검
