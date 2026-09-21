@@ -26,6 +26,17 @@ export class Bot {
       ],
     });
 
+    this.client.on('error', (error) => logger.error('[Discord] client error', {
+      error: error.message,
+      stack: error.stack
+    }));
+    this.client.on('shardError', (error, shardId) => logger.error('[Discord] shard error', {
+      shardId,
+      error: error.message,
+      stack: error.stack
+    }));
+    this.client.on('warn', (message) => logger.warn('[Discord] client warn', {message}));
+
     // DI Container 생성 및 서비스 해결
     this.container = createDIContainer(this.client);
     

@@ -48,6 +48,7 @@ export class DatabaseManager {
         connectionTimeoutMillis: 2000,
         ssl: process.env.NODE_ENV === 'production' ? {rejectUnauthorized: false} : false
       });
+      this.attachPoolListeners(this.pool);
 
       // 연결 테스트
       const client = await this.pool.connect();
@@ -70,6 +71,15 @@ export class DatabaseManager {
       logger.error('데이터베이스 초기화 실패', {error: error.message, stack: error.stack});
       throw error;
     }
+  }
+
+  attachPoolListeners(pool) {
+    pool.on('error', (error, _client) => {
+      logger.error('[DatabaseManager] idle client error', {
+        error: error.message,
+        stack: error.stack
+      });
+    });
   }
 
   /**

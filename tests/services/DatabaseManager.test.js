@@ -8,6 +8,16 @@ describe('DatabaseManager', () => {
     dm = new DatabaseManager();
   });
 
+  describe('attachPoolListeners', () => {
+    it('registers an error listener on the pool', () => {
+      const pool = { on: vi.fn() };
+
+      dm.attachPoolListeners(pool);
+
+      expect(pool.on).toHaveBeenCalledWith('error', expect.any(Function));
+    });
+  });
+
   describe('query', () => {
     it('throws when the pool has not been initialized', async () => {
       await expect(dm.query('SELECT 1')).rejects.toThrow('데이터베이스가 초기화되지 않았습니다.');

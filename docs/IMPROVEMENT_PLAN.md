@@ -119,10 +119,12 @@
 
 ## Phase 5 — 운영 안정성 (Termux)
 
-### T-050 `todo` 재시작 복원 점검
-- `ActivityTracker` 세션 복구, `InactivePostChecker` 마지막 실행 시각 체크포인트, 팀짜기 페어 이력 TTL의 메모리 의존 → DB 저장 여부 결정(I-07).
+### T-050  재시작 복원 점검 (감사만, 코드 변경 없음 — 2026-09-22)
+- ActivityTracker: 시작 시 음성채널 재스캔으로 세션 복구(, :45) ✅ / MappingService: (:460) ✅ / InactivePostChecker: 스노우플레이크 타임스탬프 기준 판정이라 멱등, 재시작 직후 1회 실행 ✅ / EmojiReactionService: 로 상태 재구성 ✅.
+- 메모리 전용: TeamCommand 페어 이력(1h TTL) — 재시작 시 유실되나 기능 특성상 허용. DatabaseManager.cache(Map) — 캐시라 무관.
+- 결론: I-07 위반 없음. 추가 작업 불필요.
 
-### T-051 `todo` 전역 에러 핸들링 감사
+### T-051 `done` 전역 에러 핸들링 감사
 - `unhandledRejection`/`uncaughtException` 핸들러, Discord `error`/`shardError` 이벤트, PG Pool `error` 이벤트 존재 여부 확인 및 보강.
 
 ### T-052 `todo` 보안 취약점 잔여 13건 처리
