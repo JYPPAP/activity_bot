@@ -14,7 +14,6 @@
 # Claude Code
 /.claude/
 CLAUDE.md
-CODEBASE_MAP.md
 
 # Logs
 /logs/
