@@ -237,19 +237,6 @@ export class DatabaseManager {
     }
   }
 
-  /**
-   * 데이터 존재 확인 (호환성)
-   */
-  async hasAnyData() {
-    try {
-      const result = await this.query('SELECT COUNT(*) as count FROM users');
-      return parseInt(result.rows[0].count) > 0;
-    } catch (error) {
-      logger.error('데이터 존재 확인 실패', {error: error.message});
-      return false;
-    }
-  }
-
   // ================================================================
   // ActivityRepository 위임 메서드
   // ================================================================
@@ -339,12 +326,6 @@ export class DatabaseManager {
   async beginTransaction() { return true; }
   async commitTransaction() { return true; }
   async rollbackTransaction() { return true; }
-
-  // Migration 관련
-  async migrateFromJSON(activityData, roleConfigData) {
-    logger.info('JSON 마이그레이션은 새로운 PostgreSQL 구조에서 지원하지 않습니다.');
-    return true;
-  }
 
   // 캐시 관련 호환성
   reloadData() { this.invalidateCache(); }

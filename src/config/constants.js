@@ -1,18 +1,4 @@
 // src/config/constants.js - 상수 정의
-import path from 'path';
-import {fileURLToPath} from 'url';
-
-// ES 모듈에서 __dirname 구현
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const ROOT_DIR = path.resolve(__dirname, '../..');
-
-// 파일 경로 상수
-export const PATHS = {
-  ACTIVITY_INFO: path.join(ROOT_DIR, 'activity_info.json'),
-  ROLE_CONFIG: path.join(ROOT_DIR, 'role_activity_config.json'),
-};
-
 // 시간 관련 상수 (밀리초 단위)
 export const TIME = {
   LOG_DELAY: 3000,       // 3초 — 마지막 이벤트 후 이 시간 내 추가 이벤트 없으면 즉시 전송 (디바운스)

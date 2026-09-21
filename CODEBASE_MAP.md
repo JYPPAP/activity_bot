@@ -28,7 +28,7 @@ src/
 │   ├── NicknameConstants.js   # 닉네임 시스템 상수
 │   ├── RecruitmentConfig.js   # 구인구직 설정 (MAX_TAGS 등)
 │   ├── commandPermissions.js  # 역할 기반 명령어 권한
-│   ├── constants.js           # PATHS, TIME, COLORS
+│   ├── constants.js           # TIME, COLORS
 │   └── logger-termux.js       # Errsole 로거 (SQLite)
 │
 ├── commands/             # 슬래시 커맨드 핸들러
@@ -63,7 +63,6 @@ src/
 │   ├── ParticipantTracker.js  # 참가자 추적
 │   ├── LogService.js          # 로그 채널 전송
 │   ├── EventManager.js        # Discord 이벤트 바인딩
-│   ├── FileManager.js         # JSON 파일 I/O (레거시)
 │   ├── PermissionService.js   # 권한 체크
 │   ├── UserClassificationService.js  # 유저 활동 분류
 │   ├── UserNicknameService.js # 닉네임 DB CRUD

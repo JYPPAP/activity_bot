@@ -112,7 +112,7 @@
 ### T-040 `done` 중복 SQL 및 자체 마이그레이션 러너 제거
 - 각 SQL이 대응 migration에 포함됨을 확인(diff 첨부)한 뒤 삭제. `DATABASE_SETUP.md` 링크 갱신.
 
-### T-041 `todo` `FileManager.js` / `activity_bot.json` 의존 제거
+### T-041 `done` `FileManager.js` / `activity_bot.json` 의존 제거
 - 사용처 grep → ADR-0002(PG 단일화) 기준으로 남은 읽기 경로 제거. **`activity_bot.json` 파일 자체는 삭제 금지**(AGENTS.md §6).
 
 ---

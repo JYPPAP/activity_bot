@@ -1,10 +1,8 @@
 // src/bot.js - 봇 클래스 정의 (DI Container 적용 버전)
 import {Client, GatewayIntentBits, Events} from 'discord.js';
 import {config} from './config/env.js';
-import {PATHS} from './config/constants.js';
 import {logger} from './config/logger-termux.js';
 import {createDIContainer, initializeContainer, disposeContainer} from './container.js';
-import fs from 'fs';
 
 export class Bot {
   static instance = null;
@@ -48,9 +46,6 @@ export class Bot {
   async initialize() {
     // DI Container 및 모든 서비스 초기화
     await initializeContainer(this.container);
-
-    // JSON 데이터 마이그레이션 (필요시)
-    await this.migrateDataIfNeeded();
 
     // 이벤트 핸들러 등록
     this.registerEventHandlers();
@@ -110,56 +105,6 @@ export class Bot {
 
 
 
-
-  /**
-   * JSON 데이터를 SQLite로 마이그레이션 (필요한 경우)
-   */
-  async migrateDataIfNeeded() {
-    try {
-      // 데이터베이스에 이미 데이터가 있는지 확인
-      const hasData = await this.dbManager.hasAnyData();
-
-      // 데이터가 없고 JSON 파일이 존재하는 경우에만 마이그레이션
-      if (!hasData &&
-        fs.existsSync(PATHS.ACTIVITY_INFO) &&
-        fs.existsSync(PATHS.ROLE_CONFIG)) {
-
-        logger.info('JSON 데이터를 SQLite 데이터베이스로 마이그레이션 시작', {
-          activityInfoPath: PATHS.ACTIVITY_INFO,
-          roleConfigPath: PATHS.ROLE_CONFIG
-        });
-
-        // JSON 파일 로드
-        const activityData = JSON.parse(fs.readFileSync(PATHS.ACTIVITY_INFO, 'utf8'));
-        const roleConfigData = JSON.parse(fs.readFileSync(PATHS.ROLE_CONFIG, 'utf8'));
-
-        // 마이그레이션 실행
-        const success = await this.dbManager.migrateFromJSON(activityData, roleConfigData);
-
-        if (success) {
-          logger.info('마이그레이션이 성공적으로 완료되었습니다');
-
-          // 마이그레이션 완료 후 백업 파일 생성
-          const timestamp = new Date().toISOString().replace(/:/g, '-');
-          fs.copyFileSync(PATHS.ACTIVITY_INFO, `${PATHS.ACTIVITY_INFO}.${timestamp}.bak`);
-          fs.copyFileSync(PATHS.ROLE_CONFIG, `${PATHS.ROLE_CONFIG}.${timestamp}.bak`);
-
-          logger.info('기존 JSON 파일의 백업이 생성되었습니다', {
-            backupTimestamp: timestamp
-          });
-        }
-      } else if (hasData) {
-        logger.info('데이터베이스에 이미 데이터가 있어 마이그레이션을 건너뜁니다');
-      } else {
-        logger.info('마이그레이션할 JSON 파일이 없습니다. 새 데이터베이스로 시작합니다');
-      }
-    } catch (error) {
-      logger.error('데이터 마이그레이션 중 오류 발생', {
-        error: error.message,
-        stack: error.stack
-      });
-    }
-  }
 
   registerEventHandlers() {
     // 음성 채널 상태 변경 이벤트
