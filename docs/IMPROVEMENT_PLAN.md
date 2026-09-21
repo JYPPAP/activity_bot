@@ -119,16 +119,16 @@
 
 ## Phase 5 — 운영 안정성 (Termux)
 
-### T-050  재시작 복원 점검 (감사만, 코드 변경 없음 — 2026-09-22)
-- ActivityTracker: 시작 시 음성채널 재스캔으로 세션 복구(, :45) ✅ / MappingService: (:460) ✅ / InactivePostChecker: 스노우플레이크 타임스탬프 기준 판정이라 멱등, 재시작 직후 1회 실행 ✅ / EmojiReactionService: 로 상태 재구성 ✅.
+### T-050 `done` 재시작 복원 점검 (감사만, 코드 변경 없음 — 2026-09-22)
+- ActivityTracker: 시작 시 음성채널 재스캔으로 세션 복구(`ActivityTracker.js:45`) ✅ / MappingService: `loadMappingsFromDatabase`(`:460`) ✅ / InactivePostChecker: 스노우플레이크 타임스탬프 기준 판정이라 멱등, 재시작 직후 1회 실행 ✅ / EmojiReactionService: `initialize`로 상태 재구성 ✅.
 - 메모리 전용: TeamCommand 페어 이력(1h TTL) — 재시작 시 유실되나 기능 특성상 허용. DatabaseManager.cache(Map) — 캐시라 무관.
 - 결론: I-07 위반 없음. 추가 작업 불필요.
 
 ### T-051 `done` 전역 에러 핸들링 감사
 - `unhandledRejection`/`uncaughtException` 핸들러, Discord `error`/`shardError` 이벤트, PG Pool `error` 이벤트 존재 여부 확인 및 보강.
 
-### T-052 `todo` 보안 취약점 잔여 13건 처리
-- `npm audit` → 직접 의존성 업그레이드 가능 항목과 `overrides` 필요 항목 분리. discord.js/pg 메이저 업그레이드는 별도 태스크.
+### T-052 `done` 보안 취약점 잔여 13건 처리
+- 2026-09-22: 13건 전부 errsole/errsole-sqlite 경유 간접 의존성(fixAvailable=false). overrides 4개(tar ≥7.5.21, uuid ≥11.1.1, nodemailer ≥9.1.1, @tootallnate/once ≥2.0.1)로 **0건**. 로거+sqlite 로드·테스트·컨테이너 로드 확인. Termux 재배포 시 `npm install` 후 `npm run test:logger`로 sqlite 정상 확인 필요.
 
 ---
 
