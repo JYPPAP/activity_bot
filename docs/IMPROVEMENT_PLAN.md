@@ -74,7 +74,7 @@
 - `embedBuilder.js`, 팀짜기 페어 최소화 알고리즘(TeamCommand 관련 유틸), `RecruitmentUIBuilder` 출력 스냅샷.
 - 목표: Phase 3 분할 대상 파일이 의존하는 유틸 커버.
 
-### T-021 `doing` Repository 계층 테스트
+### T-021 `done` Repository 계층 테스트
 - `pg` Pool을 mock(`vi.fn`)하거나 `pg-mem` 사용. `ForumRepository`의 트랜잭션 경로(BEGIN/COMMIT/ROLLBACK) 검증 — I-08.
 
 ### T-022 `done` ADR-0003 테스트 전략 기록
