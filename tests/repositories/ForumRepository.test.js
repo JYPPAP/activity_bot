@@ -34,9 +34,16 @@ describe('ForumRepository', () => {
   });
 
   describe('createPostIntegration', () => {
+    let client;
+
+    beforeEach(() => {
+      client = { query: vi.fn() };
+      dbManager.transaction.mockImplementation(async (callback) => callback(client));
+    });
+
     it('inserts a new integration with parameters in contract order', async () => {
       const inserted = { id: 1, voice_channel_id: 'voice-1', forum_post_id: 'post-1' };
-      dbManager.query
+      client.query
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [inserted], rowCount: 1 });
@@ -45,7 +52,7 @@ describe('ForumRepository', () => {
         'guild-1', 'voice-1', 'post-1', 'forum-1'
       )).resolves.toBe(inserted);
 
-      expect(dbManager.query).toHaveBeenNthCalledWith(
+      expect(client.query).toHaveBeenNthCalledWith(
         3,
         expect.stringContaining('INSERT INTO post_integrations'),
         ['guild-1', 'voice-1', 'post-1', 'forum-1']
@@ -56,7 +63,7 @@ describe('ForumRepository', () => {
     it('upserts when the same forum post is already linked to the same voice channel', async () => {
       const existing = { voice_channel_id: 'voice-1', forum_post_id: 'post-1' };
       const updated = { ...existing, forum_channel_id: 'forum-1' };
-      dbManager.query
+      client.query
         .mockResolvedValueOnce({ rows: [existing], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [existing], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [updated], rowCount: 1 });
@@ -65,7 +72,7 @@ describe('ForumRepository', () => {
         'guild-1', 'voice-1', 'post-1', 'forum-1'
       )).resolves.toBe(updated);
 
-      expect(dbManager.query).toHaveBeenNthCalledWith(
+      expect(client.query).toHaveBeenNthCalledWith(
         3,
         expect.stringContaining('ON CONFLICT (guild_id, voice_channel_id)'),
         ['guild-1', 'voice-1', 'post-1', 'forum-1']
@@ -73,7 +80,7 @@ describe('ForumRepository', () => {
     });
 
     it('throws a conflict when the forum post is linked to another regular voice channel', async () => {
-      dbManager.query
+      client.query
         .mockResolvedValueOnce({
           rows: [{ voice_channel_id: 'voice-other', forum_post_id: 'post-1' }],
           rowCount: 1
@@ -86,7 +93,34 @@ describe('ForumRepository', () => {
         code: '23505',
         constraint: 'post_integrations_guild_id_forum_post_id_key'
       });
-      expect(dbManager.query).toHaveBeenCalledTimes(2);
+      expect(client.query).toHaveBeenCalledTimes(2);
+    });
+
+    it('runs all queries through one transaction client', async () => {
+      const inserted = { id: 1, voice_channel_id: 'voice-1', forum_post_id: 'post-1' };
+      client.query
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockResolvedValueOnce({ rows: [inserted], rowCount: 1 });
+
+      await repository.createPostIntegration('guild-1', 'voice-1', 'post-1', 'forum-1');
+
+      expect(dbManager.transaction).toHaveBeenCalledTimes(1);
+      expect(dbManager.query).not.toHaveBeenCalled();
+    });
+
+    it('propagates a transaction query failure and stops subsequent queries', async () => {
+      const queryError = new Error('second query failed');
+      client.query
+        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+        .mockRejectedValueOnce(queryError);
+
+      await expect(repository.createPostIntegration(
+        'guild-1', 'voice-1', 'post-1', 'forum-1'
+      )).rejects.toBe(queryError);
+
+      expect(client.query).toHaveBeenCalledTimes(2);
+      expect(dbManager.query).not.toHaveBeenCalled();
     });
   });
 

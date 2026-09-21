@@ -13,47 +13,48 @@ export class PostIntegrationRepository {
    */
   async createPostIntegration(guildId, voiceChannelId, forumPostId, forumChannelId) {
     try {
-      // 먼저 기존 연동 상태를 확인
-      const existingByPost = await this.dbManager.query(`
+      return await this.dbManager.transaction(async (client) => {
+        // 먼저 기존 연동 상태를 확인
+        const existingByPost = await client.query(`
         SELECT voice_channel_id, forum_post_id
         FROM post_integrations
         WHERE guild_id = $1 AND forum_post_id = $2 AND is_active = true
       `, [guildId, forumPostId]);
 
-      const existingByChannel = await this.dbManager.query(`
+        const existingByChannel = await client.query(`
         SELECT voice_channel_id, forum_post_id
         FROM post_integrations
         WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
       `, [guildId, voiceChannelId]);
 
-      // 동일한 포럼에 다른 채널이 이미 연결된 경우 확인
-      if (existingByPost.rows.length > 0 && existingByPost.rows[0].voice_channel_id !== voiceChannelId) {
-        const existingChannelId = existingByPost.rows[0].voice_channel_id;
-        const isExistingStandalone = existingChannelId.startsWith('STANDALONE_');
+        // 동일한 포럼에 다른 채널이 이미 연결된 경우 확인
+        if (existingByPost.rows.length > 0 && existingByPost.rows[0].voice_channel_id !== voiceChannelId) {
+          const existingChannelId = existingByPost.rows[0].voice_channel_id;
+          const isExistingStandalone = existingChannelId.startsWith('STANDALONE_');
 
-        // STANDALONE 채널인 경우: 실제 채널로 업그레이드 허용
-        if (isExistingStandalone) {
-          logger.info('STANDALONE 포럼을 실제 음성채널로 업그레이드', {
-            guildId, existingChannelId, newVoiceChannelId: voiceChannelId, forumPostId
-          });
+          // STANDALONE 채널인 경우: 실제 채널로 업그레이드 허용
+          if (isExistingStandalone) {
+            logger.info('STANDALONE 포럼을 실제 음성채널로 업그레이드', {
+              guildId, existingChannelId, newVoiceChannelId: voiceChannelId, forumPostId
+            });
 
-          // 먼저 target voice_channel_id가 이미 사용 중인지 확인
-          const existingTargetChannel = await this.dbManager.query(`
+            // 먼저 target voice_channel_id가 이미 사용 중인지 확인
+            const existingTargetChannel = await client.query(`
             SELECT voice_channel_id, forum_post_id
             FROM post_integrations
             WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
           `, [guildId, voiceChannelId]);
 
-          // 기존 레코드가 있다면 비활성화
-          if (existingTargetChannel.rows.length > 0) {
-            await this.dbManager.query(`
+            // 기존 레코드가 있다면 비활성화
+            if (existingTargetChannel.rows.length > 0) {
+              await client.query(`
               UPDATE post_integrations
               SET is_active = false, updated_at = CURRENT_TIMESTAMP
               WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
             `, [guildId, voiceChannelId]);
-          }
+            }
 
-          const updateResult = await this.dbManager.query(`
+            const updateResult = await client.query(`
             UPDATE post_integrations
             SET
               voice_channel_id = $1,
@@ -64,33 +65,33 @@ export class PostIntegrationRepository {
             RETURNING *
           `, [voiceChannelId, guildId, forumPostId]);
 
-          if (updateResult.rows.length > 0) {
-            logger.databaseOperation('STANDALONE 포럼 업그레이드 완료', {
-              voiceChannelId, forumPostId,
-              previousChannelId: existingChannelId,
-              newState: 'voice_linked',
-              upgradeType: 'standalone_to_voice'
-            });
-            this.dbManager.invalidateCache();
-            return updateResult.rows[0];
+            if (updateResult.rows.length > 0) {
+              logger.databaseOperation('STANDALONE 포럼 업그레이드 완료', {
+                voiceChannelId, forumPostId,
+                previousChannelId: existingChannelId,
+                newState: 'voice_linked',
+                upgradeType: 'standalone_to_voice'
+              });
+              this.dbManager.invalidateCache();
+              return updateResult.rows[0];
+            } else {
+              logger.error('STANDALONE 포럼 업그레이드 실패 - 업데이트된 행이 없음', {
+                voiceChannelId, forumPostId, existingChannelId
+              });
+              throw new Error('STANDALONE 포럼 업그레이드 실패: 업데이트된 행이 없습니다');
+            }
           } else {
-            logger.error('STANDALONE 포럼 업그레이드 실패 - 업데이트된 행이 없음', {
-              voiceChannelId, forumPostId, existingChannelId
-            });
-            throw new Error('STANDALONE 포럼 업그레이드 실패: 업데이트된 행이 없습니다');
+            // 일반 채널끼리의 중복만 에러 처리
+            const conflictError = new Error('이미 다른 음성 채널이 연결된 포럼 포스트입니다.');
+            conflictError.code = '23505';
+            conflictError.constraint = 'post_integrations_guild_id_forum_post_id_key';
+            conflictError.detail = `Voice channel ${existingChannelId} is already linked to forum post ${forumPostId}`;
+            throw conflictError;
           }
-        } else {
-          // 일반 채널끼리의 중복만 에러 처리
-          const conflictError = new Error('이미 다른 음성 채널이 연결된 포럼 포스트입니다.');
-          conflictError.code = '23505';
-          conflictError.constraint = 'post_integrations_guild_id_forum_post_id_key';
-          conflictError.detail = `Voice channel ${existingChannelId} is already linked to forum post ${forumPostId}`;
-          throw conflictError;
         }
-      }
 
-      // UPSERT 쿼리 실행
-      const result = await this.dbManager.query(`
+        // UPSERT 쿼리 실행
+        const result = await client.query(`
         INSERT INTO post_integrations (guild_id, voice_channel_id, forum_post_id, forum_channel_id)
         VALUES ($1, $2, $3, $4)
         ON CONFLICT (guild_id, voice_channel_id)
@@ -102,9 +103,10 @@ export class PostIntegrationRepository {
         RETURNING *
       `, [guildId, voiceChannelId, forumPostId, forumChannelId]);
 
-      logger.databaseOperation('포스트 연동 생성', { voiceChannelId, forumPostId });
-      this.dbManager.invalidateCache();
-      return result.rows[0];
+        logger.databaseOperation('포스트 연동 생성', { voiceChannelId, forumPostId });
+        this.dbManager.invalidateCache();
+        return result.rows[0];
+      });
     } catch (error) {
       logger.error('포스트 연동 생성 실패', {
         guildId, voiceChannelId, forumPostId, error: error.message

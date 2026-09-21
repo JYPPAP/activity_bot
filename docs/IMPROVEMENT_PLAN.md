@@ -81,7 +81,7 @@
 - `docs/adr/0003-test-strategy.md`: Vitest 채택, 커버 범위, E2E 미도입 사유.
 
 
-### T-023 `todo` ForumRepository 다중 쓰기 트랜잭션화 (I-08)
+### T-023 `done` ForumRepository 다중 쓰기 트랜잭션화 (I-08)
 - 발견(2026-09-21): 트랜잭션은 `ActivityRepository`만 사용. `ForumRepository.createPostIntegration`(SELECT→UPDATE→INSERT), `linkVoiceChannel`, `setStandaloneMode`, `ensureForumMapping` 등 다중 쓰기가 `dbManager.query` 개별 호출로 실행됨 → 중간 실패 시 부분 반영.
 - 대상 메서드를 `dbManager.transaction(async client => ...)`로 감싼다. T-021 테스트를 먼저 갖춘 뒤 T-033(분할)과 함께 또는 직전에 수행.
 ---
