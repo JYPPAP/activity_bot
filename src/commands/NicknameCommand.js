@@ -1,3 +1,4 @@
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { logger } from '../config/logger-termux.js';
 // src/commands/NicknameCommand.js - 닉네임 변경 명령어
 import { MessageFlags, EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
@@ -17,7 +18,11 @@ export class NicknameCommand extends CommandBase {
   async execute(interaction) {
     try {
       // 즉시 defer하여 3초 제한 해결
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+      if (deferResult === null) {
+        throw new Error('인터랙션 지연 응답에 실패했습니다.');
+      }
 
       // 채널 ID 파라미터 가져오기
       const channelId = interaction.options.getString('channel');

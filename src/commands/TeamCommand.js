@@ -1,3 +1,4 @@
+import { SafeInteraction } from '../utils/SafeInteraction.js';
 // src/commands/TeamCommand.js - 팀짜기 명령어
 import { logger } from '../config/logger-termux.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
@@ -94,10 +95,14 @@ export class TeamCommand {
     // 음성 채널 확인
     const voiceChannel = interaction.member.voice.channel;
     if (!voiceChannel) {
-      await interaction.reply({
+      const replyResult = await SafeInteraction.safeReply(interaction, {
         content: '❌ 음성 채널에 접속한 상태에서 사용해주세요.',
         ephemeral: true,
       });
+      // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+      if (replyResult === null) {
+        throw new Error('인터랙션 응답에 실패했습니다.');
+      }
       return;
     }
 
@@ -105,10 +110,14 @@ export class TeamCommand {
     const teamCount = interaction.options.getInteger('팀수');
 
     if (teamCount > totalCount) {
-      await interaction.reply({
+      const replyResult = await SafeInteraction.safeReply(interaction, {
         content: '❌ 팀 수가 전체 인원보다 많을 수 없습니다.',
         ephemeral: true,
       });
+      // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+      if (replyResult === null) {
+        throw new Error('인터랙션 응답에 실패했습니다.');
+      }
       return;
     }
 
@@ -230,14 +239,22 @@ export class TeamCommand {
 
     // Discord 메시지 길이 제한 (2000자) 초과 시 사용자에게 알림
     if (content.length > 2000) {
-      await interaction.reply({
+      const replyResult = await SafeInteraction.safeReply(interaction, {
         content: `❌ 팀 구성 결과가 너무 길어 표시할 수 없습니다. (${content.length}자)\n팀 수나 전체 인원을 줄여주세요.`,
         ephemeral: true,
       });
+      // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+      if (replyResult === null) {
+        throw new Error('인터랙션 응답에 실패했습니다.');
+      }
       return;
     }
 
-    await interaction.reply({ content });
+    const replyResult = await SafeInteraction.safeReply(interaction, { content });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (replyResult === null) {
+      throw new Error('인터랙션 응답에 실패했습니다.');
+    }
 
     logger.info('팀짜기 명령어 실행', {
       component: 'TeamCommand',

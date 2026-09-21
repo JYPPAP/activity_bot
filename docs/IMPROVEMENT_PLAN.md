@@ -61,7 +61,7 @@
 - **한 Codex 세션당 1~2파일**. 완료 후 `npm run lint`에서 no-console 카운트 감소 확인.
 - T-010 전부 끝나면 `no-console`을 `error`로 승격.
 
-### T-011 `todo` 직접 `interaction.reply/update/defer*` 22건 → SafeInteraction
+### T-011 `done` 직접 `interaction.reply/update/defer*` 22건 → SafeInteraction
 - `grep -rnE "interaction\.(reply|deferReply|update|deferUpdate)\(" src | grep -v SafeInteraction`로 목록화.
 - 각 호출을 `SafeInteraction.safeReply / safeDeferUpdate / safeUpdate`로 교체. 반환값·에러 처리 의미 유지.
 - 완료 조건: 위 grep 결과 0.

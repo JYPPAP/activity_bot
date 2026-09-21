@@ -19,7 +19,11 @@ export class NicknameSetupCommand extends CommandBase {
    */
   async execute(interaction) {
     try {
-      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+      // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+      if (deferResult === null) {
+        throw new Error('인터랙션 지연 응답에 실패했습니다.');
+      }
 
       const channel = interaction.channel;
       const channelId = channel.id;

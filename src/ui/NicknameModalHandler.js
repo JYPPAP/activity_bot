@@ -48,7 +48,11 @@ export class NicknameModalHandler {
    * 관리자 플랫폼 추가 처리
    */
   async handleAdminAdd(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const platformName = interaction.fields.getTextInputValue('platform_name');
     const emojiInput = interaction.fields.getTextInputValue('platform_emoji') || undefined;
@@ -97,7 +101,11 @@ export class NicknameModalHandler {
    * 관리자 플랫폼 수정 처리
    */
   async handleAdminEdit(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const platformId = parseInt(interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_MODAL, ''), 10);
     const platformName = interaction.fields.getTextInputValue('platform_name');
@@ -147,7 +155,11 @@ export class NicknameModalHandler {
    * 사용자 닉네임 추가 처리
    */
   async handleUserAdd(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const parts = interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADD_MODAL, '').split('_');
     const platformId = parseInt(parts[0], 10);
@@ -173,7 +185,11 @@ export class NicknameModalHandler {
    * 사용자 닉네임 수정 처리 (ID 기반)
    */
   async handleUserEdit(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     // customId에서 nicknameId 추출: nickname_edit_modal_<id>
     const nicknameId = parseInt(interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.EDIT_MODAL, ''), 10);

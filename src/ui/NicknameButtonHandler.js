@@ -60,7 +60,11 @@ export class NicknameButtonHandler {
    * 닉네임 삭제 버튼 처리
    */
   async handleDeleteButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.guild.id;
     const userId = interaction.user.id;
@@ -114,7 +118,11 @@ export class NicknameButtonHandler {
    * 닉네임 수정 버튼 처리
    */
   async handleEditButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.guild.id;
     const userId = interaction.user.id;
@@ -198,7 +206,11 @@ export class NicknameButtonHandler {
    * 내 정보 조회 버튼 처리
    */
   async handleViewButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.guild.id;
     const userId = interaction.user.id;
@@ -269,7 +281,11 @@ export class NicknameButtonHandler {
    * 관리자 플랫폼 수정 버튼 처리
    */
   async handleAdminEditButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN, '');
     const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
@@ -371,7 +387,11 @@ export class NicknameButtonHandler {
    * 관리자 플랫폼 삭제 버튼 처리
    */
   async handleAdminDeleteButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_DELETE_BTN, '');
     const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
@@ -447,7 +467,11 @@ export class NicknameButtonHandler {
    * 관리자 플랫폼 목록 버튼 처리
    */
   async handleAdminListButton(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const guildId = interaction.customId.replace(NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_LIST_BTN, '');
     const platforms = await this.platformTemplateService.getAllPlatforms(guildId);

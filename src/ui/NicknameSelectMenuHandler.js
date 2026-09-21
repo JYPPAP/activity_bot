@@ -64,7 +64,11 @@ export class NicknameSelectMenuHandler {
    * 플랫폼 선택 드롭다운 표시 (닉네임 등록 시작)
    */
   async showPlatformSelection(interaction, guildId) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const platforms = await this.platformTemplateService.getAllPlatforms(guildId);
 
@@ -184,7 +188,11 @@ export class NicknameSelectMenuHandler {
    * 닉네임 삭제 드롭다운 처리 (ID 기반, 다중 선택 지원)
    */
   async handleDeleteSelect(interaction) {
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     const selectedIds = interaction.values.map(id => parseInt(id, 10));
     const guildId = interaction.guild.id;

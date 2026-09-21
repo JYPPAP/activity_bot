@@ -1141,7 +1141,11 @@ export class ButtonHandler {
    */
   async handlePreMembersSelectMenu(interaction) {
     // ① 가장 먼저 deferUpdate — 3초 제한을 15분으로 연장
-    await interaction.deferUpdate();
+    const deferResult = await SafeInteraction.safeDeferUpdate(interaction);
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     try {
       const withoutPrefix = interaction.customId.replace(

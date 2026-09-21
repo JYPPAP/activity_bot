@@ -20,7 +20,11 @@ export class CommandBase {
    * @param interaction - 상호작용 객체
    */
   async execute(interaction) {
-    await interaction.deferReply({flags: MessageFlags.Ephemeral});
+    const deferResult = await SafeInteraction.safeDeferReply(interaction, {flags: MessageFlags.Ephemeral});
+    // null 실패도 기존 catch 경로로 전달하여 후속 작업을 중단한다.
+    if (deferResult === null) {
+      throw new Error('인터랙션 지연 응답에 실패했습니다.');
+    }
 
     try {
       // 자식 클래스에서 실제 실행을 구현해야 함
