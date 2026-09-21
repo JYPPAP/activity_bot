@@ -106,16 +106,16 @@ Caller (e.g., ActivityTracker)
 | `forum_participants` | 포럼글 참가자 목록 | ForumRepository |
 | `platform_templates` | 닉네임 플랫폼 템플릿 | PlatformTemplateService (직접 query) |
 | `user_nicknames` | 사용자별 플랫폼 닉네임 | UserNicknameService (직접 query) |
-| `schema_migrations` | 마이그레이션 이력 추적 | run_migration.js |
+| `pgmigrations` | 마이그레이션 이력 추적 | node-pg-migrate |
 
 ### 마이그레이션
-- 범용 마이그레이션 러너: `scripts/run_migration.js`
+- 러너: node-pg-migrate (`.pgmigraterc` 설정 사용)
 - 파일 위치: `migrations/`
+- 이력 테이블: `pgmigrations`
 - 실행 방법:
-  - `node scripts/run_migration.js` → 미적용 마이그레이션 전체 실행
-  - `node scripts/run_migration.js 006` → 특정 번호만 실행
-  - `node scripts/run_migration.js --status` → 적용 상태 확인
-  - `node scripts/run_migration.js --dry-run` → 실행 없이 확인
+  - `npm run migrate:up` → 미적용 마이그레이션 실행
+  - `npm run migrate:down` → 최근 마이그레이션 롤백
+  - `npm run migrate:create -- <name>` → SQL 마이그레이션 생성
 
 ## 운영 환경
 

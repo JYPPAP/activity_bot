@@ -16,7 +16,7 @@
 | ESLint / Prettier | 없음 | 없음 |
 | pre-commit 훅 | husky 디렉토리만 존재, 훅 없음 | 없음 |
 | CODEBASE_MAP 드리프트 | 1건 (`services/InactivePostChecker.js` 미기재) | 즉시 수정 |
-| 레거시 | `FileManager.js`(JSON), `scripts/*.sql` 6개(migrations와 중복), `run_migration.js` | 정리 대상 |
+| 레거시 | `FileManager.js`(JSON), migrations와 중복되는 SQL 및 자체 마이그레이션 러너 | 정리 대상 |
 
 ## 원칙
 
@@ -109,8 +109,8 @@
 
 ## Phase 4 — 레거시 제거
 
-### T-040 `todo` `scripts/*.sql` 6개 → migrations와 대조 후 삭제
-- 각 SQL이 `migrations/2025010100000N_*.sql`에 포함됨을 확인(diff 첨부). `run_migration.js`도 함께. `DATABASE_SETUP.md` 링크 갱신.
+### T-040 `done` 중복 SQL 및 자체 마이그레이션 러너 제거
+- 각 SQL이 대응 migration에 포함됨을 확인(diff 첨부)한 뒤 삭제. `DATABASE_SETUP.md` 링크 갱신.
 
 ### T-041 `todo` `FileManager.js` / `activity_bot.json` 의존 제거
 - 사용처 grep → ADR-0002(PG 단일화) 기준으로 남은 읽기 경로 제거. **`activity_bot.json` 파일 자체는 삭제 금지**(AGENTS.md §6).

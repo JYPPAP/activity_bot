@@ -41,11 +41,10 @@ psql -d postgres -c "CREATE DATABASE activity_bot;"
 psql -d postgres -f scripts/setup-user-permissions.sql
 
 # 4단계: 데이터베이스 스키마 초기화
-psql -d activity_bot -f scripts/init-database.sql
+npm run init-db
 
 # 5단계: 추가 마이그레이션 적용
-psql -d activity_bot -f scripts/add_nickname_tables.sql
-psql -d activity_bot -f scripts/migration_multi_account_support.sql
+npm run migrate:up
 
 # 6단계: 현재 월 활동 테이블 생성
 psql -d activity_bot -c "SELECT create_monthly_activity_table('$(date +%Y%m)');"
@@ -109,12 +108,11 @@ DATABASE_URL=postgresql://discord_bot:prod_password@localhost:5432/activity_bot?
 
 #### 5단계: 데이터베이스 스키마 초기화
 ```bash
-# init-database.sql 실행
-psql -d activity_bot -f scripts/init-database.sql
+# init-database.js를 통한 초기 스키마 생성
+npm run init-db
 
 # 추가 마이그레이션 적용
-psql -d activity_bot -f scripts/add_nickname_tables.sql
-psql -d activity_bot -f scripts/migration_multi_account_support.sql
+npm run migrate:up
 ```
 
 ## 초기화 스크립트 상세
@@ -208,9 +206,8 @@ psql -d postgres -f scripts/setup-user-permissions.sql
 ### 테이블이 모두 사라진 경우
 ```bash
 # 전체 초기화 프로세스 다시 실행
-psql -d activity_bot -f scripts/init-database.sql
-psql -d activity_bot -f scripts/add_nickname_tables.sql
-psql -d activity_bot -f scripts/migration_multi_account_support.sql
+npm run init-db
+npm run migrate:up
 ```
 
 ### PostgreSQL 재시작 필요 시
