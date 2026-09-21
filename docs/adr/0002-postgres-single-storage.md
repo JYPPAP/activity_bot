@@ -2,7 +2,7 @@
 
 - **상태**: Accepted
 - **날짜**: 2026-02-07
-- **관련**: `migrations/20250101000001_init-core-tables.sql`, `docs/Database_Architecture_Changes.md`
+- **관련**: `migrations/20250101000001_init-core-tables.sql`, [`docs/archive/Database_Architecture_Changes.md`](../archive/Database_Architecture_Changes.md)
 
 ## 컨텍스트
 
@@ -46,6 +46,6 @@
 
 ## 참고
 
-- `docs/Database_Architecture_Changes.md`
-- `docs/Migration_Setup_Guide.md`
-- `docs/PostgreSQL_Migration_Overview.md`
+- [Database Architecture Changes](../archive/Database_Architecture_Changes.md)
+- [Migration Setup Guide](../archive/Migration_Setup_Guide.md)
+- [PostgreSQL Migration Overview](../archive/PostgreSQL_Migration_Overview.md)

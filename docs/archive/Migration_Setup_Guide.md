@@ -670,7 +670,7 @@ mv activity_bot.json activity_bot.json.old
 - **[PostgreSQL Migration Overview](./PostgreSQL_Migration_Overview.md)**: 전체 프로젝트 개요
 - **[Database Architecture Changes](./Database_Architecture_Changes.md)**: 스키마 변경 상세
 - **[Real Time Activity Tracking](./Real_Time_Activity_Tracking.md)**: 실시간 추적 시스템
-- **[Testing And Verification](./Testing_And_Verification.md)**: 테스트 방법론
+- **Testing And Verification**: 당시 테스트 문서는 이 저장소에 보존되지 않음
 
 ### 유용한 명령어
 ```bash

@@ -216,17 +216,27 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 ### post_integrations
 | Column | Type | Description |
 |--------|------|-------------|
-| id | SERIAL PK | |
-| guild_id | VARCHAR | 서버 ID |
-| voice_channel_id | VARCHAR | 음성 채널 ID / `STANDALONE_{threadId}` |
-| forum_post_id | VARCHAR | 포럼 스레드 ID |
+| guild_id + voice_channel_id | VARCHAR, 복합 PK | 서버 및 음성 채널 ID / `STANDALONE_{threadId}` |
+| forum_post_id | VARCHAR, 길드 내 UNIQUE | 포럼 스레드 ID |
 | forum_channel_id | VARCHAR | 포럼 채널 ID |
-| forum_state | VARCHAR | `created` / `voice_linked` / `standalone` |
+| participant_message_ids / emoji_reaction_message_ids / other_message_types | JSONB | 포럼 메시지 추적 |
+| forum_state | VARCHAR | `created` / `voice_pending` / `voice_linked` / `standalone` / `archived` |
+| voice_linked_at / link_requested_by | TIMESTAMP / VARCHAR | 연동 시각과 요청자 |
+| auto_track_enabled | BOOLEAN | 자동 추적 여부 |
 | is_active | BOOLEAN | 활성 여부 |
-| participants | JSON | 레거시 참가자 배열 |
-| max_count | INT | 최대 참가 인원 |
-| last_participant_count | INT | |
+| archived_at / locked_at | TIMESTAMP | 아카이브·잠금 시각 |
+| participants | JSONB | 레거시 참가자 배열(GIN 인덱스) |
 | created_at / updated_at | TIMESTAMP | |
+
+주요 인덱스: `forum_post_id`, `voice_channel_id`, 활성 행 부분 인덱스, `forum_state`, 자동 추적 부분 인덱스, `participants` GIN.
+
+### users / guild_settings / user_activities_YYYYMM
+
+| Table | Key / 주요 컬럼 | Description |
+|---|---|---|
+| `users` | `user_id` PK, `guild_id`, `inactive_start_date`, `inactive_end_date` | 사용자와 AFK 기간 통합. 길드 및 활성 AFK 조회 인덱스 사용 |
+| `guild_settings` | `guild_id` PK, `game_roles`, `excluded_voice_channels`, `activity_tiers`, `timezone`, `monthly_target_hours` | 길드별 활동 설정(JSONB 포함) |
+| `user_activities_YYYYMM` | `(guild_id, user_id)` PK, `daily_voice_minutes` JSONB, `total_voice_minutes` | 월별 자동 생성 활동 테이블. 사용자·길드 인덱스 사용 |
 
 ### forum_participants
 | Column | Type | Description |
@@ -315,12 +325,18 @@ SafeInteraction.validateInteraction(interaction) → { valid, reason }
 |-----|------|-------------|
 | TOKEN | string | Discord 봇 토큰 |
 | GUILDID | string | 서버 ID |
+| CLIENT_ID | string | Discord 애플리케이션 ID |
 | LOG_CHANNEL_ID | string | 로그 채널 |
 | FORUM_CHANNEL_ID | string | 메인 포럼 채널 |
 | FORUM_TAG_ID | string | 포럼 태그 |
 | VOICE_CATEGORY_ID | string | 음성 채널 카테고리 |
-| DATABASE_URL | string | PostgreSQL 연결 |
+| DATABASE_URL / POSTGRES_URL | string | PostgreSQL 연결 (`DATABASE_URL` 우선) |
 | TEAM_CHANNEL_IDS | CSV string | 팀짜기 채널 ID들 (,구분) |
 | SCRIMMAGE_FORUM_CHANNEL_ID | string | 내전 포럼 |
 | LONG_TERM_FORUM_CHANNEL_ID | string | 장기 포럼 |
-| EXCLUDED_CHANNELS | CSV string | 활동 추적 제외 채널 |
+| EXCLUDE_CHANNELID_1~6 | string | 활동 추적 제외 채널 (`1~3`은 로그도 제외) |
+| DEV_ID | string | 전체 커맨드 권한을 가진 개발자 ID |
+| CALENDAR_LOG_CHANNEL_ID | string | 활동 목록 출력 채널 |
+| NODE_ENV | string | 실행 환경 |
+| ERRSOLE_HOST / ERRSOLE_PORT | string | Errsole 대시보드 바인딩 |
+| PHONE_IP | string | Termux 네트워크 설정 |

@@ -21,6 +21,7 @@
 | 0001 | [Awilix CLASSIC Injection Mode 채택](./0001-awilix-classic-mode.md) | Accepted | 2025-08 |
 | 0002 | [PostgreSQL + JSON 이중 저장에서 PG 단일화로 전환](./0002-postgres-single-storage.md) | Accepted | 2025-02 |
 | 0003 | [테스트 전략: Vitest + 순수 로직·mock 우선](./0003-test-strategy.md) | Accepted | 2026-09 |
+| 0004 | [활동 세션은 메모리 추적과 주기적 DB 체크포인트를 병행](./0004-activity-session-tracking.md) | Accepted | 2026-09 |
 
 ---
 

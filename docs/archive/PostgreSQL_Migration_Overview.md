@@ -264,9 +264,9 @@ graph TD
 
 - **[Database Architecture Changes](./Database_Architecture_Changes.md)**: 데이터베이스 구조 변경 상세
 - **[Real Time Activity Tracking](./Real_Time_Activity_Tracking.md)**: 실시간 추적 시스템 구현
-- **[Code Refactoring Details](./Code_Refactoring_Details.md)**: 코드 리팩토링 세부사항
+- **Code Refactoring Details**: 당시 리팩토링 문서는 이 저장소에 보존되지 않음
 - **[Migration Setup Guide](./Migration_Setup_Guide.md)**: 설치 및 설정 가이드
-- **[Testing And Verification](./Testing_And_Verification.md)**: 테스트 및 검증 방법
+- **Testing And Verification**: 당시 테스트 문서는 이 저장소에 보존되지 않음
 
 ---
 

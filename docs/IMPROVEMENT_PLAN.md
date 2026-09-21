@@ -137,8 +137,8 @@
 ### T-060 `done` `check-docs-drift.mjs` 확장
 - CustomId prefix(`DiscordConstants.js`) ↔ CODEBASE_MAP CustomId 맵 대조, DI 키(`container.js`) ↔ DI 섹션 대조.
 
-### T-061 `todo` `docs/` 구버전 문서 정리
-- `ARCHITECTURE.md`, `SERVICES.md`, `COMMANDS.md`, `PostgreSQL_Migration_*` 등이 10~13번 문서와 중복. 중복분은 삭제하고 10~13에 흡수.
+### T-061 `done` `docs/` 구버전 문서 정리
+- 구버전 아키텍처·서비스·커맨드 문서의 현행 정보를 하네스에 흡수하고, PostgreSQL 전환 및 활동 추적 설계 기록은 `docs/archive/`로 이동.
 
 ---
 
