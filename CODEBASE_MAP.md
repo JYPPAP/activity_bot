@@ -160,21 +160,33 @@ InteractionRouter.routeInteraction()
 | Prefix | Format | 용도 |
 |--------|--------|------|
 | `voice_connect_` | `{voiceChannelId}` | 음성채널 구직 연동 |
+| `voice_close_` | `{voiceChannelId}` | 음성채널 닫기 라우팅 (현재 버튼 생성은 주석 처리) |
 | `voice_spectate_` | `{voiceChannelId}` | 관전 모드 |
 | `voice_wait_` | `{voiceChannelId}` | 대기 모드 |
 | `voice_reset_` | `{voiceChannelId}` | 닉네임 초기화 |
 | `voice_delete_` | `{voiceChannelId}` | 채널 닫기 |
 | `forum_join_` | `{threadId}` | 참가하기 |
 | `forum_leave_` | `{threadId}` | 참가 취소 |
+| `forum_wait_` | `{threadId}` | 포럼 참가자를 대기 상태로 전환 |
 | `forum_edit_premembers_` | `{threadId}_{recruiterId}` | 멤버 수정 (모집자 전용) |
+| `premembers_user_select_` | `{threadId}_{recruiterId}` | 미리 모인 멤버 선택 메뉴 |
+| `forum_mention_` | `{threadId}` | 포럼 참가자 멘션 |
+| `forum_delete_confirm` | 고정값 | 구직 닫기 확인 |
+| `forum_delete_cancel` | 고정값 | 구직 닫기 취소 |
 | `forum_participate_` | `{threadId}` | 하위 호환 참가 |
 | `role_btn_` | | 역할 태그 선택 |
 | `role_complete_` | | 태그 선택 완료 |
+| `standalone_role_btn_` | `{tag}` 또는 `{tag}_{methodValue}` | 독립 구직 역할 태그 선택 |
+| `standalone_role_complete` | 고정값 또는 `_{methodValue}` | 독립 구직 역할 태그 선택 완료 |
 | `recruitment_modal_` | | 모달 표시 |
 | `recruitment_method_` | | 연동 방법 선택 |
-| `premembers_edit_modal_` | `{threadId}` | 멤버 수정 모달 |
+| `existing_post_select_` | `{voiceChannelId}` | 기존 포럼 글 선택 메뉴 |
 | `scrimmage_recruitment_` | | 내전 구직 |
 | `long_term_recruitment_` | | 장기 구직 |
+| `new_forum` | 고정값 | 새 포럼 생성 방법 선택 |
+| `new_forum_` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
+| `existing_forum` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
+| `existing_forum_` | `{postId}` | 기존 포럼 연동 방법 선택 |
 
 ---
 

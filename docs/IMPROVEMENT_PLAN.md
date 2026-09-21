@@ -134,7 +134,7 @@
 
 ## Phase 6 — 문서·자동화
 
-### T-060 `todo` `check-docs-drift.mjs` 확장
+### T-060 `done` `check-docs-drift.mjs` 확장
 - CustomId prefix(`DiscordConstants.js`) ↔ CODEBASE_MAP CustomId 맵 대조, DI 키(`container.js`) ↔ DI 섹션 대조.
 
 ### T-061 `todo` `docs/` 구버전 문서 정리

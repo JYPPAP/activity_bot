@@ -36,7 +36,8 @@
 - [ ] 3. `src/ui/InteractionRouter.js` 의 분기에 추가.
 - [ ] 4. 실제 핸들러(`ButtonHandler` / `ModalHandler` / `SelectMenuHandler`)에 구현.
 - [ ] 5. `CODEBASE_MAP.md` **CustomId 접두사 표** 갱신.
-- [ ] 6. `SafeInteraction` 래퍼 사용 (I-04).
+- [ ] 6. `npm run docs:check:strict`로 CustomId 문서 drift가 없는지 확인.
+- [ ] 7. `SafeInteraction` 래퍼 사용 (I-04).
 
 ---
 
