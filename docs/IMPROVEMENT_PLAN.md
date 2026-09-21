@@ -94,7 +94,7 @@
 - `ui/buttons/RecruitmentButtons.js`(참가/취소/관전/대기), `ui/buttons/MemberEditButtons.js`, `ui/buttons/PostControlButtons.js`(닫기/멘션).
 - `ButtonHandler.js`는 라우팅만 남김(<200줄). `CUSTOM_ID_PREFIXES` 매핑 표를 CODEBASE_MAP과 동기화.
 
-### T-031 `todo` ModalHandler(1072) 분할 — T-030과 같은 방식.
+### T-031 `done` ModalHandler(1072) 분할 — T-030과 같은 방식.
 
 ### T-032 `todo` ForumPostManager(1104) 분할
 - 포스트 CRUD / 버튼·임베드 빌드 / 참가자 관리 세 책임으로. DI 키 `forumPostManager`는 Facade로 유지.

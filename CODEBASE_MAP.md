@@ -81,7 +81,13 @@ src/
 │   │   ├── VoiceChannelButtons.js  # 음성 채널 관전·대기·초기화·삭제 버튼
 │   │   ├── ForumPostButtons.js     # 포럼 참가·취소·대기·멘션 버튼
 │   │   └── PreMembersButtons.js    # 미리 모인 멤버 수정 버튼·선택 메뉴
-│   ├── ModalHandler.js        # 모달 인터랙션 (구직 작성/멤버수정)
+│   ├── ModalHandler.js        # 모달 인터랙션 디스패처 Facade
+│   ├── modals/
+│   │   ├── ModalRetryPolicy.js          # 모달 처리 재시도 정책
+│   │   ├── ModalStatistics.js           # 모달 통계·히스토리 단일 소유자
+│   │   ├── RecruitmentModalBuilder.js   # 구인구직 모달 구성·표시
+│   │   ├── RecruitmentModalData.js      # 모달 입력 추출·검증
+│   │   └── RecruitmentSubmitFlows.js    # 독립·음성 연동 제출 흐름
 │   ├── RecruitmentUIBuilder.js # 구직 UI 빌더 (Embed, Select)
 │   ├── NicknameButtonHandler.js
 │   ├── NicknameSelectMenuHandler.js
