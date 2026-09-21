@@ -1,6 +1,7 @@
 // src/services/EmojiReactionService.js - 이모지 반응 처리 서비스
 import { TextProcessor } from '../utils/TextProcessor.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
+import { logger } from '../config/logger-termux.js';
 
 export class EmojiReactionService {
   constructor(client, forumPostManager) {
@@ -23,35 +24,35 @@ export class EmojiReactionService {
    */
   async initialize() {
     try {
-      console.log('[EmojiReactionService] 서비스 초기화 시작...');
+      logger.info('[EmojiReactionService] 서비스 초기화 시작...');
 
       // 데이터베이스에서 모든 활성 포럼 레코드 조회
       const databaseManager = this.forumPostManager.databaseManager;
       if (!databaseManager) {
-        console.warn('[EmojiReactionService] DatabaseManager를 사용할 수 없어 초기화를 건너뜁니다.');
+        logger.warn('[EmojiReactionService] DatabaseManager를 사용할 수 없어 초기화를 건너뜁니다.');
         return;
       }
 
       // 데이터베이스에서 모든 활성 포럼의 참가자 정보 복구
       const participantsMap = await databaseManager.getAllActiveParticipants();
 
-      console.log(`[EmojiReactionService] ${participantsMap.size}개의 활성 포럼에서 참가자 정보 복구`);
+      logger.info(`[EmojiReactionService] ${participantsMap.size}개의 활성 포럼에서 참가자 정보 복구`);
 
       let restoredCount = 0;
 
       for (const [forumPostId, participants] of participantsMap.entries()) {
         try {
-          console.log(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 정보 복구 시작...`);
+          logger.info(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 정보 복구 시작...`);
 
           // 포럼 스레드가 존재하는지 확인
           const channel = await this.client.channels.fetch(forumPostId).catch(() => null);
           if (!channel || !this.isForumThread(channel)) {
-            console.warn(`[EmojiReactionService] 포럼 스레드를 찾을 수 없음: ${forumPostId}`);
+            logger.warn(`[EmojiReactionService] 포럼 스레드를 찾을 수 없음: ${forumPostId}`);
             continue;
           }
 
           if (channel.archived) {
-            console.log(`[EmojiReactionService] 아카이브된 포럼 건너뛰기: ${forumPostId}`);
+            logger.info(`[EmojiReactionService] 아카이브된 포럼 건너뛰기: ${forumPostId}`);
             continue;
           }
 
@@ -59,20 +60,20 @@ export class EmojiReactionService {
           if (participants.length > 0) {
             this.previousParticipants.set(forumPostId, participants);
             restoredCount++;
-            console.log(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 ${participants.length}명 복구 완료`);
+            logger.info(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 ${participants.length}명 복구 완료`);
           } else {
-            console.log(`[EmojiReactionService] 포럼 ${forumPostId} 기존 참가자 없음`);
+            logger.info(`[EmojiReactionService] 포럼 ${forumPostId} 기존 참가자 없음`);
           }
 
         } catch (error) {
-          console.error(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 복구 실패:`, error);
+          logger.error(`[EmojiReactionService] 포럼 ${forumPostId} 참가자 복구 실패`, { error: error.message, stack: error.stack });
         }
       }
 
-      console.log(`[EmojiReactionService] 초기화 완료: ${restoredCount}개 포럼의 참가자 정보 복구`);
+      logger.info(`[EmojiReactionService] 초기화 완료: ${restoredCount}개 포럼의 참가자 정보 복구`);
 
     } catch (error) {
-      console.error('[EmojiReactionService] 초기화 오류:', error);
+      logger.error('[EmojiReactionService] 초기화 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -92,7 +93,7 @@ export class EmojiReactionService {
       // 부분적으로 로드된 반응이나 메시지 완전히 로드
       const fullReaction = await this.ensureFullReaction(reaction);
       if (!fullReaction) {
-        console.warn('[EmojiReactionService] 반응 또는 메시지를 완전히 로드할 수 없음');
+        logger.warn('[EmojiReactionService] 반응 또는 메시지를 완전히 로드할 수 없음');
         return;
       }
 
@@ -109,16 +110,16 @@ export class EmojiReactionService {
       // 버튼 기반 포스트인지 확인 (하위 호환성)
       const hasParticipationButton = await this.checkForParticipationButton(fullReaction.message.channel.id);
       if (hasParticipationButton) {
-        console.log('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
+        logger.info('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
         return;
       }
 
-      console.log(`[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${fullReaction.message.channel.name}`);
+      logger.info(`[EmojiReactionService] 참가 이모지 반응 감지: ${user.displayName || user.username} in ${fullReaction.message.channel.name}`);
 
       // 해당 이모지에 반응한 모든 사용자 가져오기 (재시도 로직 포함)
       const participants = await this.getReactionParticipantsWithRetry(fullReaction);
       if (participants === null) {
-        console.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
+        logger.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
         return;
       }
 
@@ -133,11 +134,11 @@ export class EmojiReactionService {
       );
 
       if (!success) {
-        console.warn('[EmojiReactionService] 참가자 목록 메시지 전송 실패');
+        logger.warn('[EmojiReactionService] 참가자 목록 메시지 전송 실패');
       }
 
     } catch (error) {
-      console.error('[EmojiReactionService] 이모지 반응 처리 오류:', error);
+      logger.error('[EmojiReactionService] 이모지 반응 처리 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -157,7 +158,7 @@ export class EmojiReactionService {
       // 부분적으로 로드된 반응이나 메시지 완전히 로드
       const fullReaction = await this.ensureFullReaction(reaction);
       if (!fullReaction) {
-        console.warn('[EmojiReactionService] 반응 또는 메시지를 완전히 로드할 수 없음');
+        logger.warn('[EmojiReactionService] 반응 또는 메시지를 완전히 로드할 수 없음');
         return;
       }
 
@@ -174,16 +175,16 @@ export class EmojiReactionService {
       // 버튼 기반 포스트인지 확인 (하위 호환성)
       const hasParticipationButton = await this.checkForParticipationButton(fullReaction.message.channel.id);
       if (hasParticipationButton) {
-        console.log('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
+        logger.info('[EmojiReactionService] 버튼 기반 참가 시스템 감지, 이모지 무시');
         return;
       }
 
-      console.log(`[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${fullReaction.message.channel.name}`);
+      logger.info(`[EmojiReactionService] 참가 이모지 반응 제거 감지: ${user.displayName || user.username} in ${fullReaction.message.channel.name}`);
 
       // 해당 이모지에 반응한 모든 사용자 가져오기 (재시도 로직 포함)
       const participants = await this.getReactionParticipantsWithRetry(fullReaction);
       if (participants === null) {
-        console.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
+        logger.error('[EmojiReactionService] 참가자 목록 가져오기 실패 (모든 재시도 실패)');
         return;
       }
 
@@ -198,11 +199,11 @@ export class EmojiReactionService {
       );
 
       if (!success) {
-        console.warn('[EmojiReactionService] 참가자 목록 메시지 전송 실패');
+        logger.warn('[EmojiReactionService] 참가자 목록 메시지 전송 실패');
       }
 
     } catch (error) {
-      console.error('[EmojiReactionService] 이모지 반응 제거 처리 오류:', error);
+      logger.error('[EmojiReactionService] 이모지 반응 제거 처리 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -256,7 +257,7 @@ export class EmojiReactionService {
         try {
           const member = await guild.members.fetch(user.id).catch(err => {
             // 일반적인 상황이므로 debug 레벨로 낮춤 (사용자가 서버를 나간 경우 등)
-            console.debug(`[EmojiReactionService] 멤버 정보 조회 불가: ${user.username} (${user.id}) - ${err.message}`);
+            logger.debug(`[EmojiReactionService] 멤버 정보 조회 불가: ${user.username} (${user.id}) - ${err.message}`);
             return null;
           });
           
@@ -273,7 +274,7 @@ export class EmojiReactionService {
           }
         } catch (error) {
           // 예외 상황에 대한 최종 fallback
-          console.warn(`[EmojiReactionService] 사용자 처리 중 예외 발생: ${user.username}`, error.message);
+          logger.warn(`[EmojiReactionService] 사용자 처리 중 예외 발생: ${user.username}`, { error: error.message });
           const cleanedName = TextProcessor.cleanNickname(user.displayName || user.username);
           participants.push(cleanedName);
         }
@@ -282,7 +283,7 @@ export class EmojiReactionService {
       return participants;
 
     } catch (error) {
-      console.error('[EmojiReactionService] 참가자 목록 가져오기 오류:', error);
+      logger.error('[EmojiReactionService] 참가자 목록 가져오기 오류', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -321,7 +322,7 @@ export class EmojiReactionService {
       return hasButton;
 
     } catch (error) {
-      console.error('[EmojiReactionService] 버튼 확인 중 오류:', error);
+      logger.error('[EmojiReactionService] 버튼 확인 중 오류', { error: error.message, stack: error.stack });
       return false; // 오류 시 이모지 방식으로 폴백
     }
   }
@@ -335,19 +336,19 @@ export class EmojiReactionService {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         const participants = await this.getReactionParticipants(reaction);
-        console.log(`[EmojiReactionService] 참가자 목록 가져오기 성공 (시도 ${attempt}/${maxRetries}): ${participants.length}명`);
+        logger.info(`[EmojiReactionService] 참가자 목록 가져오기 성공 (시도 ${attempt}/${maxRetries}): ${participants.length}명`);
         return participants;
       } catch (error) {
-        console.warn(`[EmojiReactionService] 참가자 목록 가져오기 실패 (시도 ${attempt}/${maxRetries}):`, error.message);
+        logger.warn(`[EmojiReactionService] 참가자 목록 가져오기 실패 (시도 ${attempt}/${maxRetries})`, { error: error.message });
         
         if (attempt === maxRetries) {
-          console.error(`[EmojiReactionService] 모든 재시도 실패 (${maxRetries}회 시도)`, error);
+          logger.error(`[EmojiReactionService] 모든 재시도 실패 (${maxRetries}회 시도)`, { error: error.message, stack: error.stack });
           return null;
         }
         
         // 지수 백오프: 1초, 2초, 4초
         const delay = Math.pow(2, attempt - 1) * 1000;
-        console.log(`[EmojiReactionService] ${delay}ms 후 재시도...`);
+        logger.info(`[EmojiReactionService] ${delay}ms 후 재시도...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
@@ -364,25 +365,25 @@ export class EmojiReactionService {
     try {
       // 반응이 부분적으로 로드된 경우 완전히 fetch
       if (reaction.partial) {
-        console.log('[EmojiReactionService] 부분 로드된 반응을 완전히 로드 중...');
+        logger.info('[EmojiReactionService] 부분 로드된 반응을 완전히 로드 중...');
         await reaction.fetch();
       }
 
       // 메시지가 부분적으로 로드된 경우 완전히 fetch
       if (reaction.message.partial) {
-        console.log('[EmojiReactionService] 부분 로드된 메시지를 완전히 로드 중...');
+        logger.info('[EmojiReactionService] 부분 로드된 메시지를 완전히 로드 중...');
         await reaction.message.fetch();
       }
 
       // 채널 정보도 확인
       if (!reaction.message.channel) {
-        console.warn('[EmojiReactionService] 메시지에 채널 정보가 없음');
+        logger.warn('[EmojiReactionService] 메시지에 채널 정보가 없음');
         return null;
       }
 
       return reaction;
     } catch (error) {
-      console.error('[EmojiReactionService] 반응/메시지 완전 로드 실패:', error);
+      logger.error('[EmojiReactionService] 반응/메시지 완전 로드 실패', { error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -398,13 +399,13 @@ export class EmojiReactionService {
     try {
       const channel = await this.client.channels.fetch(channelId);
       if (!channel || !this.isForumThread(channel)) {
-        console.warn(`[EmojiReactionService] 유효하지 않은 포럼 스레드: ${channelId}`);
+        logger.warn(`[EmojiReactionService] 유효하지 않은 포럼 스레드: ${channelId}`);
         return null;
       }
 
       const message = await channel.messages.fetch(messageId);
       if (!message) {
-        console.warn(`[EmojiReactionService] 메시지를 찾을 수 없음: ${messageId}`);
+        logger.warn(`[EmojiReactionService] 메시지를 찾을 수 없음: ${messageId}`);
         return null;
       }
 
@@ -414,14 +415,14 @@ export class EmojiReactionService {
       );
 
       if (!targetReaction) {
-        console.log(`[EmojiReactionService] 대상 이모지 반응이 없음: ${messageId}`);
+        logger.info(`[EmojiReactionService] 대상 이모지 반응이 없음: ${messageId}`);
         return [];
       }
 
       return await this.getReactionParticipants(targetReaction);
 
     } catch (error) {
-      console.error('[EmojiReactionService] 메시지에서 참가자 가져오기 오류:', error);
+      logger.error('[EmojiReactionService] 메시지에서 참가자 가져오기 오류', { error: error.message, stack: error.stack });
       return null;
     }
   }
@@ -466,7 +467,7 @@ export class EmojiReactionService {
 
       // 변화가 있을 때만 알림 메시지 전송 및 데이터베이스 동기화
       if (changes.joined.length > 0 || changes.left.length > 0) {
-        console.log(`[EmojiReactionService] 참가자 변화 감지 - 참가: ${changes.joined.length}명, 참가 취소: ${changes.left.length}명`);
+        logger.info(`[EmojiReactionService] 참가자 변화 감지 - 참가: ${changes.joined.length}명, 참가 취소: ${changes.left.length}명`);
 
         // 데이터베이스 동기화
         const databaseManager = this.forumPostManager.databaseManager;
@@ -486,11 +487,11 @@ export class EmojiReactionService {
 
                 if (member) {
                   await databaseManager.addParticipant(channelId, member.id, nickname);
-                  console.log(`[EmojiReactionService] DB에 참가자 추가: ${nickname} (${member.id})`);
+                  logger.info(`[EmojiReactionService] DB에 참가자 추가: ${nickname} (${member.id})`);
                 }
               }
             } catch (error) {
-              console.error(`[EmojiReactionService] DB 참가자 추가 실패 (${nickname}):`, error.message);
+              logger.error(`[EmojiReactionService] DB 참가자 추가 실패 (${nickname})`, { error: error.message });
             }
           }
 
@@ -509,11 +510,11 @@ export class EmojiReactionService {
 
                 if (member) {
                   await databaseManager.removeParticipant(channelId, member.id);
-                  console.log(`[EmojiReactionService] DB에서 참가자 제거: ${nickname} (${member.id})`);
+                  logger.info(`[EmojiReactionService] DB에서 참가자 제거: ${nickname} (${member.id})`);
                 }
               }
             } catch (error) {
-              console.error(`[EmojiReactionService] DB 참가자 제거 실패 (${nickname}):`, error.message);
+              logger.error(`[EmojiReactionService] DB 참가자 제거 실패 (${nickname})`, { error: error.message });
             }
           }
         }
@@ -530,7 +531,7 @@ export class EmojiReactionService {
       this.updateParticipantCache(channelId, participants);
 
     } catch (error) {
-      console.error('[EmojiReactionService] 참가자 변화 처리 오류:', error);
+      logger.error('[EmojiReactionService] 참가자 변화 처리 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -541,11 +542,11 @@ export class EmojiReactionService {
    */
   async findExistingParticipants(channel) {
     try {
-      console.log(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 정보 복구 중 (DB)...`);
+      logger.info(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 정보 복구 중 (DB)...`);
 
       const databaseManager = this.forumPostManager.databaseManager;
       if (!databaseManager) {
-        console.warn('[EmojiReactionService] DatabaseManager 없음, 빈 참가자 목록 반환');
+        logger.warn('[EmojiReactionService] DatabaseManager 없음, 빈 참가자 목록 반환');
         return [];
       }
 
@@ -558,17 +559,17 @@ export class EmojiReactionService {
       );
 
       if (result.rows.length === 0) {
-        console.log(`[EmojiReactionService] ${channel.id} 포럼의 DB 레코드 없음`);
+        logger.info(`[EmojiReactionService] ${channel.id} 포럼의 DB 레코드 없음`);
         return [];
       }
 
       const participants = result.rows[0].participants || [];
-      console.log(`[EmojiReactionService] ${channel.id} 포럼에서 ${participants.length}명의 기존 참가자 복구:`, participants);
+      logger.info(`[EmojiReactionService] ${channel.id} 포럼에서 ${participants.length}명의 기존 참가자 복구`, { value: participants });
 
       return participants;
 
     } catch (error) {
-      console.error(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 복구 실패:`, error);
+      logger.error(`[EmojiReactionService] ${channel.id} 포럼의 기존 참가자 복구 실패`, { error: error.message, stack: error.stack });
       return [];
     }
   }

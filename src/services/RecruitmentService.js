@@ -85,7 +85,7 @@ export class RecruitmentService {
       });
       
     } catch (error) {
-      console.error('[RecruitmentService] 구인구직 연동 버튼 처리 오류:', error);
+      logger.error('[RecruitmentService] 구인구직 연동 버튼 처리 오류', { error: error.message, stack: error.stack });
       if (interaction.deferred) {
         await interaction.editReply(
           SafeInteraction.createErrorResponse('구인구직 연동', error)
@@ -124,7 +124,7 @@ export class RecruitmentService {
         await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, []);
         
       } else {
-        console.warn(`[RecruitmentService] 알 수 없는 선택 값: ${selectedValue}`);
+        logger.warn(`[RecruitmentService] 알 수 없는 선택 값: ${selectedValue}`);
         await SafeInteraction.safeReply(interaction, {
           content: '❌ 잘못된 선택입니다. 다시 시도해주세요.',
           flags: MessageFlags.Ephemeral
@@ -132,7 +132,7 @@ export class RecruitmentService {
       }
       
     } catch (error) {
-      console.error('[RecruitmentService] 연동 방법 선택 처리 오류:', error);
+      logger.error('[RecruitmentService] 연동 방법 선택 처리 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, 
         SafeInteraction.createErrorResponse('방법 선택', error)
       );
@@ -176,7 +176,7 @@ export class RecruitmentService {
         };
       }
       
-      console.log(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${createResult.postId}`);
+      logger.info(`[RecruitmentService] 음성 채널 연동 구인구직 생성 완료: ${voiceChannelInfo.name} -> ${createResult.postId}`);
       
       return {
         success: true,
@@ -185,7 +185,7 @@ export class RecruitmentService {
       };
       
     } catch (error) {
-      console.error('[RecruitmentService] 음성 채널 연동 구인구직 생성 오류:', error);
+      logger.error('[RecruitmentService] 음성 채널 연동 구인구직 생성 오류', { error: error.message, stack: error.stack });
       return {
         success: false,
         message: RecruitmentConfig.MESSAGES.LINK_FAILED
@@ -298,7 +298,7 @@ export class RecruitmentService {
           content: RecruitmentConfig.MESSAGES.LINK_FAILED
         });
       } catch (editError) {
-        console.error('[RecruitmentService] 에러 응답 실패:', editError);
+        logger.error('[RecruitmentService] 에러 응답 실패', { error: editError.message, stack: editError.stack });
       }
     }
   }
@@ -314,10 +314,10 @@ export class RecruitmentService {
       const userId = newState.id;
       const memberName = newState.member?.displayName || 'Unknown';
       
-      console.log(`[RecruitmentService] 음성 상태 변경 감지: ${memberName} (${userId})`);
+      logger.info(`[RecruitmentService] 음성 상태 변경 감지: ${memberName} (${userId})`);
       
       const stateChange = this.voiceChannelManager.analyzeVoiceStateChange(oldState, newState);
-      console.log(`[RecruitmentService] 상태 변경 분석:`, {
+      logger.info(`[RecruitmentService] 상태 변경 분석`, {
         isTargetCategory: stateChange.isTargetCategory,
         wasTargetCategory: stateChange.wasTargetCategory,
         channelId: stateChange.channelId,
@@ -326,7 +326,7 @@ export class RecruitmentService {
       });
       
       if (!stateChange.isTargetCategory && !stateChange.wasTargetCategory) {
-        console.log(`[RecruitmentService] 대상 카테고리가 아니므로 무시`);
+        logger.info(`[RecruitmentService] 대상 카테고리가 아니므로 무시`);
         return; // 대상 카테고리가 아니면 무시
       }
       
@@ -335,27 +335,27 @@ export class RecruitmentService {
       
       if (stateChange.channelId && this.mappingService.hasMapping(stateChange.channelId)) {
         channelsToUpdate.add(stateChange.channelId);
-        console.log(`[RecruitmentService] 신규 채널 업데이트 대상: ${stateChange.channelId}`);
+        logger.info(`[RecruitmentService] 신규 채널 업데이트 대상: ${stateChange.channelId}`);
       }
       
       if (stateChange.oldChannelId && this.mappingService.hasMapping(stateChange.oldChannelId)) {
         channelsToUpdate.add(stateChange.oldChannelId);
-        console.log(`[RecruitmentService] 이전 채널 업데이트 대상: ${stateChange.oldChannelId}`);
+        logger.info(`[RecruitmentService] 이전 채널 업데이트 대상: ${stateChange.oldChannelId}`);
       }
       
       if (channelsToUpdate.size === 0) {
-        console.log(`[RecruitmentService] 매핑된 채널이 없어서 업데이트 건너뜀`);
+        logger.info(`[RecruitmentService] 매핑된 채널이 없어서 업데이트 건너뜀`);
         return;
       }
       
       // 업데이트 큐에 추가
-      console.log(`[RecruitmentService] ${channelsToUpdate.size}개 채널을 업데이트 큐에 추가`);
+      logger.info(`[RecruitmentService] ${channelsToUpdate.size}개 채널을 업데이트 큐에 추가`);
       for (const channelId of channelsToUpdate) {
         this.mappingService.queueUpdate(channelId);
       }
       
     } catch (error) {
-      console.error('[RecruitmentService] 음성 상태 변경 처리 오류:', error);
+      logger.error('[RecruitmentService] 음성 상태 변경 처리 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -367,10 +367,10 @@ export class RecruitmentService {
    */
   async handleGuildMemberUpdate(oldMember, newMember) {
     try {
-      console.log(`[RecruitmentService] 길드 멤버 업데이트 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
+      logger.info(`[RecruitmentService] 길드 멤버 업데이트 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
       
       const tagChange = this.participantTracker.detectNicknameTagChange(oldMember, newMember);
-      console.log(`[RecruitmentService] 태그 변경 분석:`, {
+      logger.info(`[RecruitmentService] 태그 변경 분석`, {
         changed: tagChange.changed,
         becameActive: tagChange.becameActive,
         becameInactive: tagChange.becameInactive,
@@ -379,35 +379,35 @@ export class RecruitmentService {
       });
       
       if (!tagChange.changed) {
-        console.log(`[RecruitmentService] 태그 변경이 없어서 무시`);
+        logger.info(`[RecruitmentService] 태그 변경이 없어서 무시`);
         return; // 태그 변경이 없으면 무시
       }
 
-      console.log(`[RecruitmentService] 멤버 별명 변경 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
+      logger.info(`[RecruitmentService] 멤버 별명 변경 감지: ${oldMember.displayName} -> ${newMember.displayName}`);
 
       // 사용자가 현재 음성 채널에 있는지 확인
       const voiceState = newMember.voice;
       if (!voiceState || !voiceState.channel) {
-        console.log(`[RecruitmentService] 사용자가 음성 채널에 없어서 무시`);
+        logger.info(`[RecruitmentService] 사용자가 음성 채널에 없어서 무시`);
         return;
       }
 
       const voiceChannelId = voiceState.channel.id;
-      console.log(`[RecruitmentService] 사용자가 있는 음성 채널: ${voiceChannelId} (${voiceState.channel.name})`);
+      logger.info(`[RecruitmentService] 사용자가 있는 음성 채널: ${voiceChannelId} (${voiceState.channel.name})`);
       
       // 매핑된 포럼 포스트가 있는지 확인
       if (!this.mappingService.hasMapping(voiceChannelId)) {
-        console.log(`[RecruitmentService] 채널 ${voiceChannelId}에 매핑된 포럼 포스트가 없어서 무시`);
+        logger.info(`[RecruitmentService] 채널 ${voiceChannelId}에 매핑된 포럼 포스트가 없어서 무시`);
         return;
       }
 
-      console.log(`[RecruitmentService] 대기/관전 태그 변경 감지 - 참여자 수 업데이트 실행: ${voiceChannelId}`);
+      logger.info(`[RecruitmentService] 대기/관전 태그 변경 감지 - 참여자 수 업데이트 실행: ${voiceChannelId}`);
       
       // 참여자 수 업데이트
       this.mappingService.queueUpdate(voiceChannelId);
 
     } catch (error) {
-      console.error('[RecruitmentService] 길드 멤버 업데이트 처리 오류:', error);
+      logger.error('[RecruitmentService] 길드 멤버 업데이트 처리 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -422,11 +422,11 @@ export class RecruitmentService {
         return;
       }
       
-      console.log(`[RecruitmentService] 음성 채널 생성 감지: ${channel.name} (ID: ${channel.id})`);
+      logger.info(`[RecruitmentService] 음성 채널 생성 감지: ${channel.name} (ID: ${channel.id})`);
       
       // 구인구직 기능이 비활성화된 경우 임베드 전송 안함
       if (!RecruitmentConfig.RECRUITMENT_ENABLED) {
-        console.log(`[RecruitmentService] 구인구직 기능 비활성화로 임베드 전송 안함: ${channel.name}`);
+        logger.info(`[RecruitmentService] 구인구직 기능 비활성화로 임베드 전송 안함: ${channel.name}`);
         return;
       }
       
@@ -436,7 +436,7 @@ export class RecruitmentService {
       }, RecruitmentConfig.EMBED_SEND_DELAY);
       
     } catch (error) {
-      console.error('[RecruitmentService] 채널 생성 처리 오류:', error);
+      logger.error('[RecruitmentService] 채널 생성 처리 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -498,7 +498,7 @@ export class RecruitmentService {
       }
       
     } catch (error) {
-      console.error('[RecruitmentService] 채널 삭제 처리 오류:', error);
+      logger.error('[RecruitmentService] 채널 삭제 처리 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -524,7 +524,7 @@ export class RecruitmentService {
       }
       
       if (!hasPermittedUser) {
-        console.log(`[RecruitmentService] 권한 있는 사용자가 없어서 임베드 전송 안함: ${voiceChannel.name}`);
+        logger.info(`[RecruitmentService] 권한 있는 사용자가 없어서 임베드 전송 안함: ${voiceChannel.name}`);
         return;
       }
       
@@ -542,10 +542,10 @@ export class RecruitmentService {
         this.sentEmbedChannels.add(voiceChannel.id);
       }
       
-      console.log(`[RecruitmentService] 구인구직 임베드 전송 완료: ${voiceChannel.name}`);
+      logger.info(`[RecruitmentService] 구인구직 임베드 전송 완료: ${voiceChannel.name}`);
       
     } catch (error) {
-      console.error('[RecruitmentService] 구인구직 임베드 전송 오류:', error);
+      logger.error('[RecruitmentService] 구인구직 임베드 전송 오류', { error: error.message, stack: error.stack });
     }
   }
   
@@ -558,11 +558,11 @@ export class RecruitmentService {
       const result = await this.mappingService.performFullCleanup();
 
       if (result.totalCleaned > 0) {
-        console.log(`[RecruitmentService] 정기 정리 작업 완료:`, result);
+        logger.info(`[RecruitmentService] 정기 정리 작업 완료`, result);
       }
 
     } catch (error) {
-      console.error('[RecruitmentService] 정기 정리 작업 오류:', error);
+      logger.error('[RecruitmentService] 정기 정리 작업 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -602,7 +602,7 @@ export class RecruitmentService {
       });
 
     } catch (error) {
-      console.error(`[RecruitmentService] [${type}] 버튼 처리 오류:`, error);
+      logger.error(`[RecruitmentService] [${type}] 버튼 처리 오류`, { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: RecruitmentConfig.MESSAGES.GENERIC_ERROR,
         flags: MessageFlags.Ephemeral
@@ -705,7 +705,7 @@ export class RecruitmentService {
       }
 
     } catch (error) {
-      console.error(`[RecruitmentService] [${type}] 모달 제출 처리 오류:`, error);
+      logger.error(`[RecruitmentService] [${type}] 모달 제출 처리 오류`, { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: RecruitmentConfig.MESSAGES.GENERIC_ERROR,
         flags: MessageFlags.Ephemeral
@@ -726,6 +726,6 @@ export class RecruitmentService {
       await this.performPeriodicCleanup();
     }, RecruitmentConfig.CLEANUP_INTERVAL);
     
-    console.log(`[RecruitmentService] 서비스 초기화 완료`);
+    logger.info(`[RecruitmentService] 서비스 초기화 완료`);
   }
 }

@@ -13,6 +13,7 @@ import { ForumPostManager } from '../services/ForumPostManager.js';
 import { RecruitmentService } from '../services/RecruitmentService.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { validateAndSanitizeInput, VALIDATION_PRESETS, getValidationErrorMessage } from '../utils/inputValidator.js';
+import { logger } from '../config/logger-termux.js';
 
 export class ModalHandler {
   constructor(recruitmentService, forumPostManager) {
@@ -74,19 +75,19 @@ export class ModalHandler {
               Math.pow(this.RETRY_CONFIG.backoffMultiplier, attempt - 1),
             this.RETRY_CONFIG.maxDelay
           );
-          console.log(
+          logger.info(
             `[ModalHandler] ${context} 재시도 ${attempt}/${this.RETRY_CONFIG.maxRetries} - ${delay}ms 대기`
           );
           await this.sleep(delay);
         }
 
-        console.log(
+        logger.info(
           `[ModalHandler] ${context} 시도 ${attempt + 1}/${this.RETRY_CONFIG.maxRetries + 1}`
         );
         const result = await operation();
 
         if (attempt > 0) {
-          console.log(`[ModalHandler] ${context} 재시도 성공 (시도 횟수: ${attempt + 1})`);
+          logger.info(`[ModalHandler] ${context} 재시도 성공 (시도 횟수: ${attempt + 1})`);
         }
 
         return result;
@@ -95,7 +96,7 @@ export class ModalHandler {
         attempt++;
 
         const shouldRetry = this.shouldRetryError(error, attempt);
-        console.log(`[ModalHandler] ${context} 오류 발생:`, {
+        logger.info(`[ModalHandler] ${context} 오류 발생`, {
           error: error.message,
           code: error.code,
           status: error.status,
@@ -105,7 +106,7 @@ export class ModalHandler {
         });
 
         if (!shouldRetry || attempt > this.RETRY_CONFIG.maxRetries) {
-          console.error(`[ModalHandler] ${context} 최종 실패 (시도 횟수: ${attempt})`, error);
+          logger.error(`[ModalHandler] ${context} 최종 실패 (시도 횟수: ${attempt})`, { error: error.message, stack: error.stack });
           throw error;
         }
       }
@@ -141,7 +142,7 @@ export class ModalHandler {
       ];
 
       if (nonRetryableDiscordCodes.includes(discordErrorCode)) {
-        console.log(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 불가`);
+        logger.info(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 불가`);
         return false;
       }
 
@@ -156,14 +157,14 @@ export class ModalHandler {
       ];
 
       if (retryableDiscordCodes.includes(discordErrorCode)) {
-        console.log(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 가능`);
+        logger.info(`[ModalHandler] Discord 오류 코드 ${discordErrorCode}는 재시도 가능`);
         return true;
       }
     }
 
     // HTTP 상태 코드 확인
     if (error.status && this.RETRY_CONFIG.retryableCodes.includes(error.status)) {
-      console.log(`[ModalHandler] HTTP 상태 ${error.status}는 재시도 가능`);
+      logger.info(`[ModalHandler] HTTP 상태 ${error.status}는 재시도 가능`);
       return true;
     }
 
@@ -174,7 +175,7 @@ export class ModalHandler {
     );
 
     if (hasRetryablePattern) {
-      console.log(`[ModalHandler] 오류 메시지 패턴이 재시도 가능: ${error.message}`);
+      logger.info(`[ModalHandler] 오류 메시지 패턴이 재시도 가능: ${error.message}`);
       return true;
     }
 
@@ -186,12 +187,12 @@ export class ModalHandler {
       errorMessage.includes('형식') ||
       errorMessage.includes('필수')
     ) {
-      console.log(`[ModalHandler] 유효성 검사 오류는 재시도 안함: ${error.message}`);
+      logger.info(`[ModalHandler] 유효성 검사 오류는 재시도 안함: ${error.message}`);
       return false;
     }
 
     // 기본적으로 재시도 안함
-    console.log(`[ModalHandler] 알 수 없는 오류 - 재시도 안함: ${error.message}`);
+    logger.info(`[ModalHandler] 알 수 없는 오류 - 재시도 안함: ${error.message}`);
     return false;
   }
 
@@ -223,7 +224,7 @@ export class ModalHandler {
 
       await SafeInteraction.safeShowModal(interaction, modal);
     } catch (error) {
-      console.error('[ModalHandler] 모달 표시 오류:', error);
+      logger.error('[ModalHandler] 모달 표시 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(
         interaction,
         SafeInteraction.createErrorResponse('모달 표시', {
@@ -258,7 +259,7 @@ export class ModalHandler {
 
       await SafeInteraction.safeShowModal(interaction, modal);
     } catch (error) {
-      console.error('[ModalHandler] 독립 모달 표시 오류:', error);
+      logger.error('[ModalHandler] 독립 모달 표시 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(
         interaction,
         SafeInteraction.createErrorResponse('모달 표시', {
@@ -428,7 +429,7 @@ export class ModalHandler {
         );
         
         // 경고 메시지는 로그로만 출력 (사용자에게는 너무 방해가 될 수 있음)
-        console.log(`[ModalHandler] 입력 정화 완료: ${warningMessage}`);
+        logger.info(`[ModalHandler] 입력 정화 완료: ${warningMessage}`);
       }
 
       if (customId === 'standalone_recruitment_modal') {
@@ -462,11 +463,11 @@ export class ModalHandler {
           result
         );
       } else {
-        console.warn(`[ModalHandler] 알 수 없는 모달 customId: ${customId}`);
+        logger.warn(`[ModalHandler] 알 수 없는 모달 customId: ${customId}`);
         throw new Error(`Unknown modal customId: ${customId}`);
       }
     } catch (error) {
-      console.error('[ModalHandler] 모달 제출 처리 오류:', error);
+      logger.error('[ModalHandler] 모달 제출 처리 오류', { error: error.message, stack: error.stack });
       const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
 
       await SafeInteraction.safeReply(
@@ -525,11 +526,11 @@ export class ModalHandler {
     }
 
     // 디버깅: 추출된 원본 값들 확인
-    console.log(`[ModalHandler] 원본 입력값 추출:`);
-    console.log(`  - 제목: type=${typeof rawTitle}, value="${rawTitle}", length=${rawTitle?.length || 0}`);
-    console.log(`  - 태그: type=${typeof rawTags}, value="${rawTags}", length=${rawTags?.length || 0}`);
-    console.log(`  - 설명: type=${typeof rawDescription}, value="${rawDescription}", length=${rawDescription?.length || 0}`);
-    console.log(`  - 미리 모인 멤버: raw="${rawPreMembers}", 파싱된 ID 수=${preMemberIds.length}, 파싱된 @name 수=${preMemberNames.length}, names=[${preMemberNames.join(', ')}]`);
+    logger.info(`[ModalHandler] 원본 입력값 추출`);
+    logger.info(`  - 제목: type=${typeof rawTitle}, value="${rawTitle}", length=${rawTitle?.length || 0}`);
+    logger.info(`  - 태그: type=${typeof rawTags}, value="${rawTags}", length=${rawTags?.length || 0}`);
+    logger.info(`  - 설명: type=${typeof rawDescription}, value="${rawDescription}", length=${rawDescription?.length || 0}`);
+    logger.info(`  - 미리 모인 멤버: raw="${rawPreMembers}", 파싱된 ID 수=${preMemberIds.length}, 파싱된 @name 수=${preMemberNames.length}, names=[${preMemberNames.join(', ')}]`);
 
     // 입력 검증 및 정화
     const titleValidation = validateAndSanitizeInput(rawTitle, VALIDATION_PRESETS.TITLE);
@@ -607,16 +608,16 @@ export class ModalHandler {
    */
   async handleStandaloneRecruitment(interaction, recruitmentData) {
     try {
-      console.log(`[ModalHandler] 독립 구인구직 시작 - 제목: "${recruitmentData.title}"`);
+      logger.info(`[ModalHandler] 독립 구인구직 시작 - 제목: "${recruitmentData.title}"`);
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
       
       // 상호작용 컨텍스트에서 길드 ID 추출
       const guildId = interaction.guild?.id;
-      console.log(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
+      logger.info(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
 
       // 독립 포럼 포스트 생성 (재시도 메커니즘 적용)
-      console.log(`[ModalHandler] ForumPostManager.createForumPost 호출 중...`);
-      console.log(`[ModalHandler] 구인구직 데이터:`, {
+      logger.info(`[ModalHandler] ForumPostManager.createForumPost 호출 중...`);
+      logger.info(`[ModalHandler] 구인구직 데이터`, {
         title: recruitmentData.title,
         description: recruitmentData.description,
         tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
@@ -630,7 +631,7 @@ export class ModalHandler {
         '독립 포럼 포스트 생성'
       );
 
-      console.log(`[ModalHandler] ForumPostManager.createForumPost 결과:`, {
+      logger.info(`[ModalHandler] ForumPostManager.createForumPost 결과`, {
         success: createResult.success,
         postId: createResult.postId,
         error: createResult.error,
@@ -643,7 +644,7 @@ export class ModalHandler {
           flags: MessageFlags.Ephemeral,
         });
 
-        console.log(
+        logger.info(
           `[ModalHandler] 독립 구인구직 생성 완료: ${recruitmentData.title} (ID: ${createResult.postId})`
         );
 
@@ -654,7 +655,7 @@ export class ModalHandler {
           message: '독립 구인구직 생성 성공',
         };
       } else {
-        console.error(`[ModalHandler] 포럼 포스트 생성 실패:`, {
+        logger.error(`[ModalHandler] 포럼 포스트 생성 실패`, {
           error: createResult.error,
           warnings: createResult.warnings,
           title: recruitmentData.title,
@@ -692,11 +693,11 @@ export class ModalHandler {
         };
       }
     } catch (error) {
-      console.error('[ModalHandler] 독립 구인구직 처리 오류:', error);
+      logger.error('[ModalHandler] 독립 구인구직 처리 오류', { error: error.message, stack: error.stack });
 
       // 10008 에러는 메시지가 삭제되었음을 의미하므로 추가 응답을 시도하지 않음
       if (error.code === 10008) {
-        console.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
+        logger.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
         return {
           success: false,
           action: 'standalone',
@@ -725,18 +726,18 @@ export class ModalHandler {
    */
   async handleVoiceChannelRecruitment(interaction, recruitmentData, voiceChannelId) {
     try {
-      console.log(
+      logger.info(
         `[ModalHandler] 음성 채널 연동 구인구직 시작 - 제목: "${recruitmentData.title}", 음성 채널: ${voiceChannelId}`
       );
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
 
       // 상호작용 컨텍스트에서 길드 ID 추출
       const guildId = interaction.guild?.id;
-      console.log(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
+      logger.info(`[ModalHandler] 상호작용에서 길드 ID 추출: ${guildId || 'none'}`);
 
       // 음성 채널 연동 포럼 포스트 생성 (재시도 메커니즘 적용)
-      console.log(`[ModalHandler] RecruitmentService.createLinkedRecruitment 호출 중...`);
-      console.log(`[ModalHandler] 구인구직 데이터:`, {
+      logger.info(`[ModalHandler] RecruitmentService.createLinkedRecruitment 호출 중...`);
+      logger.info(`[ModalHandler] 구인구직 데이터`, {
         title: recruitmentData.title,
         description: recruitmentData.description,
         tags: recruitmentData.tags.join(', '), // 배열을 문자열로 변환하여 로그 표시
@@ -757,7 +758,7 @@ export class ModalHandler {
         '음성 채널 연동 포럼 포스트 생성'
       );
 
-      console.log(`[ModalHandler] RecruitmentService.createLinkedRecruitment 결과:`, {
+      logger.info(`[ModalHandler] RecruitmentService.createLinkedRecruitment 결과`, {
         success: result.success,
         postId: result.postId,
         message: result.message,
@@ -771,7 +772,7 @@ export class ModalHandler {
           flags: MessageFlags.Ephemeral,
         });
 
-        console.log(
+        logger.info(
           `[ModalHandler] 음성 채널 연동 구인구직 생성 완료: ${recruitmentData.title} (ID: ${result.postId})`
         );
 
@@ -783,7 +784,7 @@ export class ModalHandler {
           data: result.data,
         };
       } else {
-        console.error(`[ModalHandler] 음성 채널 연동 구인구직 생성 실패:`, {
+        logger.error(`[ModalHandler] 음성 채널 연동 구인구직 생성 실패`, {
           message: result.message,
           error: result.error,
           title: recruitmentData.title,
@@ -820,11 +821,11 @@ export class ModalHandler {
         };
       }
     } catch (error) {
-      console.error('[ModalHandler] 음성 채널 연동 구인구직 처리 오류:', error);
+      logger.error('[ModalHandler] 음성 채널 연동 구인구직 처리 오류', { error: error.message, stack: error.stack });
 
       // 10008 에러는 메시지가 삭제되었음을 의미하므로 추가 응답을 시도하지 않음
       if (error.code === 10008) {
-        console.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
+        logger.warn('[ModalHandler] 원본 메시지가 삭제되었음 - 추가 응답을 시도하지 않음');
         return {
           success: false,
           action: 'voiceChannel',
