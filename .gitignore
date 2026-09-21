@@ -27,3 +27,7 @@ CODEBASE_MAP.md
 # OS files
 .DS_Store
 Thumbs.db
+
+# agent task artifacts (keep briefs, drop results/reviews)
+docs/tasks/*.result.md
+docs/tasks/*.review-*.md
