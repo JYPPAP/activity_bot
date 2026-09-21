@@ -96,7 +96,7 @@
 
 ### T-031 `done` ModalHandler(1072) 분할 — T-030과 같은 방식.
 
-### T-032 `todo` ForumPostManager(1104) 분할
+### T-032 `done` ForumPostManager(1104) 분할
 - 포스트 CRUD / 버튼·임베드 빌드 / 참가자 관리 세 책임으로. DI 키 `forumPostManager`는 Facade로 유지.
 
 ### T-033 `todo` ForumRepository(1167) 분할

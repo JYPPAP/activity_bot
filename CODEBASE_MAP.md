@@ -47,7 +47,13 @@ src/
 │   ├── DatabaseManager.js     # Facade: 4개 Repository 위임 (Singleton)
 │   ├── ActivityTracker.js     # 음성채널 활동 추적, 세션 복구
 │   ├── ActivityReportService.js  # 활동 리포트 생성
-│   ├── ForumPostManager.js    # 포럼 포스트 CRUD, 버튼, 참가자 관리
+│   ├── ForumPostManager.js    # 포럼 포스트 Facade (책임별 모듈 위임)
+│   ├── forum/
+│   │   ├── ForumPostCreator.js       # 포럼 포스트 생성
+│   │   ├── ForumPostBuilders.js      # Embed 및 버튼 생성
+│   │   ├── ForumPostNotifier.js      # 참가자·음성 채널 알림
+│   │   ├── ForumPostQueries.js       # 포스트 조회·아카이브
+│   │   └── ForumMessageTracker.js    # 추적 메시지 저장·삭제
 │   ├── InactivePostChecker.js # 15일 비활동 구직글 경고 (매일 1회, 모집자 멘션)
 │   ├── RecruitmentService.js  # 구인구직 흐름 총괄
 │   ├── VoiceChannelManager.js # 음성 채널 생성/삭제
@@ -249,7 +255,7 @@ getTrackedMessages(threadId, messageType)
   └─ **참가하기** 버튼을 눌러 참가하세요.
 ```
 
-### 포스트 생성 흐름 (ForumPostManager.createForumPost)
+### 포스트 생성 흐름 (ForumPostCreator.createForumPost)
 ```
 1. createPostEmbed() → Embed 생성 (제목, 태그, 설명, 모집자, 미리 모인 멤버)
 2. createParticipationButtons(temp, recruiterId) → 버튼 생성
