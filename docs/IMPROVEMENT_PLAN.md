@@ -102,7 +102,7 @@
 ### T-033 `done` ForumRepository(1167) 분할
 - `PostIntegrationRepository`, `ForumParticipantRepository`로. `DatabaseManager` Facade가 위임하므로 외부 시그니처 불변.
 
-### T-034 `todo` SafeInteraction(911) 점검
+### T-034 `done` SafeInteraction(911) 점검
 - 사용되지 않는 헬퍼 제거, 중복 래퍼 통합. 사용처 grep으로 근거 남길 것.
 
 ---

@@ -124,15 +124,6 @@ export class SafeInteraction {
     this.interactionStates.delete(interactionId);
   }
 
-  /**
-   * 처리 중인 인터랙션 확인
-   * @param interaction - Discord 인터랙션
-   * @returns 처리 중 여부
-   */
-  static isProcessing(interaction) {
-    return interaction?.id ? this.processingInteractions.has(interaction.id) : false;
-  }
-
   // ========== 인터랙션 검증 ==========
 
   /**
@@ -743,90 +734,6 @@ export class SafeInteraction {
   }
 
   /**
-   * 디버그 정보 생성
-   * @param interaction - Discord 인터랙션
-   * @returns 디버그 정보
-   */
-  static getDebugInfo(interaction) {
-    if (!interaction) return null;
-
-    const state = this.getInteractionState(interaction);
-
-    return {
-      id: interaction.id,
-      customId: state.customId,
-      type: interaction.type,
-      replied: interaction.isRepliable() ? interaction.replied : false,
-      deferred: interaction.isRepliable() ? interaction.deferred : false,
-      user: interaction.user?.username || null,
-      channel: 'channel' in interaction ? interaction.channel?.id || null : null,
-      guild: interaction.guild?.name || null,
-      createdAt: new Date(interaction.createdTimestamp).toISOString(),
-      age: state.age,
-      expired: state.expired,
-    };
-  }
-
-  /**
-   * 디버그 정보 로깅
-   * @param interaction - Discord 인터랙션
-   * @param context - 컨텍스트
-   */
-  static logDebugInfo(interaction, context) {
-    const debugInfo = this.getDebugInfo(interaction);
-    if (debugInfo) {
-      logger.debug(`${context} 디버그 정보`, { component: 'SafeInteraction', context, debugInfo });
-    }
-  }
-
-  // ========== 통계 및 모니터링 ==========
-
-  /**
-   * 처리 통계 조회
-   * @returns 처리 통계
-   */
-  static getStatistics() {
-    return { ...this.statistics };
-  }
-
-  /**
-   * 통계 초기화
-   */
-  static resetStatistics() {
-    this.statistics = {
-      totalProcessed: 0,
-      successfulReplies: 0,
-      failedReplies: 0,
-      expiredInteractions: 0,
-      duplicateInteractions: 0,
-      modalShows: 0,
-      deferredReplies: 0,
-      updates: 0,
-      errorsByCode: {},
-      lastProcessedTime: new Date(),
-      averageResponseTime: 0,
-      responseTimeHistory: [],
-    };
-  }
-
-  /**
-   * 성공률 계산
-   * @returns 성공률 (0-1)
-   */
-  static getSuccessRate() {
-    const total = this.statistics.successfulReplies + this.statistics.failedReplies;
-    return total > 0 ? this.statistics.successfulReplies / total : 0;
-  }
-
-  /**
-   * 현재 처리 중인 인터랙션 수
-   * @returns 처리 중인 인터랙션 수
-   */
-  static getActiveProcessingCount() {
-    return this.processingInteractions.size;
-  }
-
-  /**
    * 지연 유틸리티
    * @param ms - 지연 시간 (밀리초)
    */
@@ -834,79 +741,4 @@ export class SafeInteraction {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  /**
-   * 강화된 상태 정리 (메모리 누수 방지)
-   */
-  static cleanup() {
-    const now = Date.now();
-    const processingExpiredThreshold = now - this.CONFIG.PROCESSING_TIMEOUT;
-    const cacheExpiredThreshold = now - this.CONFIG.STATE_CACHE_TTL;
-
-    // 만료된 처리 상태 정리
-    for (const [interactionId, startTime] of this.processingStartTimes.entries()) {
-      if (startTime < processingExpiredThreshold) {
-        this.processingInteractions.delete(interactionId);
-        this.processingStartTimes.delete(interactionId);
-        this.responseAttempts.delete(interactionId);
-        logger.debug('만료된 처리 상태 정리', { 
-          component: 'SafeInteraction', 
-          method: 'cleanup',
-          interactionId,
-          age: now - startTime
-        });
-      }
-    }
-
-    // 만료된 상태 캐시 정리
-    for (const [interactionId, cacheEntry] of this.interactionStates.entries()) {
-      if (cacheEntry.cachedAt < cacheExpiredThreshold) {
-        this.interactionStates.delete(interactionId);
-      }
-    }
-
-    logger.debug('정리 완료', {
-      component: 'SafeInteraction',
-      method: 'cleanup',
-      activeProcessing: this.processingInteractions.size,
-      cachedStates: this.interactionStates.size,
-      responseAttempts: this.responseAttempts.size
-    });
-  }
-
-  /**
-   * 자동 정리 시작
-   */
-  static startAutoCleanup() {
-    setInterval(() => {
-      this.cleanup();
-    }, this.CONFIG.CLEANUP_INTERVAL);
-    
-    logger.info('SafeInteraction 자동 정리 시작', {
-      component: 'SafeInteraction',
-      method: 'startAutoCleanup',
-      interval: this.CONFIG.CLEANUP_INTERVAL
-    });
-  }
-
-  /**
-   * 상태 요약 조회
-   * @returns 상태 요약
-   */
-  static getStatusSummary() {
-    const commonErrors = Object.entries(this.statistics.errorsByCode)
-      .map(([code, count]) => ({ code: parseInt(code), count }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 5);
-
-    return {
-      activeProcessing: this.getActiveProcessingCount(),
-      totalProcessed: this.statistics.totalProcessed,
-      successRate: this.getSuccessRate(),
-      averageResponseTime: this.statistics.averageResponseTime,
-      commonErrors,
-      cachedStates: this.interactionStates.size,
-      responseAttempts: this.responseAttempts.size,
-      duplicateInteractions: this.statistics.duplicateInteractions,
-    };
-  }
 }
