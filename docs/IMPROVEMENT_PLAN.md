@@ -40,7 +40,7 @@
 - **첫 테스트 대상** (순수 함수, 외부 의존 없음): `src/utils/TextProcessor.js`의 `cleanNickname`, `src/utils/inputValidator.js`.
 - **완료 조건**: 테스트 10개 이상, 모두 통과. 기존 `npm test` 로거 스모크는 `test:logger`로 이름 변경.
 
-### T-003 `todo` husky pre-commit 훅
+### T-003 `done` husky pre-commit 훅
 - **범위**: `.husky/pre-commit` = `npm run lint && npm run docs:check:strict`, `prepare` 스크립트.
 - **주의**: Termux에서 `git pull`만 하는 prod 환경엔 영향 없어야 함(`prepare` 실패 시 무시: `husky || true`).
 
