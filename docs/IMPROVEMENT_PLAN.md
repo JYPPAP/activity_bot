@@ -48,7 +48,7 @@
 - `services/InactivePostChecker.js` 항목 추가 (역할: 15일 비활동 구직글 경고, 커밋 00d1f53 참고). 한 줄 작업.
 
 
-### T-005 `todo` Slack 알림 기능 완전 제거 (사용자 요청 2026-09-21)
+### T-005 `done` Slack 알림 기능 완전 제거 (사용자 요청 2026-09-21)
 - `sendSlackAlert` 및 관련 env/스크립트/axios 의존성 제거. 브리프: `docs/tasks/T-005.md`.
 ---
 

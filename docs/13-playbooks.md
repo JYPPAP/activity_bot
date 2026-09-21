@@ -110,7 +110,6 @@
 
 - [ ] 1. 신규 `logger.info` 가 초당 10회 이상 발생 가능한 경로라면 `debug`로 낮추기.
 - [ ] 2. `logger.error` 는 stack + context 포함 (I-09).
-- [ ] 3. Slack 알림이 필요한 경우 `ENABLE_SLACK_ALERTS=true` 환경에서만 트리거.
 
 ---
 

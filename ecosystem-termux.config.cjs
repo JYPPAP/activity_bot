@@ -35,8 +35,6 @@ module.exports = {
       ERRSOLE_PORT: 8002,
       ERRSOLE_HOST: '0.0.0.0', // 외부 접근 허용
       
-      // Slack 알림 설정
-      ENABLE_SLACK_ALERTS: 'true',
       
       // Termux 환경 표시
       PLATFORM: 'termux',
