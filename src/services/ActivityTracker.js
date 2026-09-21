@@ -1,6 +1,7 @@
 // src/services/activityTracker.js - 활동 추적 서비스 (PostgreSQL 버전)
 import {TIME, FILTERS, MESSAGE_TYPES} from '../config/constants.js';
 import {config} from '../config/env.js';
+import { logger } from '../config/logger-termux.js';
 
 export class ActivityTracker {
   constructor(client, dbManager, logService) {
@@ -24,18 +25,18 @@ export class ActivityTracker {
   setupDiscordEventListeners() {
     // Discord 재연결 시 세션 동기화
     this.client.on('ready', async () => {
-      console.log('[ActivityTracker] Discord 재연결 감지');
+      logger.info('[ActivityTracker] Discord 재연결 감지');
       try {
         await this.syncSessionsWithVoiceState();
       } catch (error) {
-        console.error('[ActivityTracker] Discord 재연결 시 세션 동기화 오류:', error);
+        logger.error('[ActivityTracker] Discord 재연결 시 세션 동기화 오류', { error: error.message, stack: error.stack });
       }
     });
 
     // 길드 사용 불가 시 로그 출력
     this.client.on('guildUnavailable', (guild) => {
       if (guild.id === config.GUILDID) {
-        console.warn(`[ActivityTracker] 길드 사용 불가: ${guild.name} - 세션 추적 일시 중단`);
+        logger.warn(`[ActivityTracker] 길드 사용 불가: ${guild.name} - 세션 추적 일시 중단`);
       }
     });
   }
@@ -55,7 +56,7 @@ export class ActivityTracker {
         members = await guild.members.fetch();
       } catch (fetchErr) {
         if (fetchErr.code === 'GuildMembersTimeout') {
-          console.warn('[ActivityTracker] 멤버 fetch 타임아웃, 캐시로 세션 복구 시도');
+          logger.warn('[ActivityTracker] 멤버 fetch 타임아웃, 캐시로 세션 복구 시도');
           members = guild.members.cache;
         } else {
           throw fetchErr;
@@ -76,12 +77,12 @@ export class ActivityTracker {
         }
       }
 
-      console.log(`${this.activeSessions.size}명의 활성 세션을 복구했습니다.`);
+      logger.info(`${this.activeSessions.size}명의 활성 세션을 복구했습니다.`);
       
       // 주기적 저장 시작
       this.startPeriodicSaving();
     } catch (error) {
-      console.error('활성 세션 로드 오류:', error);
+      logger.error('활성 세션 로드 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -97,9 +98,9 @@ export class ActivityTracker {
         this.roleActivityConfig[config.roleName] = config.minHours;
       });
 
-      console.log(`${configs.length}개의 역할 설정을 로드했습니다.`);
+      logger.info(`${configs.length}개의 역할 설정을 로드했습니다.`);
     } catch (error) {
-      console.error('역할 설정 로드 오류:', error);
+      logger.error('역할 설정 로드 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -153,14 +154,14 @@ export class ActivityTracker {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         await this.db.updateDailyActivity(userId, displayName, config.GUILDID, date, minutes);
-        console.log(`[ActivityTracker] ${displayName}님의 ${minutes}분 활동 기록 완료 (${dateStr})`);
+        logger.info(`[ActivityTracker] ${displayName}님의 ${minutes}분 활동 기록 완료 (${dateStr})`);
         return; // 성공 시 즉시 반환
       } catch (error) {
         const isLastAttempt = attempt === retries;
 
         if (isLastAttempt) {
           // 최종 실패 - 상세한 에러 로그
-          console.error(`[ActivityTracker] ❌ 세션 저장 최종 실패 (${attempt}/${retries}회 시도)`, {
+          logger.error(`[ActivityTracker] ❌ 세션 저장 최종 실패 (${attempt}/${retries}회 시도)`, {
             userId,
             displayName,
             minutes,
@@ -171,7 +172,7 @@ export class ActivityTracker {
         } else {
           // 재시도 예정
           const delay = Math.pow(2, attempt - 1) * 1000; // 지수 백오프: 1초, 2초, 4초
-          console.warn(`[ActivityTracker] ⚠️ 세션 저장 실패 (${attempt}/${retries}회) - ${delay}ms 후 재시도`, {
+          logger.warn(`[ActivityTracker] ⚠️ 세션 저장 실패 (${attempt}/${retries}회) - ${delay}ms 후 재시도`, {
             userId,
             displayName,
             minutes,
@@ -226,9 +227,9 @@ export class ActivityTracker {
         }
       }
 
-      console.log(`역할 '${role}'의 활동 데이터가 초기화되었습니다.`);
+      logger.info(`역할 '${role}'의 활동 데이터가 초기화되었습니다.`);
     } catch (error) {
-      console.error('활동 데이터 초기화 오류:', error);
+      logger.error('활동 데이터 초기화 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -244,9 +245,9 @@ export class ActivityTracker {
       // 현재 활성 세션 로드 (서버 재시작시 음성 채널에 있는 사용자들)
       await this.loadActiveSessions();
 
-      console.log("✔ 활동 정보가 초기화되었습니다.");
+      logger.info("✔ 활동 정보가 초기화되었습니다.");
     } catch (error) {
-      console.error("활동 데이터 초기화 오류:", error);
+      logger.error("활동 데이터 초기화 오류", { error: error.message, stack: error.stack });
     }
   }
 
@@ -268,7 +269,7 @@ export class ActivityTracker {
     // 음성 상태 변경 로그 (주요 변경사항만)
     const actionType = this.isChannelJoin(oldState, newState) ? '입장' : 
                       this.isChannelLeave(oldState, newState) ? '퇴장' : '이동';
-    console.log(`[ActivityTracker] 음성 채널 ${actionType}: ${member.displayName} (${userId})`);
+    logger.info(`[ActivityTracker] 음성 채널 ${actionType}: ${member.displayName} (${userId})`);
 
     // 채널 입장 처리 (로그 기록용) - activity_logs 제거, Discord 로그만 유지
     if (this.isChannelJoin(oldState, newState)) {
@@ -369,7 +370,7 @@ export class ActivityTracker {
           startTime: now,
           displayName: member.displayName
         });
-        console.log(`[ActivityTracker] ${member.displayName} 세션 시작`);
+        logger.info(`[ActivityTracker] ${member.displayName} 세션 시작`);
       }
     }
     // Case 3: 추적 대상 → 추적 대상 (채널 간 이동) → 세션 유지
@@ -382,7 +383,7 @@ export class ActivityTracker {
           startTime: now,
           displayName: member.displayName
         });
-        console.log(`[ActivityTracker] ${member.displayName} 누락 세션 복구 (채널 이동 중)`);
+        logger.info(`[ActivityTracker] ${member.displayName} 누락 세션 복구 (채널 이동 중)`);
       }
     }
     // Case 4: 비추적 → 비추적 (제외 채널 간 이동 등) → 무시
@@ -406,7 +407,7 @@ export class ActivityTracker {
     }
 
     this.activeSessions.delete(userId);
-    console.log(`[ActivityTracker] ${displayName} 세션 종료`);
+    logger.info(`[ActivityTracker] ${displayName} 세션 종료`);
   }
 
   /**
@@ -420,7 +421,7 @@ export class ActivityTracker {
 
     // 별명 변경이 있는 경우에만 로그 출력
     if (oldMember.displayName !== newMember.displayName) {
-      console.log(`[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`);
+      logger.info(`[ActivityTracker] 멤버 별명 변경: ${oldMember.displayName} → ${newMember.displayName} (${userId})`);
     }
 
     // 멤버가 [관전] 또는 [대기] 상태로 변경된 경우
@@ -429,7 +430,7 @@ export class ActivityTracker {
       // 활성 세션이 있다면 종료하고 저장
       await this.endAndSaveSession(userId, newMember.displayName, now);
       if (!this.activeSessions.has(userId)) {
-        console.log(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
+        logger.info(`[ActivityTracker] ${newMember.displayName} 관전/대기 상태로 세션 종료`);
       }
     } else {
       // 정상 상태로 변경된 경우 & 음성 채널에 있는 경우
@@ -441,7 +442,7 @@ export class ActivityTracker {
             startTime: now,
             displayName: newMember.displayName
           });
-          console.log(`[ActivityTracker] ${newMember.displayName} 정상 상태로 세션 시작`);
+          logger.info(`[ActivityTracker] ${newMember.displayName} 정상 상태로 세션 시작`);
         } else {
           // 기존 세션의 표시 이름만 업데이트
           this.activeSessions.get(userId).displayName = newMember.displayName;
@@ -546,7 +547,7 @@ export class ActivityTracker {
         minHours: minActivityHours
       };
     } catch (error) {
-      console.error('사용자 분류 오류:', error);
+      logger.error('사용자 분류 오류', { error: error.message, stack: error.stack });
       return {activeUsers: [], inactiveUsers: [], afkUsers: [], resetTime: null, minHours: 0};
     }
   }
@@ -578,7 +579,7 @@ export class ActivityTracker {
               member.nickname = discordMember.displayName;
             }
           } catch (error) {
-            console.error(`사용자 정보 조회 실패: ${member.userId}`, error);
+            logger.error(`사용자 정보 조회 실패: ${member.userId}`, { error: error.message, stack: error.stack });
           }
         }
       }
@@ -588,7 +589,7 @@ export class ActivityTracker {
 
       return activeMembers;
     } catch (error) {
-      console.error('활동 멤버 데이터 조회 오류:', error);
+      logger.error('활동 멤버 데이터 조회 오류', { error: error.message, stack: error.stack });
       return [];
     }
   }
@@ -669,14 +670,14 @@ export class ActivityTracker {
    */
   async saveActiveSessionsToDB() {
     if (this.activeSessions.size === 0) {
-      console.log('[ActivityTracker] 활성 세션이 없어 주기적 저장을 건너뜁니다.');
+      logger.info('[ActivityTracker] 활성 세션이 없어 주기적 저장을 건너뜁니다.');
       return;
     }
 
     const now = Date.now();
     const savedCount = [];
 
-    console.log(`[ActivityTracker] ${this.activeSessions.size}개의 활성 세션 주기적 저장 시작...`);
+    logger.info(`[ActivityTracker] ${this.activeSessions.size}개의 활성 세션 주기적 저장 시작...`);
 
     const failedUsers = [];
 
@@ -696,20 +697,20 @@ export class ActivityTracker {
           session.startTime = now;
           savedCount.push({ userId, displayName: session.displayName, minutes, dateCount: sessions.length });
 
-          console.log(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료 (${sessions.length}개 날짜)`);
+          logger.info(`[ActivityTracker] ${session.displayName}님의 ${minutes}분 주기적 저장 완료 (${sessions.length}개 날짜)`);
         }
       } catch (error) {
         failedUsers.push({ userId, displayName: session.displayName });
-        console.error(`[ActivityTracker] ❌ 사용자 ${session.displayName}(${userId}) 세션 저장 실패:`, error);
+        logger.error(`[ActivityTracker] ❌ 사용자 ${session.displayName}(${userId}) 세션 저장 실패`, { error: error.message, stack: error.stack });
       }
     }
 
     if (failedUsers.length > 0) {
-      console.warn(`[ActivityTracker] ⚠️ 주기적 저장 완료: 성공 ${savedCount.length}명, 실패 ${failedUsers.length}명`, {
+      logger.warn(`[ActivityTracker] ⚠️ 주기적 저장 완료: 성공 ${savedCount.length}명, 실패 ${failedUsers.length}명`, {
         failed: failedUsers
       });
     } else {
-      console.log(`[ActivityTracker] ✅ 주기적 저장 완료: ${savedCount.length}명 처리됨`);
+      logger.info(`[ActivityTracker] ✅ 주기적 저장 완료: ${savedCount.length}명 처리됨`);
     }
   }
 
@@ -718,7 +719,7 @@ export class ActivityTracker {
    */
   startPeriodicSaving() {
     if (this.periodicSaveInterval) {
-      console.log('[ActivityTracker] 주기적 저장이 이미 실행 중입니다.');
+      logger.info('[ActivityTracker] 주기적 저장이 이미 실행 중입니다.');
       return;
     }
 
@@ -732,7 +733,7 @@ export class ActivityTracker {
       try {
         await this.saveActiveSessionsToDB();
       } catch (error) {
-        console.error('[ActivityTracker] 주기적 저장 중 오류 발생:', error);
+        logger.error('[ActivityTracker] 주기적 저장 중 오류 발생', { error: error.message, stack: error.stack });
       }
     }, SAVE_INTERVAL);
 
@@ -741,7 +742,7 @@ export class ActivityTracker {
       try {
         await this.validateActiveSessions();
       } catch (error) {
-        console.error('[ActivityTracker] 세션 검증 중 오류 발생:', error);
+        logger.error('[ActivityTracker] 세션 검증 중 오류 발생', { error: error.message, stack: error.stack });
       }
     }, VALIDATION_INTERVAL);
 
@@ -750,11 +751,11 @@ export class ActivityTracker {
       try {
         await this.detectAbnormalSessions();
       } catch (error) {
-        console.error('[ActivityTracker] 장시간 세션 감지 중 오류 발생:', error);
+        logger.error('[ActivityTracker] 장시간 세션 감지 중 오류 발생', { error: error.message, stack: error.stack });
       }
     }, ABNORMAL_DETECTION_INTERVAL);
 
-    console.log('[ActivityTracker] 주기적 작업 시작됨 - 저장: 10분, 검증: 30분, 장시간감지: 4시간');
+    logger.info('[ActivityTracker] 주기적 작업 시작됨 - 저장: 10분, 검증: 30분, 장시간감지: 4시간');
   }
 
   /**
@@ -779,7 +780,7 @@ export class ActivityTracker {
       this.abnormalDetectionInterval = null;
     }
     
-    console.log('[ActivityTracker] 모든 주기적 작업이 중지되었습니다.');
+    logger.info('[ActivityTracker] 모든 주기적 작업이 중지되었습니다.');
   }
 
   /**
@@ -790,7 +791,7 @@ export class ActivityTracker {
     const TIMEOUT_WARNING_MS = 8000; // PM2 kill_timeout(10초)보다 짧게 설정
 
     try {
-      console.log(`[ActivityTracker] 최종 세션 저장 시작... (${this.activeSessions.size}개 세션)`);
+      logger.info(`[ActivityTracker] 최종 세션 저장 시작... (${this.activeSessions.size}개 세션)`);
 
       // 주기적 저장 중지
       this.stopPeriodicSaving();
@@ -803,13 +804,13 @@ export class ActivityTracker {
 
       const elapsed = Date.now() - startTime;
       if (elapsed > TIMEOUT_WARNING_MS) {
-        console.warn(`[ActivityTracker] ⚠️ 최종 저장이 ${elapsed}ms 소요됨 (PM2 타임아웃 위험)`);
+        logger.warn(`[ActivityTracker] ⚠️ 최종 저장이 ${elapsed}ms 소요됨 (PM2 타임아웃 위험)`);
       }
 
-      console.log(`[ActivityTracker] ✅ 최종 저장 및 정리 완료 (${elapsed}ms)`);
+      logger.info(`[ActivityTracker] ✅ 최종 저장 및 정리 완료 (${elapsed}ms)`);
     } catch (error) {
       const elapsed = Date.now() - startTime;
-      console.error(`[ActivityTracker] ❌ 최종 저장 중 오류 (${elapsed}ms):`, error);
+      logger.error(`[ActivityTracker] ❌ 최종 저장 중 오류 (${elapsed}ms)`, { error: error.message, stack: error.stack });
       throw error; // 상위로 에러 전파하여 종료 프로세스에 알림
     }
   }
@@ -830,15 +831,15 @@ export class ActivityTracker {
     // 8시간 이상인 경우 경고 로그 기록
     const ABNORMAL_THRESHOLD_HOURS = 8;
     if (hours >= ABNORMAL_THRESHOLD_HOURS) {
-      console.warn(`[ABNORMAL SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 세션 강제종료 (${reason})`);
+      logger.warn(`[ABNORMAL SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 세션 강제종료 (${reason})`);
     } else {
-      console.log(`[ActivityTracker] ${session.displayName}: 세션 강제종료 (${reason})`);
+      logger.info(`[ActivityTracker] ${session.displayName}: 세션 강제종료 (${reason})`);
     }
 
     try {
       await this.endAndSaveSession(userId, session.displayName, now);
     } catch (error) {
-      console.error(`[ActivityTracker] 세션 강제종료 중 오류 (${userId}):`, error);
+      logger.error(`[ActivityTracker] 세션 강제종료 중 오류 (${userId})`, { error: error.message, stack: error.stack });
       // 오류가 있어도 세션은 제거
       this.activeSessions.delete(userId);
     }
@@ -853,11 +854,11 @@ export class ActivityTracker {
       return;
     }
 
-    console.log(`[ActivityTracker] 세션 유효성 검증 시작 (${this.activeSessions.size}개 세션)`);
+    logger.info(`[ActivityTracker] 세션 유효성 검증 시작 (${this.activeSessions.size}개 세션)`);
     
     const guild = this.client.guilds.cache.get(config.GUILDID);
     if (!guild) {
-      console.error('[ActivityTracker] 길드를 찾을 수 없어 세션 검증을 건너뜁니다.');
+      logger.error('[ActivityTracker] 길드를 찾을 수 없어 세션 검증을 건너뜁니다.');
       return;
     }
 
@@ -884,7 +885,7 @@ export class ActivityTracker {
           invalidSessions++;
         }
       } catch (error) {
-        console.error(`[ActivityTracker] 사용자 ${userId} 검증 중 오류:`, error);
+        logger.error(`[ActivityTracker] 사용자 ${userId} 검증 중 오류`, { error: error.message, stack: error.stack });
         sessionsToEnd.push({ userId, reason: '검증 오류' });
         invalidSessions++;
       }
@@ -896,9 +897,9 @@ export class ActivityTracker {
     }
 
     if (invalidSessions > 0) {
-      console.log(`[ActivityTracker] 세션 유효성 검증 완료: ${invalidSessions}개 비정상 세션 종료`);
+      logger.info(`[ActivityTracker] 세션 유효성 검증 완료: ${invalidSessions}개 비정상 세션 종료`);
     } else {
-      console.log('[ActivityTracker] 세션 유효성 검증 완료: 모든 세션 정상');
+      logger.info('[ActivityTracker] 세션 유효성 검증 완료: 모든 세션 정상');
     }
   }
 
@@ -911,7 +912,7 @@ export class ActivityTracker {
       return;
     }
 
-    console.log(`[ActivityTracker] 장시간 세션 감지 시작 (${this.activeSessions.size}개 세션)`);
+    logger.info(`[ActivityTracker] 장시간 세션 감지 시작 (${this.activeSessions.size}개 세션)`);
     
     const ABNORMAL_THRESHOLD = 8 * 60 * 60 * 1000; // 8시간
     const now = Date.now();
@@ -922,7 +923,7 @@ export class ActivityTracker {
       
       if (duration > ABNORMAL_THRESHOLD) {
         const hours = duration / (1000 * 60 * 60);
-        console.warn(`[LONG SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 지속 중 - 재검증 필요`);
+        logger.warn(`[LONG SESSION] ${session.displayName}: ${hours.toFixed(1)}시간 지속 중 - 재검증 필요`);
         abnormalCount++;
         
         // 장시간 세션에 대해서는 즉시 유효성 재검증
@@ -941,9 +942,9 @@ export class ActivityTracker {
     }
 
     if (abnormalCount > 0) {
-      console.log(`[ActivityTracker] 장시간 세션 감지 완료: ${abnormalCount}개 장시간 세션 발견`);
+      logger.info(`[ActivityTracker] 장시간 세션 감지 완료: ${abnormalCount}개 장시간 세션 발견`);
     } else {
-      console.log('[ActivityTracker] 장시간 세션 감지 완료: 모든 세션 정상 범위');
+      logger.info('[ActivityTracker] 장시간 세션 감지 완료: 모든 세션 정상 범위');
     }
   }
 
@@ -951,11 +952,11 @@ export class ActivityTracker {
    * Discord 재연결 시 세션 상태를 실제 음성채널 상태와 동기화합니다.
    */
   async syncSessionsWithVoiceState() {
-    console.log('[ActivityTracker] Discord 재연결 - 세션 상태 동기화 시작');
+    logger.info('[ActivityTracker] Discord 재연결 - 세션 상태 동기화 시작');
     
     const guild = this.client.guilds.cache.get(config.GUILDID);
     if (!guild) {
-      console.error('[ActivityTracker] 길드를 찾을 수 없어 동기화를 건너뜁니다.');
+      logger.error('[ActivityTracker] 길드를 찾을 수 없어 동기화를 건너뜁니다.');
       return;
     }
 
@@ -985,9 +986,9 @@ export class ActivityTracker {
         await this.forceEndSession(userId, 'Discord 재연결 동기화');
       }
 
-      console.log(`[ActivityTracker] 세션 동기화 완료: ${sessionsToEnd.length}개 세션 정리됨`);
+      logger.info(`[ActivityTracker] 세션 동기화 완료: ${sessionsToEnd.length}개 세션 정리됨`);
     } catch (error) {
-      console.error('[ActivityTracker] 세션 동기화 중 오류:', error);
+      logger.error('[ActivityTracker] 세션 동기화 중 오류', { error: error.message, stack: error.stack });
     }
   }
 }

@@ -7,6 +7,7 @@ import { RecruitmentUIBuilder } from './RecruitmentUIBuilder.js';
 import { TextProcessor } from '../utils/TextProcessor.js';
 import { formatParticipantList } from '../utils/formatters.js';
 import { config } from '../config/env.js';
+import { logger } from '../config/logger-termux.js';
 
 export class ButtonHandler {
   constructor(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager) {
@@ -45,7 +46,7 @@ export class ButtonHandler {
       await this.handleTagToggle(interaction, customId);
 
     } catch (error) {
-      console.error('[ButtonHandler] 역할 태그 버튼 처리 오류:', error);
+      logger.error('[ButtonHandler] 역할 태그 버튼 처리 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction,
         SafeInteraction.createErrorResponse('버튼 처리', error)
       );
@@ -72,43 +73,43 @@ export class ButtonHandler {
     const selectedTags = this.extractSelectedTags(interaction);
 
     // === DEBUG: 상세 로깅 시작 ===
-    console.log(`\n[ButtonHandler] ===== 완료 버튼 처리 시작 =====`);
-    console.log(`[ButtonHandler] 받은 customId: "${customId}"`);
-    console.log(`[ButtonHandler] 선택된 태그: [${selectedTags.join(', ')}]`);
-    console.log(`[ButtonHandler] STANDALONE_ROLE_COMPLETE 프리픽스: "${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE}"`);
-    console.log(`[ButtonHandler] startsWith 체크 결과: ${customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE)}`);
+    logger.info(`\n[ButtonHandler] ===== 완료 버튼 처리 시작 =====`);
+    logger.info(`[ButtonHandler] 받은 customId: "${customId}"`);
+    logger.info(`[ButtonHandler] 선택된 태그: [${selectedTags.join(', ')}]`);
+    logger.info(`[ButtonHandler] STANDALONE_ROLE_COMPLETE 프리픽스: "${DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE}"`);
+    logger.info(`[ButtonHandler] startsWith 체크 결과: ${customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE)}`);
 
     if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.STANDALONE_ROLE_COMPLETE)) {
-      console.log(`[ButtonHandler] ✅ 독립 구인구직 브랜치 진입`);
+      logger.info(`[ButtonHandler] ✅ 독립 구인구직 브랜치 진입`);
 
       // 독립 구인구직: methodValue 파싱
       const parts = customId.split('_');
       // standalone_role_complete_scrimmage_new → ['standalone', 'role', 'complete', 'scrimmage', 'new']
       // standalone_role_complete → ['standalone', 'role', 'complete']
 
-      console.log(`[ButtonHandler] parts 배열: [${parts.join(', ')}]`);
-      console.log(`[ButtonHandler] parts.length: ${parts.length}`);
+      logger.info(`[ButtonHandler] parts 배열: [${parts.join(', ')}]`);
+      logger.info(`[ButtonHandler] parts.length: ${parts.length}`);
 
       if (parts.length > 3) {
         // methodValue가 있는 경우 (장기/내전)
         const methodValue = parts.slice(3).join('_');  // 'scrimmage_new' or 'longterm_new'
 
-        console.log(`[ButtonHandler] ✅ methodValue 존재 (parts.length > 3)`);
-        console.log(`[ButtonHandler] 파싱된 methodValue: "${methodValue}"`);
+        logger.info(`[ButtonHandler] ✅ methodValue 존재 (parts.length > 3)`);
+        logger.info(`[ButtonHandler] 파싱된 methodValue: "${methodValue}"`);
 
         if (methodValue === 'scrimmage_new') {
-          console.log(`[ButtonHandler] ✅✅ 내전 모달 표시 호출`);
+          logger.info(`[ButtonHandler] ✅✅ 내전 모달 표시 호출`);
           await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'scrimmage', selectedTags);
         } else if (methodValue === 'longterm_new') {
-          console.log(`[ButtonHandler] ✅✅ 장기 모달 표시 호출`);
+          logger.info(`[ButtonHandler] ✅✅ 장기 모달 표시 호출`);
           await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'long_term', selectedTags);
         } else {
-          console.warn(`[ButtonHandler] ⚠️ 알 수 없는 독립 구인구직 타입: "${methodValue}"`);
+          logger.warn(`[ButtonHandler] ⚠️ 알 수 없는 독립 구인구직 타입: "${methodValue}"`);
           await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
         }
       } else {
         // methodValue가 없는 경우 (일반 단기)
-        console.log(`[ButtonHandler] ℹ️ methodValue 없음 (parts.length <= 3) - 일반 단기 모달 표시`);
+        logger.info(`[ButtonHandler] ℹ️ methodValue 없음 (parts.length <= 3) - 일반 단기 모달 표시`);
         await this.modalHandler.showStandaloneRecruitmentModal(interaction, selectedTags);
       }
     } else {
@@ -117,23 +118,23 @@ export class ButtonHandler {
       const voiceChannelId = parts[2];
       const methodValue = parts.slice(3).join('_');
 
-      console.log(`[ButtonHandler] 완료 버튼 처리 - methodValue: "${methodValue}"`);
+      logger.info(`[ButtonHandler] 완료 버튼 처리 - methodValue: "${methodValue}"`);
 
       if (methodValue === DiscordConstants.METHOD_VALUES.NEW_FORUM) {
-        console.log(`[ButtonHandler] 새 포럼 생성 모달 표시`);
+        logger.info(`[ButtonHandler] 새 포럼 생성 모달 표시`);
         await this.modalHandler.showRecruitmentModal(interaction, voiceChannelId, selectedTags);
       } else if (methodValue === 'scrimmage_new') {
-        console.log(`[ButtonHandler] 내전 모달 표시`);
+        logger.info(`[ButtonHandler] 내전 모달 표시`);
         await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'scrimmage', selectedTags);
       } else if (methodValue === 'longterm_new') {
-        console.log(`[ButtonHandler] 장기 모달 표시`);
+        logger.info(`[ButtonHandler] 장기 모달 표시`);
         await this.recruitmentService.showSpecialRecruitmentModal(interaction, 'long_term', selectedTags);
       } else if (methodValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
-        console.log(`[ButtonHandler] 기존 포럼 연동 처리`);
+        logger.info(`[ButtonHandler] 기존 포럼 연동 처리`);
         const existingPostId = methodValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');
         await this.recruitmentService.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedTags);
       } else {
-        console.warn(`[ButtonHandler] 알 수 없는 methodValue: "${methodValue}"`);
+        logger.warn(`[ButtonHandler] 알 수 없는 methodValue: "${methodValue}"`);
         await SafeInteraction.safeReply(interaction, {
           content: '❌ 알 수 없는 요청입니다. 다시 시도해주세요.',
           flags: MessageFlags.Ephemeral
@@ -165,7 +166,7 @@ export class ButtonHandler {
       }
 
       isStandalone = true;
-      console.log(`[ButtonHandler] 독립 구인구직 태그 토글 - tag: "${selectedRole}", methodValue: "${methodValue}"`);
+      logger.info(`[ButtonHandler] 독립 구인구직 태그 토글 - tag: "${selectedRole}", methodValue: "${methodValue}"`);
     } else {
       const parts = customId.split('_');
       selectedRole = parts[2];
@@ -257,12 +258,12 @@ export class ButtonHandler {
       // 인터랙션 유효성 검사
       const validation = SafeInteraction.validateInteraction(interaction);
       if (!validation.valid) {
-        console.warn(`[ButtonHandler] 유효하지 않은 인터랙션: ${validation.reason}`);
+        logger.warn(`[ButtonHandler] 유효하지 않은 인터랙션: ${validation.reason}`);
         return;
       }
 
       const customId = interaction.customId;
-      console.log(`[ButtonHandler] 음성 채널 버튼 처리: ${customId}`);
+      logger.info(`[ButtonHandler] 음성 채널 버튼 처리: ${customId}`);
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
@@ -295,15 +296,15 @@ export class ButtonHandler {
         // 하위 호환성을 위해 유지 (기존 포스트용)
         await this.handleJoinButton(interaction);
       } else {
-        console.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
+        logger.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
       
     } catch (error) {
-      console.error('[ButtonHandler] 음성 채널 버튼 처리 오류:', error);
+      logger.error('[ButtonHandler] 음성 채널 버튼 처리 오류', { error: error.message, stack: error.stack });
       
       // 10062 에러는 별도 처리
       if (error.code === 10062) {
-        console.warn('[ButtonHandler] 만료된 인터랙션 - 에러 응답 생략');
+        logger.warn('[ButtonHandler] 만료된 인터랙션 - 에러 응답 생략');
         return;
       }
       
@@ -343,7 +344,7 @@ export class ButtonHandler {
           channelName = voiceChannel.name;
         }
       } catch (error) {
-        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+        logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       
       channelInfo = `🔊 음성 채널: **${channelName}**`;
@@ -387,7 +388,7 @@ export class ButtonHandler {
         channelName = voiceChannel.name;
       }
     } catch (error) {
-      console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+      logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
     const member = interaction.member;
@@ -435,7 +436,7 @@ export class ButtonHandler {
           channelName = voiceChannel.name;
         }
       } catch (error) {
-        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+        logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       
       channelInfo = `🔊 음성 채널: **${channelName}**`;
@@ -490,16 +491,16 @@ export class ButtonHandler {
   //       await interaction.editReply({
   //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_SUCCESS
   //       });
-  //       console.log(`[ButtonHandler] 포스트 닫기 성공: ${postId}`);
+  //       logger.info(`[ButtonHandler] 포스트 닫기 성공: ${postId}`);
   //     } else {
   //       await interaction.editReply({
   //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED
   //       });
-  //       console.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
+  //       logger.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
   //     }
   //     
   //   } catch (error) {
-  //     console.error('[ButtonHandler] 포스트 닫기 오류:', error);
+  //     logger.error('[ButtonHandler] 포스트 닫기 오류', { error: error.message, stack: error.stack });
   //     await interaction.editReply({
   //       content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n오류가 발생했습니다.'
   //     });
@@ -533,7 +534,7 @@ export class ButtonHandler {
           channelName = voiceChannel.name;
         }
       } catch (error) {
-        console.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
+        logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       
       channelInfo = `🔊 음성 채널: **${channelName}**`;
@@ -607,7 +608,7 @@ export class ButtonHandler {
       });
 
     } catch (error) {
-      console.error('[ButtonHandler] 포스트 닫기 처리 오류:', error);
+      logger.error('[ButtonHandler] 포스트 닫기 처리 오류', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '❌ 포스트 종료 중 오류가 발생했습니다.' });
     }
   }
@@ -649,13 +650,13 @@ export class ButtonHandler {
           content: `✅ 포스트가 종료되었습니다.\n📝 **포스트**: ${postTitle}\n👤 **종료자**: ${cleanedClickerNickname}`,
           components: []
         });
-        console.log(`[ButtonHandler] 포스트 닫기 확인 완료: ${postId} by ${cleanedClickerNickname}`);
+        logger.info(`[ButtonHandler] 포스트 닫기 확인 완료: ${postId} by ${cleanedClickerNickname}`);
       } else {
         await interaction.editReply({ content: '❌ 포스트 종료에 실패했습니다.', components: [] });
       }
 
     } catch (error) {
-      console.error('[ButtonHandler] 포스트 닫기 확인 처리 오류:', error);
+      logger.error('[ButtonHandler] 포스트 닫기 확인 처리 오류', { error: error.message, stack: error.stack });
       await interaction.editReply({ content: '❌ 오류가 발생했습니다.', components: [] });
     }
   }
@@ -702,7 +703,7 @@ export class ButtonHandler {
         const wasWaiting = await databaseManager.isInWaitlist(threadId, member.id);
         if (wasWaiting) {
           await databaseManager.removeFromWaitlist(threadId, member.id);
-          console.log(`[ButtonHandler] 대기자 → 참가자 전환: ${cleanedNickname}`);
+          logger.info(`[ButtonHandler] 대기자 → 참가자 전환: ${cleanedNickname}`);
         }
       }
 
@@ -730,10 +731,10 @@ export class ButtonHandler {
              WHERE forum_post_id = $2`,
             [JSON.stringify(updatedParticipants), threadId]
           );
-          console.log(`[ButtonHandler] 참가자 DB 저장 완료: ${threadId}`);
+          logger.info(`[ButtonHandler] 참가자 DB 저장 완료: ${threadId}`);
         }
       } catch (dbError) {
-        console.error('[ButtonHandler] 참가자 DB 저장 실패:', dbError);
+        logger.error('[ButtonHandler] 참가자 DB 저장 실패', { error: dbError.message, stack: dbError.stack });
         // DB 실패해도 메모리 캐시는 유지되므로 봇 작동 계속
       }
 
@@ -763,7 +764,7 @@ export class ButtonHandler {
       await SafeInteraction.safeDeferUpdate(interaction);
 
     } catch (error) {
-      console.error('[ButtonHandler] 참가하기 버튼 처리 중 오류:', error);
+      logger.error('[ButtonHandler] 참가하기 버튼 처리 중 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 참가 처리 중 오류가 발생했습니다.',
         ephemeral: true
@@ -826,10 +827,10 @@ export class ButtonHandler {
              WHERE forum_post_id = $2`,
             [JSON.stringify(updatedParticipants), threadId]
           );
-          console.log(`[ButtonHandler] 참가자 DB 저장 완료: ${threadId}`);
+          logger.info(`[ButtonHandler] 참가자 DB 저장 완료: ${threadId}`);
         }
       } catch (dbError) {
-        console.error('[ButtonHandler] 참가자 DB 저장 실패:', dbError);
+        logger.error('[ButtonHandler] 참가자 DB 저장 실패', { error: dbError.message, stack: dbError.stack });
         // DB 실패해도 메모리 캐시는 유지되므로 봇 작동 계속
       }
 
@@ -859,7 +860,7 @@ export class ButtonHandler {
       await SafeInteraction.safeDeferUpdate(interaction);
 
     } catch (error) {
-      console.error('[ButtonHandler] 참가 취소 버튼 처리 중 오류:', error);
+      logger.error('[ButtonHandler] 참가 취소 버튼 처리 중 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 참가 취소 처리 중 오류가 발생했습니다.',
         ephemeral: true
@@ -905,7 +906,7 @@ export class ButtonHandler {
       const isWaiting = await databaseManager.isInWaitlist(threadId, member.id);
       if (isWaiting) {
         await databaseManager.removeFromWaitlist(threadId, member.id);
-        console.log(`[ButtonHandler] 대기자 취소: ${cleanedNickname} (${threadId})`);
+        logger.info(`[ButtonHandler] 대기자 취소: ${cleanedNickname} (${threadId})`);
 
         const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
         await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
@@ -913,7 +914,7 @@ export class ButtonHandler {
         await SafeInteraction.safeDeferUpdate(interaction);
       } else {
         await databaseManager.addToWaitlist(threadId, member.id, cleanedNickname);
-        console.log(`[ButtonHandler] 대기자 등록: ${cleanedNickname} (${threadId})`);
+        logger.info(`[ButtonHandler] 대기자 등록: ${cleanedNickname} (${threadId})`);
 
         const waitlistNicknames = await databaseManager.getWaitlistNicknames(threadId);
         await this.forumPostManager.sendWaitlistUpdate(threadId, waitlistNicknames);
@@ -922,7 +923,7 @@ export class ButtonHandler {
       }
 
     } catch (error) {
-      console.error('[ButtonHandler] 대기하기 버튼 처리 중 오류:', error);
+      logger.error('[ButtonHandler] 대기하기 버튼 처리 중 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 대기 처리 중 오류가 발생했습니다.',
         ephemeral: true
@@ -983,10 +984,10 @@ export class ButtonHandler {
         allowedMentions: { users: userIds }
       });
 
-      console.log(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명 (요청자: ${interaction.user.id}, 참가자=${isParticipant}, 관리자=${isSuperAdmin})`);
+      logger.info(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명 (요청자: ${interaction.user.id}, 참가자=${isParticipant}, 관리자=${isSuperAdmin})`);
 
     } catch (error) {
-      console.error('[ButtonHandler] 참가자 멘션 버튼 처리 오류:', error);
+      logger.error('[ButtonHandler] 참가자 멘션 버튼 처리 오류', { error: error.message, stack: error.stack });
       await SafeInteraction.safeReply(interaction, {
         content: '❌ 멘션 처리 중 오류가 발생했습니다.',
         ephemeral: true
@@ -1126,10 +1127,10 @@ export class ButtonHandler {
       const updatedNicknames = await db.getParticipantNicknames(threadId);
       await this.forumPostManager.sendEmojiParticipantUpdate(threadId, updatedNicknames, '멤버수정');
 
-      console.log(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
+      logger.info(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 
     } catch (error) {
-      console.error('[ButtonHandler] 멤버 수정 버튼 처리 오류:', error);
+      logger.error('[ButtonHandler] 멤버 수정 버튼 처리 오류', { error: error.message, stack: error.stack });
     }
   }
 
@@ -1203,10 +1204,10 @@ export class ButtonHandler {
 
       await interaction.editReply({ content: lines.join('\n'), components: [] });
 
-      console.log(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
+      logger.info(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 
     } catch (error) {
-      console.error('[ButtonHandler] 멤버 SelectMenu 처리 오류:', error);
+      logger.error('[ButtonHandler] 멤버 SelectMenu 처리 오류', { error: error.message, stack: error.stack });
       // deferUpdate 이후 에러 시 editReply로 안내
       await interaction.editReply({
         content: '❌ 멤버 수정 처리 중 오류가 발생했습니다.',
@@ -1236,7 +1237,7 @@ export class ButtonHandler {
       await this.handleRecruitmentOptionsButton(interaction);
     }
     else {
-      console.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
+      logger.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
     }
   }
   
@@ -1308,6 +1309,6 @@ export class ButtonHandler {
     }
     
     // 제외 채널이 아닌 경우 처리되지 않은 버튼으로 분류
-    console.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
+    logger.warn(`[ButtonHandler] 처리되지 않은 버튼: ${customId}`);
   }
 }
