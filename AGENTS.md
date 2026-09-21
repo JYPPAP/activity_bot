@@ -115,14 +115,12 @@ scripts/                  # 배포·DB·문서 자동화 스크립트
 
 ---
 
-## 8. Test & Eval (TBD)
+## 8. Test & Eval
 
-현재 단위 테스트 없음. 향후 계획:
-- `evals/` 디렉토리 + goldset JSONL
-- LLM-as-judge 회귀 테스트
-- 커맨드 E2E (mock Discord.js client)
-
-> ADR [0003] 로 결정 예정.
+- 러너: **Vitest** (`npm test`, pre-commit 훅 포함). 전략·규칙: [ADR-0003](./docs/adr/0003-test-strategy.md).
+- 위치: `tests/<src와 같은 경로>/<이름>.test.js`. 로거는 `tests/setup.js`에서 전역 mock — 실제 Errsole/DB/Discord 접속 금지.
+- 테스트가 소스 버그를 드러내면 소스를 고치지 말고 `it.todo`로 남기고 보고한다.
+- E2E·LLM-judge는 도입하지 않음 (ADR-0003).
 
 ---
 

@@ -14,7 +14,9 @@
       "command(regex:(rg|grep|ls|cat|head|tail|wc|find|dir|pwd|echo|printf|sort|uniq|cut|tr)( .*)?)",
       "command(regex:(Get-Content|Select-String|Get-ChildItem|Get-Location|Test-Path)( .*)?)",
       "command(regex:sed -n .*)",
-      "command(regex:sed -i .*)"
+      "command(regex:sed -i .*)",
+      "command(regex:mkdir .*)",
+      "command(regex:New-Item .*-ItemType Directory.*)"
     ],
     "deny": [
       "command(regex:git (commit|push|pull|fetch|reset|checkout|restore|clean|stash|rebase|merge|tag|update-index|branch -[dD]).*)",

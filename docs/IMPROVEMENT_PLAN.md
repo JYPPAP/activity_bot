@@ -74,12 +74,16 @@
 - `embedBuilder.js`, 팀짜기 페어 최소화 알고리즘(TeamCommand 관련 유틸), `RecruitmentUIBuilder` 출력 스냅샷.
 - 목표: Phase 3 분할 대상 파일이 의존하는 유틸 커버.
 
-### T-021 `todo` Repository 계층 테스트
+### T-021 `doing` Repository 계층 테스트
 - `pg` Pool을 mock(`vi.fn`)하거나 `pg-mem` 사용. `ForumRepository`의 트랜잭션 경로(BEGIN/COMMIT/ROLLBACK) 검증 — I-08.
 
-### T-022 `todo` ADR-0003 테스트 전략 기록
+### T-022 `done` ADR-0003 테스트 전략 기록
 - `docs/adr/0003-test-strategy.md`: Vitest 채택, 커버 범위, E2E 미도입 사유.
 
+
+### T-023 `todo` ForumRepository 다중 쓰기 트랜잭션화 (I-08)
+- 발견(2026-09-21): 트랜잭션은 `ActivityRepository`만 사용. `ForumRepository.createPostIntegration`(SELECT→UPDATE→INSERT), `linkVoiceChannel`, `setStandaloneMode`, `ensureForumMapping` 등 다중 쓰기가 `dbManager.query` 개별 호출로 실행됨 → 중간 실패 시 부분 반영.
+- 대상 메서드를 `dbManager.transaction(async client => ...)`로 감싼다. T-021 테스트를 먼저 갖춘 뒤 T-033(분할)과 함께 또는 직전에 수행.
 ---
 
 ## Phase 3 — 거대 파일 분할 (동작 변경 없음)
