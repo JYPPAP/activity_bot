@@ -50,7 +50,7 @@ if (name === 'run_command') {
   const cmd = String(args.CommandLine || args.commandLine || args.command || strings.join(' '));
   for (const re of DENY_CMD) if (re.test(cmd)) deny(`금지 명령: ${cmd.slice(0, 120)}`);
   // 리다이렉션·in-place 쓰기 명령으로 금지 경로를 건드리는 것도 차단
-  const WRITE_CMD = /[>|]\s*\S|\bsed\s+-[a-z]*i|\btee\b|\b(mv|cp|touch|truncate)\b|(Set|Add)-Content|Out-File|(Move|Copy|New|Remove)-Item/i;
+  const WRITE_CMD = /[>|]\s*\S|\bsed\s+-[a-z]*i|\btee\b|\bnode\s+(-e|--eval|-p)\b|\b(mv|cp|touch|truncate)\b|(Set|Add)-Content|Out-File|(Move|Copy|New|Remove)-Item/i;
   if (WRITE_CMD.test(cmd)) for (const re of DENY_PATH) if (re.test(cmd)) deny(`금지 경로 쓰기: ${cmd.slice(0, 120)}`);
 } else if (!/^(view|read|list|grep|search|find|codebase|glob)/i.test(name)) {
   // 파일 수정 계열 도구: 인자 중 금지 경로가 있으면 차단
