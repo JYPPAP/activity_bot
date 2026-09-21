@@ -1,7 +1,10 @@
 // src/services/activityReportService.js - 활동 보고서 서비스
 import {EmbedBuilder} from 'discord.js';
+import {config} from '../config/env.js';
 import {COLORS} from '../config/constants.js';
+import {EmbedFactory} from '../utils/embedBuilder.js';
 import {formatKoreanDate, formatTime} from '../utils/formatters.js';
+import {UserClassificationService} from './UserClassificationService.js';
 
 /**
  * 활동 보고서 생성을 담당하는 서비스

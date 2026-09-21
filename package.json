@@ -27,7 +27,9 @@
     "migrate:down": "node-pg-migrate down",
     "migrate:create": "node-pg-migrate create --sql-file",
     "docs:check": "node scripts/check-docs-drift.mjs",
-    "docs:check:strict": "node scripts/check-docs-drift.mjs --strict"
+    "docs:check:strict": "node scripts/check-docs-drift.mjs --strict",
+    "lint": "eslint src scripts",
+    "lint:fix": "eslint src scripts --fix"
   },
   "keywords": [
     "discord",
@@ -53,11 +55,19 @@
     "brace-expansion": ">=2.0.2",
     "dompurify": ">=3.4.13",
     "ajv": ">=8.18.0",
+    "@eslint/eslintrc": {
+      "ajv": "6.14.0"
+    },
+    "eslint": {
+      "ajv": "6.14.0"
+    },
     "fast-uri": ">=3.1.6",
     "ws": ">=8.20.2",
     "form-data": ">=4.0.6"
   },
   "devDependencies": {
+    "eslint": "^9.39.5",
+    "globals": "^17.12.0",
     "nodemon": "^3.1.9"
   }
 }

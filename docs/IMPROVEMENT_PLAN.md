@@ -29,7 +29,7 @@
 
 ## Phase 0 — 가드레일 (기계가 잡을 수 있는 것은 기계에게)
 
-### T-001 `doing` ESLint flat config 도입
+### T-001 `done` ESLint flat config 도입
 - **범위**: `eslint.config.js` 신규, `package.json` devDeps + `lint` 스크립트.
 - **규칙**: `no-console: error` (예외: `src/config/logger-termux.js`, `scripts/**`), `no-unused-vars: warn`, `import/extensions` 대체로 `.js` 확장자 누락 검출(정규식 커스텀 룰 또는 `eslint-plugin-import`의 `extensions: always`).
 - **주의**: 초기엔 `no-console`을 `warn`으로 두고 T-010 완료 후 `error`로 승격. 기존 코드 스타일 변경 금지(Prettier 도입 안 함).
