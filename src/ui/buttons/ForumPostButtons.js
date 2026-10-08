@@ -326,6 +326,15 @@ export class ForumPostButtons {
         allowedMentions: { users: userIds }
       });
 
+      // 멘션 메시지 아래에 참가자 목록과 멘션 버튼을 다시 배치
+      // sendEmojiParticipantUpdate가 기존 추적 메시지를 삭제하고 새 메시지를 전송한다.
+      const participantNicknames = participants.map(participant => participant.nickname);
+      await this.forumPostManager.sendEmojiParticipantUpdate(
+        threadId,
+        participantNicknames,
+        '참가자 멘션'
+      );
+
       logger.info(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명 (요청자: ${interaction.user.id}, 참가자=${isParticipant}, 관리자=${isSuperAdmin})`);
 
     } catch (error) {
@@ -337,4 +346,3 @@ export class ForumPostButtons {
     }
   }
 }
-
