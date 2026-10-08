@@ -7,7 +7,7 @@ const INACTIVE_DAYS = 15;
 const INACTIVE_MS = INACTIVE_DAYS * 24 * 60 * 60 * 1000;
 const CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000; // 매일 1회
 const DISCORD_EPOCH = 1420070400000n;
-const EXCLUDED_CATEGORY_IDS = new Set(['1243883229757575178']);
+const INACTIVITY_ALERT_CATEGORY_ID = '1243571860705251348';
 
 /**
  * Discord 스노우플레이크 ID → Unix 타임스탬프(ms) 변환
@@ -93,13 +93,13 @@ export class InactivePostChecker {
       return;
     }
 
-    // 지정된 채팅 카테고리의 포럼 스레드는 비활동 알림에서 제외한다.
+    // 구직게시판 카테고리의 포럼 스레드에서만 비활동 알림을 보낸다.
     const parentChannel = thread.parent ??
       await this.client.channels.fetch(thread.parentId).catch(() => null);
-    if (parentChannel?.parentId && EXCLUDED_CATEGORY_IDS.has(parentChannel.parentId)) {
-      logger.debug('[InactivePostChecker] 제외 카테고리 포스트 — 스킵', {
+    if (parentChannel?.parentId !== INACTIVITY_ALERT_CATEGORY_ID) {
+      logger.debug('[InactivePostChecker] 구직게시판 외 포스트 — 스킵', {
         forumPostId: post.forum_post_id,
-        categoryId: parentChannel.parentId
+        categoryId: parentChannel?.parentId ?? null
       });
       return;
     }

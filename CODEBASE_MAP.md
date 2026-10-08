@@ -55,7 +55,7 @@ src/
 │   │   ├── ForumPostNotifier.js      # 참가자·음성 채널 알림
 │   │   ├── ForumPostQueries.js       # 포스트 조회·아카이브
 │   │   └── ForumMessageTracker.js    # 추적 메시지 저장·삭제
-│   ├── InactivePostChecker.js # 15일 비활동 구직글 경고 (매일 1회, 모집자 멘션, 채팅 카테고리 1243883229757575178 제외)
+│   ├── InactivePostChecker.js # 15일 비활동 구직글 경고 (매일 1회, 모집자 멘션, 구직게시판 카테고리 1243571860705251348 전용)
 │   ├── RecruitmentService.js  # 구인구직 흐름 총괄
 │   ├── VoiceChannelManager.js # 음성 채널 생성/삭제
 │   ├── VoiceChannelForumIntegrationService.js  # 음성↔포럼 연동
