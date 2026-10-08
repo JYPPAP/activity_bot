@@ -34,6 +34,12 @@ export class DiscordConstants {
     FORUM_MENTION: 'forum_mention_',                   // format: forum_mention_{threadId}
     FORUM_DELETE_CONFIRM: 'forum_delete_confirm',      // 구직 닫기 확인 버튼
     FORUM_DELETE_CANCEL: 'forum_delete_cancel',        // 구직 닫기 취소 버튼
+    ONBOARDING_GENDER: 'onboarding:gender',
+    ONBOARDING_GAMES: 'onboarding:games',
+    ONBOARDING_RULES: 'onboarding:rules',
+    ONBOARDING_APPLY: 'onboarding:apply',
+    ONBOARDING_APPROVE: 'onboarding:approve:',
+    ONBOARDING_REJECT: 'onboarding:reject:',
   };
   
   // ========== 메서드 값 ==========

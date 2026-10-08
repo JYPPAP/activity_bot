@@ -7,15 +7,16 @@
 
 ## 1. 도메인 개요
 
-이 봇은 Discord 길드에서 세 가지 독립 도메인을 통합한다.
+이 봇은 Discord 길드에서 네 가지 독립 도메인을 통합한다.
 
 | # | 도메인 | 핵심 엔티티 | 주요 유스케이스 |
 |---|---|---|---|
 | A | **Activity Tracking** (활동 추적) | VoiceSession, MonthlyActivity, AfkState | 음성 채널 접속 시간 집계, 역할별 최소 활동 시간 관리 |
 | B | **Recruitment** (구인구직) | ForumPost, VoiceChannel, Participant | 포럼 포스트 ↔ 음성 채널 매핑, 참가자 버튼 흐름 |
 | C | **Nickname** (닉네임) | PlatformTemplate, UserNickname | 플랫폼 계정 기반 닉네임 자동화, 음성 채널 표시명 동기화 |
+| D | **Onboarding** (가입·등업) | OnboardingConfig, OnboardingProgress | 신규 회원의 단계별 역할 선택, 규칙 동의, 관리자 등업 심사 |
 
-세 도메인은 **독립적으로 동작**하지만, Discord 이벤트 루프를 공유하기 때문에 DI 컨테이너 하나로 묶여 있다.
+네 도메인은 **독립적으로 동작**하지만, Discord 이벤트 루프를 공유하기 때문에 DI 컨테이너 하나로 묶여 있다.
 
 ---
 
@@ -107,17 +108,47 @@
 
 ---
 
-## 5. 도메인 간 상호작용 (교차 규칙)
+## 5. 도메인 D — Onboarding
+
+### 5.1 목적
+
+- 신규 회원에게 현재 가입 단계의 채널만 보이도록 단계 역할을 순차 교체한다.
+- 성별 선택 → 게임 역할 선택 → 규칙 동의 → 등업 신청 → 관리자 심사를 중단·재접속 후에도 이어간다.
+- Discord 클라이언트 화면을 강제로 전환하지 않고, 완료 응답에 다음 채널 멘션을 제공한다.
+
+### 5.2 핵심 유스케이스 (UC-D)
+
+| ID | 유스케이스 | 트리거 |
+|---|---|---|
+| UC-D1 | 신규 회원 진행 행 생성 및 성별 단계 역할 지급 | `guildMemberAdd` |
+| UC-D2 | 성별 역할 선택 후 게임 단계로 전환 | `onboarding:gender` select |
+| UC-D3 | 게임 역할 복수 선택 후 규칙 단계로 전환 | `onboarding:games` select |
+| UC-D4 | 규칙 동의 후 등업 신청 단계로 전환 | `onboarding:rules` button |
+| UC-D5 | 등업 신청을 관리자 검토 채널에 전달 | `onboarding:apply` button |
+| UC-D6 | 승인 시 정회원 역할 지급, 거절 시 신청 단계 복귀 | `onboarding:approve:{userId}` / `onboarding:reject:{userId}` |
+| UC-D7 | 길드별 채널·역할·게임 선택지 설정 및 단계 메시지 설치 | `/가입관리` (관리자) |
+
+### 5.3 도메인 용어와 상태
+
+- **Stage role**: `gender`, `games`, `rules`, `application` 중 현재 한 단계의 채널만 보이게 하는 역할.
+- **Pending role**: 등업 신청 후 관리자 결정을 기다리는 역할.
+- **Member role**: 승인된 회원에게 지급해 일반 커뮤니티를 공개하는 최종 역할.
+- **Onboarding progress**: `(guildId, userId)`별 영속 상태. 단계는 `gender → games → rules → application → pending → approved`로 진행하고, 거절 시 `application`으로 돌아간다.
+
+---
+
+## 6. 도메인 간 상호작용 (교차 규칙)
 
 | 상호작용 | 규칙 |
 |---|---|
 | 음성 채널 이탈 시 | A의 Session 종료 + B의 Participant 유지(사용자 의사로 취소해야 제거) + C의 닉네임 복원 |
 | 포럼 포스트 닫힘 | B의 state → archived, A의 활동은 영향 없음 |
 | 닉네임 변경 | A의 기록에는 `userId` 기반이므로 영향 없음 (이것이 *의도된 불변*) |
+| 가입 승인 시 | D의 pending 역할 제거 + member 역할 지급. A/B/C 데이터에는 영향 없음 |
 
 ---
 
-## 6. 비-도메인 (Out of Scope)
+## 7. 비-도메인 (Out of Scope)
 
 - 메시지 콘텐츠 분석·자동 모더레이션
 - 음성 녹음·오디오 처리
@@ -126,7 +157,7 @@
 
 ---
 
-## 7. 용어 빠른 사전
+## 8. 용어 빠른 사전
 
 | 용어 | 정의 |
 |---|---|
@@ -136,10 +167,11 @@
 | Forum state | `post_integrations.forum_state` 컬럼 값 |
 | Standalone | 음성 채널 없이 존재하는 포럼 포스트 |
 | AFK 채널 | Discord가 지정한 자동 비활성 채널 |
+| 가입 단계(Stage) | 신규 회원에게 현재 공개할 가입 채널을 결정하는 영속 상태 |
 
 ---
 
-## 8. 슬래시 커맨드
+## 9. 슬래시 커맨드
 
 > 등록 정의는 `scripts/registerCommands.js`, 실행 권한은 `src/config/commandPermissions.js`가 기준이다.
 
@@ -152,9 +184,10 @@
 | `/닉네임설정` | 현재 채널에 닉네임 관리 UI 설치 | 없음 | 기본 거부, `사장` 또는 `DEV_ID` |
 | `/닉네임관리` | 플랫폼 템플릿 관리 | 없음 | `사장` 또는 `DEV_ID` |
 | `/팀짜기` | 음성 채널 멤버를 무작위 팀으로 배정 | `전체인원`·`팀수` 필수 | 공개 |
+| `/가입관리` | 가입 채널·역할 설정, 게임 역할 추가, 단계 메시지 설치 | `설정`(5개 채널·9개 역할), `게임추가`(이름·역할), `게시` | Discord Administrator |
 
 `DEV_ID`와 `사장` 역할은 모든 커맨드를 실행할 수 있다. 권한 맵에 없고 공개 목록에도 없는 커맨드는 기본적으로 거부된다.
 
 ---
 
-_작업 전 본인의 변경이 어느 도메인(A/B/C)에 속하는지 한 줄로 명시하면 의사결정이 빨라진다._
+_작업 전 본인의 변경이 어느 도메인(A/B/C/D)에 속하는지 한 줄로 명시하면 의사결정이 빨라진다._

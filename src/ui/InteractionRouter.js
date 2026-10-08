@@ -12,7 +12,8 @@ export class InteractionRouter {
     recruitmentService,
     nicknameButtonHandler,
     nicknameSelectMenuHandler,
-    nicknameModalHandler
+    nicknameModalHandler,
+    onboardingService
   ) {
     this.buttonHandler = buttonHandler;
     this.modalHandler = modalHandler;
@@ -20,6 +21,7 @@ export class InteractionRouter {
     this.nicknameButtonHandler = nicknameButtonHandler;
     this.nicknameSelectMenuHandler = nicknameSelectMenuHandler;
     this.nicknameModalHandler = nicknameModalHandler;
+    this.onboardingService = onboardingService;
   }
   
   /**
@@ -120,7 +122,10 @@ export class InteractionRouter {
     const customId = interaction.customId;
 
     // 닉네임 관련 버튼
-    if (this.isNicknameButton(customId)) {
+    if (this.onboardingService.isInteraction(customId)) {
+      await this.onboardingService.handleInteraction(interaction);
+    }
+    else if (this.isNicknameButton(customId)) {
       await this.nicknameButtonHandler.handleButton(interaction);
     }
     // 구인구직 연동 버튼
@@ -161,7 +166,10 @@ export class InteractionRouter {
     const customId = interaction.customId;
 
     // 닉네임 관련 셀렉트 메뉴
-    if (this.isNicknameSelectMenu(customId)) {
+    if (this.onboardingService.isInteraction(customId)) {
+      await this.onboardingService.handleInteraction(interaction);
+    }
+    else if (this.isNicknameSelectMenu(customId)) {
       await this.nicknameSelectMenuHandler.handleSelectMenu(interaction);
     }
     // 구인구직 방법 선택

@@ -12,7 +12,7 @@
 | Intent | 용도 |
 |---|---|
 | `Guilds` | 길드 캐시 (필수) |
-| `GuildMembers` | 멤버 목록, 닉네임 변경 감지 |
+| `GuildMembers` | 멤버 목록, 신규 가입 및 닉네임 변경 감지 |
 | `GuildPresences` | 온라인 상태 (일부 리포트) |
 | `GuildVoiceStates` | 음성 채널 입·퇴장 (활동 추적 핵심) |
 | `GuildMessages` | 포럼 스레드 메시지, `awaitMessages` |
@@ -25,12 +25,13 @@
 
 | 이벤트 | 1차 핸들러 | 서비스 체인 | 영향 테이블 | 도메인 |
 |---|---|---|---|---|
-| `ClientReady` | `Bot.initialize` | ActivityTracker, VoiceChannelForumIntegrationService, EmojiReactionService 초기화 | — (캐시 복원) | A,B,C |
+| `ClientReady` | `Bot.initialize` | ActivityTracker, VoiceChannelForumIntegrationService, EmojiReactionService 초기화 | — (캐시 복원) | A,B,C,D |
+| `guildMemberAdd` | `EventManager` | `OnboardingService.handleMemberAdd` → `OnboardingRepository.ensureProgress` → 성별 단계 역할 지급 | `onboarding_configs`, `onboarding_progress` | D |
 | `voiceStateUpdate` | `EventManager` | ActivityTracker → AfkRepository / ActivityRepository, VoiceChannelNicknameManager | `monthly_activity`, `afk_states` | A, C |
-| `interactionCreate` (slash) | `CommandHandler` | `{Name}Command` | 해당 커맨드 별 | A,B,C |
-| `interactionCreate` (button) | `InteractionRouter.routeButtonInteraction` | `ButtonHandler` / `NicknameButtonHandler` / `RecruitmentService` | `forum_participants`, `post_integrations` | B, C |
+| `interactionCreate` (slash) | `CommandHandler` | `{Name}Command` (`/가입관리` 포함) | 해당 커맨드 별 | A,B,C,D |
+| `interactionCreate` (button) | `InteractionRouter.routeButtonInteraction` | `OnboardingService` / `ButtonHandler` / `NicknameButtonHandler` / `RecruitmentService` | `onboarding_progress`, `forum_participants`, `post_integrations` | B, C, D |
 | `interactionCreate` (modal) | `InteractionRouter.routeModalSubmit` | `ModalHandler` / `NicknameModalHandler` | `forum_participants`, `post_integrations` | B, C |
-| `interactionCreate` (select) | `InteractionRouter.routeSelectMenuInteraction` | `RecruitmentService` / `NicknameSelectMenuHandler` | `post_integrations`, `user_nicknames` | B, C |
+| `interactionCreate` (select) | `InteractionRouter.routeSelectMenuInteraction` | `OnboardingService` / `RecruitmentService` / `NicknameSelectMenuHandler` | `onboarding_progress`, `post_integrations`, `user_nicknames` | B, C, D |
 | `messageCreate` (포럼 스레드 내) | `ForumPostManager` 리스너 | `ParticipantTracker`, `formatParticipantChangeMessage` | — | B |
 | `messageReactionAdd/Remove` | `EmojiReactionService` | `ParticipantTracker` | `forum_participants` | B |
 | `threadUpdate` (archived) | `MappingService` | `ForumRepository.deactivateMapping` | `post_integrations` | B |
@@ -93,6 +94,28 @@ interactionCreate (Button: forum_join_{threadId})
    └─ formatParticipantList → thread.send(업데이트 메시지)
 ```
 
+### 3.4 신규 회원 단계별 가입·등업
+
+```
+guildMemberAdd(member)
+└─ OnboardingService.handleMemberAdd()
+   ├─ OnboardingRepository.getConfig(guildId)
+   ├─ OnboardingRepository.ensureProgress(guildId, userId)
+   └─ member.roles.add(stage_role_ids.gender)
+
+interactionCreate (onboarding:* component)
+└─ InteractionRouter → OnboardingService.handleInteraction()
+   ├─ gender select → 성별 역할 지급 → stage role: gender → games
+   ├─ games select  → 게임 역할 지급 → stage role: games → rules
+   ├─ rules button  → 동의 시각 저장 → stage role: rules → application
+   ├─ apply button  → pending 역할 지급 → 관리자 검토 채널에 승인/거절 버튼 전송
+   └─ approve/reject button (Administrator)
+       ├─ 승인 → pending 제거 + member 역할 지급 → approved
+       └─ 거절 → pending 제거 + application 역할 복구 → application
+```
+
+각 단계 완료 응답은 다음 채널을 멘션한다. 실제 채널 공개/숨김은 봇이 교체하는 단계 역할과 Discord 채널 권한 덮어쓰기가 담당한다.
+
 ---
 
 ## 4. 실패·재시도 경로
@@ -103,6 +126,8 @@ interactionCreate (Button: forum_join_{threadId})
 | 봇 재기동 후 세션 유실 | `ClientReady` → `ActivityTracker.initializeActivityData` 가 guild 음성 채널 snapshot으로 재시작 |
 | `addParticipant` UNIQUE 충돌 | `isParticipant` 선행 체크 → 사용자에 친화적 메시지 |
 | Forum thread archive 중 DB 불일치 | `threadUpdate` 이벤트에서 `deactivateMapping` |
+| 가입 도중 재접속/봇 재기동 | `onboarding_progress`의 현재 `stage`를 유지하며 중복 단계 제출은 거부 |
+| 역할 지급/제거 실패 | 유저에게 권한·봇 역할 순서 확인 안내 + `logger.error`; DB 단계 전이는 역할 변경 뒤 수행 |
 
 ---
 

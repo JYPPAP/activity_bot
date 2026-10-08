@@ -73,6 +73,45 @@ CREATE TABLE IF NOT EXISTS post_integrations (
     UNIQUE(guild_id, forum_post_id)            -- 포럼 포스트 중복 방지
 );
 
+-- 4. 단계별 신규 회원 가입 설정
+CREATE TABLE IF NOT EXISTS onboarding_configs (
+    guild_id VARCHAR(50) PRIMARY KEY,
+    welcome_channel_id VARCHAR(50) NOT NULL,
+    game_channel_id VARCHAR(50) NOT NULL,
+    rules_channel_id VARCHAR(50) NOT NULL,
+    application_channel_id VARCHAR(50) NOT NULL,
+    review_channel_id VARCHAR(50) NOT NULL,
+    gender_male_role_id VARCHAR(50) NOT NULL,
+    gender_female_role_id VARCHAR(50) NOT NULL,
+    stage_role_ids JSONB NOT NULL CHECK (jsonb_typeof(stage_role_ids) = 'object'),
+    pending_role_id VARCHAR(50) NOT NULL,
+    member_role_id VARCHAR(50) NOT NULL,
+    game_roles JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(game_roles) = 'array'),
+    enabled BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. 신규 회원별 가입 진행 상태 (재시작 후에도 이어서 진행)
+CREATE TABLE IF NOT EXISTS onboarding_progress (
+    guild_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    stage VARCHAR(20) NOT NULL DEFAULT 'gender'
+        CHECK (stage IN ('gender', 'games', 'rules', 'application', 'pending', 'approved')),
+    gender_role_id VARCHAR(50),
+    game_role_ids JSONB NOT NULL DEFAULT '[]'::jsonb
+        CHECK (jsonb_typeof(game_role_ids) = 'array'),
+    rules_accepted_at TIMESTAMP,
+    applied_at TIMESTAMP,
+    reviewed_at TIMESTAMP,
+    reviewed_by VARCHAR(50),
+    rejection_reason TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (guild_id, user_id)
+);
+
 -- 인덱스 생성
 -- 사용자 조회 최적화
 CREATE INDEX IF NOT EXISTS idx_users_guild_id ON users(guild_id);
@@ -84,6 +123,7 @@ CREATE INDEX IF NOT EXISTS idx_post_integrations_voice_channel ON post_integrati
 CREATE INDEX IF NOT EXISTS idx_post_integrations_active ON post_integrations(is_active) WHERE is_active = true;
 CREATE INDEX IF NOT EXISTS idx_post_integrations_forum_state ON post_integrations(forum_state);
 CREATE INDEX IF NOT EXISTS idx_post_integrations_auto_track ON post_integrations(auto_track_enabled) WHERE auto_track_enabled = true;
+CREATE INDEX IF NOT EXISTS idx_onboarding_progress_stage ON onboarding_progress(guild_id, stage);
 
 -- 월별 활동 테이블 생성 함수
 DROP FUNCTION IF EXISTS create_monthly_activity_table(TEXT) CASCADE;

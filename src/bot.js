@@ -50,6 +50,7 @@ export class Bot {
     this.eventManager = this.container.resolve('eventManager');
     this.voiceChannelNicknameManager = this.container.resolve('voiceChannelNicknameManager');
     this.inactivePostChecker = this.container.resolve('inactivePostChecker');
+    this.onboardingService = this.container.resolve('onboardingService');
 
     Bot.instance = this;
   }
@@ -118,6 +119,10 @@ export class Bot {
 
 
   registerEventHandlers() {
+    this.eventManager.registerHandler(
+      Events.GuildMemberAdd,
+      this.onboardingService.handleMemberAdd.bind(this.onboardingService)
+    );
     // 음성 채널 상태 변경 이벤트
     this.eventManager.registerHandler(
       Events.VoiceStateUpdate,

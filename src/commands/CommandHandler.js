@@ -8,7 +8,8 @@ import { logger } from '../config/logger-termux.js';
 export class CommandHandler {
   constructor(client, activityTracker, dbManager, voiceChannelForumIntegrationService, userClassificationService,
               timeConfirmCommand, timeCheckCommand, gapReportCommand,
-              recruitmentCommand, nicknameCommand, nicknameSetupCommand, nicknameManagementCommand, teamCommand) {
+              recruitmentCommand, nicknameCommand, nicknameSetupCommand, nicknameManagementCommand, teamCommand,
+              onboardingManagementCommand) {
     this.client = client;
     this.activityTracker = activityTracker;
     this.dbManager = dbManager;
@@ -32,6 +33,7 @@ export class CommandHandler {
       this.commands.set('닉네임설정', nicknameSetupCommand);
       this.commands.set('닉네임관리', nicknameManagementCommand);
       this.commands.set('팀짜기', teamCommand);
+      this.commands.set('가입관리', onboardingManagementCommand);
 
       logger.info('명령어 초기화 완료', { component: 'CommandHandler', commands: [...this.commands.keys()], count: this.commands.size });
     } catch (error) {

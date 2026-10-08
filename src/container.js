@@ -18,6 +18,8 @@ import { MappingService } from './services/MappingService.js';
 import { RecruitmentService } from './services/RecruitmentService.js';
 import { PlatformTemplateService } from './services/PlatformTemplateService.js';
 import { UserNicknameService } from './services/UserNicknameService.js';
+import { OnboardingService } from './services/OnboardingService.js';
+import { OnboardingRepository } from './repositories/OnboardingRepository.js';
 
 // UI 관련 임포트
 import { ButtonHandler } from './ui/ButtonHandler.js';
@@ -42,6 +44,7 @@ import { NicknameCommand } from './commands/NicknameCommand.js';
 import { NicknameManagementCommand } from './commands/NicknameManagementCommand.js';
 import { NicknameSetupCommand } from './commands/NicknameSetupCommand.js';
 import { TeamCommand } from './commands/TeamCommand.js';
+import { OnboardingManagementCommand } from './commands/OnboardingManagementCommand.js';
 
 /**
  * DI Container 생성 및 설정
@@ -81,6 +84,7 @@ export function createDIContainer(client) {
     // CLASSIC 모드에서는 구조분해 할당 불가 — 위치 인수로 주입
     databaseManager: asFunction((dbManager) => dbManager).singleton(),
     logService: asClass(LogService).singleton(),
+    onboardingRepository: asClass(OnboardingRepository).singleton(),
   });
 
   // === 3. 코어 서비스 계층 ===
@@ -106,6 +110,7 @@ export function createDIContainer(client) {
     inactivePostChecker: asFunction((client, databaseManager) =>
       new InactivePostChecker(client, databaseManager)
     ).singleton(),
+    onboardingService: asClass(OnboardingService).singleton(),
   });
 
   // === 5. 애플리케이션 서비스 계층 ===
@@ -165,6 +170,7 @@ export function createDIContainer(client) {
     nicknameManagementCommand: asClass(NicknameManagementCommand).singleton(),
     nicknameSetupCommand: asClass(NicknameSetupCommand).singleton(),
     teamCommand: asClass(TeamCommand).singleton(),
+    onboardingManagementCommand: asClass(OnboardingManagementCommand).singleton(),
   });
 
   // === 8. 통합 계층 ===

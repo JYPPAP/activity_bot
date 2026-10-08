@@ -13,6 +13,7 @@ export const ROLE_BASED_PERMISSIONS = {
   '보고서': SUPER_ADMIN_ROLES,
   '시간체크': SUPER_ADMIN_ROLES,
   '닉네임관리': SUPER_ADMIN_ROLES,
+  '가입관리': SUPER_ADMIN_ROLES,
 };
 
 /**

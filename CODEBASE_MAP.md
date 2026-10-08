@@ -1,7 +1,7 @@
 # Activity Bot - Codebase Map
 > 이 파일은 AI 어시스턴트가 코드 구조를 빠르게 파악하기 위한 참조 파일입니다.
 > 수정 시 반드시 이 파일도 함께 업데이트할 것.
-> 마지막 업데이트: 2026-04-14
+> 마지막 업데이트: 2026-10-08
 
 ## 기술 스택
 - Runtime: Node.js (ESM)
@@ -41,7 +41,8 @@ src/
 │   ├── GapReportCommand.js    # /gap_report
 │   ├── NicknameCommand.js     # /닉네임
 │   ├── NicknameManagementCommand.js  # /닉관리 (관리자)
-│   └── NicknameSetupCommand.js       # /닉설정
+│   ├── NicknameSetupCommand.js       # /닉설정
+│   └── OnboardingManagementCommand.js # /가입관리 (관리자 설정·메시지 설치)
 │
 ├── services/             # 비즈니스 로직
 │   ├── DatabaseManager.js     # Facade: 4개 Repository 위임 (Singleton)
@@ -66,12 +67,14 @@ src/
 │   ├── PermissionService.js   # 권한 체크
 │   ├── UserClassificationService.js  # 유저 활동 분류
 │   ├── UserNicknameService.js # 닉네임 DB CRUD
-│   └── PlatformTemplateService.js    # 닉네임 플랫폼 템플릿
+│   ├── PlatformTemplateService.js    # 닉네임 플랫폼 템플릿
+│   └── OnboardingService.js   # 단계별 가입, 역할 전환, 등업 심사
 │
 ├── repositories/         # DB 쿼리 레이어 (DatabaseManager가 위임)
 │   ├── ActivityRepository.js  # monthly activity 테이블
 │   ├── AfkRepository.js       # AFK 상태 관리
 │   ├── ConfigRepository.js    # guild_settings, role_configs
+│   ├── OnboardingRepository.js # onboarding_configs, onboarding_progress
 │   ├── ForumRepository.js     # 포럼 Repository Facade
 │   ├── forum/
 │   │   ├── PostIntegrationRepository.js  # post_integrations 및 채널 매핑
@@ -125,6 +128,7 @@ CommandHandler (slash commands: /구직, /팀짜기, /시간체크 ...)
         ↓
 InteractionRouter.routeInteraction()
   ├─ Button → routeButtonInteraction()
+  │   ├─ onboarding: prefix → OnboardingService
   │   ├─ NicknameButton prefix → NicknameButtonHandler
   │   ├─ VOICE_CONNECT prefix → RecruitmentService
   │   └─ else → ButtonHandler.routeButtonInteraction()
@@ -148,6 +152,7 @@ InteractionRouter.routeInteraction()
   │       └─ default → extractModalData() → 독립/연동 구직 처리
   │
   └─ StringSelect → routeSelectMenuInteraction()
+      ├─ onboarding: prefix → OnboardingService
       ├─ NicknameSelect → NicknameSelectMenuHandler
       ├─ RECRUITMENT_METHOD → RecruitmentService
       └─ EXISTING_POST_SELECT → RecruitmentService
@@ -187,6 +192,12 @@ InteractionRouter.routeInteraction()
 | `new_forum_` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
 | `existing_forum` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
 | `existing_forum_` | `{postId}` | 기존 포럼 연동 방법 선택 |
+| `onboarding:gender` | 고정값 | 성별 역할 선택 |
+| `onboarding:games` | 고정값 | 게임 역할 복수 선택 |
+| `onboarding:rules` | 고정값 | 서버 규칙 동의 |
+| `onboarding:apply` | 고정값 | 등업 신청 제출 |
+| `onboarding:approve:` | `{userId}` | 관리자 등업 승인 |
+| `onboarding:reject:` | `{userId}` | 관리자 등업 거절 |
 
 ---
 
@@ -204,14 +215,25 @@ forumPostManager(client, forumChannelId, forumTagId, dbManager) ← asFunction
 mappingService(client, voiceChannelManager, forumPostManager, dbManager) ← asFunction
 recruitmentService(client, forumPostManager, voiceChannelManager, mappingService, participantTracker)
 emojiReactionService(client, forumPostManager)
+onboardingRepository(dbManager)
+onboardingService(onboardingRepository)
 buttonHandler(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager)
 modalHandler(recruitmentService, forumPostManager)
-interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButtonHandler, nicknameSelectMenuHandler, nicknameModalHandler)
+interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButtonHandler, nicknameSelectMenuHandler, nicknameModalHandler, onboardingService)
 ```
 
 ---
 
 ## DB 테이블 (PostgreSQL)
+
+### onboarding_configs / onboarding_progress
+
+| Table | Key / 주요 컬럼 | Description |
+|---|---|---|
+| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 길드별 가입 채널/역할 구성과 게임 역할 선택지 |
+| `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason` | 신규 회원의 재시작 가능한 가입 진행 상태와 심사 이력 |
+
+가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.
 
 ### post_integrations
 | Column | Type | Description |
