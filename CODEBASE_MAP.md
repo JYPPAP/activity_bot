@@ -24,6 +24,7 @@ src/
 │
 ├── config/               # 설정 & 상수
 │   ├── env.js            # process.env → config 객체 (TEAM_CHANNEL_IDS 등)
+│   ├── OnboardingRules.js # md/txt 규칙 문서 로딩·검증·버전 해시
 │   ├── DiscordConstants.js    # CHANNEL_IDS, CUSTOM_ID_PREFIXES, EMOJIS
 │   ├── NicknameConstants.js   # 닉네임 시스템 상수
 │   ├── RecruitmentConfig.js   # 구인구직 설정 (MAX_TAGS 등)
@@ -200,6 +201,8 @@ InteractionRouter.routeInteraction()
 | `onboarding:back:` | `gender` / `games` | 이전 단계 / 입력 수정 |
 | `onboarding:close` | 고정값 | 승인된 개인 가입 채널 삭제 |
 | `onboarding:rules` | 고정값 | 서버 규칙 동의 |
+| `onboarding:rules:back` | 고정값 | 이전 규칙 문서로 이동 |
+| `onboarding:preview:` | `{pageIndex}` | 공개 안내에서 가입 단계별 비공개 미리보기 (상태·역할 변경 없음) |
 | `onboarding:apply` | 고정값 | 등업 신청 제출 |
 | `onboarding:approve:` | `{userId}` | 관리자 등업 승인 |
 | `onboarding:reject:` | `{userId}` | 관리자 등업 거절 |
@@ -239,6 +242,8 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 | `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason`, `channel_id`, `message_id`, `review_message_id`, `cleanup_at`, `review_action`, `departed_at` | 개인 채널·현재 안내 카드·심사 메시지·삭제 예약·심사 중간 상태를 저장하여 재시작 시 복원. 탈퇴 기록이 있는 회원은 복구·정리 조회에서 제외하고 재입장 시 해제 |
 
 가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.
+
+`config/onboarding/rules/`의 `.md`·`.txt` 파일을 파일명 순서대로 표시하고 문서마다 동의를 받는다. README.md·*.example.md/txt는 제외한다. 파일이 없으면 기존 `rules_text`를 사용한다. `rule_index`(INTEGER, 기본 0)와 `rules_revision`(TEXT, 문서 해시)으로 진행을 복원하며 내용 변경 시 진행 중인 규칙 동의를 초기화한다. `ONBOARDING_CATEGORY_ID`는 저장된 `category_id`보다 우선하며 새 개인 채널에 적용된다. `/가입관리 게시`는 고정 온보딩 채널에 과정 안내·시작·미리보기 버튼을 게시/갱신한다.
 
 `withMemberLock(guildId, userId, callback)`은 전용 DB 연결의 PostgreSQL 세션 advisory lock으로 회원별 채널 생성·단계 전환·심사를 직렬화한다. 같은 잠금 안에서 DB checkpoint와 Discord API 작업을 수행하고 연결을 반환하기 전에 잠금을 해제한다. `review_action`은 승인/거절 도중 종료 시 완료할 결정을 기록한다.
 

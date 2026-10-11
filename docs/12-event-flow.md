@@ -115,7 +115,9 @@ interactionCreate (onboarding:* component)
    ├─ gender button → 선택 초안 저장 → games 카드 교체
    ├─ games select  → 선택 초안 저장 → 현재 카드 수정
    ├─ games confirm → rules 카드 교체
-   ├─ rules button  → 동의 시각 저장 → application 요약 카드 교체
+   ├─ rules button  → 문서마다 동의 후 rule_index 증가 → 마지막 문서 동의 시 application
+   │   └─ 문서 해시 변경 시 동의 초기화·첫 문서로 복귀 (pending/approved 심사에는 소급 적용 안 함)
+   ├─ preview button → 비공개 단계별 미리보기 (DB 진행·역할·채널 생성 없음)
    ├─ back button   → gender/games 복귀, 규칙 동의 해제 → 다시 동의
    ├─ apply button  → pending 저장·역할 지급 → 관리자 검토 채널 심사 카드 생성
    └─ approve/reject button (Administrator)

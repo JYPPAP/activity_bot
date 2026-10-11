@@ -101,6 +101,16 @@ describe('OnboardingRepository', () => {
     expect(dbManager.query).not.toHaveBeenCalled();
   });
 
+  it('persists the next rule page and revision, including an explicit reset', async () => {
+    const row = {rule_index: 2, rules_revision: 'revision-1'};
+    dbManager.query.mockResolvedValue({rows: [row]});
+    await expect(repository.saveProgress('guild', 'user', {ruleIndex: 2, rulesRevision: 'revision-1'})).resolves.toBe(row);
+    expect(dbManager.query.mock.calls[0][0]).toContain('rule_index=$3, rules_revision=$4');
+    expect(dbManager.query.mock.calls[0][1]).toEqual(['guild', 'user', 2, 'revision-1']);
+    await repository.saveProgress('guild', 'user', {ruleIndex: 0, rulesRevision: null, rulesAcceptedAt: null});
+    expect(dbManager.query.mock.calls[1][1]).toEqual(['guild', 'user', 0, null, null]);
+  });
+
   it('queries only explicitly enabled private configurations during recovery and cleanup', async () => {
     const rows = [{guild_id: 'guild', user_id: 'user', channel_id: 'channel'}];
     dbManager.query.mockResolvedValue({rows});

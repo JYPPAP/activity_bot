@@ -106,6 +106,8 @@ CREATE TABLE IF NOT EXISTS onboarding_progress (
     game_role_ids JSONB NOT NULL DEFAULT '[]'::jsonb
         CHECK (jsonb_typeof(game_role_ids) = 'array'),
     rules_accepted_at TIMESTAMP,
+    rule_index INTEGER NOT NULL DEFAULT 0 CHECK (rule_index >= 0),
+    rules_revision TEXT,
     applied_at TIMESTAMP,
     reviewed_at TIMESTAMP,
     reviewed_by VARCHAR(50),

@@ -42,6 +42,9 @@ export const config = {
   // 목록 출력 채널
   CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID,
 
+  // 개인 가입 채널 카테고리 (미지정 시 명령어 선택/저장된 설정 사용)
+  ONBOARDING_CATEGORY_ID: process.env.ONBOARDING_CATEGORY_ID?.trim() || '',
+
   // 구인구직 포럼 관련
   FORUM_CHANNEL_ID: process.env.FORUM_CHANNEL_ID,
   VOICE_CATEGORY_ID: process.env.VOICE_CATEGORY_ID,

@@ -21,6 +21,8 @@ const genderLabel = (config, progress) => {
 const selectedGames = (config, progress) => (config.game_roles || [])
   .filter(game => (progress.game_role_ids || []).includes(game.roleId));
 const timestamp = value => value ? `<t:${Math.floor(new Date(value).getTime() / 1000)}:f>` : '—';
+const rulesPages = config => config.rules_pages?.length ? config.rules_pages
+  : [{title: '서버 규칙', content: config.rules_text}];
 const summary = (config, progress) => [
   { name: '성별', value: genderLabel(config, progress), inline: true },
   { name: '게임', value: selectedGames(config, progress).map(game => game.label).join(', ').slice(0, 1024) || '미선택' },
@@ -28,10 +30,13 @@ const summary = (config, progress) => [
 ];
 
 export class OnboardingUIBuilder {
-  static buildWelcome() {
+  static buildWelcome(config = {}) {
     return payload(new EmbedBuilder().setColor(BLUE).setTitle('서버 가입 안내')
-      .setDescription('아래 버튼을 누르면 나만 볼 수 있는 가입 채널에서 안내를 받을 수 있습니다.\n진행 중인 가입 절차가 있다면 이어서 진행합니다.'),
-    [row(button(IDS.ONBOARDING_START, '가입 시작 / 이어하기', ButtonStyle.Primary))]);
+      .setDescription('아래 버튼을 누르면 나만 볼 수 있는 가입 채널에서 안내를 받을 수 있습니다.\n진행 중인 가입 절차가 있다면 이어서 진행합니다.')
+      .addFields({name: '가입 과정', value: `1. 성별 선택\n2. 게임 선택\n3. 규칙 확인·동의${config.rules_pages?.length ? ` (${config.rules_pages.length}개 문서)` : ''}\n4. 최종 확인·가입 신청`},
+        {name: '먼저 둘러보기', value: '미리보기에서 실제 가입 화면과 규칙을 확인할 수 있습니다.'}),
+    [row(button(IDS.ONBOARDING_START, '가입 시작 / 이어하기', ButtonStyle.Primary),
+      button(`${IDS.ONBOARDING_PREVIEW}0`, '가입 과정 미리보기'))]);
   }
 
   static buildCard(config, progress) {
@@ -68,12 +73,20 @@ export class OnboardingUIBuilder {
           button(IDS.ONBOARDING_GAMES_CONFIRM, '선택 완료', ButtonStyle.Primary).setDisabled(!chosen.length)));
         break;
       }
-      case 'rules':
-        embed.setTitle('가입 안내 · 3 / 4').setDescription(config.rules_text)
+      case 'rules': {
+        const pages = rulesPages(config);
+        const index = progress.rule_index ?? 0;
+        if (!Number.isInteger(index) || index < 0 || index >= pages.length) throw new RangeError('규칙 문서 순서가 올바르지 않습니다.');
+        const page = pages[index];
+        embed.setTitle(`가입 안내 · 3 / 4 · 문서 ${index + 1} / ${pages.length} · ${page.title}`.slice(0, DiscordConstants.LIMITS.EMBED_TITLE_MAX))
+          .setDescription(page.content)
           .addFields({ name: '규칙 동의', value: '위 규칙을 읽고 동의한 뒤 계속해 주세요.' });
-        components = [row(button(`${IDS.ONBOARDING_BACK}games`, '이전'),
-          button(IDS.ONBOARDING_RULES, '동의하고 계속', ButtonStyle.Primary))];
+        const buttons = [button(`${IDS.ONBOARDING_BACK}games`, '게임 선택으로')];
+        if (index > 0) buttons.push(button(IDS.ONBOARDING_RULES_BACK, '이전 규칙'));
+        buttons.push(button(IDS.ONBOARDING_RULES, index === pages.length - 1 ? '동의하고 계속' : '동의하고 다음 규칙', ButtonStyle.Primary));
+        components = [row(...buttons)];
         break;
+      }
       case 'application':
         embed.setTitle('가입 안내 · 4 / 4').setDescription('입력한 내용을 확인해 주세요.\n수정이 없다면 가입 신청을 눌러 주세요.')
           .addFields(summary(config, progress));
@@ -97,6 +110,32 @@ export class OnboardingUIBuilder {
         throw new Error(`알 수 없는 가입 단계: ${progress.stage}`);
     }
     return payload(embed, components);
+  }
+
+  static buildPreview(config, pageIndex = 0) {
+    const pages = rulesPages(config);
+    const total = pages.length + 3;
+    if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex >= total) throw new RangeError('가입 미리보기 순서가 올바르지 않습니다.');
+    const stage = pageIndex === 0 ? 'gender' : pageIndex === 1 ? 'games'
+      : pageIndex === total - 1 ? 'application' : 'rules';
+    const result = this.buildCard(config, {
+      guild_id: config.guild_id, user_id: 'preview', stage,
+      gender_role_id: config.gender_male_role_id,
+      game_role_ids: config.game_roles?.[0] ? [config.game_roles[0].roleId] : [],
+      rule_index: Math.max(0, pageIndex - 2),
+      rules_accepted_at: stage === 'application' ? new Date() : null,
+    });
+    result.embeds[0].setTitle(`미리보기 · ${pageIndex + 1} / ${total} · ${result.embeds[0].data.title}`.slice(0, DiscordConstants.LIMITS.EMBED_TITLE_MAX))
+      .setFooter({text: 'onboarding-preview'})
+      .addFields({name: '미리보기 안내', value: '아래 선택 내용은 예시입니다. 입력은 저장되지 않고 역할도 지급되지 않습니다.'});
+    for (const actionRow of result.components) {
+      for (const component of actionRow.components) component.setDisabled(true);
+    }
+    result.components.push(row(
+      button(`${IDS.ONBOARDING_PREVIEW}${Math.max(0, pageIndex - 1)}`, '이전 화면').setDisabled(pageIndex === 0),
+      button(`${IDS.ONBOARDING_PREVIEW}${Math.min(total - 1, pageIndex + 1)}`, '다음 화면', ButtonStyle.Primary).setDisabled(pageIndex === total - 1),
+    ));
+    return result;
   }
 
   static buildReview(config, progress) {

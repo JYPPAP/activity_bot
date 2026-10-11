@@ -1,9 +1,15 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
 import {ChannelType, Collection, PermissionFlagsBits} from 'discord.js';
 
+vi.mock('../../src/config/env.js', () => ({config: {ONBOARDING_CATEGORY_ID: ''}}));
+vi.mock('../../src/config/OnboardingRules.js', () => ({
+  loadOnboardingRules: vi.fn(async text => ({pages: [{title: '서버 규칙', content: text}], revision: 'rules-v1'})),
+}));
+
 vi.mock('../../src/utils/SafeInteraction.js', () => ({
   SafeInteraction: {
     safeDeferReply: vi.fn().mockResolvedValue(null),
+    safeDeferUpdate: vi.fn().mockResolvedValue(null),
     safeReply: vi.fn().mockResolvedValue(null),
   },
 }));
@@ -11,12 +17,15 @@ vi.mock('../../src/utils/SafeInteraction.js', () => ({
 import {OnboardingService} from '../../src/services/OnboardingService.js';
 import {OnboardingUIBuilder} from '../../src/ui/OnboardingUIBuilder.js';
 import {SafeInteraction} from '../../src/utils/SafeInteraction.js';
+import {loadOnboardingRules} from '../../src/config/OnboardingRules.js';
+import {config as environment} from '../../src/config/env.js';
 
 const fields = {
   channelId: 'channel_id', messageId: 'message_id', genderRoleId: 'gender_role_id',
   gameRoleIds: 'game_role_ids', rulesAcceptedAt: 'rules_accepted_at', appliedAt: 'applied_at',
   reviewMessageId: 'review_message_id', reviewAction: 'review_action', reviewedBy: 'reviewed_by',
   reviewedAt: 'reviewed_at', rejectionReason: 'rejection_reason', cleanupAt: 'cleanup_at', departedAt: 'departed_at',
+  ruleIndex: 'rule_index', rulesRevision: 'rules_revision',
 };
 
 function createFixture() {
@@ -133,7 +142,7 @@ function createFixture() {
     const channel = createChannel('private', 'onboarding:guild:user');
     const progress = {
       guild_id: 'guild', user_id: 'user', stage: 'gender', channel_id: channel.id,
-      game_role_ids: [], ...patch,
+      game_role_ids: [], rule_index: 0, rules_revision: 'rules-v1', ...patch,
     };
     const card = channel.makeMessage(OnboardingUIBuilder.buildCard(config, progress));
     state.set('user', {...progress, message_id: card.id});
@@ -149,8 +158,64 @@ function createFixture() {
 
 describe('OnboardingService private sessions', () => {
   let f;
-  beforeEach(() => {vi.clearAllMocks(); f = createFixture();});
+  beforeEach(() => {
+    vi.clearAllMocks();
+    environment.ONBOARDING_CATEGORY_ID = '';
+    loadOnboardingRules.mockImplementation(async text => ({pages: [{title: '서버 규칙', content: text}], revision: 'rules-v1'}));
+    f = createFixture();
+  });
   afterEach(() => { f.service.stop(); vi.useRealTimers(); });
+
+  it('shows a private preview without creating channels or changing progress and roles', async () => {
+    const action = f.interaction('onboarding:preview:0', {channel: f.welcome,
+      message: f.welcome.makeMessage(OnboardingUIBuilder.buildWelcome(f.config))});
+    await f.service.handleInteraction(action);
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(action, expect.objectContaining({flags: 64}));
+    expect(f.guild.channels.create).not.toHaveBeenCalled();
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+    expect(f.member.roles.add).not.toHaveBeenCalled();
+    expect(f.repository.withMemberLock).not.toHaveBeenCalled();
+    const navigation = f.interaction('onboarding:preview:1', {channel: f.welcome,
+      message: {embeds: [{footer: {text: 'onboarding-preview'}}]}});
+    await f.service.handleInteraction(navigation);
+    expect(SafeInteraction.safeDeferUpdate).toHaveBeenCalledWith(navigation);
+  });
+
+  it('requires consent on each rule page and resets consent when files change', async () => {
+    loadOnboardingRules.mockResolvedValue({pages: [{title: '첫째', content: '내용1'}, {title: '둘째', content: '내용2'}], revision: 'rules-v1'});
+    await f.seed({stage: 'rules', ...f.selected});
+    await f.service.handleInteraction(f.interaction('onboarding:rules'));
+    expect(f.state.get('user')).toMatchObject({stage: 'rules', rule_index: 1});
+    await f.service.handleInteraction(f.interaction('onboarding:rules'));
+    expect(f.state.get('user').stage).toBe('application');
+    loadOnboardingRules.mockResolvedValue({pages: [{title: '새 규칙', content: '새 내용'}], revision: 'rules-v2'});
+    await f.service.handleInteraction(f.interaction('onboarding:apply'));
+    expect(f.state.get('user')).toMatchObject({stage: 'rules', rule_index: 0, rules_revision: 'rules-v2', rules_accepted_at: null});
+    expect(f.review.send).not.toHaveBeenCalled();
+  });
+
+  it('uses the environment category for new channels', async () => {
+    environment.ONBOARDING_CATEGORY_ID = 'env-category';
+    await f.service.openSession(f.member);
+    expect(f.guild.channels.create).toHaveBeenCalledWith(expect.objectContaining({parent: 'env-category'}));
+  });
+
+  it('restores the rule page after restart and allows going back to reread', async () => {
+    f.config.rules_pages = [{title: '첫째', content: '내용1'}, {title: '둘째', content: '내용2'}];
+    loadOnboardingRules.mockResolvedValue({pages: f.config.rules_pages, revision: 'rules-v1'});
+    await f.seed({stage: 'rules', rule_index: 1, ...f.selected, rules_accepted_at: null});
+    await f.service.openSession(f.member);
+    expect(f.state.get('user').rule_index).toBe(1);
+    await f.service.handleInteraction(f.interaction('onboarding:rules:back'));
+    expect(f.state.get('user')).toMatchObject({stage: 'rules', rule_index: 0, rules_accepted_at: null});
+  });
+
+  it('rejects preview outside the public onboarding channel', async () => {
+    await f.seed();
+    await f.service.handleInteraction(f.interaction('onboarding:preview:0'));
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({content: expect.stringContaining('가입 안내 채널')}));
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+  });
 
   it('creates one private input-disabled session for a new member and ignores bots', async () => {
     await f.service.handleMemberAdd(f.member);

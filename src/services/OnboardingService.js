@@ -3,6 +3,8 @@ import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {logger} from '../config/logger-termux.js';
 import {DiscordConstants} from '../config/DiscordConstants.js';
 import {OnboardingUIBuilder} from '../ui/OnboardingUIBuilder.js';
+import {config as environment} from '../config/env.js';
+import {loadOnboardingRules} from '../config/OnboardingRules.js';
 
 const IDS = DiscordConstants.CUSTOM_ID_PREFIXES;
 const CLEANUP_DELAY = 10 * 60 * 1000;
@@ -20,6 +22,29 @@ export class OnboardingService {
   }
 
   isInteraction(customId = '') { return customId.startsWith('onboarding:'); }
+
+  async getConfig(repository, guildId) {
+    const config = await repository.getConfig(guildId);
+    return config ? {...config, category_id: environment.ONBOARDING_CATEGORY_ID || config.category_id} : null;
+  }
+
+  async loadRules(config) {
+    const {pages, revision} = await loadOnboardingRules(config.rules_text);
+    config.rules_pages = pages;
+    config.rules_revision = revision;
+  }
+
+  async prepareRules(config, progress, repository) {
+    if (!['rules', 'application'].includes(progress.stage)) return progress;
+    await this.loadRules(config);
+    if (progress.rules_revision !== config.rules_revision
+      || !Number.isInteger(progress.rule_index) || progress.rule_index >= config.rules_pages.length || progress.rule_index < 0) {
+      return repository.saveProgress(progress.guild_id, progress.user_id, {
+        stage: 'rules', ruleIndex: 0, rulesRevision: config.rules_revision, rulesAcceptedAt: null,
+      });
+    }
+    return progress;
+  }
 
   logError(error, context) {
     logger.error('개인 가입 채널 처리 실패', {...context, error: error.message, stack: error.stack});
@@ -77,7 +102,7 @@ export class OnboardingService {
     try {
       await this.onboardingRepository.withMemberLock(progress.guild_id, progress.user_id, async repository => {
         const current = await repository.getProgress(progress.guild_id, progress.user_id);
-        const config = await repository.getConfig(progress.guild_id);
+        const config = await this.getConfig(repository, progress.guild_id);
         if (!current || !config?.enabled || !config.category_id) return;
         const member = await this.fetchOptional(guild.members, progress.user_id);
         if (!member) return this.removeSessionChannel(guild, current, repository, true);
@@ -93,7 +118,7 @@ export class OnboardingService {
 
   async handleMemberAdd(member) {
     if (member.user.bot) return;
-    const config = await this.onboardingRepository.getConfig(member.guild.id);
+    const config = await this.getConfig(this.onboardingRepository, member.guild.id);
     if (config?.enabled && config.category_id) await this.openSession(member);
   }
 
@@ -108,7 +133,7 @@ export class OnboardingService {
   async openSession(member) {
     if (member.user.bot) return null;
     return this.onboardingRepository.withMemberLock(member.guild.id, member.id, async repository => {
-      const config = await repository.getConfig(member.guild.id);
+      const config = await this.getConfig(repository, member.guild.id);
       if (!config?.enabled || !config.category_id) throw new Error('가입관리 설정을 먼저 완료해 주세요.');
       let progress = await repository.getProgress(member.guild.id, member.id);
       if (progress?.departed_at) progress = await repository.saveProgress(member.guild.id, member.id, {departedAt: null});
@@ -189,6 +214,7 @@ export class OnboardingService {
   }
 
   async ensureCard(channel, config, progress, repository) {
+    progress = await this.prepareRules(config, progress, repository);
     this.assertSessionChannel(channel, progress);
     let message = await this.fetchOptional(channel.messages, progress.message_id);
     if (message && (message.author.id !== this.client.user.id || footerOf(message) !== cardMarker(progress))) {
@@ -203,6 +229,7 @@ export class OnboardingService {
   }
 
   async replaceCard(channel, config, progress, repository) {
+    progress = await this.prepareRules(config, progress, repository);
     this.assertSessionChannel(channel, progress);
     const message = await channel.send(OnboardingUIBuilder.buildCard(config, progress));
     await repository.saveProgress(progress.guild_id, progress.user_id, {messageId: message.id});
@@ -222,10 +249,11 @@ export class OnboardingService {
 
   async publishWelcome(guild) {
     return this.onboardingRepository.withMemberLock(guild.id, 'welcome', async repository => {
-      const config = await repository.getConfig(guild.id);
+      const config = await this.getConfig(repository, guild.id);
       if (!config?.enabled || !config.category_id) throw new Error('먼저 /가입관리 설정을 실행해 주세요.');
       const channel = await guild.channels.fetch(config.welcome_channel_id);
-      const payload = OnboardingUIBuilder.buildWelcome();
+      await this.loadRules(config);
+      const payload = OnboardingUIBuilder.buildWelcome(config);
       payload.embeds[0].setFooter({text: 'onboarding-welcome'});
       let message = await this.fetchOptional(channel.messages, config.welcome_message_id);
       if (message && (message.author.id !== this.client.user.id || footerOf(message) !== 'onboarding-welcome')) throw new Error('가입 시작 메시지의 식별 정보가 일치하지 않습니다.');
@@ -237,9 +265,23 @@ export class OnboardingService {
   }
 
   async handleInteraction(interaction) {
-    await SafeInteraction.safeDeferReply(interaction, {ephemeral: true});
+    const previewNavigation = interaction.customId.startsWith(IDS.ONBOARDING_PREVIEW)
+      && footerOf(interaction.message) === 'onboarding-preview';
+    if (previewNavigation) await SafeInteraction.safeDeferUpdate(interaction);
+    else await SafeInteraction.safeDeferReply(interaction, {ephemeral: true});
     try {
       if (!interaction.guild || !interaction.member) return this.reply(interaction, '서버 안에서만 사용할 수 있습니다.');
+      if (interaction.customId.startsWith(IDS.ONBOARDING_PREVIEW)) {
+        const config = await this.getConfig(this.onboardingRepository, interaction.guildId);
+        if (!config?.enabled || interaction.channelId !== config.welcome_channel_id) return this.reply(interaction, '가입 안내 채널에서 미리보기를 실행해 주세요.');
+        const rawPage = interaction.customId.slice(IDS.ONBOARDING_PREVIEW.length);
+        if (!/^\d+$/.test(rawPage)) return this.reply(interaction, '잘못된 미리보기 페이지입니다.');
+        await this.loadRules(config);
+        const page = Number(rawPage);
+        if (page >= config.rules_pages.length + 3) return this.reply(interaction, '미리보기 내용이 변경되었습니다. 처음부터 다시 열어 주세요.');
+        return SafeInteraction.safeReply(interaction, {...OnboardingUIBuilder.buildPreview(config, page),
+          ...(!previewNavigation ? {flags: MessageFlags.Ephemeral} : {})});
+      }
       if (interaction.customId === IDS.ONBOARDING_START) {
         const config = await this.onboardingRepository.getConfig(interaction.guildId);
         if (interaction.channelId !== config?.welcome_channel_id) return this.reply(interaction, '가입 안내 채널에서 시작해 주세요.');
@@ -248,7 +290,7 @@ export class OnboardingService {
       }
       if (interaction.customId.startsWith(IDS.ONBOARDING_APPROVE) || interaction.customId.startsWith(IDS.ONBOARDING_REJECT)) return await this.review(interaction);
       const errorMessage = await this.onboardingRepository.withMemberLock(interaction.guildId, interaction.user.id, async repository => {
-        const config = await repository.getConfig(interaction.guildId);
+        const config = await this.getConfig(repository, interaction.guildId);
         const progress = await repository.getProgress(interaction.guildId, interaction.user.id);
         if (!config?.enabled || !config.category_id) return '가입관리 설정을 먼저 완료해 주세요.';
         if (!progress || progress.channel_id !== interaction.channelId || progress.message_id !== interaction.message.id) {
@@ -274,6 +316,13 @@ export class OnboardingService {
     const id = interaction.customId;
     let patch;
     if (progress.review_action) return '관리자 심사 결과를 반영 중입니다. 잠시 후 다시 진행해 주세요.';
+    if (['rules', 'application'].includes(progress.stage)) {
+      const updated = await this.prepareRules(config, progress, repository);
+      if (updated.rules_revision !== progress.rules_revision || updated.stage !== progress.stage || updated.rule_index !== progress.rule_index) {
+        await this.replaceCard(interaction.channel, config, updated, repository);
+        return '규칙이 변경되었습니다. 새 규칙을 확인하고 다시 동의해 주세요.';
+      }
+    }
     if (id === IDS.ONBOARDING_CLOSE && progress.stage === 'approved') {
       await this.removeSessionChannel(interaction.guild, progress, repository);
       return null;
@@ -291,9 +340,14 @@ export class OnboardingService {
       return null;
     } else if (id === IDS.ONBOARDING_GAMES_CONFIRM && progress.stage === 'games') {
       if (!this.validSelections(config, progress)) return '성별과 등록된 게임을 하나 이상 선택해 주세요.';
-      patch = {stage: 'rules'};
+      await this.loadRules(config);
+      patch = {stage: 'rules', ruleIndex: 0, rulesRevision: config.rules_revision, rulesAcceptedAt: null};
     } else if (id === IDS.ONBOARDING_RULES && progress.stage === 'rules') {
-      patch = {stage: 'application', rulesAcceptedAt: new Date()};
+      const next = progress.rule_index + 1;
+      patch = next < config.rules_pages.length ? {ruleIndex: next}
+        : {stage: 'application', rulesAcceptedAt: new Date()};
+    } else if (id === IDS.ONBOARDING_RULES_BACK && progress.stage === 'rules' && progress.rule_index > 0) {
+      patch = {ruleIndex: progress.rule_index - 1, rulesAcceptedAt: null};
     } else if (id.startsWith(IDS.ONBOARDING_BACK)) {
       const target = id.slice(IDS.ONBOARDING_BACK.length);
       const destinations = {games: ['gender'], rules: ['games'], application: ['gender', 'games']};
@@ -359,7 +413,7 @@ export class OnboardingService {
     const approved = interaction.customId.startsWith(IDS.ONBOARDING_APPROVE);
     const userId = interaction.customId.slice((approved ? IDS.ONBOARDING_APPROVE : IDS.ONBOARDING_REJECT).length);
     const result = await this.onboardingRepository.withMemberLock(interaction.guildId, userId, async repository => {
-      const config = await repository.getConfig(interaction.guildId);
+      const config = await this.getConfig(repository, interaction.guildId);
       let progress = await repository.getProgress(interaction.guildId, userId);
       if (!config?.enabled || interaction.channelId !== config.review_channel_id || progress?.stage !== 'pending'
         || progress.review_message_id !== interaction.message.id) return '이미 처리되었거나 유효하지 않은 신청입니다.';

@@ -82,4 +82,58 @@ describe('OnboardingUIBuilder', () => {
     expect(welcome.components[0].components[0]).toMatchObject({ custom_id: 'onboarding:start', label: '가입 시작 / 이어하기' });
     expect(welcome.allowedMentions.parse).toEqual([]);
   });
+
+  it('규칙 문서별 내용과 위치, 이전 규칙 및 마지막 동의 버튼을 표시한다', () => {
+    const multi = {...config, rules_pages: [
+      {title: '기본 규칙', content: '첫 번째 규칙입니다.'},
+      {title: '활동 규칙', content: '두 번째 규칙입니다.'},
+    ]};
+    const first = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules'}));
+    expect(first.embeds[0]).toMatchObject({title: '가입 안내 · 3 / 4 · 문서 1 / 2 · 기본 규칙', description: '첫 번째 규칙입니다.'});
+    expect(first.components[0].components.map(button => button.custom_id)).toEqual(['onboarding:back:games', 'onboarding:rules']);
+    expect(first.components[0].components[1].label).toBe('동의하고 다음 규칙');
+    const last = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules', rule_index: 1}));
+    expect(last.embeds[0].description).toBe('두 번째 규칙입니다.');
+    expect(last.components[0].components[1].custom_id).toBe('onboarding:rules:back');
+    expect(last.components[0].components[2].label).toBe('동의하고 계속');
+  });
+
+  it('긴 규칙 제목은 Discord 제한에 맞추고 잘못된 문서 순서는 거부한다', () => {
+    const multi = {...config, rules_pages: [{title: '긴 제목'.repeat(100), content: '규칙'}]};
+    const card = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules'}));
+    expect(card.embeds[0].title.length).toBeLessThanOrEqual(256);
+    expect(() => OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules', rule_index: 1})).toThrow(RangeError);
+  });
+
+  it('공용 안내에 과정과 규칙 문서 수, 미리보기 버튼을 제공한다', () => {
+    const welcome = serialize(OnboardingUIBuilder.buildWelcome({...config, rules_pages: [{title: '규칙', content: '내용'}]}));
+    expect(welcome.embeds[0].fields[0].value).toContain('(1개 문서)');
+    expect(welcome.components[0].components[1].custom_id).toBe('onboarding:preview:0');
+  });
+
+  it('미리보기에서는 실제 입력을 모두 막고 성별·게임·규칙 문서·신청 순으로 이동한다', () => {
+    const multi = {...config, rules_pages: [
+      {title: '기본 규칙', content: '첫 문서'},
+      {title: '활동 규칙', content: '둘째 문서'},
+    ]};
+    for (let index = 0; index < 5; index++) {
+      const preview = serialize(OnboardingUIBuilder.buildPreview(multi, index));
+      expect(preview.embeds[0].title).toContain(`미리보기 · ${index + 1} / 5`);
+      expect(preview.embeds[0].footer.text).toBe('onboarding-preview');
+      expect(preview.embeds[0].fields.at(-1).value).toContain('저장되지 않고');
+      expect(preview.components.length).toBeLessThanOrEqual(5);
+      const controls = preview.components.at(-1).components;
+      expect(controls[0].disabled).toBe(index === 0);
+      expect(controls[1].disabled).toBe(index === 4);
+      for (const actionRow of preview.components.slice(0, -1)) {
+        for (const component of actionRow.components) expect(component.disabled).toBe(true);
+      }
+    }
+    expect(serialize(OnboardingUIBuilder.buildPreview(multi, 2)).embeds[0].description).toBe('첫 문서');
+    expect(serialize(OnboardingUIBuilder.buildPreview(multi, 3)).embeds[0].description).toBe('둘째 문서');
+    const application = serialize(OnboardingUIBuilder.buildPreview(multi, 4));
+    expect(application.embeds[0].fields.map(field => field.value)).toEqual(expect.arrayContaining(['남성', '롤', '동의 완료']));
+    expect(() => OnboardingUIBuilder.buildPreview(multi, -1)).toThrow(RangeError);
+    expect(() => OnboardingUIBuilder.buildPreview(multi, 5)).toThrow(RangeError);
+  });
 });

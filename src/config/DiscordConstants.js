@@ -50,6 +50,8 @@ export class DiscordConstants {
     ONBOARDING_BACK: 'onboarding:back:',
     ONBOARDING_CLOSE: 'onboarding:close',
     ONBOARDING_RULES: 'onboarding:rules',
+    ONBOARDING_RULES_BACK: 'onboarding:rules:back',
+    ONBOARDING_PREVIEW: 'onboarding:preview:',
     ONBOARDING_APPLY: 'onboarding:apply',
     ONBOARDING_APPROVE: 'onboarding:approve:',
     ONBOARDING_REJECT: 'onboarding:reject:',

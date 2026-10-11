@@ -2,6 +2,8 @@ import {ChannelType, MessageFlags, PermissionFlagsBits, OverwriteType} from 'dis
 import {hasCommandPermission} from '../config/commandPermissions.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {DiscordConstants} from '../config/DiscordConstants.js';
+import {config as environment} from '../config/env.js';
+import {loadOnboardingRules} from '../config/OnboardingRules.js';
 
 class OnboardingSetupError extends Error {}
 
@@ -58,10 +60,18 @@ export class OnboardingManagementCommand {
 
   async configure(interaction) {
     const guild = interaction.guild;
-    const rulesText = interaction.options.getString('규칙', true).trim();
-    if (!rulesText || rulesText.length > 3500) throw new OnboardingSetupError('실제 서버 규칙을 1~3500자로 입력해 주세요.');
+    const config = await this.onboardingRepository.getConfig(guild.id);
+    const rulesText = interaction.options.getString('규칙')?.trim() || config?.rules_text || '';
+    try {
+      await loadOnboardingRules(rulesText);
+    } catch (error) {
+      throw new OnboardingSetupError(`가입 규칙을 확인해 주세요: ${error.message}`);
+    }
+    const categoryId = environment.ONBOARDING_CATEGORY_ID ||
+      interaction.options.getChannel('가입카테고리')?.id || config?.category_id;
+    if (!categoryId) throw new OnboardingSetupError('가입 카테고리를 선택하거나 .env의 ONBOARDING_CATEGORY_ID에 카테고리 ID를 설정해 주세요.');
     const welcome = await guild.channels.fetch(DiscordConstants.CHANNEL_IDS.ONBOARDING);
-    const category = await guild.channels.fetch(interaction.options.getChannel('가입카테고리', true).id);
+    const category = await guild.channels.fetch(categoryId);
     const review = await guild.channels.fetch(interaction.options.getChannel('심사채널', true).id);
     if (!welcome || !category || !review || welcome.guild.id !== guild.id ||
         category.guild.id !== guild.id || review.guild.id !== guild.id ||
@@ -91,7 +101,6 @@ export class OnboardingManagementCommand {
     };
     if (new Set(Object.values(roleIds)).size !== 4) throw new OnboardingSetupError('성별·대기·정회원 역할은 모두 서로 달라야 합니다.');
     for (const id of Object.values(roleIds)) this.validateRole(await guild.roles.fetch(id), bot, guild.id);
-    const config = await this.onboardingRepository.getConfig(guild.id);
     if (config?.game_roles?.some(game => Object.values(roleIds).includes(game.roleId))) {
       throw new OnboardingSetupError('성별·대기·정회원 역할을 기존 게임 역할과 다르게 선택해 주세요.');
     }

@@ -4,9 +4,12 @@ import {ChannelType, Collection, MessageFlags, OverwriteType, PermissionFlagsBit
 vi.mock('../../src/utils/SafeInteraction.js', () => ({
   SafeInteraction: {safeDeferReply: vi.fn().mockResolvedValue(null), safeReply: vi.fn().mockResolvedValue(null)}
 }));
+vi.mock('../../src/config/OnboardingRules.js', () => ({loadOnboardingRules: vi.fn()}));
 
 import {OnboardingManagementCommand} from '../../src/commands/OnboardingManagementCommand.js';
 import {SafeInteraction} from '../../src/utils/SafeInteraction.js';
+import {loadOnboardingRules} from '../../src/config/OnboardingRules.js';
+import {config as environment} from '../../src/config/env.js';
 
 describe('OnboardingManagementCommand', () => {
   let interaction, repository, service, channels, roles, bot, command;
@@ -21,6 +24,11 @@ describe('OnboardingManagementCommand', () => {
   };
 
   beforeEach(() => {
+    environment.ONBOARDING_CATEGORY_ID = '';
+    loadOnboardingRules.mockImplementation(legacy => {
+      if (!legacy?.trim()) throw new Error('실제 서버 규칙을 입력해 주세요.');
+      return {pages: [{title: '서버 규칙', content: legacy}], revision: 'legacy'};
+    });
     const guild = {id: 'guild-1'};
     roles = new Collection(['guild-1', 'male', 'female', 'pending', memberId, 'game', 'legacy-stage']
       .map(id => [id, {id, guild, managed: false, permissions: new PermissionsBitField()}]));
@@ -126,9 +134,47 @@ describe('OnboardingManagementCommand', () => {
     expect(repository.saveConfig).not.toHaveBeenCalled();
   });
 
-  it('rejects empty server rules', async () => {
+  it('explains missing rules files and empty legacy server rules', async () => {
     interaction.options.getString.mockReturnValue('  ');
     await expectValidationError('서버 규칙');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('uses configured environment category before dropdown and persisted category', async () => {
+    environment.ONBOARDING_CATEGORY_ID = 'category';
+    interaction.options.getChannel.mockImplementation(name => name === '가입카테고리' ? {id: 'ignored'} : channels.get('review'));
+    await command.execute(interaction);
+    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', expect.objectContaining({categoryId: 'category'}));
+    expect(interaction.guild.channels.fetch).not.toHaveBeenCalledWith('ignored');
+  });
+
+  it('reuses stored category and rules when optional inputs are absent', async () => {
+    repository.getConfig.mockResolvedValue({category_id: 'category', rules_text: '저장된 규칙'});
+    interaction.options.getString.mockReturnValue(null);
+    interaction.options.getChannel.mockImplementation(name => name === '가입카테고리' ? null : channels.get('review'));
+    await command.execute(interaction);
+    expect(loadOnboardingRules).toHaveBeenCalledWith('저장된 규칙');
+    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', expect.objectContaining({categoryId: 'category', rulesText: '저장된 규칙'}));
+  });
+
+  it('saves valid file rules when optional legacy rules are absent', async () => {
+    loadOnboardingRules.mockReturnValue({pages: [{title: '규칙 1', content: '파일 규칙'}], revision: 'files'});
+    interaction.options.getString.mockReturnValue(null);
+    await command.execute(interaction);
+    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', expect.objectContaining({rulesText: ''}));
+  });
+
+  it('explains missing category before channel permission mutations', async () => {
+    repository.getConfig.mockResolvedValue(null);
+    interaction.options.getChannel.mockImplementation(name => name === '가입카테고리' ? null : channels.get('review'));
+    await expectValidationError('ONBOARDING_CATEGORY_ID');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+    expect(channels.get(welcomeId).permissionOverwrites.edit).not.toHaveBeenCalled();
+  });
+
+  it('explains malformed rule files and does not silently replace them with legacy text', async () => {
+    loadOnboardingRules.mockImplementation(() => { throw new Error('01-rules.md: 3500자 초과'); });
+    await expectValidationError('01-rules.md');
     expect(repository.saveConfig).not.toHaveBeenCalled();
   });
 

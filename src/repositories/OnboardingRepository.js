@@ -69,7 +69,8 @@ export class OnboardingRepository {
       rulesAcceptedAt: 'rules_accepted_at', appliedAt: 'applied_at', reviewedAt: 'reviewed_at',
       reviewedBy: 'reviewed_by', rejectionReason: 'rejection_reason', channelId: 'channel_id',
       messageId: 'message_id', reviewMessageId: 'review_message_id', cleanupAt: 'cleanup_at',
-      reviewAction: 'review_action', departedAt: 'departed_at'
+      reviewAction: 'review_action', departedAt: 'departed_at', ruleIndex: 'rule_index',
+      rulesRevision: 'rules_revision'
     };
     const parameters = [guildId, userId];
     const assignments = [];
