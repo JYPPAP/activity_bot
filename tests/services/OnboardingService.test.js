@@ -250,7 +250,7 @@ describe('OnboardingService private sessions', () => {
     expect(f.state.get('user')).toMatchObject({stage: 'games', gender_role_id: 'male-role'});
     expect(f.member.roles.add).not.toHaveBeenCalled();
     expect(channel.messages.cache.size).toBe(1);
-    expect([...channel.messages.cache.values()][0].embeds[0].title).toContain('2 / 4');
+    expect([...channel.messages.cache.values()][0].embeds[0].title).toBe('게임 선택 · 2/4');
   });
 
   it('saves game choices without advancing until confirmation', async () => {
@@ -444,7 +444,7 @@ describe('OnboardingService private sessions', () => {
     await f.service.maintenance();
     expect(f.state.get('user').message_id).not.toBeNull();
     expect(channel.messages.cache.size).toBe(1);
-    expect([...channel.messages.cache.values()][0].embeds[0].title).toContain('2 / 4');
+    expect([...channel.messages.cache.values()][0].embeds[0].title).toBe('게임 선택 · 2/4');
   });
 
   it.each(['approve', 'reject'])('recovers a %s after final stage was saved but review rendering failed', async action => {

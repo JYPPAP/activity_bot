@@ -46,30 +46,30 @@ export class OnboardingUIBuilder {
 
     switch (progress.stage) {
       case 'gender':
-        embed.setTitle('가입 안내 · 1 / 4').setDescription('본인의 성별을 선택해 주세요.');
+        embed.setTitle('성별 선택 · 1/4').setDescription('아래 버튼에서 성별을 선택해 주세요.\n선택한 내용은 마지막 단계에서 수정할 수 있습니다.');
         if (progress.gender_role_id) embed.addFields({ name: '이전 선택', value: genderLabel(config, progress) });
         components = [row(
-          button(`${IDS.ONBOARDING_GENDER_CHOICE}male`, '남성', ButtonStyle.Primary),
-          button(`${IDS.ONBOARDING_GENDER_CHOICE}female`, '여성', ButtonStyle.Primary),
+          button(`${IDS.ONBOARDING_GENDER_CHOICE}male`, '남성', ButtonStyle.Primary).setEmoji('♂️'),
+          button(`${IDS.ONBOARDING_GENDER_CHOICE}female`, '여성', ButtonStyle.Success).setEmoji('♀️'),
         )];
         break;
       case 'games': {
         const games = (config.game_roles || []).slice(0, 25);
         const chosen = selectedGames({ game_roles: games }, progress);
-        embed.setTitle('가입 안내 · 2 / 4')
-          .setDescription(games.length ? '플레이하는 게임을 선택해 주세요.\n여러 게임을 선택한 뒤 선택 완료를 눌러 주세요.' : '등록된 게임이 없습니다. 관리자에게 게임 등록을 요청해 주세요.')
+        embed.setTitle('게임 선택 · 2/4')
+          .setDescription(games.length ? '아래 메뉴에서 플레이하는 게임을 모두 선택해 주세요.\n여러 개를 선택할 수 있습니다. 선택을 마치면 **선택 완료**를 눌러 주세요.' : '등록된 게임이 없습니다. 관리자에게 게임 등록을 요청해 주세요.')
           .addFields({ name: '성별', value: genderLabel(config, progress), inline: true }, {
-            name: '선택한 게임', value: chosen.map(game => game.label).join(', ').slice(0, 1024) || '미선택',
+            name: '선택한 게임', value: chosen.map(game => `☑️ ${game.label}`).join('\n').slice(0, 1024) || '아직 선택하지 않았어요.',
           });
         if (games.length) {
           components.push(new ActionRowBuilder().addComponents(new StringSelectMenuBuilder()
-            .setCustomId(IDS.ONBOARDING_GAMES).setPlaceholder('플레이하는 게임 선택')
+            .setCustomId(IDS.ONBOARDING_GAMES).setPlaceholder('게임 선택 · 여러 개 선택 가능')
             .setMinValues(1).setMaxValues(games.length).addOptions(games.map(game => ({
               label: game.label, value: game.roleId,
               default: (progress.game_role_ids || []).includes(game.roleId),
             })))));
         }
-        components.push(row(button(`${IDS.ONBOARDING_BACK}gender`, '이전'),
+        components.push(row(button(`${IDS.ONBOARDING_BACK}gender`, '이전 단계'),
           button(IDS.ONBOARDING_GAMES_CONFIRM, '선택 완료', ButtonStyle.Primary).setDisabled(!chosen.length)));
         break;
       }
@@ -78,25 +78,30 @@ export class OnboardingUIBuilder {
         const index = progress.rule_index ?? 0;
         if (!Number.isInteger(index) || index < 0 || index >= pages.length) throw new RangeError('규칙 문서 순서가 올바르지 않습니다.');
         const page = pages[index];
-        embed.setTitle(`가입 안내 · 3 / 4 · 문서 ${index + 1} / ${pages.length} · ${page.title}`.slice(0, DiscordConstants.LIMITS.EMBED_TITLE_MAX))
+        const last = index === pages.length - 1;
+        embed.setTitle('규칙 확인 · 3/4')
+          .setAuthor({name: `규칙 ${index + 1}/${pages.length} · ${page.title}`.slice(0, DiscordConstants.LIMITS.EMBED_TITLE_MAX)})
           .setDescription(page.content)
-          .addFields({ name: '규칙 동의', value: '위 규칙을 읽고 동의한 뒤 계속해 주세요.' });
-        const buttons = [button(`${IDS.ONBOARDING_BACK}games`, '게임 선택으로')];
+          .addFields({ name: '다음 단계', value: last
+            ? '마지막 규칙입니다. 동의하면 선택 내용을 최종 확인합니다.'
+            : `이 규칙을 읽고 동의하면 다음 규칙으로 이동합니다. (${index + 2}/${pages.length})` });
+        const buttons = [button(`${IDS.ONBOARDING_BACK}games`, '게임 수정')];
         if (index > 0) buttons.push(button(IDS.ONBOARDING_RULES_BACK, '이전 규칙'));
-        buttons.push(button(IDS.ONBOARDING_RULES, index === pages.length - 1 ? '동의하고 계속' : '동의하고 다음 규칙', ButtonStyle.Primary));
+        buttons.push(button(IDS.ONBOARDING_RULES, last ? '동의하고 최종 확인' : '동의하고 다음 규칙',
+          last ? ButtonStyle.Success : ButtonStyle.Primary).setEmoji(last ? '✅' : '➡️'));
         components = [row(...buttons)];
         break;
       }
       case 'application':
-        embed.setTitle('가입 안내 · 4 / 4').setDescription('입력한 내용을 확인해 주세요.\n수정이 없다면 가입 신청을 눌러 주세요.')
+        embed.setTitle('최종 확인 · 4/4').setDescription('선택한 내용을 확인해 주세요.\n수정이 없다면 **가입 신청**을 눌러 심사를 요청합니다.')
           .addFields(summary(config, progress));
         if (progress.rejection_reason) embed.addFields({ name: '관리자 안내', value: progress.rejection_reason.slice(0, 1024) });
         components = [row(button(`${IDS.ONBOARDING_BACK}gender`, '성별 수정'),
           button(`${IDS.ONBOARDING_BACK}games`, '게임 수정'),
-          button(IDS.ONBOARDING_APPLY, '가입 신청', ButtonStyle.Primary))];
+          button(IDS.ONBOARDING_APPLY, '가입 신청', ButtonStyle.Success).setEmoji('📨'))];
         break;
       case 'pending':
-        embed.setTitle('가입 신청 · 심사 대기').setDescription('가입 신청이 접수되었습니다.\n관리자가 확인할 때까지 기다려 주세요.')
+        embed.setTitle('심사 대기').setDescription('가입 신청이 접수되었습니다.\n심사 담당자가 확인할 때까지 기다려 주세요.')
           .addFields(summary(config, progress));
         break;
       case 'approved':
@@ -125,7 +130,7 @@ export class OnboardingUIBuilder {
       rule_index: Math.max(0, pageIndex - 2),
       rules_accepted_at: stage === 'application' ? new Date() : null,
     });
-    result.embeds[0].setTitle(`미리보기 · ${pageIndex + 1} / ${total} · ${result.embeds[0].data.title}`.slice(0, DiscordConstants.LIMITS.EMBED_TITLE_MAX))
+    result.embeds[0].setTitle(`미리보기 · ${result.embeds[0].data.title}`)
       .setFooter({text: 'onboarding-preview'})
       .addFields({name: '미리보기 안내', value: '아래 선택 내용은 예시입니다. 입력은 저장되지 않고 역할도 지급되지 않습니다.'});
     for (const actionRow of result.components) {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { OnboardingUIBuilder } from '../../src/ui/OnboardingUIBuilder.js';
+import {ButtonStyle} from 'discord.js';
 
 const config = {
   guild_id: 'guild', gender_male_role_id: 'male-role', gender_female_role_id: 'female-role',
@@ -14,6 +15,15 @@ const progress = {
 const serialize = result => ({ ...result, embeds: result.embeds.map(embed => embed.toJSON()), components: result.components.map(component => component.toJSON()) });
 
 describe('OnboardingUIBuilder', () => {
+  it('게임 복수 선택을 모두 복원하고 체크 표시로 선택 내용을 보여준다', () => {
+    const card = serialize(OnboardingUIBuilder.buildCard(config, {...progress, game_role_ids: ['lol', 'valorant']}));
+    const menu = card.components[0].components[0];
+    expect(menu.max_values).toBe(2);
+    expect(menu.options.every(option => option.default)).toBe(true);
+    expect(card.embeds[0].fields.find(field => field.name === '선택한 게임').value).toBe('☑️ 롤\n☑️ 발로란트');
+    expect(card.embeds[0].title).toBe('게임 선택 · 2/4');
+  });
+
   it('저장된 게임 선택을 복원하고 설정에서 삭제된 선택은 제외한다', () => {
     const card = serialize(OnboardingUIBuilder.buildCard(config, progress));
     const select = card.components[0].components[0];
@@ -22,7 +32,7 @@ describe('OnboardingUIBuilder', () => {
     expect(select.max_values).toBe(2);
     expect(select.options.map(option => [option.value, option.default])).toEqual([['lol', false], ['valorant', true]]);
     expect(card.components[1].components[1]).toMatchObject({ custom_id: 'onboarding:games:confirm', disabled: false });
-    expect(card.embeds[0].fields.find(field => field.name === '선택한 게임').value).toBe('발로란트');
+    expect(card.embeds[0].fields.find(field => field.name === '선택한 게임').value).toBe('☑️ 발로란트');
     expect(card.embeds[0].footer.text).toBe('onboarding-card:guild:user');
     expect(card.allowedMentions).toEqual({ parse: [] });
   });
@@ -47,6 +57,8 @@ describe('OnboardingUIBuilder', () => {
   it('성별 버튼과 규칙 안내에 올바른 동작을 연결한다', () => {
     const gender = serialize(OnboardingUIBuilder.buildCard(config, { ...progress, stage: 'gender' }));
     expect(gender.components[0].components.map(button => button.custom_id)).toEqual(['onboarding:gender:male', 'onboarding:gender:female']);
+    expect(gender.components[0].components[0]).toMatchObject({style: ButtonStyle.Primary, emoji: {name: '♂️'}});
+    expect(gender.components[0].components[1]).toMatchObject({style: ButtonStyle.Success, emoji: {name: '♀️'}});
     const rules = serialize(OnboardingUIBuilder.buildCard(config, { ...progress, stage: 'rules' }));
     expect(rules.embeds[0].description).toBe(config.rules_text);
     expect(rules.components[0].components.map(button => button.custom_id)).toEqual(['onboarding:back:games', 'onboarding:rules']);
@@ -89,19 +101,23 @@ describe('OnboardingUIBuilder', () => {
       {title: '활동 규칙', content: '두 번째 규칙입니다.'},
     ]};
     const first = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules'}));
-    expect(first.embeds[0]).toMatchObject({title: '가입 안내 · 3 / 4 · 문서 1 / 2 · 기본 규칙', description: '첫 번째 규칙입니다.'});
+    expect(first.embeds[0]).toMatchObject({title: '규칙 확인 · 3/4', author: {name: '규칙 1/2 · 기본 규칙'}, description: '첫 번째 규칙입니다.'});
+    expect(first.embeds[0].fields[0].value).toContain('다음 규칙으로 이동');
     expect(first.components[0].components.map(button => button.custom_id)).toEqual(['onboarding:back:games', 'onboarding:rules']);
     expect(first.components[0].components[1].label).toBe('동의하고 다음 규칙');
     const last = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules', rule_index: 1}));
     expect(last.embeds[0].description).toBe('두 번째 규칙입니다.');
     expect(last.components[0].components[1].custom_id).toBe('onboarding:rules:back');
-    expect(last.components[0].components[2].label).toBe('동의하고 계속');
+    expect(last.components[0].components[2]).toMatchObject({label: '동의하고 최종 확인', style: ButtonStyle.Success, emoji: {name: '✅'}});
+    expect(last.embeds[0].author.name).toBe('규칙 2/2 · 활동 규칙');
+    expect(last.embeds[0].fields[0].value).toContain('마지막 규칙');
   });
 
   it('긴 규칙 제목은 Discord 제한에 맞추고 잘못된 문서 순서는 거부한다', () => {
     const multi = {...config, rules_pages: [{title: '긴 제목'.repeat(100), content: '규칙'}]};
     const card = serialize(OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules'}));
     expect(card.embeds[0].title.length).toBeLessThanOrEqual(256);
+    expect(card.embeds[0].author.name.length).toBeLessThanOrEqual(256);
     expect(() => OnboardingUIBuilder.buildCard(multi, {...progress, stage: 'rules', rule_index: 1})).toThrow(RangeError);
   });
 
@@ -118,7 +134,8 @@ describe('OnboardingUIBuilder', () => {
     ]};
     for (let index = 0; index < 5; index++) {
       const preview = serialize(OnboardingUIBuilder.buildPreview(multi, index));
-      expect(preview.embeds[0].title).toContain(`미리보기 · ${index + 1} / 5`);
+      expect(preview.embeds[0].title).toBe(['미리보기 · 성별 선택 · 1/4', '미리보기 · 게임 선택 · 2/4',
+        '미리보기 · 규칙 확인 · 3/4', '미리보기 · 규칙 확인 · 3/4', '미리보기 · 최종 확인 · 4/4'][index]);
       expect(preview.embeds[0].footer.text).toBe('onboarding-preview');
       expect(preview.embeds[0].fields.at(-1).value).toContain('저장되지 않고');
       expect(preview.components.length).toBeLessThanOrEqual(5);

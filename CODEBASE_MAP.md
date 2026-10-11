@@ -257,6 +257,8 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 
 `config/onboarding/rules/`의 `.md`·`.txt` 파일을 파일명 순서대로 표시하고 문서마다 동의를 받는다. README.md·*.example.md/txt는 제외한다. 파일이 없으면 기존 `rules_text`를 사용한다. `rule_index`(INTEGER, 기본 0)와 `rules_revision`(TEXT, 문서 해시)으로 진행을 복원하며 내용 변경 시 진행 중인 규칙 동의를 초기화한다. `ONBOARDING_CATEGORY_ID`는 저장된 `category_id`보다 우선하며 새 개인 채널에 적용된다. `/가입관리 게시`는 고정 온보딩 채널에 과정 안내·시작·미리보기 버튼을 게시/갱신한다.
 
+가입 카드 제목은 `성별 선택 · 1/4`, `게임 선택 · 2/4`, `규칙 확인 · 3/4`, `최종 확인 · 4/4`로 표시한다. 성별 버튼은 ♂️ 파란색·♀️ 초록색이며 게임 메뉴는 복수 선택 및 체크 표시 요약을 제공한다. 규칙 문서 순서·제목은 Embed author로 분리하고 다음 규칙 동의 버튼으로 진행한다. 마지막 문서 동의는 최종 확인으로 이동한다. 미리보기 제목은 같은 제목에 `미리보기 ·`만 덧붙이며 별도 중복 단계 번호를 넣지 않는다. 복원용 footer 식별자는 유지한다.
+
 `withMemberLock(guildId, userId, callback)`은 전용 DB 연결의 PostgreSQL 세션 advisory lock으로 회원별 채널 생성·단계 전환·심사를 직렬화한다. 같은 잠금 안에서 DB checkpoint와 Discord API 작업을 수행하고 연결을 반환하기 전에 잠금을 해제한다. `review_action`은 승인/거절 도중 종료 시 완료할 결정을 기록한다.
 
 `OnboardingService.initialize()`는 현재 가입 상태를 복원하고 60초마다 심사 복구·삭제 예약을 확인한다. 승인 후 10분에 개인 채널을 삭제하며 `stop()`으로 타이머를 종료한다. 채널 topic과 봇 Embed footer로 생성 직후 종료된 채널/메시지도 다시 찾는다. 배포·운영 절차는 [onboarding-setup.md](docs/onboarding-setup.md).
