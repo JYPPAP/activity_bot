@@ -114,7 +114,7 @@ interactionCreate (onboarding:* component)
        └─ 거절 → pending 제거 + application 역할 복구 → application
 ```
 
-각 단계 완료 응답은 고정 온보딩 채널 `1459874768449699861`을 멘션한다. 채널 공개/숨김은 봇이 교체하는 단계 역할과 Discord 채널 권한 덮어쓰기가 담당한다.
+각 단계 완료 응답은 설정된 다음 단계 채널을 멘션한다. 채널 공개/숨김은 봇이 교체하는 단계 역할과 Discord 채널 권한 덮어쓰기가 담당한다.
 
 ---
 

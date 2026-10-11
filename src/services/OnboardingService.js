@@ -61,7 +61,7 @@ export class OnboardingService {
     await interaction.member.roles.add(roleId);
     await this.transition(interaction.member, config, config.stage_role_ids.gender, config.stage_role_ids.games);
     await this.onboardingRepository.setStage(interaction.guildId, interaction.user.id, 'games', {genderRoleId: roleId});
-    return this.next(interaction);
+    return this.next(interaction, config.game_channel_id);
   }
 
   async selectGames(interaction, config, progress) {
@@ -72,14 +72,14 @@ export class OnboardingService {
     await interaction.member.roles.add(roleIds);
     await this.transition(interaction.member, config, config.stage_role_ids.games, config.stage_role_ids.rules);
     await this.onboardingRepository.setStage(interaction.guildId, interaction.user.id, 'rules', {gameRoleIds: roleIds});
-    return this.next(interaction);
+    return this.next(interaction, config.rules_channel_id);
   }
 
   async acceptRules(interaction, config, progress) {
     if (progress.stage !== 'rules') return this.wrongStage(interaction);
     await this.transition(interaction.member, config, config.stage_role_ids.rules, config.stage_role_ids.application);
     await this.onboardingRepository.setStage(interaction.guildId, interaction.user.id, 'application', {rulesAccepted: true});
-    return this.next(interaction);
+    return this.next(interaction, config.application_channel_id);
   }
 
   async apply(interaction, config, progress) {
@@ -113,7 +113,7 @@ export class OnboardingService {
   }
 
   wrongStage(interaction) { return SafeInteraction.safeReply(interaction, {content: '현재 진행 단계와 맞지 않습니다.', flags: MessageFlags.Ephemeral}); }
-  next(interaction) { return SafeInteraction.safeReply(interaction, {content: `완료되었습니다. 다음 단계: <#${DiscordConstants.CHANNEL_IDS.ONBOARDING}>`, flags: MessageFlags.Ephemeral}); }
+  next(interaction, channelId) { return SafeInteraction.safeReply(interaction, {content: `완료되었습니다. 다음 단계: <#${channelId}>`, flags: MessageFlags.Ephemeral}); }
 
   buildMessages(config) {
     const gender = new ActionRowBuilder().addComponents(new StringSelectMenuBuilder().setCustomId(IDS.gender).setPlaceholder('성별 선택').addOptions(

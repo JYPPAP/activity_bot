@@ -229,7 +229,7 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 
 | Table | Key / 주요 컬럼 | Description |
 |---|---|---|
-| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 공개 단계 채널 ID는 온보딩 채널 `1459874768449699861`로 통일하고 심사 채널은 별도 구성 |
+| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 성별 단계는 온보딩 채널 `1459874768449699861`, 이후 단계와 심사는 각각 별도 채널 사용. 정회원 역할은 `1243633748344438855` |
 | `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason` | 신규 회원의 재시작 가능한 가입 진행 상태와 심사 이력 |
 
 가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.

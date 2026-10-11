@@ -6,6 +6,10 @@ export class DiscordConstants {
     ONBOARDING: '1459874768449699861'
   };
 
+  static ROLE_IDS = {
+    MEMBER: '1243633748344438855'
+  };
+
   // ========== 채널 타입 ==========
   static CHANNEL_TYPES = {
     GUILD_VOICE: ChannelType.GuildVoice,

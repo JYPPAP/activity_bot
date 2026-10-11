@@ -25,6 +25,7 @@ const config = {
     {label: 'League', roleId: 'game-lol'},
     {label: 'Valorant', roleId: 'game-valorant'}
   ],
+  welcome_channel_id: 'channel-gender',
   game_channel_id: 'channel-games',
   rules_channel_id: 'channel-rules',
   application_channel_id: 'channel-application',
@@ -139,7 +140,7 @@ describe('OnboardingService', () => {
       'guild-1', 'user-1', 'games', {genderRoleId: 'gender-male'}
     );
     expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
-      content: expect.stringContaining('<#1459874768449699861>'),
+      content: expect.stringContaining('<#channel-games>'),
       flags: MessageFlags.Ephemeral
     }));
   });
@@ -157,6 +158,19 @@ describe('OnboardingService', () => {
     expect(repository.setStage).toHaveBeenCalledWith(
       'guild-1', 'user-1', 'rules', {gameRoleIds: ['game-lol']}
     );
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
+      content: expect.stringContaining('<#channel-rules>')
+    }));
+  });
+
+  it('links the application channel after accepting the rules', async () => {
+    const interaction = createInteraction({customId: 'onboarding:rules', roleIds: ['stage-rules']});
+
+    await service.acceptRules(interaction, config, {stage: 'rules'});
+
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
+      content: expect.stringContaining('<#channel-application>')
+    }));
   });
 
   it('does not advance when no selected game role is configured', async () => {
