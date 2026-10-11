@@ -361,6 +361,25 @@ describe('OnboardingService private sessions', () => {
     expect(f.member.roles.add).toHaveBeenCalledTimes(1);
   });
 
+  it.each(['approve', 'reject'])('allows the saved non-administrator review manager to %s', async action => {
+    const manager = f.createMember('manager', false);
+    f.config.review_manager_user_id = manager.id;
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const message = f.review.messages.cache.get(f.state.get('user').review_message_id);
+    await f.service.handleInteraction(f.interaction(`onboarding:${action}:user`, {member: manager, channel: f.review, message}));
+    expect(f.state.get('user')).toMatchObject({stage: action === 'approve' ? 'approved' : 'application', reviewed_by: manager.id});
+  });
+
+  it('denies other non-administrators even when a review manager is configured', async () => {
+    f.config.review_manager_user_id = 'manager';
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const message = f.review.messages.cache.get(f.state.get('user').review_message_id);
+    await f.service.handleInteraction(f.interaction('onboarding:approve:user', {channel: f.review, message}));
+    expect(f.state.get('user').stage).toBe('pending');
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({content: '관리자 또는 등록된 심사 담당자만 처리할 수 있습니다.'}));
+  });
+
   it('rejects back to the editable application card and preserves the old review result', async () => {
     await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
     const review = f.review.messages.cache.get(f.state.get('user').review_message_id);

@@ -89,9 +89,9 @@ export class OnboardingManagementCommand {
     const messagePermissions = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
       PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory];
     if (!welcome.permissionsFor(bot)?.has([...messagePermissions, PermissionFlagsBits.ManageRoles]) ||
-        !review.permissionsFor(bot)?.has(messagePermissions) ||
+        !review.permissionsFor(bot)?.has([...messagePermissions, PermissionFlagsBits.ManageRoles]) ||
         !category.permissionsFor(bot)?.has([...messagePermissions, PermissionFlagsBits.ManageChannels])) {
-      throw new OnboardingSetupError('봇의 채널별 권한을 확인해 주세요. 채널 보기·메시지 보내기·Embed 링크·기록 보기 및 가입 카테고리의 채널 관리 권한이 필요합니다.');
+      throw new OnboardingSetupError('봇의 채널별 권한을 확인해 주세요. 채널 보기·메시지 보내기·Embed 링크·기록 보기, 온보딩·심사 채널의 역할 관리 및 가입 카테고리의 채널 관리 권한이 필요합니다.');
     }
     const roleIds = {
       maleRoleId: interaction.options.getRole('남성역할', true).id,
@@ -112,17 +112,18 @@ export class OnboardingManagementCommand {
       }
     }
     for (const overwrite of review.permissionOverwrites.cache.values()) {
-      if (overwrite.type !== OverwriteType.Member || overwrite.id === bot.id) continue;
+      if (overwrite.type !== OverwriteType.Member || overwrite.id === bot.id || overwrite.id === interaction.user.id) continue;
       const member = await guild.members.fetch(overwrite.id).catch(error => {
         if (Number(error.code) === 10007) return null;
         throw error;
       });
       if (member && !member.permissions.has(PermissionFlagsBits.Administrator) &&
           review.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel)) {
-        throw new OnboardingSetupError('심사 채널에 일반 사용자 접근 권한이 있습니다. 관리자와 봇만 볼 수 있도록 먼저 권한을 설정해 주세요.');
+        throw new OnboardingSetupError('심사 채널에 다른 일반 사용자 접근 권한이 있습니다. 본인·관리자·봇만 볼 수 있도록 먼저 권한을 설정해 주세요.');
       }
     }
     // Preserve the category's existing channels; personal channels receive explicit private overwrites.
+    await review.permissionOverwrites.edit(interaction.user.id, {ViewChannel: true, ReadMessageHistory: true});
     await welcome.permissionOverwrites.edit(bot.id, {ViewChannel: true, SendMessages: true});
     await welcome.permissionOverwrites.edit(guild.roles.everyone, {ViewChannel: true, SendMessages: false});
     const legacyRoles = new Set(Object.values(config?.stage_role_ids ?? {}));
@@ -142,8 +143,9 @@ export class OnboardingManagementCommand {
     }
     await this.onboardingRepository.saveConfig(guild.id, {
       welcomeChannelId: welcome.id, categoryId: category.id, reviewChannelId: review.id,
+      reviewManagerUserId: interaction.user.id,
       ...roleIds, rulesText
     });
-    return SafeInteraction.safeReply(interaction, {content: '개인 가입 채널 설정을 저장했습니다. 게임 역할을 추가한 뒤 /가입관리 게시를 실행해 주세요.'});
+    return SafeInteraction.safeReply(interaction, {content: '개인 가입 채널 설정을 저장하고 본인을 심사 담당자로 등록했습니다. 게임 역할을 추가한 뒤 /가입관리 게시를 실행해 주세요.'});
   }
 }

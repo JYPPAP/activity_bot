@@ -27,18 +27,32 @@ describe('OnboardingRepository', () => {
     dbManager.query.mockResolvedValueOnce({rows: [saved]});
     const input = {
       welcomeChannelId: 'welcome', categoryId: 'category', reviewChannelId: 'review', maleRoleId: 'male',
-      femaleRoleId: 'female', pendingRoleId: 'pending', memberRoleId: 'member', rulesText: 'Be kind.'
+      femaleRoleId: 'female', pendingRoleId: 'pending', memberRoleId: 'member', rulesText: 'Be kind.',
+      reviewManagerUserId: '987654321098765432'
     };
 
     await expect(repository.saveConfig('guild-1', input)).resolves.toBe(saved);
 
     expect(dbManager.query).toHaveBeenCalledWith(
       expect.stringContaining('ON CONFLICT (guild_id) DO UPDATE SET'),
-      ['guild-1', 'welcome', 'category', 'review', 'male', 'female', 'pending', 'member', 'Be kind.']
+      ['guild-1', 'welcome', 'category', 'review', 'male', 'female', 'pending', 'member', 'Be kind.', '987654321098765432']
     );
     const sql = dbManager.query.mock.calls[0][0];
     expect(sql).not.toContain('stage_role_ids=');
     expect(sql).not.toContain('game_roles=');
+    expect(sql).toContain('review_manager_user_id=EXCLUDED.review_manager_user_id');
+  });
+
+  it('leaves the review manager nullable for configurations without an assigned user', async () => {
+    dbManager.query.mockResolvedValue({rows: [{review_manager_user_id: null}]});
+    const config = {
+      welcomeChannelId: 'welcome', categoryId: 'category', reviewChannelId: 'review',
+      maleRoleId: 'male', femaleRoleId: 'female', pendingRoleId: 'pending', memberRoleId: 'member', rulesText: 'Rules'
+    };
+    await expect(repository.saveConfig('guild', config)).resolves.toEqual({review_manager_user_id: null});
+    expect(dbManager.query.mock.calls[0][1][9]).toBeNull();
+    await repository.saveConfig('guild', {...config, reviewManagerUserId: null});
+    expect(dbManager.query.mock.calls[1][1][9]).toBeNull();
   });
 
   it('deduplicates game roles by role ID and label', async () => {

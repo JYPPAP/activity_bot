@@ -84,6 +84,7 @@ CREATE TABLE IF NOT EXISTS onboarding_configs (
     rules_channel_id VARCHAR(50),
     application_channel_id VARCHAR(50),
     review_channel_id VARCHAR(50) NOT NULL,
+    review_manager_user_id VARCHAR(50),
     gender_male_role_id VARCHAR(50) NOT NULL,
     gender_female_role_id VARCHAR(50) NOT NULL,
     stage_role_ids JSONB CHECK (jsonb_typeof(stage_role_ids) = 'object'),

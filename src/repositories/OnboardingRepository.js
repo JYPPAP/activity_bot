@@ -14,17 +14,18 @@ export class OnboardingRepository {
     const result = await this.dbManager.query(`
       INSERT INTO onboarding_configs (
         guild_id, welcome_channel_id, category_id, review_channel_id, gender_male_role_id,
-        gender_female_role_id, pending_role_id, member_role_id, rules_text, enabled
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,true)
+        gender_female_role_id, pending_role_id, member_role_id, rules_text, review_manager_user_id, enabled
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,true)
       ON CONFLICT (guild_id) DO UPDATE SET
         welcome_channel_id=EXCLUDED.welcome_channel_id, category_id=EXCLUDED.category_id,
         review_channel_id=EXCLUDED.review_channel_id, gender_male_role_id=EXCLUDED.gender_male_role_id,
         gender_female_role_id=EXCLUDED.gender_female_role_id, rules_text=EXCLUDED.rules_text,
+        review_manager_user_id=EXCLUDED.review_manager_user_id,
         pending_role_id=EXCLUDED.pending_role_id, member_role_id=EXCLUDED.member_role_id,
         enabled=true, updated_at=CURRENT_TIMESTAMP
       RETURNING *`, [guildId, config.welcomeChannelId, config.categoryId, config.reviewChannelId,
       config.maleRoleId, config.femaleRoleId, config.pendingRoleId, config.memberRoleId,
-      config.rulesText]);
+      config.rulesText, config.reviewManagerUserId ?? null]);
     return result.rows[0];
   }
 

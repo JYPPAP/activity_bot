@@ -43,7 +43,7 @@ describe('OnboardingManagementCommand', () => {
     guild.members = {fetchMe: vi.fn().mockResolvedValue(bot), fetch: vi.fn()};
     const selectedRoles = {남성역할: 'male', 여성역할: 'female', 대기역할: 'pending', 역할: 'game'};
     interaction = {
-      guildId: guild.id, guild,
+      guildId: guild.id, guild, user: {id: 'admin'},
       member: {id: 'admin', roles: {cache: new Collection([['admin', {name: '사장'}]])}},
       options: {
         getSubcommand: vi.fn().mockReturnValue('설정'),
@@ -70,7 +70,7 @@ describe('OnboardingManagementCommand', () => {
   it('saves private-channel configuration after restoring read-only welcome access', async () => {
     await command.execute(interaction);
     expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', {
-      welcomeChannelId: welcomeId, categoryId: 'category', reviewChannelId: 'review',
+      welcomeChannelId: welcomeId, categoryId: 'category', reviewChannelId: 'review', reviewManagerUserId: 'admin',
       maleRoleId: 'male', femaleRoleId: 'female', pendingRoleId: 'pending', memberRoleId: memberId,
       rulesText: '서로 존중해 주세요.'
     });
@@ -79,7 +79,7 @@ describe('OnboardingManagementCommand', () => {
     expect(edit).toHaveBeenCalledWith('legacy-stage', {ViewChannel: null, SendMessages: false});
     expect(edit.mock.invocationCallOrder.at(-1)).toBeLessThan(repository.saveConfig.mock.invocationCallOrder[0]);
     expect(channels.get('category').permissionOverwrites.edit).not.toHaveBeenCalled();
-    expect(channels.get('review').permissionOverwrites.edit).not.toHaveBeenCalled();
+    expect(channels.get('review').permissionOverwrites.edit).toHaveBeenCalledWith('admin', {ViewChannel: true, ReadMessageHistory: true});
   });
 
   it.each(['male', 'female', 'pending', memberId])('rejects uneditable role %s before permission writes', async id => {
@@ -120,6 +120,31 @@ describe('OnboardingManagementCommand', () => {
     channels.get('review').permissionsFor.mockImplementation(subject => subject === bot || subject === botRole ? allowed() : new PermissionsBitField());
     await command.execute(interaction);
     expect(repository.saveConfig).toHaveBeenCalledOnce();
+  });
+
+  it('allows existing caller-only access and registers a reviewer without Administrator', async () => {
+    const caller = {id: interaction.user.id, permissions: new PermissionsBitField()};
+    channels.get('review').permissionOverwrites.cache.set(caller.id, {id: caller.id, type: OverwriteType.Member});
+    channels.get('review').permissionsFor.mockImplementation(subject => subject === bot || subject === caller ? allowed() : new PermissionsBitField());
+    await command.execute(interaction);
+    expect(interaction.guild.members.fetch).not.toHaveBeenCalledWith(caller.id);
+    expect(channels.get('review').permissionOverwrites.edit).toHaveBeenCalledWith(caller.id, {ViewChannel: true, ReadMessageHistory: true});
+    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', expect.objectContaining({reviewManagerUserId: caller.id}));
+  });
+
+  it('does not save reviewer configuration when private reviewer access cannot be granted', async () => {
+    channels.get('review').permissionOverwrites.edit.mockRejectedValue(new Error('Missing reviewer permissions'));
+    await expect(command.execute(interaction)).rejects.toThrow('Missing reviewer permissions');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+    expect(channels.get(welcomeId).permissionOverwrites.edit).not.toHaveBeenCalled();
+  });
+
+  it('checks review overwrite-edit permission before trying to grant reviewer access', async () => {
+    const reviewPermissions = allowed().remove([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageRoles]);
+    channels.get('review').permissionsFor.mockImplementation(subject => subject === bot ? reviewPermissions : new PermissionsBitField());
+    await expectValidationError('채널별 권한');
+    expect(channels.get('review').permissionOverwrites.edit).not.toHaveBeenCalled();
+    expect(repository.saveConfig).not.toHaveBeenCalled();
   });
 
   it('does not activate configuration when welcome permission updates fail', async () => {

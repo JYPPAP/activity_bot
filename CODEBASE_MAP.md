@@ -238,7 +238,7 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 
 | Table | Key / 주요 컬럼 | Description |
 |---|---|---|
-| `onboarding_configs` | `guild_id` PK, `welcome_channel_id`, `category_id`, `review_channel_id`, `welcome_message_id`, `rules_text`, 성별·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 시작 안내 채널 `1459874768449699861`, 가입 카테고리와 관리자 전용 심사 채널. 정회원 역할 `1243633748344438855`. 기존 단계 채널·`stage_role_ids`는 마이그레이션 호환용으로 보존 |
+| `onboarding_configs` | `guild_id` PK, `welcome_channel_id`, `category_id`, `review_channel_id`, `review_manager_user_id` VARCHAR(50) nullable, `welcome_message_id`, `rules_text`, 성별·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 시작 안내 채널 `1459874768449699861`, 가입 카테고리와 설정 실행자·관리자·봇 전용 심사 채널. 설정 실행자 계정을 담당자로 저장·열람 허용하며 관리자 권한 없이 승인/거절 가능(미등록 시 관리자만). 정회원 역할 `1243633748344438855`. 기존 단계 채널·`stage_role_ids`는 마이그레이션 호환용으로 보존 |
 | `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason`, `channel_id`, `message_id`, `review_message_id`, `cleanup_at`, `review_action`, `departed_at` | 개인 채널·현재 안내 카드·심사 메시지·삭제 예약·심사 중간 상태를 저장하여 재시작 시 복원. 탈퇴 기록이 있는 회원은 복구·정리 조회에서 제외하고 재입장 시 해제 |
 
 가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.

@@ -125,7 +125,7 @@
 | UC-D3 | 게임 복수 선택 초안 저장, 선택 완료 시 규칙 단계로 전환 | `onboarding:games` select / `onboarding:games:confirm` |
 | UC-D4 | 규칙 동의 후 등업 신청 단계로 전환 | `onboarding:rules` button |
 | UC-D5 | 등업 신청을 관리자 검토 채널에 전달 | `onboarding:apply` button |
-| UC-D6 | 승인 시 성별·게임·정회원 역할 지급, 거절 시 수정·재신청 화면 복귀 | `onboarding:approve:{userId}` / `onboarding:reject:{userId}` (Administrator) |
+| UC-D6 | 승인 시 성별·게임·정회원 역할 지급, 거절 시 수정·재신청 화면 복귀 | `onboarding:approve:{userId}` / `onboarding:reject:{userId}` (Administrator 또는 등록 심사 담당자) |
 | UC-D7 | 가입 카테고리·심사 채널·역할·규칙 설정, 게임 선택지 관리 및 시작 안내 게시 | `/가입관리` (`사장` 또는 `DEV_ID`) |
 | UC-D8 | 이전 단계 이동·최종 확인 화면에서 입력 수정 | `onboarding:back:gender` / `onboarding:back:games` |
 | UC-D9 | 승인 후 개인 채널 정리, 탈퇴 시 채널 삭제 | `onboarding:close` / 60초 유지보수 / `guildMemberRemove` |
@@ -136,6 +136,7 @@
 - **Selection draft**: 승인 전에는 성별·게임 선택을 DB에만 저장한다. 역할 지급은 승인 시 수행한다.
 - **Legacy stage role**: 이전 단계별 채널 방식의 역할. 새 접근 관리에는 사용하지 않으며 이어하기 시 기존 단계 역할을 제거한다.
 - **Pending role**: 등업 신청 후 관리자 결정을 기다리는 역할.
+- **Review manager**: `/가입관리 설정`을 실행한 계정. 심사 채널 열람 권한을 자동 부여하고 `review_manager_user_id`에 저장하며 Administrator 없이 승인·거절할 수 있다. 다른 일반 회원은 예외로 허용하지 않는다.
 - **Member role**: 승인된 회원에게 지급해 일반 커뮤니티를 공개하는 최종 역할.
 - **Onboarding progress**: `(guildId, userId)`별 영속 상태. 단계는 `gender → games → rules → application → pending → approved`로 진행하고, 거절 시 `application`으로 돌아간다.
 - **Cleanup reservation**: 승인 시 10분 뒤 삭제 시각을 저장한다. 사용자가 닫기를 누르거나 유지보수 주기가 삭제를 처리한다. 서버 탈퇴 시 채널을 정리하고 선택·진행 상태는 보존한다.

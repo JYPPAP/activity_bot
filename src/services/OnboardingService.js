@@ -409,11 +409,12 @@ export class OnboardingService {
   }
 
   async review(interaction) {
-    if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)) return this.reply(interaction, '관리자만 처리할 수 있습니다.');
     const approved = interaction.customId.startsWith(IDS.ONBOARDING_APPROVE);
     const userId = interaction.customId.slice((approved ? IDS.ONBOARDING_APPROVE : IDS.ONBOARDING_REJECT).length);
     const result = await this.onboardingRepository.withMemberLock(interaction.guildId, userId, async repository => {
       const config = await this.getConfig(repository, interaction.guildId);
+      if (!interaction.member.permissions.has(PermissionFlagsBits.Administrator)
+        && interaction.user.id !== config?.review_manager_user_id) return '관리자 또는 등록된 심사 담당자만 처리할 수 있습니다.';
       let progress = await repository.getProgress(interaction.guildId, userId);
       if (!config?.enabled || interaction.channelId !== config.review_channel_id || progress?.stage !== 'pending'
         || progress.review_message_id !== interaction.message.id) return '이미 처리되었거나 유효하지 않은 신청입니다.';

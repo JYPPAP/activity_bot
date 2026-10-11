@@ -120,7 +120,7 @@ interactionCreate (onboarding:* component)
    ├─ preview button → 비공개 단계별 미리보기 (DB 진행·역할·채널 생성 없음)
    ├─ back button   → gender/games 복귀, 규칙 동의 해제 → 다시 동의
    ├─ apply button  → pending 저장·역할 지급 → 관리자 검토 채널 심사 카드 생성
-   └─ approve/reject button (Administrator)
+   └─ approve/reject button (Administrator 또는 config.review_manager_user_id 일치)
        ├─ review_action 승인/거절 결정 checkpoint 기록
        ├─ 승인 → 성별·게임·member 역할 지급 + pending 제거 → approved 저장
        │   └─ 완료 카드, 10분 후 cleanup_at 예약 / 닫기 버튼
