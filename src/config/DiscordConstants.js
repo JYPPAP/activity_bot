@@ -43,7 +43,12 @@ export class DiscordConstants {
     FORUM_DELETE_CONFIRM: 'forum_delete_confirm',      // 구직 닫기 확인 버튼
     FORUM_DELETE_CANCEL: 'forum_delete_cancel',        // 구직 닫기 취소 버튼
     ONBOARDING_GENDER: 'onboarding:gender',
+    ONBOARDING_GENDER_CHOICE: 'onboarding:gender:',
     ONBOARDING_GAMES: 'onboarding:games',
+    ONBOARDING_GAMES_CONFIRM: 'onboarding:games:confirm',
+    ONBOARDING_START: 'onboarding:start',
+    ONBOARDING_BACK: 'onboarding:back:',
+    ONBOARDING_CLOSE: 'onboarding:close',
     ONBOARDING_RULES: 'onboarding:rules',
     ONBOARDING_APPLY: 'onboarding:apply',
     ONBOARDING_APPROVE: 'onboarding:approve:',

@@ -77,13 +77,16 @@ CREATE TABLE IF NOT EXISTS post_integrations (
 CREATE TABLE IF NOT EXISTS onboarding_configs (
     guild_id VARCHAR(50) PRIMARY KEY,
     welcome_channel_id VARCHAR(50) NOT NULL,
-    game_channel_id VARCHAR(50) NOT NULL,
-    rules_channel_id VARCHAR(50) NOT NULL,
-    application_channel_id VARCHAR(50) NOT NULL,
+    category_id VARCHAR(50),
+    rules_text TEXT NOT NULL DEFAULT '',
+    welcome_message_id VARCHAR(50),
+    game_channel_id VARCHAR(50),
+    rules_channel_id VARCHAR(50),
+    application_channel_id VARCHAR(50),
     review_channel_id VARCHAR(50) NOT NULL,
     gender_male_role_id VARCHAR(50) NOT NULL,
     gender_female_role_id VARCHAR(50) NOT NULL,
-    stage_role_ids JSONB NOT NULL CHECK (jsonb_typeof(stage_role_ids) = 'object'),
+    stage_role_ids JSONB CHECK (jsonb_typeof(stage_role_ids) = 'object'),
     pending_role_id VARCHAR(50) NOT NULL,
     member_role_id VARCHAR(50) NOT NULL,
     game_roles JSONB NOT NULL DEFAULT '[]'::jsonb
@@ -107,6 +110,12 @@ CREATE TABLE IF NOT EXISTS onboarding_progress (
     reviewed_at TIMESTAMP,
     reviewed_by VARCHAR(50),
     rejection_reason TEXT,
+    channel_id VARCHAR(50),
+    message_id VARCHAR(50),
+    review_message_id VARCHAR(50),
+    cleanup_at TIMESTAMPTZ,
+    departed_at TIMESTAMPTZ,
+    review_action VARCHAR(10) CHECK (review_action IN ('approve', 'reject')),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (guild_id, user_id)
@@ -124,6 +133,8 @@ CREATE INDEX IF NOT EXISTS idx_post_integrations_active ON post_integrations(is_
 CREATE INDEX IF NOT EXISTS idx_post_integrations_forum_state ON post_integrations(forum_state);
 CREATE INDEX IF NOT EXISTS idx_post_integrations_auto_track ON post_integrations(auto_track_enabled) WHERE auto_track_enabled = true;
 CREATE INDEX IF NOT EXISTS idx_onboarding_progress_stage ON onboarding_progress(guild_id, stage);
+CREATE INDEX IF NOT EXISTS idx_onboarding_progress_cleanup ON onboarding_progress(cleanup_at)
+    WHERE stage='approved' AND channel_id IS NOT NULL;
 
 -- 월별 활동 테이블 생성 함수
 DROP FUNCTION IF EXISTS create_monthly_activity_table(TEXT) CASCADE;

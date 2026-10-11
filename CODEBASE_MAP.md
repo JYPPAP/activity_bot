@@ -1,7 +1,7 @@
 # Activity Bot - Codebase Map
 > 이 파일은 AI 어시스턴트가 코드 구조를 빠르게 파악하기 위한 참조 파일입니다.
 > 수정 시 반드시 이 파일도 함께 업데이트할 것.
-> 마지막 업데이트: 2026-10-10
+> 마지막 업데이트: 2026-10-11
 
 ## 기술 스택
 - Runtime: Node.js (ESM)
@@ -67,7 +67,7 @@ src/
 │   ├── UserClassificationService.js  # 유저 활동 분류
 │   ├── UserNicknameService.js # 닉네임 DB CRUD
 │   ├── PlatformTemplateService.js    # 닉네임 플랫폼 템플릿
-│   └── OnboardingService.js   # 단계별 가입, 역할 전환, 등업 심사
+│   └── OnboardingService.js   # 개인 가입 채널, 카드 교체, 등업 심사·복구·자동 정리
 │
 ├── repositories/         # DB 쿼리 레이어 (DatabaseManager가 위임)
 │   ├── ActivityRepository.js  # monthly activity 테이블
@@ -95,6 +95,7 @@ src/
 │   │   └── PreMembersButtons.js    # 미리 모인 멤버 수정 버튼·선택 메뉴
 │   ├── ModalHandler.js        # 모달 인터랙션 디스패처 Facade
 │   ├── NicknameUIBuilder.js   # 닉네임 임베드·선택 메뉴·버튼 공통 빌더
+│   ├── OnboardingUIBuilder.js # 개인 가입 단계·시작 안내·심사 Embed/버튼 빌더
 │   ├── modals/
 │   │   ├── ModalRetryPolicy.js          # 모달 처리 재시도 정책
 │   │   ├── RecruitmentModalBuilder.js   # 구인구직 모달 구성·표시
@@ -191,8 +192,13 @@ InteractionRouter.routeInteraction()
 | `new_forum_` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
 | `existing_forum` | TODO | TODO: 현재 사용처 없음 (`src/config/DiscordConstants.js`) |
 | `existing_forum_` | `{postId}` | 기존 포럼 연동 방법 선택 |
-| `onboarding:gender` | 고정값 | 성별 역할 선택 |
-| `onboarding:games` | 고정값 | 게임 역할 복수 선택 |
+| `onboarding:gender` | 고정값 | 기존 성별 선택 ID (레거시 안내에서 사용 불가) |
+| `onboarding:gender:` | `male` / `female` | 성별 선택 버튼 |
+| `onboarding:games` | 고정값 | 게임 선택 초안 저장·현재 카드 수정 |
+| `onboarding:games:confirm` | 고정값 | 게임 선택 완료 후 규칙 화면 이동 |
+| `onboarding:start` | 고정값 | 개인 가입 채널 생성 / 이어하기 |
+| `onboarding:back:` | `gender` / `games` | 이전 단계 / 입력 수정 |
+| `onboarding:close` | 고정값 | 승인된 개인 가입 채널 삭제 |
 | `onboarding:rules` | 고정값 | 서버 규칙 동의 |
 | `onboarding:apply` | 고정값 | 등업 신청 제출 |
 | `onboarding:approve:` | `{userId}` | 관리자 등업 승인 |
@@ -215,7 +221,7 @@ mappingService(client, voiceChannelManager, forumPostManager, dbManager) ← asF
 recruitmentService(client, forumPostManager, voiceChannelManager, mappingService, participantTracker)
 emojiReactionService(client, forumPostManager)
 onboardingRepository(dbManager)
-onboardingService(onboardingRepository)
+onboardingService(onboardingRepository, client)
 buttonHandler(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager)
 modalHandler(recruitmentService, forumPostManager)
 interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButtonHandler, nicknameSelectMenuHandler, nicknameModalHandler, onboardingService)
@@ -229,10 +235,16 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 
 | Table | Key / 주요 컬럼 | Description |
 |---|---|---|
-| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 성별 단계는 온보딩 채널 `1459874768449699861`, 이후 단계와 심사는 각각 별도 채널 사용. 정회원 역할은 `1243633748344438855` |
-| `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason` | 신규 회원의 재시작 가능한 가입 진행 상태와 심사 이력 |
+| `onboarding_configs` | `guild_id` PK, `welcome_channel_id`, `category_id`, `review_channel_id`, `welcome_message_id`, `rules_text`, 성별·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 시작 안내 채널 `1459874768449699861`, 가입 카테고리와 관리자 전용 심사 채널. 정회원 역할 `1243633748344438855`. 기존 단계 채널·`stage_role_ids`는 마이그레이션 호환용으로 보존 |
+| `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason`, `channel_id`, `message_id`, `review_message_id`, `cleanup_at`, `review_action`, `departed_at` | 개인 채널·현재 안내 카드·심사 메시지·삭제 예약·심사 중간 상태를 저장하여 재시작 시 복원. 탈퇴 기록이 있는 회원은 복구·정리 조회에서 제외하고 재입장 시 해제 |
 
 가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.
+
+`withMemberLock(guildId, userId, callback)`은 전용 DB 연결의 PostgreSQL 세션 advisory lock으로 회원별 채널 생성·단계 전환·심사를 직렬화한다. 같은 잠금 안에서 DB checkpoint와 Discord API 작업을 수행하고 연결을 반환하기 전에 잠금을 해제한다. `review_action`은 승인/거절 도중 종료 시 완료할 결정을 기록한다.
+
+`OnboardingService.initialize()`는 현재 가입 상태를 복원하고 60초마다 심사 복구·삭제 예약을 확인한다. 승인 후 10분에 개인 채널을 삭제하며 `stop()`으로 타이머를 종료한다. 채널 topic과 봇 Embed footer로 생성 직후 종료된 채널/메시지도 다시 찾는다. 배포·운영 절차는 [onboarding-setup.md](docs/onboarding-setup.md).
+
+`cleanup_at`과 `departed_at`은 `TIMESTAMPTZ`로 저장하여 봇과 DB 시간대가 달라도 삭제 예약·탈퇴 시각을 동일하게 해석한다. 승인된 회원 재입장 시 정회원 역할과 현재 설정에 남아 있는 저장된 성별·게임 역할만 복원한다. 신청·심사 중 선택 검증은 현재 설정을 엄격히 따른다.
 
 ### post_integrations
 | Column | Type | Description |

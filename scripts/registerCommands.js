@@ -113,22 +113,17 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('가입관리').setDescription('단계형 가입 절차를 설정합니다.')
-    .addSubcommand(sub => sub.setName('설정').setDescription('단계별 채널과 역할을 설정합니다.')
-      .addChannelOption(o => o.setName('게임채널').setDescription('게임 선택 단계 채널').addChannelTypes(ChannelType.GuildText).setRequired(true))
-      .addChannelOption(o => o.setName('규칙채널').setDescription('규칙 동의 단계 채널').addChannelTypes(ChannelType.GuildText).setRequired(true))
-      .addChannelOption(o => o.setName('신청채널').setDescription('등업 신청 단계 채널').addChannelTypes(ChannelType.GuildText).setRequired(true))
+    .addSubcommand(sub => sub.setName('설정').setDescription('개인 가입 채널의 카테고리와 역할을 설정합니다.')
+      .addChannelOption(o => o.setName('가입카테고리').setDescription('개인 가입 채널을 생성할 카테고리').addChannelTypes(ChannelType.GuildCategory).setRequired(true))
       .addChannelOption(o => o.setName('심사채널').setDescription('관리자 전용 심사 채널').addChannelTypes(ChannelType.GuildText).setRequired(true))
       .addRoleOption(o => o.setName('남성역할').setDescription('남성 역할').setRequired(true))
       .addRoleOption(o => o.setName('여성역할').setDescription('여성 역할').setRequired(true))
-      .addRoleOption(o => o.setName('성별단계역할').setDescription('1단계 접근 역할').setRequired(true))
-      .addRoleOption(o => o.setName('게임단계역할').setDescription('2단계 접근 역할').setRequired(true))
-      .addRoleOption(o => o.setName('규칙단계역할').setDescription('3단계 접근 역할').setRequired(true))
-      .addRoleOption(o => o.setName('신청단계역할').setDescription('4단계 접근 역할').setRequired(true))
-      .addRoleOption(o => o.setName('대기역할').setDescription('심사 대기 역할').setRequired(true)))
+      .addRoleOption(o => o.setName('대기역할').setDescription('심사 대기 역할').setRequired(true))
+      .addStringOption(o => o.setName('규칙').setDescription('가입 화면에서 동의받을 실제 서버 규칙').setRequired(true).setMinLength(1).setMaxLength(3500)))
     .addSubcommand(sub => sub.setName('게임추가').setDescription('선택할 게임 역할을 추가합니다.')
       .addStringOption(o => o.setName('이름').setDescription('게임 이름').setRequired(true).setMaxLength(100))
       .addRoleOption(o => o.setName('역할').setDescription('지급할 역할').setRequired(true)))
-    .addSubcommand(sub => sub.setName('게시').setDescription('각 단계 채널에 가입 UI를 게시합니다.'))
+    .addSubcommand(sub => sub.setName('게시').setDescription('온보딩 채널에 가입 시작 / 이어하기 안내를 게시합니다.'))
 );
 
 // REST 클라이언트 생성

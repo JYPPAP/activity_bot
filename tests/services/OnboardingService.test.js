@@ -1,251 +1,436 @@
-import {beforeEach, describe, expect, it, vi} from 'vitest';
-import {MessageFlags} from 'discord.js';
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
+import {ChannelType, Collection, PermissionFlagsBits} from 'discord.js';
 
 vi.mock('../../src/utils/SafeInteraction.js', () => ({
   SafeInteraction: {
-    safeDeferUpdate: vi.fn().mockResolvedValue(null),
-    safeReply: vi.fn().mockResolvedValue(null)
-  }
+    safeDeferReply: vi.fn().mockResolvedValue(null),
+    safeReply: vi.fn().mockResolvedValue(null),
+  },
 }));
 
 import {OnboardingService} from '../../src/services/OnboardingService.js';
+import {OnboardingUIBuilder} from '../../src/ui/OnboardingUIBuilder.js';
 import {SafeInteraction} from '../../src/utils/SafeInteraction.js';
 
-const config = {
-  enabled: true,
-  stage_role_ids: {
-    gender: 'stage-gender',
-    games: 'stage-games',
-    rules: 'stage-rules',
-    application: 'stage-application'
-  },
-  gender_male_role_id: 'gender-male',
-  gender_female_role_id: 'gender-female',
-  game_roles: [
-    {label: 'League', roleId: 'game-lol'},
-    {label: 'Valorant', roleId: 'game-valorant'}
-  ],
-  welcome_channel_id: 'channel-gender',
-  game_channel_id: 'channel-games',
-  rules_channel_id: 'channel-rules',
-  application_channel_id: 'channel-application',
-  review_channel_id: 'channel-review',
-  pending_role_id: 'role-pending',
-  member_role_id: 'role-member'
+const fields = {
+  channelId: 'channel_id', messageId: 'message_id', genderRoleId: 'gender_role_id',
+  gameRoleIds: 'game_role_ids', rulesAcceptedAt: 'rules_accepted_at', appliedAt: 'applied_at',
+  reviewMessageId: 'review_message_id', reviewAction: 'review_action', reviewedBy: 'reviewed_by',
+  reviewedAt: 'reviewed_at', rejectionReason: 'rejection_reason', cleanupAt: 'cleanup_at', departedAt: 'departed_at',
 };
 
-const createMember = (roleIds = []) => ({
-  id: 'user-1',
-  user: {id: 'user-1', bot: false},
-  guild: {id: 'guild-1'},
-  roles: {
-    cache: new Set(roleIds),
-    add: vi.fn().mockResolvedValue(null),
-    remove: vi.fn().mockResolvedValue(null)
-  }
-});
-
-const createInteraction = ({customId = 'onboarding:gender', values = [], roleIds = []} = {}) => {
-  const member = createMember(roleIds);
-  const reviewChannel = {send: vi.fn().mockResolvedValue(null)};
-  return {
-    guildId: 'guild-1',
-    user: {id: 'user-1'},
-    customId,
-    values,
-    member,
-    guild: {
-      channels: {fetch: vi.fn().mockResolvedValue(reviewChannel)},
-      members: {fetch: vi.fn().mockResolvedValue(member)}
-    },
-    message: {edit: vi.fn().mockResolvedValue(null)},
-    reviewChannel
+function createFixture() {
+  const events = [];
+  const config = {
+    guild_id: 'guild', enabled: true, category_id: 'category', welcome_channel_id: 'welcome',
+    review_channel_id: 'review', pending_role_id: 'pending-role', member_role_id: 'member-role',
+    gender_male_role_id: 'male-role', gender_female_role_id: 'female-role',
+    game_roles: [{label: '롤', roleId: 'lol-role'}, {label: '발로란트', roleId: 'valorant-role'}],
+    stage_role_ids: {gender: 'old-gender'}, rules_text: '서로 존중해 주세요.',
   };
-};
-
-describe('OnboardingService', () => {
-  let repository;
-  let service;
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    repository = {
-      getConfig: vi.fn().mockResolvedValue(config),
-      ensureProgress: vi.fn(),
-      setStage: vi.fn().mockResolvedValue(null),
-      getProgress: vi.fn()
+  const state = new Map();
+  const locks = new Map();
+  const repository = {
+    getConfig: vi.fn(async () => ({...config})),
+    getProgress: vi.fn(async (guildId, userId) => state.has(userId) ? {...state.get(userId)} : null),
+    ensureProgress: vi.fn(async (guildId, userId) => {
+      if (!state.has(userId)) state.set(userId, {guild_id: guildId, user_id: userId, stage: 'gender', game_role_ids: []});
+      return {...state.get(userId)};
+    }),
+    saveProgress: vi.fn(async (guildId, userId, patch) => {
+      events.push(['save', patch]);
+      const progress = {...state.get(userId)};
+      for (const [key, value] of Object.entries(patch)) progress[fields[key] || key] = value;
+      state.set(userId, progress);
+      return {...progress};
+    }),
+    saveWelcomeMessage: vi.fn(async (guildId, messageId) => { config.welcome_message_id = messageId; }),
+    withMemberLock: vi.fn(async (guildId, userId, callback) => {
+      const key = `${guildId}:${userId}`;
+      const previous = locks.get(key) || Promise.resolve();
+      const task = previous.catch(() => {}).then(() => callback(repository));
+      locks.set(key, task);
+      return task;
+    }),
+    getActiveProgress: vi.fn(async () => [...state.values()].filter(p => !p.departed_at
+      && (p.stage !== 'approved' || p.channel_id || p.review_action))),
+    getInterruptedProgress: vi.fn(async () => [...state.values()].filter(p => !p.departed_at
+      && (p.review_action || (p.stage !== 'approved' && (!p.message_id || !p.channel_id))
+        || (p.stage === 'pending' && !p.review_message_id)))),
+    getDueCleanup: vi.fn(async () => [...state.values()].filter(p => p.cleanup_at && p.cleanup_at <= new Date())),
+  };
+  const channels = new Collection();
+  const members = new Collection();
+  let nextId = 0;
+  const createChannel = (id, topic = null) => {
+    const messages = new Collection();
+    const channel = {id, type: ChannelType.GuildText, topic};
+    const makeMessage = (payload, author = 'bot') => {
+      const message = {
+        id: `message-${++nextId}`, author: {id: author}, createdTimestamp: Date.now(),
+        embeds: (payload.embeds || []).map(embed => embed.toJSON ? embed.toJSON() : embed),
+        components: payload.components || [],
+      };
+      message.edit = vi.fn(async value => {
+        message.embeds = (value.embeds || []).map(embed => embed.toJSON ? embed.toJSON() : embed);
+        message.components = value.components || [];
+        return message;
+      });
+      message.delete = vi.fn(async () => { events.push(['delete', message.id]); messages.delete(message.id); });
+      messages.set(message.id, message);
+      return message;
     };
-    service = new OnboardingService(repository);
-  });
+    channel.messages = {cache: messages, fetch: vi.fn(async idOrOptions => typeof idOrOptions === 'string'
+      ? messages.get(idOrOptions) || null
+      : new Collection([...messages.entries()].reverse().slice(0, 100)))};
+    channel.send = vi.fn(async value => {events.push(['send', id]); return makeMessage(value);});
+    channel.delete = vi.fn(async () => { channels.delete(id); });
+    channel.makeMessage = makeMessage;
+    channels.set(id, channel);
+    return channel;
+  };
+  const guild = {
+    id: 'guild',
+    channels: {
+      cache: channels,
+      fetch: vi.fn(async id => id ? channels.get(id) || null : channels),
+      create: vi.fn(async options => {
+        const channel = createChannel(`channel-${++nextId}`, options.topic);
+        channel.creation = options;
+        return channel;
+      }),
+    },
+    members: {fetch: vi.fn(async id => members.get(id) || null), fetchMe: vi.fn(async () => ({roles: {highest: {comparePositionTo: () => 1}}}))},
+    roles: {fetch: vi.fn(async id => ({id, managed: false, permissions: {has: () => false}}))},
+  };
+  const createMember = (id = 'user', admin = false) => {
+    const member = {id, guild, user: {id, username: '새 회원', bot: false}, permissions: {has: () => admin}};
+    member.roles = {
+      cache: new Collection(),
+      add: vi.fn(async ids => {for (const id of [ids].flat()) member.roles.cache.set(id, {id});}),
+      remove: vi.fn(async ids => {for (const id of [ids].flat()) member.roles.cache.delete(id);}),
+    };
+    members.set(id, member);
+    return member;
+  };
+  const member = createMember();
+  const reviewer = createMember('admin', true);
+  const welcome = createChannel('welcome');
+  const review = createChannel('review');
+  const client = {user: {id: 'bot'}, guilds: {cache: new Collection([['guild', guild]])}};
+  const service = new OnboardingService(repository, client);
+  const interaction = (customId, options = {}) => {
+    const user = options.member || member;
+    const progress = state.get('user');
+    const channel = options.channel || channels.get(progress?.channel_id);
+    return {
+      guildId: guild.id, guild, member: user, user: user.user, channel, channelId: channel?.id,
+      message: options.message || channel?.messages.cache.get(progress?.message_id),
+      customId, values: options.values || [], deleteReply: vi.fn(async () => {}),
+    };
+  };
+  const seed = async (patch = {}) => {
+    const channel = createChannel('private', 'onboarding:guild:user');
+    const progress = {
+      guild_id: 'guild', user_id: 'user', stage: 'gender', channel_id: channel.id,
+      game_role_ids: [], ...patch,
+    };
+    const card = channel.makeMessage(OnboardingUIBuilder.buildCard(config, progress));
+    state.set('user', {...progress, message_id: card.id});
+    if (progress.stage === 'pending') {
+      const message = review.makeMessage(OnboardingUIBuilder.buildReview(config, progress));
+      state.set('user', {...state.get('user'), review_message_id: message.id});
+    }
+    return channel;
+  };
+  const selected = {gender_role_id: 'male-role', game_role_ids: ['lol-role'], rules_accepted_at: new Date('2026-10-11T12:00:00Z')};
+  return {service, repository, state, config, events, guild, client, member, reviewer, welcome, review, createChannel, createMember, interaction, seed, selected};
+}
 
-  it.todo('restores the persisted stage role when a member rejoins after leaving the guild');
-  it.todo('allows only one review message when application interactions race');
-  it.todo('does not create onboarding progress for an administrator reviewing another member');
+describe('OnboardingService private sessions', () => {
+  let f;
+  beforeEach(() => {vi.clearAllMocks(); f = createFixture();});
+  afterEach(() => { f.service.stop(); vi.useRealTimers(); });
 
-  it('recognizes only onboarding custom IDs', () => {
-    expect(service.isInteraction('onboarding:rules')).toBe(true);
-    expect(service.isInteraction('forum_join_1')).toBe(false);
-    expect(service.isInteraction()).toBe(false);
-  });
-
-  it('initializes a new human member at the gender stage', async () => {
-    const member = createMember();
-    repository.ensureProgress.mockResolvedValueOnce({stage: 'gender'});
-
-    await service.handleMemberAdd(member);
-
-    expect(repository.ensureProgress).toHaveBeenCalledWith('guild-1', 'user-1');
-    expect(member.roles.add).toHaveBeenCalledWith('stage-gender');
-  });
-
-  it('ignores bot members without touching persistence', async () => {
-    const member = createMember();
-    member.user.bot = true;
-
-    await service.handleMemberAdd(member);
-
-    expect(repository.getConfig).not.toHaveBeenCalled();
-    expect(repository.ensureProgress).not.toHaveBeenCalled();
-  });
-
-  it('does not re-add an entry role for resumed progress', async () => {
-    const member = createMember();
-    repository.ensureProgress.mockResolvedValueOnce({stage: 'games'});
-
-    await service.handleMemberAdd(member);
-
-    expect(member.roles.add).not.toHaveBeenCalled();
-  });
-
-  it('adds the next stage role before removing the current stage role', async () => {
-    const member = createMember(['stage-gender']);
-    const calls = [];
-    member.roles.add.mockImplementation(async id => calls.push(['add', id]));
-    member.roles.remove.mockImplementation(async id => calls.push(['remove', id]));
-
-    await service.transition(member, config, 'stage-gender', 'stage-games');
-
-    expect(calls).toEqual([['add', 'stage-games'], ['remove', 'stage-gender']]);
-  });
-
-  it('stores gender selection and advances to the games stage', async () => {
-    const interaction = createInteraction({values: ['male'], roleIds: ['stage-gender']});
-
-    await service.selectGender(interaction, config, {stage: 'gender'});
-
-    expect(interaction.member.roles.add).toHaveBeenNthCalledWith(1, 'gender-male');
-    expect(interaction.member.roles.add).toHaveBeenNthCalledWith(2, 'stage-games');
-    expect(interaction.member.roles.remove).toHaveBeenCalledWith('stage-gender');
-    expect(repository.setStage).toHaveBeenCalledWith(
-      'guild-1', 'user-1', 'games', {genderRoleId: 'gender-male'}
-    );
-    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
-      content: expect.stringContaining('<#channel-games>'),
-      flags: MessageFlags.Ephemeral
-    }));
-  });
-
-  it('filters unconfigured game role IDs before assigning and persisting', async () => {
-    const interaction = createInteraction({
-      customId: 'onboarding:games',
-      values: ['game-lol', 'role-attacker'],
-      roleIds: ['stage-games']
+  it('creates one private input-disabled session for a new member and ignores bots', async () => {
+    await f.service.handleMemberAdd(f.member);
+    const channel = f.guild.channels.cache.get(f.state.get('user').channel_id);
+    expect(channel.creation.permissionOverwrites).toContainEqual({id: 'guild', deny: [PermissionFlagsBits.ViewChannel]});
+    expect(channel.creation.permissionOverwrites.find(entry => entry.id === 'user')).toMatchObject({
+      allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.ReadMessageHistory],
+      deny: expect.arrayContaining([PermissionFlagsBits.SendMessages, PermissionFlagsBits.SendMessagesInThreads]),
     });
+    expect(channel.messages.cache.size).toBe(1);
+    await f.service.handleMemberAdd(f.member);
+    expect(f.guild.channels.create).toHaveBeenCalledTimes(1);
+    f.member.user.bot = true;
+    await f.service.handleMemberAdd(f.member);
+    expect(f.repository.ensureProgress).toHaveBeenCalledTimes(1);
+  });
 
-    await service.selectGames(interaction, config, {stage: 'games'});
+  it.each(['owner', 'channel', 'message'])('rejects actions without matching current %s', async mismatch => {
+    await f.seed();
+    const options = mismatch === 'owner' ? {member: f.reviewer}
+      : mismatch === 'channel' ? {channel: f.welcome, message: {id: f.state.get('user').message_id}}
+        : {message: {id: 'stale-message'}};
+    await f.service.handleInteraction(f.interaction('onboarding:gender:male', options));
+    expect(f.state.get('user').stage).toBe('gender');
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({content: expect.stringContaining('현재 가입 화면')}));
+  });
 
-    expect(interaction.member.roles.add).toHaveBeenNthCalledWith(1, ['game-lol']);
-    expect(repository.setStage).toHaveBeenCalledWith(
-      'guild-1', 'user-1', 'rules', {gameRoleIds: ['game-lol']}
-    );
-    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
-      content: expect.stringContaining('<#channel-rules>')
+  it('records gender and replaces the card without granting roles before approval', async () => {
+    const channel = await f.seed();
+    await f.service.handleInteraction(f.interaction('onboarding:gender:male'));
+    expect(f.state.get('user')).toMatchObject({stage: 'games', gender_role_id: 'male-role'});
+    expect(f.member.roles.add).not.toHaveBeenCalled();
+    expect(channel.messages.cache.size).toBe(1);
+    expect([...channel.messages.cache.values()][0].embeds[0].title).toContain('2 / 4');
+  });
+
+  it('saves game choices without advancing until confirmation', async () => {
+    await f.seed({stage: 'games', gender_role_id: 'male-role'});
+    const oldId = f.state.get('user').message_id;
+    await f.service.handleInteraction(f.interaction('onboarding:games', {values: ['lol-role', 'lol-role', 'valorant-role']}));
+    expect(f.state.get('user')).toMatchObject({stage: 'games', game_role_ids: ['lol-role', 'valorant-role'], message_id: oldId});
+    await f.service.handleInteraction(f.interaction('onboarding:games:confirm'));
+    expect(f.state.get('user').stage).toBe('rules');
+    expect(f.state.get('user').message_id).not.toBe(oldId);
+  });
+
+  it.each([['lol-role', 'attacker-role'], [], ['attacker-role']])('rejects invalid or empty injected game selections %j', async values => {
+    await f.seed({stage: 'games', gender_role_id: 'male-role'});
+    await f.service.handleInteraction(f.interaction('onboarding:games', {values}));
+    expect(f.state.get('user').game_role_ids).toEqual([]);
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+  });
+
+  it('clears consent when editing earlier choices and requires fresh agreement', async () => {
+    await f.seed({stage: 'application', ...f.selected});
+    await f.service.handleInteraction(f.interaction('onboarding:back:games'));
+    expect(f.state.get('user')).toMatchObject({stage: 'games', rules_accepted_at: null});
+    await f.service.handleInteraction(f.interaction('onboarding:games:confirm'));
+    await f.service.handleInteraction(f.interaction('onboarding:rules'));
+    expect(f.state.get('user').stage).toBe('application');
+    expect(f.state.get('user').rules_accepted_at).toBeInstanceOf(Date);
+  });
+
+  it('sends and persists a replacement before deleting the previous card', async () => {
+    const channel = await f.seed();
+    await f.service.replaceCard(channel, f.config, f.state.get('user'), f.repository);
+    expect(f.events.map(event => event[0])).toEqual(['send', 'save', 'delete']);
+    expect(channel.messages.cache.size).toBe(1);
+  });
+
+  it.each(['send', 'save'])('preserves the previous current card if replacement %s fails', async failure => {
+    const channel = await f.seed();
+    const oldId = f.state.get('user').message_id;
+    if (failure === 'send') channel.send.mockRejectedValueOnce(new Error('Discord offline'));
+    else f.repository.saveProgress.mockRejectedValueOnce(new Error('DB offline'));
+    await expect(f.service.replaceCard(channel, f.config, f.state.get('user'), f.repository)).rejects.toThrow();
+    expect(channel.messages.cache.has(oldId)).toBe(true);
+    expect(f.state.get('user').message_id).toBe(oldId);
+    expect(f.events.some(event => event[0] === 'delete')).toBe(false);
+    if (failure === 'save') {
+      await f.service.ensureCard(channel, f.config, f.state.get('user'), f.repository);
+      expect(channel.messages.cache.size).toBe(1);
+    }
+  });
+
+  it('recovers a failed old-card deletion while stale buttons cannot change state', async () => {
+    const channel = await f.seed();
+    const old = channel.messages.cache.get(f.state.get('user').message_id);
+    old.delete.mockRejectedValueOnce(new Error('delete failed'));
+    await f.service.handleInteraction(f.interaction('onboarding:gender:male'));
+    expect(channel.messages.cache.size).toBe(2);
+    await f.service.handleInteraction(f.interaction('onboarding:gender:female', {message: old}));
+    expect(f.state.get('user').gender_role_id).toBe('male-role');
+    await f.service.ensureCard(channel, f.config, f.state.get('user'), f.repository);
+    expect(channel.messages.cache.size).toBe(1);
+  });
+
+  it('updates the public welcome message without duplicates even if its DB id is lost', async () => {
+    const first = await f.service.publishWelcome(f.guild);
+    f.config.welcome_message_id = null;
+    const second = await f.service.publishWelcome(f.guild);
+    expect(second.id).toBe(first.id);
+    expect(f.welcome.send).toHaveBeenCalledTimes(1);
+    expect(f.config.welcome_message_id).toBe(first.id);
+  });
+
+  it('serializes concurrent applications into one pending review message', async () => {
+    await f.seed({stage: 'application', ...f.selected});
+    const first = f.interaction('onboarding:apply');
+    const second = f.interaction('onboarding:apply');
+    await Promise.all([f.service.handleInteraction(first), f.service.handleInteraction(second)]);
+    expect(f.state.get('user').stage).toBe('pending');
+    expect(f.review.messages.cache.size).toBe(1);
+    expect(f.member.roles.cache.has('pending-role')).toBe(true);
+    expect(f.member.roles.cache.has('member-role')).toBe(false);
+  });
+
+  it.each(['permission', 'channel', 'message'])('refuses a review with invalid %s', async mismatch => {
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const member = mismatch === 'permission' ? f.member : f.reviewer;
+    const channel = mismatch === 'channel' ? f.welcome : f.review;
+    const message = mismatch === 'message' ? {id: 'wrong-review'} : f.review.messages.cache.get(f.state.get('user').review_message_id);
+    await f.service.handleInteraction(f.interaction('onboarding:approve:user', {member, channel, message}));
+    expect(f.state.get('user').stage).toBe('pending');
+    expect(f.member.roles.add).not.toHaveBeenCalled();
+    expect(f.repository.ensureProgress).not.toHaveBeenCalled();
+  });
+
+  it('approves the selected roles once and records restart-safe ten-minute cleanup without reviewer progress', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-10-11T12:10:00Z'));
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const review = f.review.messages.cache.get(f.state.get('user').review_message_id);
+    const click = f.interaction('onboarding:approve:user', {member: f.reviewer, channel: f.review, message: review});
+    await f.service.handleInteraction(click);
+    expect(f.state.get('user')).toMatchObject({stage: 'approved', reviewed_by: 'admin', review_action: null, cleanup_at: new Date('2026-10-11T12:20:00Z')});
+    expect([...f.member.roles.cache.keys()]).toEqual(['male-role', 'lol-role', 'member-role']);
+    expect(review.components).toEqual([]);
+    expect(f.state.has('admin')).toBe(false);
+    expect(f.repository.ensureProgress).not.toHaveBeenCalled();
+    await f.service.handleInteraction(click);
+    expect(f.member.roles.add).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects back to the editable application card and preserves the old review result', async () => {
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const review = f.review.messages.cache.get(f.state.get('user').review_message_id);
+    f.member.roles.cache.set('pending-role', {id: 'pending-role'});
+    await f.service.handleInteraction(f.interaction('onboarding:reject:user', {member: f.reviewer, channel: f.review, message: review}));
+    expect(f.state.get('user')).toMatchObject({stage: 'application', review_action: null, review_message_id: null, cleanup_at: null});
+    expect(f.state.get('user').rejection_reason).toContain('거절');
+    expect(f.member.roles.cache.has('pending-role')).toBe(false);
+    expect(review.embeds[0].title).toContain('거절');
+    expect(review.components).toEqual([]);
+  });
+
+  it('recovers orphan channel and card markers without creating duplicates', async () => {
+    const channel = await f.seed({stage: 'games', gender_role_id: 'male-role'});
+    const originalMessageId = f.state.get('user').message_id;
+    f.state.set('user', {...f.state.get('user'), channel_id: null, message_id: null});
+    await f.service.openSession(f.member);
+    expect(f.state.get('user')).toMatchObject({channel_id: channel.id, message_id: originalMessageId, stage: 'games'});
+    expect(f.guild.channels.create).not.toHaveBeenCalled();
+    expect(channel.send).not.toHaveBeenCalled();
+  });
+
+  it('recovers an orphan review marker after its DB id is lost', async () => {
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const id = f.state.get('user').review_message_id;
+    f.state.set('user', {...f.state.get('user'), review_message_id: null});
+    await f.service.openSession(f.member);
+    expect(f.state.get('user').review_message_id).toBe(id);
+    expect(f.review.send).not.toHaveBeenCalled();
+  });
+
+  it('does not delete unrelated channels on cleanup even if their ids were saved in progress', async () => {
+    await f.seed({stage: 'approved', ...f.selected, cleanup_at: new Date(Date.now() - 1000)});
+    f.state.set('user', {...f.state.get('user'), channel_id: 'welcome'});
+    await f.service.maintenance();
+    expect(f.welcome.delete).not.toHaveBeenCalled();
+    expect(f.state.get('user').channel_id).toBe('welcome');
+  });
+
+  it('deletes only an expired owned session and clears its persisted ids', async () => {
+    const channel = await f.seed({stage: 'approved', ...f.selected, cleanup_at: new Date(Date.now() - 1000)});
+    await f.service.maintenance();
+    expect(channel.delete).toHaveBeenCalledTimes(1);
+    expect(f.state.get('user')).toMatchObject({channel_id: null, message_id: null, cleanup_at: null});
+  });
+
+  it('finishes a persisted approval action at startup', async () => {
+    vi.useFakeTimers();
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date(), review_action: 'approve', reviewed_by: 'admin'});
+    await f.service.initialize();
+    expect(f.state.get('user')).toMatchObject({stage: 'approved', review_action: null});
+    expect(f.member.roles.cache.has('member-role')).toBe(true);
+    expect(f.service.cleanupTimer).not.toBeNull();
+  });
+
+  it('repairs a failed stage-card send from persisted progress during maintenance', async () => {
+    const channel = await f.seed();
+    channel.send.mockRejectedValueOnce(new Error('send interrupted'));
+    await f.service.handleInteraction(f.interaction('onboarding:gender:male'));
+    expect(f.state.get('user')).toMatchObject({stage: 'games', message_id: null});
+    expect(channel.messages.cache.size).toBe(1);
+    await f.service.maintenance();
+    expect(f.state.get('user').message_id).not.toBeNull();
+    expect(channel.messages.cache.size).toBe(1);
+    expect([...channel.messages.cache.values()][0].embeds[0].title).toContain('2 / 4');
+  });
+
+  it.each(['approve', 'reject'])('recovers a %s after final stage was saved but review rendering failed', async action => {
+    await f.seed({stage: 'pending', ...f.selected, applied_at: new Date()});
+    const review = f.review.messages.cache.get(f.state.get('user').review_message_id);
+    review.edit.mockRejectedValueOnce(new Error('review rendering failed'));
+    await f.service.handleInteraction(f.interaction(`onboarding:${action}:user`, {
+      member: f.reviewer, channel: f.review, message: review,
     }));
-  });
-
-  it('links the application channel after accepting the rules', async () => {
-    const interaction = createInteraction({customId: 'onboarding:rules', roleIds: ['stage-rules']});
-
-    await service.acceptRules(interaction, config, {stage: 'rules'});
-
-    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
-      content: expect.stringContaining('<#channel-application>')
-    }));
-  });
-
-  it('does not advance when no selected game role is configured', async () => {
-    const interaction = createInteraction({customId: 'onboarding:games', values: ['role-attacker']});
-
-    await service.selectGames(interaction, config, {stage: 'games'});
-
-    expect(interaction.member.roles.add).not.toHaveBeenCalled();
-    expect(repository.setStage).not.toHaveBeenCalled();
-    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(
-      interaction,
-      expect.objectContaining({flags: MessageFlags.Ephemeral})
-    );
-  });
-
-  it('rejects a stage action when persisted progress is at another stage', async () => {
-    const interaction = createInteraction({values: ['female']});
-
-    await service.selectGender(interaction, config, {stage: 'rules'});
-
-    expect(interaction.member.roles.add).not.toHaveBeenCalled();
-    expect(repository.setStage).not.toHaveBeenCalled();
-    expect(SafeInteraction.safeReply).toHaveBeenCalledTimes(1);
-  });
-
-  it('submits one review message and records pending status', async () => {
-    const interaction = createInteraction({customId: 'onboarding:apply', roleIds: ['stage-application']});
-
-    await service.apply(interaction, config, {stage: 'application'});
-
-    expect(repository.setStage).toHaveBeenCalledWith(
-      'guild-1', 'user-1', 'pending', {applied: true}
-    );
-    expect(interaction.guild.channels.fetch).toHaveBeenCalledWith('channel-review');
-    expect(interaction.reviewChannel.send).toHaveBeenCalledWith(expect.objectContaining({
-      embeds: expect.any(Array),
-      components: expect.any(Array)
-    }));
-  });
-
-  it('prevents non-administrators from reviewing applications', async () => {
-    const interaction = createInteraction({customId: 'onboarding:approve:user-2'});
-    interaction.member.permissions = {has: vi.fn().mockReturnValue(false)};
-
-    await service.review(interaction, config, true);
-
-    expect(repository.getProgress).not.toHaveBeenCalled();
-    expect(interaction.guild.members.fetch).not.toHaveBeenCalled();
-  });
-
-  it('approves a pending member and disables the review controls', async () => {
-    const interaction = createInteraction({customId: 'onboarding:approve:user-2'});
-    interaction.member.permissions = {has: vi.fn().mockReturnValue(true)};
-    repository.getProgress.mockResolvedValueOnce({stage: 'pending'});
-
-    await service.review(interaction, config, true);
-
-    expect(interaction.guild.members.fetch).toHaveBeenCalledWith('user-2');
-    expect(repository.setStage).toHaveBeenCalledWith(
-      'guild-1', 'user-2', 'approved', {reviewedBy: 'user-1'}
-    );
-    expect(interaction.message.edit).toHaveBeenCalledWith({components: []});
-  });
-
-  it('builds each onboarding component with the expected custom ID', () => {
-    const messages = service.buildMessages(config);
-
-    expect(Object.keys(messages)).toEqual(['gender', 'games', 'rules', 'application']);
-    expect(messages.gender.components[0].components[0].data.custom_id).toBe('onboarding:gender');
-    expect(messages.games.components[0].components[0].data).toMatchObject({
-      custom_id: 'onboarding:games',
-      min_values: 1,
-      max_values: 2
+    expect(f.state.get('user')).toMatchObject({
+      stage: action === 'approve' ? 'approved' : 'application', review_action: action, message_id: null,
     });
-    expect(messages.rules.components[0].components[0].data.custom_id).toBe('onboarding:rules');
-    expect(messages.application.components[0].components[0].data.custom_id).toBe('onboarding:apply');
+    const roleCalls = f.member.roles.add.mock.calls.length;
+    await f.service.maintenance();
+    expect(f.state.get('user').review_action).toBeNull();
+    expect(f.state.get('user').message_id).not.toBeNull();
+    expect(f.member.roles.add).toHaveBeenCalledTimes(roleCalls);
+    expect(review.components).toEqual([]);
+  });
+
+  it.each(['managed', 'administrator', 'hierarchy', 'duplicate'])('blocks unsafe %s role assignments before submission', async type => {
+    await f.seed({stage: 'application', ...f.selected});
+    if (type === 'duplicate') f.config.pending_role_id = f.config.member_role_id;
+    else if (type === 'hierarchy') f.guild.members.fetchMe.mockResolvedValueOnce({roles: {highest: {comparePositionTo: () => 0}}});
+    else f.guild.roles.fetch.mockResolvedValueOnce({
+      id: 'member-role', managed: type === 'managed', permissions: {has: () => type === 'administrator'},
+    });
+    await f.service.handleInteraction(f.interaction('onboarding:apply'));
+    expect(f.state.get('user').stage).toBe('application');
+    expect(f.member.roles.add).not.toHaveBeenCalled();
+    expect(f.review.send).not.toHaveBeenCalled();
+  });
+
+  it('restores roles for approved returning members without opening another session', async () => {
+    await f.seed({stage: 'approved', ...f.selected, departed_at: new Date()});
+    expect(await f.service.openSession(f.member)).toBeNull();
+    expect(f.state.get('user').departed_at).toBeNull();
+    expect(f.member.roles.cache.has('member-role')).toBe(true);
+    expect(f.guild.channels.create).not.toHaveBeenCalled();
+  });
+
+  it('restores only current valid roles when approved rejoin selections were retired or repurposed', async () => {
+    await f.seed({stage: 'approved', gender_role_id: 'retired-gender',
+      game_role_ids: ['retired-game', 'male-role'], rules_accepted_at: f.selected.rules_accepted_at,
+      departed_at: new Date()});
+    expect(await f.service.openSession(f.member)).toBeNull();
+    expect([...f.member.roles.cache.keys()]).toEqual(['member-role']);
+    expect(f.member.roles.add).toHaveBeenCalledWith(['member-role']);
+    expect(f.guild.channels.create).not.toHaveBeenCalled();
+    expect(f.state.get('user').departed_at).toBeNull();
+  });
+
+  it('cleans a departing member session but retains saved selections for rejoining', async () => {
+    const channel = await f.seed({stage: 'games', ...f.selected});
+    await f.service.handleMemberRemove(f.member);
+    expect(channel.delete).toHaveBeenCalledTimes(1);
+    expect(f.state.get('user')).toMatchObject({stage: 'games', channel_id: null, message_id: null, game_role_ids: ['lol-role']});
+    expect(f.state.get('user').departed_at).toBeInstanceOf(Date);
+  });
+
+  it.each(['games', 'approved'])('retries failed %s departure deletion from the persisted recovery marker', async stage => {
+    const channel = await f.seed({stage, ...f.selected});
+    channel.delete.mockRejectedValueOnce(new Error('Discord delete offline'));
+    await expect(f.service.handleMemberRemove(f.member)).rejects.toThrow('Discord delete offline');
+    expect(f.state.get('user').message_id).toBeNull();
+    expect(f.state.get('user').departed_at).toBeUndefined();
+    f.guild.members.fetch.mockResolvedValue(null);
+    await f.service.maintenance();
+    expect(channel.delete).toHaveBeenCalledTimes(2);
+    expect(f.state.get('user')).toMatchObject({channel_id: null, message_id: null, cleanup_at: null});
+    expect(f.state.get('user').departed_at).toBeInstanceOf(Date);
   });
 });

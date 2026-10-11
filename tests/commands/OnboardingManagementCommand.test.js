@@ -1,138 +1,187 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {ChannelType, Collection, MessageFlags, OverwriteType, PermissionFlagsBits, PermissionsBitField} from 'discord.js';
 
 vi.mock('../../src/utils/SafeInteraction.js', () => ({
-  SafeInteraction: {
-    safeDeferReply: vi.fn().mockResolvedValue(null),
-    safeReply: vi.fn().mockResolvedValue(null)
-  }
+  SafeInteraction: {safeDeferReply: vi.fn().mockResolvedValue(null), safeReply: vi.fn().mockResolvedValue(null)}
 }));
 
 import {OnboardingManagementCommand} from '../../src/commands/OnboardingManagementCommand.js';
-
-const settingValues = {
-  게임채널: 'channel-games', 규칙채널: 'channel-rules', 신청채널: 'channel-application',
-  심사채널: 'channel-review', 남성역할: 'role-male', 여성역할: 'role-female',
-  대기역할: 'role-pending', 성별단계역할: 'stage-gender',
-  게임단계역할: 'stage-games', 규칙단계역할: 'stage-rules', 신청단계역할: 'stage-application'
-};
+import {SafeInteraction} from '../../src/utils/SafeInteraction.js';
 
 describe('OnboardingManagementCommand', () => {
-  let channels;
-  let interaction;
+  let interaction, repository, service, channels, roles, bot, command;
+  const welcomeId = '1459874768449699861';
+  const memberId = '1243633748344438855';
+  const allowed = () => new PermissionsBitField(PermissionsBitField.All);
+  const expectValidationError = async content => {
+    await command.execute(interaction);
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, {
+      content: expect.stringContaining(content), flags: MessageFlags.Ephemeral
+    });
+  };
 
   beforeEach(() => {
-    channels = new Map(['1459874768449699861', 'channel-games', 'channel-rules', 'channel-application']
-      .map(id => [id, {
-        id,
-        send: vi.fn().mockResolvedValue(null),
-        permissionOverwrites: {edit: vi.fn().mockResolvedValue(null)}
-      }]));
+    const guild = {id: 'guild-1'};
+    roles = new Collection(['guild-1', 'male', 'female', 'pending', memberId, 'game', 'legacy-stage']
+      .map(id => [id, {id, guild, managed: false, permissions: new PermissionsBitField()}]));
+    bot = {id: 'bot', permissions: allowed(), roles: {highest: {comparePositionTo: vi.fn().mockReturnValue(1)}}};
+    channels = new Collection([welcomeId, 'category', 'review'].map(id => [id, {
+      id, guild, type: id === 'category' ? ChannelType.GuildCategory : ChannelType.GuildText,
+      permissionOverwrites: {edit: vi.fn().mockResolvedValue(null), cache: new Collection()},
+      permissionsFor: vi.fn(subject => subject === bot || id !== 'review' ? allowed() : new PermissionsBitField())
+    }]));
+    guild.channels = {fetch: vi.fn(async id => channels.get(id))};
+    guild.roles = {everyone: roles.get(guild.id), fetch: vi.fn(async id => id ? roles.get(id) : roles)};
+    guild.members = {fetchMe: vi.fn().mockResolvedValue(bot), fetch: vi.fn()};
+    const selectedRoles = {남성역할: 'male', 여성역할: 'female', 대기역할: 'pending', 역할: 'game'};
     interaction = {
-      guildId: 'guild-1',
-      member: {
-        id: 'admin-1',
-        roles: {cache: {some: callback => callback({name: '사장'})}}
-      },
-      options: {getSubcommand: vi.fn().mockReturnValue('게시')},
-      guild: {
-        channels: {fetch: vi.fn(id => Promise.resolve(channels.get(id)))},
-        roles: {everyone: 'everyone'}
+      guildId: guild.id, guild,
+      member: {id: 'admin', roles: {cache: new Collection([['admin', {name: '사장'}]])}},
+      options: {
+        getSubcommand: vi.fn().mockReturnValue('설정'),
+        getRole: vi.fn(name => roles.get(selectedRoles[name])),
+        getChannel: vi.fn(name => channels.get(name === '가입카테고리' ? 'category' : 'review')),
+        getString: vi.fn(name => name === '규칙' ? '서로 존중해 주세요.' : '롤')
       }
     };
+    repository = {
+      getConfig: vi.fn().mockResolvedValue({enabled: true, category_id: 'category', stage_role_ids: {gender: 'legacy-stage'}, game_roles: []}),
+      saveConfig: vi.fn().mockResolvedValue({}), addGameRole: vi.fn().mockResolvedValue([{}])
+    };
+    service = {publishWelcome: vi.fn().mockResolvedValue({id: 'entry'})};
+    command = new OnboardingManagementCommand(repository, service);
   });
 
-  it('rejects members without onboarding management permission', async () => {
-    interaction.member.roles.cache.some = () => false;
-    const repository = {getConfig: vi.fn()};
-
-    await new OnboardingManagementCommand(repository, {}).execute(interaction);
-
-    expect(repository.getConfig).not.toHaveBeenCalled();
-    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
-  });
-
-  it('stores a distinct channel for each onboarding stage and the fixed member role', async () => {
-    interaction.options = {
-      getSubcommand: vi.fn().mockReturnValue('설정'),
-      get: vi.fn(name => ({value: settingValues[name]}))
-    };
-    const repository = {
-      saveConfig: vi.fn().mockResolvedValue({
-        stage_role_ids: {
-          gender: 'stage-gender', games: 'stage-games',
-          rules: 'stage-rules', application: 'stage-application'
-        }
-      })
-    };
-
-    await new OnboardingManagementCommand(repository, {}).execute(interaction);
-
-    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', expect.objectContaining({
-      welcomeChannelId: '1459874768449699861',
-      gameChannelId: 'channel-games',
-      rulesChannelId: 'channel-rules',
-      applicationChannelId: 'channel-application',
-      reviewChannelId: 'channel-review',
-      memberRoleId: '1243633748344438855'
-    }));
-    expect(interaction.guild.channels.fetch.mock.calls.map(([id]) => id)).toEqual([
-      '1459874768449699861', 'channel-games', 'channel-rules', 'channel-application'
-    ]);
-    for (const channel of channels.values()) {
-      expect(channel.permissionOverwrites.edit).toHaveBeenCalledTimes(5);
-    }
-    expect(channels.get('1459874768449699861').permissionOverwrites.edit)
-      .toHaveBeenCalledWith('stage-gender', {ViewChannel: true, SendMessages: false});
-    expect(channels.get('1459874768449699861').permissionOverwrites.edit)
-      .toHaveBeenCalledWith('stage-games', {ViewChannel: false, SendMessages: false});
-  });
-
-  it('rejects reused stage or review channels before saving', async () => {
-    interaction.options = {
-      getSubcommand: vi.fn().mockReturnValue('설정'),
-      get: vi.fn(name => ({value: name === '게임채널'
-        ? '1459874768449699861'
-        : settingValues[name]}))
-    };
-    const repository = {saveConfig: vi.fn()};
-
-    await new OnboardingManagementCommand(repository, {}).execute(interaction);
-
+  it('denies management without privileged role', async () => {
+    interaction.member.roles.cache.clear();
+    await command.execute(interaction);
     expect(repository.saveConfig).not.toHaveBeenCalled();
-    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
+    expect(interaction.guild.members.fetchMe).not.toHaveBeenCalled();
   });
 
-  it('rejects a role reused for multiple stages before saving', async () => {
-    interaction.options = {
-      getSubcommand: vi.fn().mockReturnValue('설정'),
-      get: vi.fn(name => ({value: name === '게임단계역할'
-        ? 'stage-gender'
-        : settingValues[name]}))
-    };
-    const repository = {saveConfig: vi.fn()};
+  it('saves private-channel configuration after restoring read-only welcome access', async () => {
+    await command.execute(interaction);
+    expect(repository.saveConfig).toHaveBeenCalledWith('guild-1', {
+      welcomeChannelId: welcomeId, categoryId: 'category', reviewChannelId: 'review',
+      maleRoleId: 'male', femaleRoleId: 'female', pendingRoleId: 'pending', memberRoleId: memberId,
+      rulesText: '서로 존중해 주세요.'
+    });
+    const edit = channels.get(welcomeId).permissionOverwrites.edit;
+    expect(edit).toHaveBeenCalledWith(roles.get('guild-1'), {ViewChannel: true, SendMessages: false});
+    expect(edit).toHaveBeenCalledWith('legacy-stage', {ViewChannel: null, SendMessages: false});
+    expect(edit.mock.invocationCallOrder.at(-1)).toBeLessThan(repository.saveConfig.mock.invocationCallOrder[0]);
+    expect(channels.get('category').permissionOverwrites.edit).not.toHaveBeenCalled();
+    expect(channels.get('review').permissionOverwrites.edit).not.toHaveBeenCalled();
+  });
 
-    await new OnboardingManagementCommand(repository, {}).execute(interaction);
-
+  it.each(['male', 'female', 'pending', memberId])('rejects uneditable role %s before permission writes', async id => {
+    bot.roles.highest.comparePositionTo.mockImplementation(role => role.id === id ? 0 : 1);
+    await expectValidationError('역할을 확인');
     expect(repository.saveConfig).not.toHaveBeenCalled();
-    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
+    expect(channels.get(welcomeId).permissionOverwrites.edit).not.toHaveBeenCalled();
   });
 
-  it('posts each onboarding step in its configured channel', async () => {
-    const repository = {getConfig: vi.fn().mockResolvedValue({
-      game_roles: [{}],
-      welcome_channel_id: '1459874768449699861',
-      game_channel_id: 'channel-games',
-      rules_channel_id: 'channel-rules',
-      application_channel_id: 'channel-application'
-    })};
-    const messages = {gender: {}, games: {}, rules: {}, application: {}};
-    const service = {buildMessages: vi.fn().mockReturnValue(messages)};
+  it.each(['managed', 'administrator', 'everyone', 'duplicate'])('rejects unsafe roles: %s', async kind => {
+    if (kind === 'managed') roles.get('male').managed = true;
+    if (kind === 'administrator') roles.get('male').permissions = allowed();
+    if (kind === 'everyone') interaction.options.getRole.mockImplementation(() => roles.get('guild-1'));
+    if (kind === 'duplicate') interaction.options.getRole.mockImplementation(() => roles.get('male'));
+    await expectValidationError(kind === 'duplicate' || kind === 'everyone' ? '서로 달라야' : '역할을 확인');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
 
-    await new OnboardingManagementCommand(repository, service).execute(interaction);
+  it('rejects public review channels without mutating permissions', async () => {
+    channels.get('review').permissionsFor.mockReturnValue(allowed());
+    await expectValidationError('일반 역할');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+    expect(channels.get(welcomeId).permissionOverwrites.edit).not.toHaveBeenCalled();
+  });
 
-    expect(channels.get('1459874768449699861').send).toHaveBeenCalledWith(messages.gender);
-    expect(channels.get('channel-games').send).toHaveBeenCalledWith(messages.games);
-    expect(channels.get('channel-rules').send).toHaveBeenCalledWith(messages.rules);
-    expect(channels.get('channel-application').send).toHaveBeenCalledWith(messages.application);
+  it('rejects review channels with an explicit regular-member access grant', async () => {
+    const user = {id: 'regular', permissions: new PermissionsBitField()};
+    channels.get('review').permissionOverwrites.cache.set(user.id, {id: user.id, type: OverwriteType.Member});
+    interaction.guild.members.fetch.mockResolvedValue(user);
+    channels.get('review').permissionsFor.mockImplementation(subject => subject === bot || subject === user ? allowed() : new PermissionsBitField());
+    await expectValidationError('일반 사용자');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('allows the bot-owned managed role to access the review channel', async () => {
+    const botRole = {id: 'bot-role', guild: interaction.guild, tags: {botId: bot.id}, managed: true, permissions: new PermissionsBitField()};
+    roles.set(botRole.id, botRole);
+    channels.get('review').permissionsFor.mockImplementation(subject => subject === bot || subject === botRole ? allowed() : new PermissionsBitField());
+    await command.execute(interaction);
+    expect(repository.saveConfig).toHaveBeenCalledOnce();
+  });
+
+  it('does not activate configuration when welcome permission updates fail', async () => {
+    channels.get(welcomeId).permissionOverwrites.edit.mockRejectedValue(new Error('Missing permissions'));
+    await expect(command.execute(interaction)).rejects.toThrow('Missing permissions');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it.each(['category', 'review', welcomeId])('rejects missing bot permissions in %s', async id => {
+    channels.get(id).permissionsFor.mockReturnValue(new PermissionsBitField());
+    await expectValidationError('채널별 권한');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty server rules', async () => {
+    interaction.options.getString.mockReturnValue('  ');
+    await expectValidationError('서버 규칙');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('rejects setup roles already assigned as games', async () => {
+    repository.getConfig.mockResolvedValue({game_roles: [{roleId: 'male', label: '롤'}]});
+    await expectValidationError('기존 게임 역할');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+  });
+
+  it('publishes the welcome entry through the service', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게시');
+    await command.execute(interaction);
+    expect(service.publishWelcome).toHaveBeenCalledWith(interaction.guild);
+  });
+
+  it('allows updating a safe game role', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    await command.execute(interaction);
+    expect(repository.addGameRole).toHaveBeenCalledWith('guild-1', '롤', 'game');
+  });
+
+  it('rejects granting a reserved gender role as a game', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    repository.getConfig.mockResolvedValue({enabled: true, category_id: 'category', gender_male_role_id: 'game'});
+    await expectValidationError('게임 역할');
+    expect(repository.addGameRole).not.toHaveBeenCalled();
+  });
+
+  it.each([PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads,
+    PermissionFlagsBits.SendMessagesInThreads, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+    PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory])('explains missing server permission %s even when all channel permissions allow it', async permission => {
+    bot.permissions.remove([PermissionFlagsBits.Administrator, permission]);
+    await expectValidationError('봇 역할의 서버 권한');
+    expect(repository.saveConfig).not.toHaveBeenCalled();
+    expect(channels.get(welcomeId).permissionOverwrites.edit).not.toHaveBeenCalled();
+  });
+
+  it('explains unfinished setup before fetching or granting game roles', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    repository.getConfig.mockResolvedValue(null);
+    await expectValidationError('/가입관리 설정');
+    expect(interaction.guild.members.fetchMe).not.toHaveBeenCalled();
+    expect(repository.addGameRole).not.toHaveBeenCalled();
+  });
+
+  it('explains game capacity and still allows replacing an existing game at capacity', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    const gameRoles = Array.from({length: 25}, (_, i) => ({roleId: `game-${i}`, label: `게임 ${i}`}));
+    repository.getConfig.mockResolvedValue({enabled: true, category_id: 'category', game_roles: gameRoles});
+    await expectValidationError('최대 25개');
+    expect(repository.addGameRole).not.toHaveBeenCalled();
+    interaction.options.getString.mockReturnValue('게임 0');
+    await command.execute(interaction);
+    expect(repository.addGameRole).toHaveBeenCalledWith('guild-1', '게임 0', 'game');
   });
 });

@@ -70,6 +70,13 @@ export class Bot {
         guildCount: this.client.guilds.cache.size
       });
 
+      try {
+        await this.onboardingService.initialize();
+        logger.info('개인 가입 채널 복구 완료');
+      } catch (error) {
+        logger.error('개인 가입 채널 초기화 실패', {error: error.message, stack: error.stack});
+      }
+
       // 활동 추적 초기화
       const guild = this.client.guilds.cache.get(config.GUILDID);
       if (guild) {
@@ -122,6 +129,10 @@ export class Bot {
     this.eventManager.registerHandler(
       Events.GuildMemberAdd,
       this.onboardingService.handleMemberAdd.bind(this.onboardingService)
+    );
+    this.eventManager.registerHandler(
+      Events.GuildMemberRemove,
+      this.onboardingService.handleMemberRemove.bind(this.onboardingService)
     );
     // 음성 채널 상태 변경 이벤트
     this.eventManager.registerHandler(
@@ -211,6 +222,7 @@ export class Bot {
 
       // 비활동 구직글 체커 정지
       this.inactivePostChecker?.stop();
+      this.onboardingService?.stop();
 
       // DI Container 및 모든 리소스 해제
       await disposeContainer(this.container);

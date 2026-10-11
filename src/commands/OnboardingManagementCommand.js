@@ -1,7 +1,9 @@
-import {MessageFlags} from 'discord.js';
+import {ChannelType, MessageFlags, PermissionFlagsBits, OverwriteType} from 'discord.js';
 import {hasCommandPermission} from '../config/commandPermissions.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {DiscordConstants} from '../config/DiscordConstants.js';
+
+class OnboardingSetupError extends Error {}
 
 export class OnboardingManagementCommand {
   constructor(onboardingRepository, onboardingService) {
@@ -11,75 +13,128 @@ export class OnboardingManagementCommand {
 
   async execute(interaction) {
     if (!hasCommandPermission(interaction.member, '가입관리')) {
-      await SafeInteraction.safeReply(interaction, {content: '사장 역할 또는 개발자 권한이 필요합니다.', flags: MessageFlags.Ephemeral});
-      return;
+      return SafeInteraction.safeReply(interaction, {content: '사장 역할 또는 개발자 권한이 필요합니다.', flags: MessageFlags.Ephemeral});
     }
-    const subcommand = interaction.options.getSubcommand();
     await SafeInteraction.safeDeferReply(interaction, {ephemeral: true});
-    if (subcommand === '설정') {
-      const value = name => interaction.options.get(name, true).value;
-      const channelIds = {
-        gender: DiscordConstants.CHANNEL_IDS.ONBOARDING,
-        games: value('게임채널'),
-        rules: value('규칙채널'),
-        application: value('신청채널')
-      };
-      const reviewChannelId = value('심사채널');
-      const stageRoleIds = {
-        gender: value('성별단계역할'), games: value('게임단계역할'),
-        rules: value('규칙단계역할'), application: value('신청단계역할')
-      };
-      const roleIds = {
-        male: value('남성역할'), female: value('여성역할'),
-        pending: value('대기역할'), member: DiscordConstants.ROLE_IDS.MEMBER,
-        ...stageRoleIds
-      };
-      if (new Set([...Object.values(channelIds), reviewChannelId]).size !== 5) {
-        return SafeInteraction.safeReply(interaction, {content: '가입 단계와 심사 채널은 모두 서로 달라야 합니다.'});
-      }
-      if (new Set(Object.values(roleIds)).size !== Object.keys(roleIds).length) {
-        return SafeInteraction.safeReply(interaction, {content: '가입 관리에 사용하는 역할은 모두 서로 달라야 합니다.'});
-      }
-      const saved = await this.onboardingRepository.saveConfig(interaction.guildId, {
-        welcomeChannelId: channelIds.gender, gameChannelId: channelIds.games,
-        rulesChannelId: channelIds.rules, applicationChannelId: channelIds.application,
-        reviewChannelId, maleRoleId: roleIds.male,
-        femaleRoleId: roleIds.female, pendingRoleId: roleIds.pending,
-        memberRoleId: roleIds.member, stageRoleIds
-      });
-      for (const stage of Object.keys(channelIds)) {
-        const channel = await interaction.guild.channels.fetch(channelIds[stage]);
-        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {ViewChannel: false});
-        const roleId = saved.stage_role_ids[stage];
-        for (const stageRoleId of Object.values(saved.stage_role_ids)) {
-          await channel.permissionOverwrites.edit(stageRoleId, {
-            ViewChannel: stageRoleId === roleId,
-            SendMessages: false
-          });
-        }
-      }
-      return SafeInteraction.safeReply(interaction, {content: '가입 단계 설정을 저장하고 활성화했습니다.'});
+    try {
+      return await this.dispatch(interaction);
+    } catch (error) {
+      if (!(error instanceof OnboardingSetupError)) throw error;
+      return SafeInteraction.safeReply(interaction, {content: error.message, flags: MessageFlags.Ephemeral});
     }
+  }
+
+  async dispatch(interaction) {
+    const subcommand = interaction.options.getSubcommand();
+    if (subcommand === '설정') return this.configure(interaction);
     if (subcommand === '게임추가') {
-      const roles = await this.onboardingRepository.addGameRole(interaction.guildId,
-        interaction.options.getString('이름', true), interaction.options.getRole('역할', true).id);
+      const config = await this.onboardingRepository.getConfig(interaction.guildId);
+      if (!config?.enabled || !config.category_id) throw new OnboardingSetupError('먼저 /가입관리 설정을 완료해 주세요.');
+      const bot = await interaction.guild.members.fetchMe();
+      const role = await interaction.guild.roles.fetch(interaction.options.getRole('역할', true).id);
+      this.validateRole(role, bot, interaction.guildId);
+      const reserved = [config?.gender_male_role_id, config?.gender_female_role_id, config?.pending_role_id,
+        DiscordConstants.ROLE_IDS.MEMBER, ...Object.values(config?.stage_role_ids ?? {})];
+      if (reserved.includes(role.id)) throw new OnboardingSetupError('게임 역할은 성별·대기·정회원·기존 단계 역할과 달라야 합니다.');
+      const name = interaction.options.getString('이름', true).trim();
+      if (!name || name.length > 100) throw new OnboardingSetupError('게임 이름은 1~100자로 입력해 주세요.');
+      const remainingGames = (config.game_roles ?? []).filter(game => game.roleId !== role.id && game.label !== name);
+      if (remainingGames.length >= 25) throw new OnboardingSetupError('게임 선택지는 최대 25개입니다. 기존 이름이나 역할로 수정해 주세요.');
+      const roles = await this.onboardingRepository.addGameRole(interaction.guildId, name, role.id);
       return SafeInteraction.safeReply(interaction, {content: `게임 역할을 저장했습니다. 현재 ${roles.length}개입니다.`});
     }
-    const config = await this.onboardingRepository.getConfig(interaction.guildId);
-    if (!config) throw new Error('먼저 /가입관리 설정을 실행해 주세요.');
-    if (!config.game_roles?.length) throw new Error('먼저 게임 역할을 하나 이상 추가해 주세요.');
-    const messages = this.onboardingService.buildMessages(config);
-    const channelIds = {
-      gender: config.welcome_channel_id,
-      games: config.game_channel_id,
-      rules: config.rules_channel_id,
-      application: config.application_channel_id
-    };
-    for (const stage of Object.keys(messages)) {
-      const channel = await interaction.guild.channels.fetch(channelIds[stage]);
-      const message = messages[stage];
-      await channel.send(message);
+    await this.onboardingService.publishWelcome(interaction.guild);
+    return SafeInteraction.safeReply(interaction, {content: '온보딩 채널에 가입 시작 / 이어하기 안내를 게시했습니다.'});
+  }
+
+  validateRole(role, bot, guildId) {
+    if (!role || role.guild.id !== guildId || role.id === guildId || role.managed ||
+        role.permissions.has(PermissionFlagsBits.Administrator) ||
+        bot.roles.highest.comparePositionTo(role) <= 0 ||
+        !bot.permissions.has(PermissionFlagsBits.ManageRoles)) {
+      throw new OnboardingSetupError('역할을 확인해 주세요. 일반 역할을 선택하고 봇에 역할 관리 권한을 부여한 뒤 봇 역할을 그 위로 올려 주세요.');
     }
-    return SafeInteraction.safeReply(interaction, {content: '가입 안내 메시지를 각 단계 채널에 게시했습니다.'});
+  }
+
+  async configure(interaction) {
+    const guild = interaction.guild;
+    const rulesText = interaction.options.getString('규칙', true).trim();
+    if (!rulesText || rulesText.length > 3500) throw new OnboardingSetupError('실제 서버 규칙을 1~3500자로 입력해 주세요.');
+    const welcome = await guild.channels.fetch(DiscordConstants.CHANNEL_IDS.ONBOARDING);
+    const category = await guild.channels.fetch(interaction.options.getChannel('가입카테고리', true).id);
+    const review = await guild.channels.fetch(interaction.options.getChannel('심사채널', true).id);
+    if (!welcome || !category || !review || welcome.guild.id !== guild.id ||
+        category.guild.id !== guild.id || review.guild.id !== guild.id ||
+        welcome.type !== ChannelType.GuildText || category.type !== ChannelType.GuildCategory ||
+        review.type !== ChannelType.GuildText || review.id === welcome.id) {
+      throw new OnboardingSetupError('서버 내 가입 카테고리와 별도의 관리자 전용 심사 채널을 선택해 주세요.');
+    }
+    const bot = await guild.members.fetchMe();
+    if (!bot.permissions.has([PermissionFlagsBits.ManageChannels, PermissionFlagsBits.ManageRoles,
+      PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages, PermissionFlagsBits.ReadMessageHistory,
+      PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.CreatePublicThreads, PermissionFlagsBits.CreatePrivateThreads,
+      PermissionFlagsBits.SendMessagesInThreads])) {
+      throw new OnboardingSetupError('봇 역할의 서버 권한에 채널 관리·역할 관리·채널 보기·메시지 보내기·기록 보기·Embed 링크·공개 스레드 만들기·비공개 스레드 만들기·스레드에서 메시지 보내기가 필요합니다. 개인 채널 권한 설정을 위해 채널별 허용뿐 아니라 서버 권한도 부여해 주세요.');
+    }
+    const messagePermissions = [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages,
+      PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.ReadMessageHistory];
+    if (!welcome.permissionsFor(bot)?.has([...messagePermissions, PermissionFlagsBits.ManageRoles]) ||
+        !review.permissionsFor(bot)?.has(messagePermissions) ||
+        !category.permissionsFor(bot)?.has([...messagePermissions, PermissionFlagsBits.ManageChannels])) {
+      throw new OnboardingSetupError('봇의 채널별 권한을 확인해 주세요. 채널 보기·메시지 보내기·Embed 링크·기록 보기 및 가입 카테고리의 채널 관리 권한이 필요합니다.');
+    }
+    const roleIds = {
+      maleRoleId: interaction.options.getRole('남성역할', true).id,
+      femaleRoleId: interaction.options.getRole('여성역할', true).id,
+      pendingRoleId: interaction.options.getRole('대기역할', true).id,
+      memberRoleId: DiscordConstants.ROLE_IDS.MEMBER
+    };
+    if (new Set(Object.values(roleIds)).size !== 4) throw new OnboardingSetupError('성별·대기·정회원 역할은 모두 서로 달라야 합니다.');
+    for (const id of Object.values(roleIds)) this.validateRole(await guild.roles.fetch(id), bot, guild.id);
+    const config = await this.onboardingRepository.getConfig(guild.id);
+    if (config?.game_roles?.some(game => Object.values(roleIds).includes(game.roleId))) {
+      throw new OnboardingSetupError('성별·대기·정회원 역할을 기존 게임 역할과 다르게 선택해 주세요.');
+    }
+    const roles = await guild.roles.fetch();
+    for (const role of roles.values()) {
+      if (role.tags?.botId !== bot.id && !role.permissions.has(PermissionFlagsBits.Administrator) &&
+          review.permissionsFor(role)?.has(PermissionFlagsBits.ViewChannel)) {
+        throw new OnboardingSetupError('심사 채널이 일반 역할에 공개되어 있습니다. 관리자와 봇만 볼 수 있도록 먼저 권한을 설정해 주세요.');
+      }
+    }
+    for (const overwrite of review.permissionOverwrites.cache.values()) {
+      if (overwrite.type !== OverwriteType.Member || overwrite.id === bot.id) continue;
+      const member = await guild.members.fetch(overwrite.id).catch(error => {
+        if (Number(error.code) === 10007) return null;
+        throw error;
+      });
+      if (member && !member.permissions.has(PermissionFlagsBits.Administrator) &&
+          review.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel)) {
+        throw new OnboardingSetupError('심사 채널에 일반 사용자 접근 권한이 있습니다. 관리자와 봇만 볼 수 있도록 먼저 권한을 설정해 주세요.');
+      }
+    }
+    // Preserve the category's existing channels; personal channels receive explicit private overwrites.
+    await welcome.permissionOverwrites.edit(bot.id, {ViewChannel: true, SendMessages: true});
+    await welcome.permissionOverwrites.edit(guild.roles.everyone, {ViewChannel: true, SendMessages: false});
+    const legacyRoles = new Set(Object.values(config?.stage_role_ids ?? {}));
+    for (const role of roles.values()) {
+      if (role.id === guild.id || role.permissions.has(PermissionFlagsBits.Administrator)) continue;
+      if (legacyRoles.has(role.id)) {
+        await welcome.permissionOverwrites.edit(role.id, {ViewChannel: null, SendMessages: false});
+      } else if (welcome.permissionsFor(role)?.has(PermissionFlagsBits.SendMessages)) {
+        await welcome.permissionOverwrites.edit(role.id, {SendMessages: false});
+      }
+    }
+    for (const overwrite of welcome.permissionOverwrites.cache.values()) {
+      if (overwrite.type === OverwriteType.Member && overwrite.id !== bot.id &&
+          overwrite.allow.has(PermissionFlagsBits.SendMessages)) {
+        await welcome.permissionOverwrites.edit(overwrite.id, {SendMessages: false});
+      }
+    }
+    await this.onboardingRepository.saveConfig(guild.id, {
+      welcomeChannelId: welcome.id, categoryId: category.id, reviewChannelId: review.id,
+      ...roleIds, rulesText
+    });
+    return SafeInteraction.safeReply(interaction, {content: '개인 가입 채널 설정을 저장했습니다. 게임 역할을 추가한 뒤 /가입관리 게시를 실행해 주세요.'});
   }
 }
