@@ -20,13 +20,26 @@ describe('OnboardingManagementCommand', () => {
     };
     interaction = {
       guildId: 'guild-1',
-      member: {permissions: {has: vi.fn().mockReturnValue(true)}},
+      member: {
+        id: 'admin-1',
+        roles: {cache: {some: callback => callback({name: '사장'})}}
+      },
       options: {getSubcommand: vi.fn().mockReturnValue('게시')},
       guild: {
         channels: {fetch: vi.fn().mockResolvedValue(channel)},
         roles: {everyone: 'everyone'}
       }
     };
+  });
+
+  it('rejects members without onboarding management permission', async () => {
+    interaction.member.roles.cache.some = () => false;
+    const repository = {getConfig: vi.fn()};
+
+    await new OnboardingManagementCommand(repository, {}).execute(interaction);
+
+    expect(repository.getConfig).not.toHaveBeenCalled();
+    expect(interaction.guild.channels.fetch).not.toHaveBeenCalled();
   });
 
   it('stores the fixed channel for every public onboarding stage', async () => {

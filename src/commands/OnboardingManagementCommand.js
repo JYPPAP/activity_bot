@@ -1,4 +1,5 @@
-import {MessageFlags, PermissionsBitField} from 'discord.js';
+import {MessageFlags} from 'discord.js';
+import {hasCommandPermission} from '../config/commandPermissions.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {DiscordConstants} from '../config/DiscordConstants.js';
 
@@ -9,8 +10,8 @@ export class OnboardingManagementCommand {
   }
 
   async execute(interaction) {
-    if (!interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)) {
-      await SafeInteraction.safeReply(interaction, {content: '서버 관리자만 사용할 수 있습니다.', flags: MessageFlags.Ephemeral});
+    if (!hasCommandPermission(interaction.member, '가입관리')) {
+      await SafeInteraction.safeReply(interaction, {content: '사장 역할 또는 개발자 권한이 필요합니다.', flags: MessageFlags.Ephemeral});
       return;
     }
     const subcommand = interaction.options.getSubcommand();

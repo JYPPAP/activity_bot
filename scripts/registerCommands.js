@@ -113,7 +113,6 @@ commands.push(
 commands.push(
   new SlashCommandBuilder()
     .setName('가입관리').setDescription('단계형 가입 절차를 설정합니다.')
-    .setDefaultMemberPermissions(8)
     .addSubcommand(sub => sub.setName('설정').setDescription('온보딩 역할과 심사 채널을 설정합니다.')
       .addChannelOption(o => o.setName('심사채널').setDescription('관리자 전용 심사 채널').setRequired(true))
       .addRoleOption(o => o.setName('남성역할').setDescription('남성 역할').setRequired(true))
