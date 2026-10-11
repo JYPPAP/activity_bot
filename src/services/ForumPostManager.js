@@ -23,8 +23,8 @@ export class ForumPostManager {
     return this.creator.createForumPost(recruitmentData, voiceChannelId, specialType);
   }
 
-  sendEmojiParticipantUpdate(postId, participants, emojiName = '참가') {
-    return this.notifier.sendEmojiParticipantUpdate(postId, participants, emojiName);
+  sendEmojiParticipantUpdate(postId, participants) {
+    return this.notifier.sendEmojiParticipantUpdate(postId, participants);
   }
 
   sendWaitlistUpdate(postId, waitlist = []) {
@@ -47,8 +47,8 @@ export class ForumPostManager {
     return this.notifier.sendVoiceChannelLinkMessage(postId, voiceChannelName, voiceChannelId, guildId, linkerId);
   }
 
-  sendParticipantUpdateMessage(postId, currentCount, maxCount, voiceChannelName) {
-    return this.notifier.sendParticipantUpdateMessage(postId, currentCount, maxCount, voiceChannelName);
+  sendParticipantUpdateMessage(postId, currentCount, maxCount) {
+    return this.notifier.sendParticipantUpdateMessage(postId, currentCount, maxCount);
   }
 
   postExists(postId) {

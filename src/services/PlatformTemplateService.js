@@ -281,7 +281,7 @@ export class PlatformTemplateService {
     // URL 형식 간단 검증
     try {
       new URL(baseUrl);
-    } catch (error) {
+    } catch {
       throw new Error(NicknameConstants.MESSAGES.INVALID_URL);
     }
   }

@@ -158,9 +158,7 @@ export class RecruitmentSubmitFlows {
         () =>
           this.recruitmentService.createLinkedRecruitment(
             recruitmentData,
-            voiceChannelId,
-            interaction.user.id,
-            guildId
+            voiceChannelId
           ),
         '음성 채널 연동 포럼 포스트 생성'
       );

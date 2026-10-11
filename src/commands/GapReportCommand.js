@@ -1,22 +1,14 @@
 import { logger } from '../config/logger-termux.js';
 // src/commands/gapReportCommand.js - gap_report 명령어
 import {MessageFlags} from 'discord.js';
-import {cleanRoleName} from '../utils/formatters.js';
+import {config} from '../config/env.js';
 import {EmbedFactory} from '../utils/embedBuilder.js';
+import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {CommandBase} from './CommandBase.js';
 
 export class GapReportCommand extends CommandBase {
   constructor(dbManager, activityTracker) {
     super({dbManager, activityTracker});
-    this.userClassificationService = null;
-  }
-
-  /**
-   * 의존성 주입을 위한 메서드
-   * @param {UserClassificationService} userClassificationService - 사용자 분류 서비스
-   */
-  setUserClassificationService(userClassificationService) {
-    this.userClassificationService = userClassificationService;
   }
 
   /**
@@ -60,21 +52,9 @@ export class GapReportCommand extends CommandBase {
       endDateStr: interaction.options.getString("end_date")?.trim(),
       isTestMode: interaction.options.getBoolean("test_mode") ?? false,
       resetOption: interaction.options.getBoolean("reset") ?? false,
-      logChannelId: interaction.options.getChannel("log_channel")?.id || process.env.CALENDAR_LOG_CHANNEL_ID
+      logChannelId: interaction.options.getChannel("log_channel")?.id || config.CALENDAR_LOG_CHANNEL_ID
     };
   }
-
-  // 역할 설정 유효성 검사 (더 이상 사용하지 않음)
-  // validateRoleConfig(roleConfig, role, interaction) {
-  //   if (!roleConfig) {
-  //     interaction.followUp({
-  //       content: `역할 "${role}"에 대한 설정을 찾을 수 없습니다. 먼저 /gap_config 명령어로 설정해주세요.`,
-  //       flags: MessageFlags.Ephemeral,
-  //     });
-  //     return false;
-  //   }
-  //   return true;
-  // }
 
   // 전체 길드 멤버 가져오기
   async getAllMembers(guild) {
@@ -84,9 +64,9 @@ export class GapReportCommand extends CommandBase {
   }
 
   // 날짜 형식 검증
-  validateDateFormat(dateStr, label, interaction) {
+  async validateDateFormat(dateStr, label, interaction) {
     if (!/^\d{6}$/.test(dateStr)) {
-      interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: `${label} 날짜 형식이 올바르지 않습니다. '${dateStr}'는 'YYMMDD' 형식이어야 합니다. (예: 250413)`,
         flags: MessageFlags.Ephemeral,
       });
@@ -102,8 +82,8 @@ export class GapReportCommand extends CommandBase {
     // 날짜 옵션이 제공된 경우
     if (startDateStr && endDateStr) {
       // 날짜 형식 검증
-      if (!this.validateDateFormat(startDateStr, '시작', interaction) ||
-        !this.validateDateFormat(endDateStr, '종료', interaction)) {
+      if (!await this.validateDateFormat(startDateStr, '시작', interaction) ||
+        !await this.validateDateFormat(endDateStr, '종료', interaction)) {
         return null;
       }
 
@@ -114,7 +94,7 @@ export class GapReportCommand extends CommandBase {
         return dates;
       } catch (error) {
         logger.error('날짜 파싱 오류', { error: error.message, stack: error.stack });
-        interaction.followUp({
+        await SafeInteraction.safeReply(interaction, {
           content: `날짜 처리 중 오류가 발생했습니다: ${error.message}`,
           flags: MessageFlags.Ephemeral,
         });
@@ -229,7 +209,7 @@ export class GapReportCommand extends CommandBase {
   async sendReport(interaction, options, reportEmbeds) {
     if (options.isTestMode) {
       // 테스트인 경우 서버 내 Embed로 전송
-      await interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: "⚠️ 테스트 모드로 실행됩니다. 리셋 시간이 기록되지 않습니다.",
         embeds: reportEmbeds,
         flags: MessageFlags.Ephemeral,
@@ -246,7 +226,7 @@ export class GapReportCommand extends CommandBase {
         }
       }
 
-      await interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: "✅ 보고서가 생성되었습니다.",
         flags: MessageFlags.Ephemeral,
       });
@@ -257,7 +237,7 @@ export class GapReportCommand extends CommandBase {
   async handleReset(interaction, options) {
     // 전체 서버 보고서에서는 리셋 기능 비활성화
     if (!options.isTestMode && options.resetOption) {
-      await interaction.followUp({
+      await SafeInteraction.safeReply(interaction, {
         content: `⚠️ 전체 서버 보고서에서는 리셋 기능을 사용할 수 없습니다.`,
         flags: MessageFlags.Ephemeral,
       });

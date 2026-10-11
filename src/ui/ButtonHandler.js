@@ -8,25 +8,22 @@ import { PreMembersButtons } from './buttons/PreMembersButtons.js';
 
 export class ButtonHandler {
   constructor(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager) {
-    this.voiceChannelManager = voiceChannelManager;
-    this.recruitmentService = recruitmentService;
-    this.modalHandler = modalHandler;
-    this.emojiReactionService = emojiReactionService;
-    this.forumPostManager = forumPostManager;
-
     const deps = {
       voiceChannelManager,
       recruitmentService,
       modalHandler,
       emojiReactionService,
       forumPostManager,
-      parent: this,
     };
 
     this.roleTagButtons = new RoleTagButtons(deps);
-    this.voiceChannelButtons = new VoiceChannelButtons(deps);
     this.forumPostButtons = new ForumPostButtons(deps);
     this.preMembersButtons = new PreMembersButtons(deps);
+    this.voiceChannelButtons = new VoiceChannelButtons({
+      ...deps,
+      forumPostButtons: this.forumPostButtons,
+      preMembersButtons: this.preMembersButtons,
+    });
   }
 
   async handleRoleTagButtons(interaction) {

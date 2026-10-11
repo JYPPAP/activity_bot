@@ -1,6 +1,5 @@
 // src/services/VoiceChannelManager.js - 음성 채널 관리
 import { DiscordConstants } from '../config/DiscordConstants.js';
-import { RecruitmentConfig } from '../config/RecruitmentConfig.js';
 import { logger } from '../config/logger-termux.js';
 
 export class VoiceChannelManager {

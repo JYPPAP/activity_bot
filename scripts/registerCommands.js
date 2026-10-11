@@ -114,11 +114,7 @@ commands.push(
   new SlashCommandBuilder()
     .setName('가입관리').setDescription('단계형 가입 절차를 설정합니다.')
     .setDefaultMemberPermissions(8)
-    .addSubcommand(sub => sub.setName('설정').setDescription('채널과 역할을 설정합니다.')
-      .addChannelOption(o => o.setName('환영채널').setDescription('1단계 채널').setRequired(true))
-      .addChannelOption(o => o.setName('게임채널').setDescription('2단계 채널').setRequired(true))
-      .addChannelOption(o => o.setName('규칙채널').setDescription('3단계 채널').setRequired(true))
-      .addChannelOption(o => o.setName('신청채널').setDescription('4단계 채널').setRequired(true))
+    .addSubcommand(sub => sub.setName('설정').setDescription('온보딩 역할과 심사 채널을 설정합니다.')
       .addChannelOption(o => o.setName('심사채널').setDescription('관리자 전용 심사 채널').setRequired(true))
       .addRoleOption(o => o.setName('남성역할').setDescription('남성 역할').setRequired(true))
       .addRoleOption(o => o.setName('여성역할').setDescription('여성 역할').setRequired(true))
@@ -131,7 +127,7 @@ commands.push(
     .addSubcommand(sub => sub.setName('게임추가').setDescription('선택할 게임 역할을 추가합니다.')
       .addStringOption(o => o.setName('이름').setDescription('게임 이름').setRequired(true).setMaxLength(100))
       .addRoleOption(o => o.setName('역할').setDescription('지급할 역할').setRequired(true)))
-    .addSubcommand(sub => sub.setName('게시').setDescription('각 채널에 가입 UI를 게시합니다.'))
+    .addSubcommand(sub => sub.setName('게시').setDescription('온보딩 채널에 가입 UI를 게시합니다.'))
 );
 
 // REST 클라이언트 생성

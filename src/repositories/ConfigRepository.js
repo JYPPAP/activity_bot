@@ -86,7 +86,7 @@ export class ConfigRepository {
     return role || null;
   }
 
-  async updateRoleConfig(roleName, minHours, resetTime = null, reportCycle = 1) {
+  async updateRoleConfig(roleName, minHours, _resetTime = null, _reportCycle = 1) {
     logger.debug('Role Config 업데이트 (임시 구현)', { roleName, minHours });
     return true;
   }

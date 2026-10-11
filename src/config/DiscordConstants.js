@@ -2,6 +2,10 @@
 import { ChannelType } from 'discord.js';
 
 export class DiscordConstants {
+  static CHANNEL_IDS = {
+    ONBOARDING: '1459874768449699861'
+  };
+
   // ========== 채널 타입 ==========
   static CHANNEL_TYPES = {
     GUILD_VOICE: ChannelType.GuildVoice,

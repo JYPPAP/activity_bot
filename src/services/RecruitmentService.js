@@ -1,12 +1,7 @@
 // src/services/RecruitmentService.js - 구인구직 비즈니스 로직
 import {
   MessageFlags,
-  ChannelType,
   ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
-  ActionRowBuilder,
-  EmbedBuilder
 } from 'discord.js';
 import { config } from '../config/env.js';
 import { DiscordConstants } from '../config/DiscordConstants.js';
@@ -121,7 +116,7 @@ export class RecruitmentService {
       } else if (selectedValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
         // 기존 포럼 선택: 바로 연동 처리
         const existingPostId = selectedValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');
-        await this.linkToExistingForum(interaction, voiceChannelId, existingPostId, []);
+        await this.linkToExistingForum(interaction, voiceChannelId, existingPostId);
         
       } else {
         logger.warn(`[RecruitmentService] 알 수 없는 선택 값: ${selectedValue}`);
@@ -143,10 +138,9 @@ export class RecruitmentService {
    * 음성 채널 연동 구인구직 생성
    * @param {Object} recruitmentData - 구인구직 데이터
    * @param {string} voiceChannelId - 음성 채널 ID
-   * @param {string} linkerId - 연동한 사용자 ID
    * @returns {Promise<Object>} - 생성 결과
    */
-  async createLinkedRecruitment(recruitmentData, voiceChannelId, linkerId) {
+  async createLinkedRecruitment(recruitmentData, voiceChannelId) {
     try {
       // 음성 채널 정보 가져오기
       const voiceChannelInfo = await this.voiceChannelManager.getVoiceChannelInfo(voiceChannelId);
@@ -198,10 +192,9 @@ export class RecruitmentService {
    * @param {Interaction} interaction - 인터랙션 객체
    * @param {string} voiceChannelId - 음성 채널 ID
    * @param {string} existingPostId - 기존 포스트 ID
-   * @param {Array} selectedRoles - 선택된 역할 태그 배열
    * @returns {Promise<void>}
    */
-  async linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedRoles = []) {
+  async linkToExistingForum(interaction, voiceChannelId, existingPostId) {
     try {
       // 즉시 defer 처리하여 3초 제한시간 해결
       await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });

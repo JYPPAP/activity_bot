@@ -129,8 +129,7 @@ export class EmojiReactionService {
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       const success = await this.forumPostManager.sendEmojiParticipantUpdate(
         fullReaction.message.channel.id, 
-        participants, 
-        '참가'
+        participants
       );
 
       if (!success) {
@@ -194,8 +193,7 @@ export class EmojiReactionService {
       // 참가자 목록 메시지 전송 (ForumPostManager를 통해)
       const success = await this.forumPostManager.sendEmojiParticipantUpdate(
         fullReaction.message.channel.id, 
-        participants, 
-        '참가'
+        participants
       );
 
       if (!success) {

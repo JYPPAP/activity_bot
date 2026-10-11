@@ -33,7 +33,7 @@ export class CommandBase {
       logger.error('명령어 실행 오류', { component: this.constructor.name, error: error.message, stack: error.stack, interactionId: interaction.id });
 
       // 에러 응답
-      await this.sendErrorResponse(interaction, error);
+      await this.sendErrorResponse(interaction);
     }
   }
 
@@ -41,16 +41,15 @@ export class CommandBase {
    * 실제 명령어 실행 로직 (자식 클래스에서 구현해야 함)
    * @param interaction - 상호작용 객체
    */
-  async executeCommand(interaction) {
+  async executeCommand(_interaction) {
     throw new Error('자식 클래스에서 executeCommand 메서드를 구현해야 합니다.');
   }
 
   /**
    * 오류 응답 전송 (SafeInteraction 사용)
    * @param interaction - 상호작용 객체
-   * @param {Error} error - 발생한 오류
    */
-  async sendErrorResponse(interaction, error) {
+  async sendErrorResponse(interaction) {
     const errorMessage = '명령어 실행 중 오류가 발생했습니다.';
 
     await SafeInteraction.safeReply(interaction, {
@@ -68,22 +67,4 @@ export class CommandBase {
     return await SafeInteraction.safeReply(interaction, options);
   }
 
-  /**
-   * 안전한 지연 응답
-   * @param interaction - 상호작용 객체
-   * @param options - 지연 옵션
-   */
-  async safeDeferReply(interaction, options = {}) {
-    return await SafeInteraction.safeDeferReply(interaction, options);
-  }
-
-  /**
-   * 안전한 후속 응답
-   * @param interaction - 상호작용 객체
-   * @param options - 응답 옵션
-   */
-  async safeFollowUp(interaction, options) {
-    // SafeInteraction.safeReply가 자동으로 상태를 확인해서 followUp 또는 다른 적절한 메서드를 선택함
-    return await SafeInteraction.safeReply(interaction, options);
-  }
 }

@@ -1,7 +1,6 @@
 // src/utils/SafeInteraction.js - 안전한 Discord 인터랙션 래퍼 (JavaScript 버전)
 import {
   MessageFlags,
-  ModalBuilder,
   InteractionType,
 } from 'discord.js';
 import { logger } from '../config/logger-termux.js';
@@ -424,8 +423,7 @@ export class SafeInteraction {
       // 에러 처리 및 복구 시도
       const recovery = await this.attemptErrorRecovery(
         interaction,
-        error,
-        options
+        error
       );
       return recovery;
     } finally {
@@ -633,10 +631,9 @@ export class SafeInteraction {
    * 에러 복구 시도
    * @param interaction - Discord 인터랙션
    * @param error - 발생한 에러
-   * @param originalOptions - 원본 옵션
    * @returns 복구 시도 결과
    */
-  static async attemptErrorRecovery(interaction, error, originalOptions) {
+  static async attemptErrorRecovery(interaction, error) {
     const errorCode = Number(error.code) || 0;
 
     // 복구 불가능한 에러들

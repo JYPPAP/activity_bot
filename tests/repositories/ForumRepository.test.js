@@ -45,7 +45,6 @@ describe('ForumRepository', () => {
       const inserted = { id: 1, voice_channel_id: 'voice-1', forum_post_id: 'post-1' };
       client.query
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [inserted], rowCount: 1 });
 
       await expect(repository.createPostIntegration(
@@ -53,7 +52,7 @@ describe('ForumRepository', () => {
       )).resolves.toBe(inserted);
 
       expect(client.query).toHaveBeenNthCalledWith(
-        3,
+        2,
         expect.stringContaining('INSERT INTO post_integrations'),
         ['guild-1', 'voice-1', 'post-1', 'forum-1']
       );
@@ -65,7 +64,6 @@ describe('ForumRepository', () => {
       const updated = { ...existing, forum_channel_id: 'forum-1' };
       client.query
         .mockResolvedValueOnce({ rows: [existing], rowCount: 1 })
-        .mockResolvedValueOnce({ rows: [existing], rowCount: 1 })
         .mockResolvedValueOnce({ rows: [updated], rowCount: 1 });
 
       await expect(repository.createPostIntegration(
@@ -73,7 +71,7 @@ describe('ForumRepository', () => {
       )).resolves.toBe(updated);
 
       expect(client.query).toHaveBeenNthCalledWith(
-        3,
+        2,
         expect.stringContaining('ON CONFLICT (guild_id, voice_channel_id)'),
         ['guild-1', 'voice-1', 'post-1', 'forum-1']
       );
@@ -84,8 +82,7 @@ describe('ForumRepository', () => {
         .mockResolvedValueOnce({
           rows: [{ voice_channel_id: 'voice-other', forum_post_id: 'post-1' }],
           rowCount: 1
-        })
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+        });
 
       const promise = repository.createPostIntegration('guild-1', 'voice-1', 'post-1', 'forum-1');
 
@@ -93,13 +90,12 @@ describe('ForumRepository', () => {
         code: '23505',
         constraint: 'post_integrations_guild_id_forum_post_id_key'
       });
-      expect(client.query).toHaveBeenCalledTimes(2);
+      expect(client.query).toHaveBeenCalledTimes(1);
     });
 
     it('runs all queries through one transaction client', async () => {
       const inserted = { id: 1, voice_channel_id: 'voice-1', forum_post_id: 'post-1' };
       client.query
-        .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [], rowCount: 0 })
         .mockResolvedValueOnce({ rows: [inserted], rowCount: 1 });
 

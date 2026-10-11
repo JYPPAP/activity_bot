@@ -1,5 +1,4 @@
 // src/config/commandPermissions.js - 명령어 권한 설정
-import { PermissionsBitField } from 'discord.js';
 import { config } from './env.js';
 
 // 모든 명령어에 대한 전체 권한을 가진 역할들

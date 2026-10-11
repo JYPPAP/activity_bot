@@ -8,7 +8,6 @@ import { logger } from '../../config/logger-termux.js';
 export class PreMembersButtons {
   constructor(deps) {
     this.forumPostManager = deps.forumPostManager;
-    this.parent = deps.parent;
   }
 
   /**
@@ -141,7 +140,7 @@ export class PreMembersButtons {
 
       // ④ 이전 참가자 목록 메시지 삭제 후 새 목록 전송 (참가하기 버튼과 동일한 방식)
       const updatedNicknames = await db.getParticipantNicknames(threadId);
-      await this.forumPostManager.sendEmojiParticipantUpdate(threadId, updatedNicknames, '멤버수정');
+      await this.forumPostManager.sendEmojiParticipantUpdate(threadId, updatedNicknames);
 
       logger.info(`[ButtonHandler] 멤버 수정 완료: threadId=${threadId}, 추가=${toAdd.length}, 제거=${toRemove.length}`);
 

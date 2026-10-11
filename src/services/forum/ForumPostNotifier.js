@@ -13,7 +13,7 @@ export class ForumPostNotifier {
     this.parent = deps.parent;
   }
 
-  async sendParticipantUpdateMessage(postId, currentCount, maxCount, voiceChannelName) {
+  async sendParticipantUpdateMessage(postId, currentCount, maxCount) {
     try {
       const thread = await this.client.channels.fetch(postId);
       
@@ -107,7 +107,7 @@ export class ForumPostNotifier {
     }
   }
 
-  async sendEmojiParticipantUpdate(postId, participants, emojiName = '참가') {
+  async sendEmojiParticipantUpdate(postId, participants) {
     try {
       const thread = await this.client.channels.fetch(postId);
       

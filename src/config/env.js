@@ -58,6 +58,7 @@ export const config = {
   NODE_ENV: process.env.NODE_ENV,
   ERRSOLE_HOST: process.env.ERRSOLE_HOST,
   ERRSOLE_PORT: process.env.ERRSOLE_PORT,
+  PORT: process.env.PORT || 3000,
 
   PHONE_IP: process.env.PHONE_IP, // 네트워크 설정
 

@@ -155,7 +155,7 @@ export class TimeActivityHelper {
     try {
       const member = await guild.members.fetch(userId);
       return member.displayName || fallbackUsername;
-    } catch (error) {
+    } catch {
       return fallbackUsername;
     }
   }

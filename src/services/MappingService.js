@@ -257,8 +257,7 @@ export class MappingService {
       const updateResult = await this.forumPostManager.sendParticipantUpdateMessage(
         postId, 
         currentCount, 
-        maxCount, 
-        voiceChannelInfo.name
+        maxCount
       );
       
       if (updateResult) {

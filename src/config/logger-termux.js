@@ -265,8 +265,6 @@ export const logger = {
 };
 
 // 헬스체크 및 모니터링 시스템
-let healthCheckInterval;
-let logDelayMonitorInterval;
 let lastMemoryUsage = process.memoryUsage();
 
 // 로그 지연 모니터링 시스템
@@ -320,7 +318,7 @@ function calculateDelayStats() {
 function startLogDelayMonitoring() {
   console.log('⏱️ 로그 지연 모니터링 시작 (2분 간격)');
   
-  logDelayMonitorInterval = setInterval(async () => {
+  setInterval(async () => {
     try {
       // 테스트 로그로 지연 시간 측정
       const testLogTime = Date.now();
@@ -364,7 +362,7 @@ function startLogDelayMonitoring() {
 function startHealthMonitoring() {
   console.log('🏥 헬스체크 모니터링 시작 (5분 간격)');
   
-  healthCheckInterval = setInterval(async () => {
+  setInterval(async () => {
     try {
       const currentMemory = process.memoryUsage();
       const uptime = process.uptime();
@@ -426,32 +424,5 @@ setTimeout(() => {
   startHealthMonitoring();
   startLogDelayMonitoring();
 }, 10000); // 10초 후 시작
-
-// 프로세스 종료 시 정리
-process.on('SIGINT', () => {
-  console.log('🔄 프로세스 종료 시그널 감지 - 정리 작업 시작');
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval);
-    console.log('✅ 헬스체크 모니터링 중지');
-  }
-  if (logDelayMonitorInterval) {
-    clearInterval(logDelayMonitorInterval);
-    console.log('✅ 로그 지연 모니터링 중지');
-  }
-  process.exit(0);
-});
-
-process.on('SIGTERM', () => {
-  console.log('🔄 프로세스 종료 시그널 감지 - 정리 작업 시작');
-  if (healthCheckInterval) {
-    clearInterval(healthCheckInterval);
-    console.log('✅ 헬스체크 모니터링 중지');
-  }
-  if (logDelayMonitorInterval) {
-    clearInterval(logDelayMonitorInterval);
-    console.log('✅ 로그 지연 모니터링 중지');
-  }
-  process.exit(0);
-});
 
 export default errsole;

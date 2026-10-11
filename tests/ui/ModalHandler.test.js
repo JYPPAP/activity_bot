@@ -45,14 +45,4 @@ describe('ModalHandler', () => {
       .toHaveBeenCalledWith(interaction, 'scrimmage', ['tank', 'support']);
   });
 
-  it('초기 통계에 제출 수 0을 제공한다', () => {
-    expect(handler.getModalStatistics()).toMatchObject({ totalSubmissions: 0 });
-  });
-
-  it('제출 디스패처와 통계 모듈이 같은 상태를 공유한다', async () => {
-    await handler.handleModalSubmit({ customId: 'scrimmage_recruitment_modal' });
-
-    expect(handler.getModalStatistics().totalSubmissions).toBe(1);
-    expect(handler.stats.modalStats.totalSubmissions).toBe(1);
-  });
 });

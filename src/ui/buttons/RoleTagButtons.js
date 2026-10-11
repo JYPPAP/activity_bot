@@ -10,7 +10,6 @@ export class RoleTagButtons {
   constructor(deps) {
     this.recruitmentService = deps.recruitmentService;
     this.modalHandler = deps.modalHandler;
-    this.parent = deps.parent;
   }
 
   /**
@@ -127,7 +126,7 @@ export class RoleTagButtons {
       } else if (methodValue.startsWith(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX)) {
         logger.info(`[ButtonHandler] 기존 포럼 연동 처리`);
         const existingPostId = methodValue.replace(DiscordConstants.METHOD_VALUES.EXISTING_FORUM_PREFIX, '');
-        await this.recruitmentService.linkToExistingForum(interaction, voiceChannelId, existingPostId, selectedTags);
+        await this.recruitmentService.linkToExistingForum(interaction, voiceChannelId, existingPostId);
       } else {
         logger.warn(`[ButtonHandler] 알 수 없는 methodValue: "${methodValue}"`);
         await SafeInteraction.safeReply(interaction, {

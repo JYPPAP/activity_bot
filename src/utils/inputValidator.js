@@ -127,7 +127,7 @@ export function removeSecurityThreats(text, strictMode = false) {
     /<[^>]*on\w+\s*=.*?>/gi
   ];
 
-  xssPatterns.forEach((pattern, index) => {
+  xssPatterns.forEach((pattern) => {
     if (pattern.test(sanitized)) {
       threats.push('XSS 패턴');
       sanitized = sanitized.replace(pattern, '');
@@ -289,7 +289,7 @@ export function isJsonSafe(text) {
     JSON.stringify(testObj);
     JSON.parse(JSON.stringify(testObj));
     return true;
-  } catch (error) {
+  } catch {
     return false;
   }
 }

@@ -8,7 +8,6 @@ export class ForumPostButtons {
   constructor(deps) {
     this.emojiReactionService = deps.emojiReactionService;
     this.forumPostManager = deps.forumPostManager;
-    this.parent = deps.parent;
   }
 
   /**
@@ -83,8 +82,7 @@ export class ForumPostButtons {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        updatedParticipants,
-        '참가'
+        updatedParticipants
       );
 
       // 변경 알림 메시지 전송
@@ -179,8 +177,7 @@ export class ForumPostButtons {
       // 참가자 목록 메시지 업데이트
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        updatedParticipants,
-        '참가 취소'
+        updatedParticipants
       );
 
       // 변경 알림 메시지 전송
@@ -331,8 +328,7 @@ export class ForumPostButtons {
       const participantNicknames = participants.map(participant => participant.nickname);
       await this.forumPostManager.sendEmojiParticipantUpdate(
         threadId,
-        participantNicknames,
-        '참가자 멘션'
+        participantNicknames
       );
 
       logger.info(`[ButtonHandler] 참가자 멘션 전송: threadId=${threadId}, ${userIds.length}명 (요청자: ${interaction.user.id}, 참가자=${isParticipant}, 관리자=${isSuperAdmin})`);

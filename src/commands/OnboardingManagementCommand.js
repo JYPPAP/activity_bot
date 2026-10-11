@@ -1,5 +1,6 @@
 import {MessageFlags, PermissionsBitField} from 'discord.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
+import {DiscordConstants} from '../config/DiscordConstants.js';
 
 export class OnboardingManagementCommand {
   constructor(onboardingRepository, onboardingService) {
@@ -16,9 +17,10 @@ export class OnboardingManagementCommand {
     await SafeInteraction.safeDeferReply(interaction, {ephemeral: true});
     if (subcommand === '설정') {
       const value = name => interaction.options.get(name, true).value;
+      const onboardingChannelId = DiscordConstants.CHANNEL_IDS.ONBOARDING;
       const saved = await this.onboardingRepository.saveConfig(interaction.guildId, {
-        welcomeChannelId: value('환영채널'), gameChannelId: value('게임채널'),
-        rulesChannelId: value('규칙채널'), applicationChannelId: value('신청채널'),
+        welcomeChannelId: onboardingChannelId, gameChannelId: onboardingChannelId,
+        rulesChannelId: onboardingChannelId, applicationChannelId: onboardingChannelId,
         reviewChannelId: value('심사채널'), maleRoleId: value('남성역할'),
         femaleRoleId: value('여성역할'), pendingRoleId: value('대기역할'),
         memberRoleId: value('정회원역할'), stageRoleIds: {
@@ -26,15 +28,9 @@ export class OnboardingManagementCommand {
           rules: value('규칙단계역할'), application: value('신청단계역할')
         }
       });
-      const channelRoles = [
-        [saved.welcome_channel_id, saved.stage_role_ids.gender],
-        [saved.game_channel_id, saved.stage_role_ids.games],
-        [saved.rules_channel_id, saved.stage_role_ids.rules],
-        [saved.application_channel_id, saved.stage_role_ids.application]
-      ];
-      for (const [channelId, roleId] of channelRoles) {
-        const channel = await interaction.guild.channels.fetch(channelId);
-        await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {ViewChannel: false});
+      const channel = await interaction.guild.channels.fetch(onboardingChannelId);
+      await channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {ViewChannel: false});
+      for (const roleId of Object.values(saved.stage_role_ids)) {
         await channel.permissionOverwrites.edit(roleId, {ViewChannel: true, SendMessages: false});
       }
       return SafeInteraction.safeReply(interaction, {content: '가입 단계 설정을 저장하고 활성화했습니다.'});
@@ -48,12 +44,10 @@ export class OnboardingManagementCommand {
     if (!config) throw new Error('먼저 /가입관리 설정을 실행해 주세요.');
     if (!config.game_roles?.length) throw new Error('먼저 게임 역할을 하나 이상 추가해 주세요.');
     const messages = this.onboardingService.buildMessages(config);
-    for (const [channelId, message] of [[config.welcome_channel_id, messages.gender],
-      [config.game_channel_id, messages.games], [config.rules_channel_id, messages.rules],
-      [config.application_channel_id, messages.application]]) {
-      const channel = await interaction.guild.channels.fetch(channelId);
+    const channel = await interaction.guild.channels.fetch(DiscordConstants.CHANNEL_IDS.ONBOARDING);
+    for (const message of Object.values(messages)) {
       await channel.send(message);
     }
-    return SafeInteraction.safeReply(interaction, {content: '가입 안내 메시지를 네 단계 채널에 게시했습니다.'});
+    return SafeInteraction.safeReply(interaction, {content: '가입 안내 메시지를 온보딩 채널에 게시했습니다.'});
   }
 }

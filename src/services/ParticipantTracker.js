@@ -1,6 +1,5 @@
 // src/services/ParticipantTracker.js - 참여자 추적 및 관리
 import { TextProcessor } from '../utils/TextProcessor.js';
-import { DiscordConstants } from '../config/DiscordConstants.js';
 
 export class ParticipantTracker {
   constructor(client) {

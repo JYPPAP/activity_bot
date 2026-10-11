@@ -49,7 +49,7 @@ export class ActivityReportService {
         }
 
         // UserClassificationService 사용
-        const userClassificationService = new UserClassificationService(this.db, null);
+        const userClassificationService = new UserClassificationService(this.db);
         const {activeUsers, inactiveUsers, afkUsers, resetTime, minHours} =
           await userClassificationService.classifyUsers(roleName, members);
 

@@ -30,7 +30,6 @@ describe('ForumPostButtons', () => {
     const buttons = new ForumPostButtons({
       emojiReactionService: {},
       forumPostManager,
-      parent: {},
     });
     vi.spyOn(SafeInteraction, 'safeDeferUpdate').mockResolvedValue(undefined);
 
@@ -42,8 +41,7 @@ describe('ForumPostButtons', () => {
     });
     expect(forumPostManager.sendEmojiParticipantUpdate).toHaveBeenCalledWith(
       'thread-1',
-      ['참가자1', '참가자2'],
-      '참가자 멘션'
+      ['참가자1', '참가자2']
     );
     expect(channelSend.mock.invocationCallOrder[0]).toBeLessThan(
       forumPostManager.sendEmojiParticipantUpdate.mock.invocationCallOrder[0]

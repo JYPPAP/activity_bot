@@ -21,12 +21,6 @@ export class PostIntegrationRepository {
         WHERE guild_id = $1 AND forum_post_id = $2 AND is_active = true
       `, [guildId, forumPostId]);
 
-        const existingByChannel = await client.query(`
-        SELECT voice_channel_id, forum_post_id
-        FROM post_integrations
-        WHERE guild_id = $1 AND voice_channel_id = $2 AND is_active = true
-      `, [guildId, voiceChannelId]);
-
         // 동일한 포럼에 다른 채널이 이미 연결된 경우 확인
         if (existingByPost.rows.length > 0 && existingByPost.rows[0].voice_channel_id !== voiceChannelId) {
           const existingChannelId = existingByPost.rows[0].voice_channel_id;

@@ -12,7 +12,8 @@ export class VoiceChannelButtons {
     this.voiceChannelManager = deps.voiceChannelManager;
     this.recruitmentService = deps.recruitmentService;
     this.forumPostManager = deps.forumPostManager;
-    this.parent = deps.parent;
+    this.forumPostButtons = deps.forumPostButtons;
+    this.preMembersButtons = deps.preMembersButtons;
   }
 
   /**
@@ -39,9 +40,6 @@ export class VoiceChannelButtons {
       
       if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CONNECT)) {
         await this.handleConnectButton(interaction);
-      // 닫기 버튼 처리 비활성화 (임시)
-      // } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_CLOSE) || customId === 'general_close') {
-      //   await this.handleCloseButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_SPECTATE) || customId === 'general_spectate') {
         await this.handleSpectateButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.VOICE_WAIT) || customId === 'general_wait') {
@@ -55,18 +53,18 @@ export class VoiceChannelButtons {
       } else if (customId === DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_DELETE_CANCEL) {
         await this.handleDeleteCancelButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_JOIN)) {
-        await this.parent.forumPostButtons.handleJoinButton(interaction);
+        await this.forumPostButtons.handleJoinButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_LEAVE)) {
-        await this.parent.forumPostButtons.handleLeaveButton(interaction);
+        await this.forumPostButtons.handleLeaveButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_WAIT)) {
-        await this.parent.forumPostButtons.handleForumWaitButton(interaction);
+        await this.forumPostButtons.handleForumWaitButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_EDIT_PREMEMBERS)) {
-        await this.parent.preMembersButtons.handleEditPreMembersButton(interaction);
+        await this.preMembersButtons.handleEditPreMembersButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_MENTION)) {
-        await this.parent.forumPostButtons.handleMentionButton(interaction);
+        await this.forumPostButtons.handleMentionButton(interaction);
       } else if (customId.startsWith(DiscordConstants.CUSTOM_ID_PREFIXES.FORUM_PARTICIPATE)) {
         // 하위 호환성을 위해 유지 (기존 포스트용)
-        await this.parent.forumPostButtons.handleJoinButton(interaction);
+        await this.forumPostButtons.handleJoinButton(interaction);
       } else {
         logger.warn(`[ButtonHandler] 알 수 없는 음성 채널 버튼: ${customId}`);
       }
@@ -115,7 +113,7 @@ export class VoiceChannelButtons {
         if (voiceChannel) {
           channelName = voiceChannel.name;
         }
-      } catch (error) {
+      } catch {
         logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       
@@ -159,7 +157,7 @@ export class VoiceChannelButtons {
       if (voiceChannel) {
         channelName = voiceChannel.name;
       }
-    } catch (error) {
+    } catch {
       logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
     }
 
@@ -207,7 +205,7 @@ export class VoiceChannelButtons {
         if (voiceChannel) {
           channelName = voiceChannel.name;
         }
-      } catch (error) {
+      } catch {
         logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       
@@ -231,53 +229,6 @@ export class VoiceChannelButtons {
       });
     }
   }
-  
-  // 닫기 버튼 처리 비활성화 (임시)
-  // /**
-  //  * 포스트 닫기 버튼 처리
-  //  * @param {ButtonInteraction} interaction - 버튼 인터랙션
-  //  * @returns {Promise<void>}
-  //  */
-  // async handleCloseButton(interaction) {
-  //   // 즉시 defer하여 3초 제한 해결
-  //   await SafeInteraction.safeDeferReply(interaction, { flags: MessageFlags.Ephemeral });
-  //   
-  //   try {
-  //     // 현재 포스트가 포럼 스레드인지 확인
-  //     if (!interaction.channel || !interaction.channel.isThread()) {
-  //       await interaction.editReply({
-  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n포럼 포스트에서만 사용할 수 있습니다.'
-  //       });
-  //       return;
-  //     }
-
-  //     const postId = interaction.channel.id;
-  //     
-  //     // RecruitmentService를 통해 ForumPostManager에 접근하여 포스트 아카이빙
-  //     const archiveSuccess = await this.recruitmentService.forumPostManager.archivePost(
-  //       postId, 
-  //       RecruitmentConfig.MESSAGES.CLOSE_POST_REASON
-  //     );
-
-  //     if (archiveSuccess) {
-  //       await interaction.editReply({
-  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_SUCCESS
-  //       });
-  //       logger.info(`[ButtonHandler] 포스트 닫기 성공: ${postId}`);
-  //     } else {
-  //       await interaction.editReply({
-  //         content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED
-  //       });
-  //       logger.warn(`[ButtonHandler] 포스트 닫기 실패: ${postId}`);
-  //     }
-  //     
-  //   } catch (error) {
-  //     logger.error('[ButtonHandler] 포스트 닫기 오류', { error: error.message, stack: error.stack });
-  //     await interaction.editReply({
-  //       content: RecruitmentConfig.MESSAGES.CLOSE_POST_FAILED + '\n오류가 발생했습니다.'
-  //     });
-  //   }
-  // }
   
   /**
    * 초기화 버튼 처리
@@ -305,7 +256,7 @@ export class VoiceChannelButtons {
         if (voiceChannel) {
           channelName = voiceChannel.name;
         }
-      } catch (error) {
+      } catch {
         logger.warn(`[ButtonHandler] 채널 fetch 실패 (삭제된 채널일 수 있음): ${voiceChannelId}`);
       }
       

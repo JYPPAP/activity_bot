@@ -42,7 +42,7 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
   try {
     logger.info('Discord Bot 시작 프로세스 시작', {
       timestamp: new Date().toISOString(),
-      nodeEnv: process.env.NODE_ENV || 'development',
+      nodeEnv: config.NODE_ENV || 'development',
       platform: 'Termux Android'
     });
 

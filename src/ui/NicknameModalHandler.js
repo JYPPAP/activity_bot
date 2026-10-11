@@ -1,10 +1,15 @@
 import { logger } from '../config/logger-termux.js';
 // src/ui/NicknameModalHandler.js - 닉네임 모달 핸들러
 
-import { MessageFlags, EmbedBuilder, StringSelectMenuBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import { NicknameConstants } from '../config/NicknameConstants.js';
 import { SafeInteraction } from '../utils/SafeInteraction.js';
 import { EmojiParser } from '../utils/EmojiParser.js';
+import {
+  createActionButtons,
+  createMainSelectMenu,
+  createNicknameEmbed,
+} from './NicknameUIBuilder.js';
 
 export class NicknameModalHandler {
   constructor(platformTemplateService, userNicknameService) {
@@ -238,9 +243,9 @@ export class NicknameModalHandler {
       }
 
       // 새로운 UI 컴포넌트 생성
-      const embed = this.createNicknameEmbed(channel.name);
-      const selectMenu = this.createMainSelectMenu(channel.id, platforms);
-      const buttons = this.createActionButtons(channel.id);
+      const embed = createNicknameEmbed();
+      const selectMenu = createMainSelectMenu(channel.id, platforms);
+      const buttons = createActionButtons(channel.id, true);
 
       // 원래 메시지 삭제 (권한이 있는 경우에만)
       try {
@@ -261,107 +266,4 @@ export class NicknameModalHandler {
     }
   }
 
-  /**
-   * 닉네임 관리 임베드 생성
-   */
-  createNicknameEmbed(channelName) {
-    return new EmbedBuilder()
-      .setColor(NicknameConstants.COLORS.PRIMARY)
-      .setTitle(`${NicknameConstants.DEFAULT_EMOJIS.REGISTER} 닉네임 관리`)
-      .setDescription(
-        '아래에서 작업을 선택하세요.\n\n' +
-        '**드롭다운 사용법:**\n' +
-        '• "➕ 닉네임 등록!" → 플랫폼 선택 → ID 입력\n' +
-        '• 플랫폼 직접 선택 → 등록 또는 수정'
-      )
-      .setFooter({ text: '💡 등록된 닉네임은 음성 채널 입장 시 자동으로 표시됩니다.' });
-  }
-
-  /**
-   * 메인 드롭다운 생성
-   */
-  createMainSelectMenu(channelId, platforms) {
-    const options = [
-      {
-        label: '➕ 닉네임 등록!',
-        description: '새로운 플랫폼 닉네임을 등록합니다',
-        value: NicknameConstants.SPECIAL_VALUES.REGISTER,
-        emoji: NicknameConstants.DEFAULT_EMOJIS.REGISTER,
-      },
-    ];
-
-    // 플랫폼 목록 추가
-    platforms.forEach((platform) => {
-      try {
-        const parsedEmoji = EmojiParser.parse(platform.emoji_unicode, NicknameConstants.DEFAULT_EMOJIS.PLATFORM);
-
-        options.push({
-          label: platform.platform_name,
-          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
-          value: `platform_${platform.id}`,
-          emoji: parsedEmoji,
-        });
-      } catch (error) {
-        logger.error(`[NicknameModalHandler] Failed to parse emoji for platform ${platform.platform_name}`, { error: error.message, stack: error.stack });
-
-        // 에러 발생 시 fallback 이모지 사용
-        options.push({
-          label: platform.platform_name,
-          description: `${platform.platform_name} 닉네임 등록 또는 수정`,
-          value: `platform_${platform.id}`,
-          emoji: NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
-        });
-      }
-    });
-
-    const selectMenu = new StringSelectMenuBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.MAIN_SELECT}${channelId}`)
-      .setPlaceholder('닉네임 등록!')
-      .addOptions(options);
-
-    return new ActionRowBuilder().addComponents(selectMenu);
-  }
-
-  /**
-   * 액션 버튼 생성
-   */
-  createActionButtons(channelId) {
-    const deleteButton = new ButtonBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.DELETE_BTN}${channelId}`)
-      .setLabel('닉네임 삭제')
-      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.DELETE)
-      .setStyle(ButtonStyle.Danger);
-
-    const viewButton = new ButtonBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.VIEW_BTN}${channelId}`)
-      .setLabel('내 정보 조회')
-      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.VIEW)
-      .setStyle(ButtonStyle.Primary);
-
-    const adminAddButton = new ButtonBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_ADD_BTN}${channelId}`)
-      .setLabel('플랫폼 추가')
-      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.REGISTER)
-      .setStyle(ButtonStyle.Success);
-
-    const adminEditButton = new ButtonBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_EDIT_BTN}${channelId}`)
-      .setLabel('플랫폼 수정')
-      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.EDIT)
-      .setStyle(ButtonStyle.Secondary);
-
-    const adminDeleteButton = new ButtonBuilder()
-      .setCustomId(`${NicknameConstants.CUSTOM_ID_PREFIXES.ADMIN_DELETE_BTN}${channelId}`)
-      .setLabel('플랫폼 삭제')
-      .setEmoji(NicknameConstants.DEFAULT_EMOJIS.DELETE)
-      .setStyle(ButtonStyle.Danger);
-
-    return new ActionRowBuilder().addComponents(
-      viewButton,
-      deleteButton,
-      adminAddButton,
-      adminEditButton,
-      adminDeleteButton
-    );
-  }
 }

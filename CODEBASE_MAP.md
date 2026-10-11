@@ -1,7 +1,7 @@
 # Activity Bot - Codebase Map
 > 이 파일은 AI 어시스턴트가 코드 구조를 빠르게 파악하기 위한 참조 파일입니다.
 > 수정 시 반드시 이 파일도 함께 업데이트할 것.
-> 마지막 업데이트: 2026-10-08
+> 마지막 업데이트: 2026-10-10
 
 ## 기술 스택
 - Runtime: Node.js (ESM)
@@ -24,7 +24,7 @@ src/
 │
 ├── config/               # 설정 & 상수
 │   ├── env.js            # process.env → config 객체 (TEAM_CHANNEL_IDS 등)
-│   ├── DiscordConstants.js    # CUSTOM_ID_PREFIXES, EMOJIS
+│   ├── DiscordConstants.js    # CHANNEL_IDS, CUSTOM_ID_PREFIXES, EMOJIS
 │   ├── NicknameConstants.js   # 닉네임 시스템 상수
 │   ├── RecruitmentConfig.js   # 구인구직 설정 (MAX_TAGS 등)
 │   ├── commandPermissions.js  # 역할 기반 명령어 권한
@@ -39,7 +39,6 @@ src/
 │   ├── TimeCheckCommand.js    # /시간체크 (관리자)
 │   ├── TimeConfirmCommand.js  # /시간확인 (개인)
 │   ├── GapReportCommand.js    # /gap_report
-│   ├── NicknameCommand.js     # /닉네임
 │   ├── NicknameManagementCommand.js  # /닉관리 (관리자)
 │   ├── NicknameSetupCommand.js       # /닉설정
 │   └── OnboardingManagementCommand.js # /가입관리 (관리자 설정·메시지 설치)
@@ -95,9 +94,9 @@ src/
 │   │   ├── ForumPostButtons.js     # 포럼 참가·취소·대기·멘션 버튼
 │   │   └── PreMembersButtons.js    # 미리 모인 멤버 수정 버튼·선택 메뉴
 │   ├── ModalHandler.js        # 모달 인터랙션 디스패처 Facade
+│   ├── NicknameUIBuilder.js   # 닉네임 임베드·선택 메뉴·버튼 공통 빌더
 │   ├── modals/
 │   │   ├── ModalRetryPolicy.js          # 모달 처리 재시도 정책
-│   │   ├── ModalStatistics.js           # 모달 통계·히스토리 단일 소유자
 │   │   ├── RecruitmentModalBuilder.js   # 구인구직 모달 구성·표시
 │   │   ├── RecruitmentModalData.js      # 모달 입력 추출·검증
 │   │   └── RecruitmentSubmitFlows.js    # 독립·음성 연동 제출 흐름
@@ -230,7 +229,7 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 
 | Table | Key / 주요 컬럼 | Description |
 |---|---|---|
-| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 길드별 가입 채널/역할 구성과 게임 역할 선택지 |
+| `onboarding_configs` | `guild_id` PK, 단계별 채널 ID, 성별·단계·대기·정회원 역할 ID, `game_roles` JSONB, `enabled` | 공개 단계 채널 ID는 온보딩 채널 `1459874768449699861`로 통일하고 심사 채널은 별도 구성 |
 | `onboarding_progress` | `(guild_id, user_id)` PK, `stage`, 선택 역할 ID, 규칙 동의·신청·심사 시각, `reviewed_by`, `rejection_reason` | 신규 회원의 재시작 가능한 가입 진행 상태와 심사 이력 |
 
 가입 단계는 `gender → games → rules → application → pending → approved` 순서이며, 거절 시 `application`으로 돌아간다. `idx_onboarding_progress_stage (guild_id, stage)`가 단계별 조회를 지원한다.

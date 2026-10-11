@@ -3,9 +3,8 @@ import { logger } from '../config/logger-termux.js';
 import {calculateNextSunday} from '../utils/dateUtils.js';
 
 export class UserClassificationService {
-  constructor(dbManager, activityTracker) {
+  constructor(dbManager) {
     this.db = dbManager;
-    this.activityTracker = activityTracker;
   }
 
   /**
@@ -185,8 +184,7 @@ export class UserClassificationService {
     logger.info(`[잠수처리] 시작: userId=${userId}, nickname=${member.displayName}`);
 
     try {
-      // DB 강제 새로고침
-      this.db.forceReload();
+      this.db.invalidateCache();
 
       // 별도 테이블에서 잠수 상태 조회
       const afkStatus = await this.db.getUserAfkStatus(userId);

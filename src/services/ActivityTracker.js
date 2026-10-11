@@ -1,5 +1,5 @@
 // src/services/activityTracker.js - 활동 추적 서비스 (PostgreSQL 버전)
-import {TIME, FILTERS, MESSAGE_TYPES} from '../config/constants.js';
+import {FILTERS, MESSAGE_TYPES} from '../config/constants.js';
 import {config} from '../config/env.js';
 import { logger } from '../config/logger-termux.js';
 
@@ -237,7 +237,7 @@ export class ActivityTracker {
    * 길드의 활동 데이터 초기화
    * @param {Guild} guild - 디스코드 길드 객체
    */
-  async initializeActivityData(guild) {
+  async initializeActivityData(_guild) {
     try {
       // 역할 활동 설정 불러오기
       await this.loadRoleActivityConfig();
@@ -300,7 +300,7 @@ export class ActivityTracker {
   }
 
   // 채널 퇴장인지 확인
-  isChannelLeave(oldState, newState) {
+  isChannelLeave(oldState) {
     return oldState.channelId && !config.EXCLUDED_CHANNELS_FOR_LOGS.includes(oldState.channelId);
   }
 
@@ -865,7 +865,7 @@ export class ActivityTracker {
     let invalidSessions = 0;
     const sessionsToEnd = [];
 
-    for (const [userId, session] of this.activeSessions.entries()) {
+    for (const userId of this.activeSessions.keys()) {
       try {
         const member = guild.members.cache.get(userId);
         
@@ -975,7 +975,7 @@ export class ActivityTracker {
 
       // 세션은 있는데 실제로는 음성채널에 없는 사용자들 정리
       const sessionsToEnd = [];
-      for (const [userId, session] of this.activeSessions.entries()) {
+      for (const userId of this.activeSessions.keys()) {
         if (!currentVoiceUsers.has(userId)) {
           sessionsToEnd.push(userId);
         }

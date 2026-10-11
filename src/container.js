@@ -10,7 +10,6 @@ import { ActivityTracker } from './services/ActivityTracker.js';
 import { EventManager } from './services/EventManager.js';
 import { VoiceChannelForumIntegrationService } from './services/VoiceChannelForumIntegrationService.js';
 import { EmojiReactionService } from './services/EmojiReactionService.js';
-import { UserClassificationService } from './services/UserClassificationService.js';
 import { ParticipantTracker } from './services/ParticipantTracker.js';
 import { VoiceChannelManager } from './services/VoiceChannelManager.js';
 import { ForumPostManager } from './services/ForumPostManager.js';
@@ -40,7 +39,6 @@ import { TimeConfirmCommand } from './commands/TimeConfirmCommand.js';
 import { TimeCheckCommand } from './commands/TimeCheckCommand.js';
 import { GapReportCommand } from './commands/GapReportCommand.js';
 import { RecruitmentCommand } from './commands/RecruitmentCommand.js';
-import { NicknameCommand } from './commands/NicknameCommand.js';
 import { NicknameManagementCommand } from './commands/NicknameManagementCommand.js';
 import { NicknameSetupCommand } from './commands/NicknameSetupCommand.js';
 import { TeamCommand } from './commands/TeamCommand.js';
@@ -103,7 +101,6 @@ export function createDIContainer(client) {
     mappingService: asFunction((client, voiceChannelManager, forumPostManager, dbManager) =>
       new MappingService(client, voiceChannelManager, forumPostManager, dbManager)
     ).singleton(),
-    userClassificationService: asClass(UserClassificationService).singleton(),
     platformTemplateService: asClass(PlatformTemplateService).singleton(),
     userNicknameService: asClass(UserNicknameService).singleton(),
     voiceChannelNicknameManager: asClass(VoiceChannelNicknameManager).singleton(),
@@ -166,7 +163,6 @@ export function createDIContainer(client) {
     timeCheckCommand: asClass(TimeCheckCommand).singleton(),
     gapReportCommand: asClass(GapReportCommand).singleton(),
     recruitmentCommand: asClass(RecruitmentCommand).singleton(),
-    nicknameCommand: asClass(NicknameCommand).singleton(),
     nicknameManagementCommand: asClass(NicknameManagementCommand).singleton(),
     nicknameSetupCommand: asClass(NicknameSetupCommand).singleton(),
     teamCommand: asClass(TeamCommand).singleton(),
@@ -185,17 +181,13 @@ export function createDIContainer(client) {
       dbManager,
       activityTracker,
       voiceChannelForumIntegrationService,
-      platformTemplateService,
-      userNicknameService,
-      voiceChannelManager
+      platformTemplateService
     ) => ({
       client,
       dbManager,
       activityTracker,
       voiceForumService: voiceChannelForumIntegrationService, // 호환성을 위한 별칭
       platformTemplateService,
-      userNicknameService,
-      voiceChannelManager,
     })).singleton(),
   });
 

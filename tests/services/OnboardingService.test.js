@@ -139,7 +139,7 @@ describe('OnboardingService', () => {
       'guild-1', 'user-1', 'games', {genderRoleId: 'gender-male'}
     );
     expect(SafeInteraction.safeReply).toHaveBeenCalledWith(interaction, expect.objectContaining({
-      content: expect.stringContaining('<#channel-games>'),
+      content: expect.stringContaining('<#1459874768449699861>'),
       flags: MessageFlags.Ephemeral
     }));
   });

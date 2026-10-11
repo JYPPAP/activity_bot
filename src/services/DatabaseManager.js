@@ -46,7 +46,7 @@ export class DatabaseManager {
         max: 10,
         idleTimeoutMillis: 30000,
         connectionTimeoutMillis: 2000,
-        ssl: process.env.NODE_ENV === 'production' ? {rejectUnauthorized: false} : false
+        ssl: config.NODE_ENV === 'production' ? {rejectUnauthorized: false} : false
       });
       this.attachPoolListeners(this.pool);
 
@@ -63,7 +63,7 @@ export class DatabaseManager {
       // 모든 초기화 완료 후 플래그 설정 — 부분 실패 시 상태 불일치 방지
       this.isInitialized = true;
       logger.databaseOperation('PostgreSQL 연결 풀 초기화 완료', {
-        min: 2, max: 10, ssl: process.env.NODE_ENV === 'production'
+        min: 2, max: 10, ssl: config.NODE_ENV === 'production'
       });
 
       return true;
@@ -173,26 +173,6 @@ export class DatabaseManager {
       logger.error('월별 테이블 생성 실패', {tableName, error: error.message});
       throw error;
     }
-  }
-
-  /**
-   * 스마트 캐싱 시스템
-   */
-  getCached(key, getter) {
-    const now = Date.now();
-
-    if ((now - this.lastCacheTime) > this.cacheTimeout) {
-      this.cache.clear();
-      this.lastCacheTime = now;
-    }
-
-    if (this.cache.has(key)) {
-      return this.cache.get(key);
-    }
-
-    const data = getter();
-    this.cache.set(key, data);
-    return data;
   }
 
   /**
@@ -328,17 +308,4 @@ export class DatabaseManager {
   async updateLastParticipantCount(...args) { return this.forumRepo.updateLastParticipantCount(...args); }
   async getAllChannelMappings() { return this.forumRepo.getAllChannelMappings(); }
 
-  // ================================================================
-  // 레거시 호환성 스텁 메서드 (DatabaseManager 고유)
-  // ================================================================
-
-  // Transaction 관련 (Pool에서 자동 관리)
-  async beginTransaction() { return true; }
-  async commitTransaction() { return true; }
-  async rollbackTransaction() { return true; }
-
-  // 캐시 관련 호환성
-  reloadData() { this.invalidateCache(); }
-  forceReload() { this.invalidateCache(); }
-  smartReload() { this.invalidateCache(); }
 }
