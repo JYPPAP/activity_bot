@@ -97,6 +97,7 @@ src/
 │   ├── ModalHandler.js        # 모달 인터랙션 디스패처 Facade
 │   ├── NicknameUIBuilder.js   # 닉네임 임베드·선택 메뉴·버튼 공통 빌더
 │   ├── OnboardingUIBuilder.js # 개인 가입 단계·시작 안내·심사 Embed/버튼 빌더
+│   ├── OnboardingGameManager.js # 관리자 게임 추가 버튼·역할 선택·이름/일괄 수정 모달
 │   ├── modals/
 │   │   ├── ModalRetryPolicy.js          # 모달 처리 재시도 정책
 │   │   ├── RecruitmentModalBuilder.js   # 구인구직 모달 구성·표시
@@ -129,6 +130,7 @@ CommandHandler (slash commands: /구직, /팀짜기, /시간체크 ...)
         ↓
 InteractionRouter.routeInteraction()
   ├─ Button → routeButtonInteraction()
+  │   ├─ onboarding:admin:games: prefix → OnboardingGameManager (일반 가입보다 먼저)
   │   ├─ onboarding: prefix → OnboardingService
   │   ├─ NicknameButton prefix → NicknameButtonHandler
   │   ├─ VOICE_CONNECT prefix → RecruitmentService
@@ -145,6 +147,7 @@ InteractionRouter.routeInteraction()
   │       └─ isRecruitmentOptionsButton → handleRecruitmentOptionsButton()
   │
   ├─ ModalSubmit → routeModalSubmit()
+  │   ├─ onboarding:admin:games: prefix → OnboardingGameManager
   │   ├─ NicknameModal prefix → NicknameModalHandler
   │   └─ else → ModalHandler.handleModalSubmit()
   │       ├─ PREMEMBERS_EDIT_MODAL → handleEditPreMembersModalSubmit()
@@ -157,6 +160,8 @@ InteractionRouter.routeInteraction()
       ├─ NicknameSelect → NicknameSelectMenuHandler
       ├─ RECRUITMENT_METHOD → RecruitmentService
       └─ EXISTING_POST_SELECT → RecruitmentService
+
+RoleSelect → OnboardingGameManager (게임 추가 시 역할 선택)
 ```
 
 ---
@@ -206,6 +211,11 @@ InteractionRouter.routeInteraction()
 | `onboarding:apply` | 고정값 | 등업 신청 제출 |
 | `onboarding:approve:` | `{userId}` | 관리자 등업 승인 |
 | `onboarding:reject:` | `{userId}` | 관리자 등업 거절 |
+| `onboarding:admin:games:` | 게임 관리 공통 접두사 | 관리자 전용 컴포넌트 라우팅 |
+| `onboarding:admin:games:add` | 고정값 | 게임 추가 역할 선택 화면 |
+| `onboarding:admin:games:role` | 고정값 | 역할 선택 후 게임 이름 입력 모달 |
+| `onboarding:admin:games:name:` | `{roleId}` | 단일 게임 이름 모달 제출 |
+| `onboarding:admin:games:bulk:` | `{sha256}` | 현재 게임 목록을 미리 채운 일괄 수정 모달·제출 |
 
 ---
 
@@ -225,9 +235,11 @@ recruitmentService(client, forumPostManager, voiceChannelManager, mappingService
 emojiReactionService(client, forumPostManager)
 onboardingRepository(dbManager)
 onboardingService(onboardingRepository, client)
+onboardingGameManager(onboardingRepository)
+onboardingManagementCommand(onboardingRepository, onboardingService, onboardingGameManager)
 buttonHandler(voiceChannelManager, recruitmentService, modalHandler, emojiReactionService, forumPostManager)
 modalHandler(recruitmentService, forumPostManager)
-interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButtonHandler, nicknameSelectMenuHandler, nicknameModalHandler, onboardingService)
+interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButtonHandler, nicknameSelectMenuHandler, nicknameModalHandler, onboardingService, onboardingGameManager)
 ```
 
 ---
@@ -250,6 +262,8 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 `OnboardingService.initialize()`는 현재 가입 상태를 복원하고 60초마다 심사 복구·삭제 예약을 확인한다. 승인 후 10분에 개인 채널을 삭제하며 `stop()`으로 타이머를 종료한다. 채널 topic과 봇 Embed footer로 생성 직후 종료된 채널/메시지도 다시 찾는다. 배포·운영 절차는 [onboarding-setup.md](docs/onboarding-setup.md).
 
 `cleanup_at`과 `departed_at`은 `TIMESTAMPTZ`로 저장하여 봇과 DB 시간대가 달라도 삭제 예약·탈퇴 시각을 동일하게 해석한다. 승인된 회원 재입장 시 정회원 역할과 현재 설정에 남아 있는 저장된 성별·게임 역할만 복원한다. 신청·심사 중 선택 검증은 현재 설정을 엄격히 따른다.
+
+`/가입관리 게임추가`는 옵션 없이 실행하면 비공개 게임 관리 패널을 연다. 버튼으로 역할 선택→이름 입력 또는 여러 게임 목록(`이름 | 역할ID`) 일괄 수정이 가능하다. 모든 컴포넌트에서 명령 권한을 재검증한다. 일괄 수정은 기존 이름/역할과 겹치는 항목만 대체하며 생략한 행은 삭제하지 않는다. `OnboardingRepository.updateGameRoles(guildId, games, expectedGames)`는 단일 UPDATE의 JSONB 목록 비교와 예약 역할 검증으로 동시 변경을 덮어쓰지 않는다. 이미 회원에게 지급된 역할은 바꾸지 않는다.
 
 ### post_integrations
 | Column | Type | Description |

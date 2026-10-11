@@ -42,7 +42,7 @@ export class CommandHandler {
     }
     
     // 기타 인터랙션 (버튼, 모달, 셀렉트 메뉴 등)은 voiceForumService로 전달
-    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isModalSubmit()) {
+    if (interaction.isButton() || interaction.isStringSelectMenu() || interaction.isRoleSelectMenu() || interaction.isModalSubmit()) {
       await this.voiceChannelForumIntegrationService.handleInteraction(interaction);
       return;
     }

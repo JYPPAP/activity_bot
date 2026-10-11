@@ -34,6 +34,7 @@
 | `interactionCreate` (button) | `InteractionRouter.routeButtonInteraction` | `OnboardingService` / `ButtonHandler` / `NicknameButtonHandler` / `RecruitmentService` | `onboarding_progress`, `forum_participants`, `post_integrations` | B, C, D |
 | `interactionCreate` (modal) | `InteractionRouter.routeModalSubmit` | `ModalHandler` / `NicknameModalHandler` | `forum_participants`, `post_integrations` | B, C |
 | `interactionCreate` (select) | `InteractionRouter.routeSelectMenuInteraction` | `OnboardingService` / `RecruitmentService` / `NicknameSelectMenuHandler` | `onboarding_progress`, `post_integrations`, `user_nicknames` | B, C, D |
+| `interactionCreate` (게임 관리 버튼·RoleSelect·modal) | `InteractionRouter` | `OnboardingGameManager` 권한 재검증 → 추가/일괄 수정 | `onboarding_configs.game_roles` | D |
 | `messageCreate` (포럼 스레드 내) | `ForumPostManager` 리스너 | `ParticipantTracker`, `formatParticipantChangeMessage` | — | B |
 | `messageReactionAdd/Remove` | `EmojiReactionService` | `ParticipantTracker` | `forum_participants` | B |
 | `threadUpdate` (archived) | `MappingService` | `ForumRepository.deactivateMapping` | `post_integrations` | B |
@@ -97,6 +98,8 @@ interactionCreate (Button: forum_join_{threadId})
 ```
 
 ### 3.4 신규 회원 개인 채널 가입·등업
+
+게임 관리 컴포넌트 `onboarding:admin:games:*`는 일반 `onboarding:*`보다 먼저 `OnboardingGameManager`로 전달한다. 역할 선택·일괄 수정 버튼은 DB 호출 없이 즉시 모달을 열며, 제출 시 defer 후 설정·역할을 검증한다. 일괄 수정은 목록 해시와 단일 UPDATE의 JSONB 비교로 오래된 입력창의 덮어쓰기를 거부한다. 진행 상태나 기존 회원 역할은 변경하지 않는다.
 
 ```
 guildMemberAdd(member)

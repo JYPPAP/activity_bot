@@ -8,9 +8,10 @@ import {loadOnboardingRules} from '../config/OnboardingRules.js';
 class OnboardingSetupError extends Error {}
 
 export class OnboardingManagementCommand {
-  constructor(onboardingRepository, onboardingService) {
+  constructor(onboardingRepository, onboardingService, onboardingGameManager) {
     this.onboardingRepository = onboardingRepository;
     this.onboardingService = onboardingService;
+    this.onboardingGameManager = onboardingGameManager;
   }
 
   async execute(interaction) {
@@ -30,15 +31,19 @@ export class OnboardingManagementCommand {
     const subcommand = interaction.options.getSubcommand();
     if (subcommand === '설정') return this.configure(interaction);
     if (subcommand === '게임추가') {
+      const nameOption = interaction.options.getString('이름');
+      const roleOption = interaction.options.getRole('역할');
+      if (!nameOption && !roleOption) return this.onboardingGameManager.showPanel(interaction);
+      if (!nameOption || !roleOption) throw new OnboardingSetupError('이름과 역할을 함께 입력하거나 옵션 없이 게임추가를 실행해 주세요.');
       const config = await this.onboardingRepository.getConfig(interaction.guildId);
       if (!config?.enabled || !config.category_id) throw new OnboardingSetupError('먼저 /가입관리 설정을 완료해 주세요.');
       const bot = await interaction.guild.members.fetchMe();
-      const role = await interaction.guild.roles.fetch(interaction.options.getRole('역할', true).id);
+      const role = await interaction.guild.roles.fetch(roleOption.id);
       this.validateRole(role, bot, interaction.guildId);
       const reserved = [config?.gender_male_role_id, config?.gender_female_role_id, config?.pending_role_id,
         DiscordConstants.ROLE_IDS.MEMBER, ...Object.values(config?.stage_role_ids ?? {})];
       if (reserved.includes(role.id)) throw new OnboardingSetupError('게임 역할은 성별·대기·정회원·기존 단계 역할과 달라야 합니다.');
-      const name = interaction.options.getString('이름', true).trim();
+      const name = nameOption.trim();
       if (!name || name.length > 100) throw new OnboardingSetupError('게임 이름은 1~100자로 입력해 주세요.');
       const remainingGames = (config.game_roles ?? []).filter(game => game.roleId !== role.id && game.label !== name);
       if (remainingGames.length >= 25) throw new OnboardingSetupError('게임 선택지는 최대 25개입니다. 기존 이름이나 역할로 수정해 주세요.');

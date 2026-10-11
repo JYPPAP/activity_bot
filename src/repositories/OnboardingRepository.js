@@ -56,6 +56,37 @@ export class OnboardingRepository {
     return result.rows[0].game_roles;
   }
 
+  async updateGameRoles(guildId, games, expectedGames) {
+    if (!Array.isArray(games) || games.length < 1 || games.length > 25 || !Array.isArray(expectedGames)) {
+      throw new Error('게임 목록은 1개 이상 25개 이하로 입력해 주세요.');
+    }
+    const labels = new Set();
+    const roleIds = new Set();
+    for (const game of games) {
+      if (!game || typeof game.label !== 'string' || !game.label.trim()
+        || game.label !== game.label.trim() || game.label.length > 100
+        || typeof game.roleId !== 'string' || !game.roleId.trim() || game.roleId !== game.roleId.trim()) {
+        throw new Error('게임 이름과 역할 ID를 확인해 주세요. 이름은 최대 100자입니다.');
+      }
+      if (labels.has(game.label) || roleIds.has(game.roleId)) throw new Error('게임 이름과 역할은 중복될 수 없습니다.');
+      labels.add(game.label);
+      roleIds.add(game.roleId);
+    }
+    const result = await this.dbManager.query(`
+      UPDATE onboarding_configs SET game_roles=$2::jsonb, updated_at=CURRENT_TIMESTAMP
+      WHERE guild_id=$1 AND enabled=true AND game_roles=$3::jsonb
+        AND NOT EXISTS (
+          SELECT 1 FROM jsonb_array_elements($2::jsonb) AS game
+          WHERE game->>'roleId' IN (gender_male_role_id, gender_female_role_id, pending_role_id, member_role_id)
+            OR EXISTS (
+              SELECT 1 FROM jsonb_each_text(COALESCE(stage_role_ids, '{}'::jsonb)) AS stage_role
+              WHERE stage_role.value=game->>'roleId'
+            )
+        )
+      RETURNING game_roles`, [guildId, JSON.stringify(games), JSON.stringify(expectedGames)]);
+    return result.rows[0]?.game_roles ?? null;
+  }
+
   async ensureProgress(guildId, userId) {
     const result = await this.dbManager.query(`
       INSERT INTO onboarding_progress (guild_id, user_id) VALUES ($1,$2)

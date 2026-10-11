@@ -13,7 +13,8 @@ export class InteractionRouter {
     nicknameButtonHandler,
     nicknameSelectMenuHandler,
     nicknameModalHandler,
-    onboardingService
+    onboardingService,
+    onboardingGameManager
   ) {
     this.buttonHandler = buttonHandler;
     this.modalHandler = modalHandler;
@@ -22,6 +23,7 @@ export class InteractionRouter {
     this.nicknameSelectMenuHandler = nicknameSelectMenuHandler;
     this.nicknameModalHandler = nicknameModalHandler;
     this.onboardingService = onboardingService;
+    this.onboardingGameManager = onboardingGameManager;
   }
   
   /**
@@ -63,7 +65,10 @@ export class InteractionRouter {
     const customId = interaction.customId;
 
     // 닉네임 관련 모달
-    if (this.isNicknameModal(customId)) {
+    if (this.onboardingGameManager.isInteraction(customId)) {
+      await this.onboardingGameManager.handleInteraction(interaction);
+    }
+    else if (this.isNicknameModal(customId)) {
       await this.nicknameModalHandler.handleModalSubmit(interaction);
     }
     // 기타 모달
@@ -107,6 +112,14 @@ export class InteractionRouter {
         await this.routeUserSelectInteraction(interaction);
         break;
 
+      case ComponentType.RoleSelect:
+        if (this.onboardingGameManager.isInteraction(interaction.customId)) {
+          await this.onboardingGameManager.handleInteraction(interaction);
+        } else {
+          logger.warn(`[InteractionRouter] 처리되지 않은 역할 선택: ${interaction.customId}`);
+        }
+        break;
+
       default:
         logger.warn(`[InteractionRouter] 처리되지 않은 컴포넌트 타입: ${interaction.componentType}`);
         break;
@@ -122,7 +135,10 @@ export class InteractionRouter {
     const customId = interaction.customId;
 
     // 닉네임 관련 버튼
-    if (this.onboardingService.isInteraction(customId)) {
+    if (this.onboardingGameManager.isInteraction(customId)) {
+      await this.onboardingGameManager.handleInteraction(interaction);
+    }
+    else if (this.onboardingService.isInteraction(customId)) {
       await this.onboardingService.handleInteraction(interaction);
     }
     else if (this.isNicknameButton(customId)) {

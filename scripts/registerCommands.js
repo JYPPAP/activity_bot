@@ -121,8 +121,8 @@ commands.push(
       .addChannelOption(o => o.setName('가입카테고리').setDescription('개인 가입 채널 카테고리 (환경변수 설정 우선)').addChannelTypes(ChannelType.GuildCategory).setRequired(false))
       .addStringOption(o => o.setName('규칙').setDescription('규칙 파일이 없을 때 표시할 규칙 (기존 설정 재사용 가능)').setRequired(false).setMinLength(1).setMaxLength(3500)))
     .addSubcommand(sub => sub.setName('게임추가').setDescription('선택할 게임 역할을 추가합니다.')
-      .addStringOption(o => o.setName('이름').setDescription('게임 이름').setRequired(true).setMaxLength(100))
-      .addRoleOption(o => o.setName('역할').setDescription('지급할 역할').setRequired(true)))
+      .addStringOption(o => o.setName('이름').setDescription('게임 이름 (생략하면 관리 화면)').setRequired(false).setMaxLength(100))
+      .addRoleOption(o => o.setName('역할').setDescription('지급할 역할 (이름과 함께 입력)').setRequired(false)))
     .addSubcommand(sub => sub.setName('게시').setDescription('온보딩 채널에 가입 시작 / 이어하기 안내를 게시합니다.'))
 );
 

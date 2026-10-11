@@ -80,6 +80,48 @@ describe('OnboardingRepository', () => {
     await expect(repository.addGameRole('guild-1', 'Game 26', 'new-role')).rejects.toThrow('최대 25개');
   });
 
+  it('atomically replaces game roles only while the snapshot and reserved-role settings remain valid', async () => {
+    const original = [{label: 'Old game', roleId: 'old-role'}];
+    const games = [{label: 'New game', roleId: 'new-role'}, {label: 'Other game', roleId: 'other-role'}];
+    dbManager.query.mockResolvedValueOnce({rows: [{game_roles: games}]});
+    await expect(repository.updateGameRoles('guild', games, original)).resolves.toEqual(games);
+    expect(dbManager.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE onboarding_configs'),
+      ['guild', JSON.stringify(games), JSON.stringify(original)]);
+    const sql = dbManager.query.mock.calls[0][0];
+    expect(sql).toContain('enabled=true AND game_roles=$3::jsonb');
+    expect(sql).toContain('game_roles=$2::jsonb');
+    expect(sql).toContain('jsonb_array_elements($2::jsonb)');
+    expect(sql).toContain('gender_male_role_id, gender_female_role_id, pending_role_id, member_role_id');
+    expect(sql).toContain('jsonb_each_text');
+    expect(sql).toContain("stage_role.value=game->>'roleId'");
+  });
+
+  it('returns null when concurrent edits, disabled configuration, or reserved roles prevent updating', async () => {
+    dbManager.query.mockResolvedValueOnce({rows: []});
+    await expect(repository.updateGameRoles('guild', [{label: 'Game', roleId: 'game-role'}], [])).resolves.toBeNull();
+  });
+
+  it.each([
+    null, [], Array.from({length: 26}, (_, index) => ({label: `Game ${index}`, roleId: `role-${index}`})),
+    [null], [{label: '', roleId: 'role'}], [{label: '  ', roleId: 'role'}],
+    [{label: ' Game ', roleId: 'role'}], [{label: 'a'.repeat(101), roleId: 'role'}],
+    [{label: 'Game', roleId: ''}], [{label: 'Game', roleId: 123}],
+    [{label: 'Game', roleId: ' role '}],
+    [{label: 'Same', roleId: 'role-a'}, {label: 'Same', roleId: 'role-b'}],
+    [{label: 'A', roleId: 'same-role'}, {label: 'B', roleId: 'same-role'}]
+  ])('rejects invalid game lists before issuing SQL: %j', async games => {
+    await expect(repository.updateGameRoles('guild', games, [])).rejects.toThrow();
+    expect(dbManager.query).not.toHaveBeenCalled();
+  });
+
+  it('accepts the 25-game and 100-character label limits exactly', async () => {
+    const games = Array.from({length: 25}, (_, index) => ({
+      label: `${index}`.padEnd(100, 'a'), roleId: `role-${index}`
+    }));
+    dbManager.query.mockResolvedValueOnce({rows: [{game_roles: games}]});
+    await expect(repository.updateGameRoles('guild', games, [])).resolves.toEqual(games);
+  });
+
   it('creates or refreshes progress idempotently', async () => {
     const row = {guild_id: 'guild-1', user_id: 'user-1', stage: 'gender'};
     dbManager.query.mockResolvedValueOnce({rows: [row]});

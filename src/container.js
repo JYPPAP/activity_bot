@@ -24,6 +24,7 @@ import { OnboardingRepository } from './repositories/OnboardingRepository.js';
 import { ButtonHandler } from './ui/ButtonHandler.js';
 import { ModalHandler } from './ui/ModalHandler.js';
 import { InteractionRouter } from './ui/InteractionRouter.js';
+import { OnboardingGameManager } from './ui/OnboardingGameManager.js';
 import { RecruitmentUIBuilder } from './ui/RecruitmentUIBuilder.js';
 import { NicknameButtonHandler } from './ui/NicknameButtonHandler.js';
 import { NicknameSelectMenuHandler } from './ui/NicknameSelectMenuHandler.js';
@@ -155,6 +156,7 @@ export function createDIContainer(client) {
     nicknameSelectMenuHandler: asClass(NicknameSelectMenuHandler).singleton(),
     nicknameModalHandler: asClass(NicknameModalHandler).singleton(),
     interactionRouter: asClass(InteractionRouter).singleton(),
+    onboardingGameManager: asClass(OnboardingGameManager).singleton(),
   });
 
   // === 7. 명령어 계층 ===

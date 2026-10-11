@@ -12,7 +12,7 @@ import {loadOnboardingRules} from '../../src/config/OnboardingRules.js';
 import {config as environment} from '../../src/config/env.js';
 
 describe('OnboardingManagementCommand', () => {
-  let interaction, repository, service, channels, roles, bot, command;
+  let interaction, repository, service, gameManager, channels, roles, bot, command;
   const welcomeId = '1459874768449699861';
   const memberId = '1243633748344438855';
   const allowed = () => new PermissionsBitField(PermissionsBitField.All);
@@ -57,7 +57,8 @@ describe('OnboardingManagementCommand', () => {
       saveConfig: vi.fn().mockResolvedValue({}), addGameRole: vi.fn().mockResolvedValue([{}])
     };
     service = {publishWelcome: vi.fn().mockResolvedValue({id: 'entry'})};
-    command = new OnboardingManagementCommand(repository, service);
+    gameManager = {showPanel: vi.fn().mockResolvedValue(null)};
+    command = new OnboardingManagementCommand(repository, service, gameManager);
   });
 
   it('denies management without privileged role', async () => {
@@ -219,6 +220,25 @@ describe('OnboardingManagementCommand', () => {
     interaction.options.getSubcommand.mockReturnValue('게임추가');
     await command.execute(interaction);
     expect(repository.addGameRole).toHaveBeenCalledWith('guild-1', '롤', 'game');
+  });
+
+  it('opens the game management panel when both options are omitted', async () => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    interaction.options.getString.mockReturnValue(null);
+    interaction.options.getRole.mockReturnValue(null);
+    await command.execute(interaction);
+    expect(SafeInteraction.safeDeferReply).toHaveBeenCalledWith(interaction, {ephemeral: true});
+    expect(gameManager.showPanel).toHaveBeenCalledWith(interaction);
+    expect(repository.addGameRole).not.toHaveBeenCalled();
+  });
+
+  it.each(['name', 'role'])('explains partially supplied game arguments: %s', async supplied => {
+    interaction.options.getSubcommand.mockReturnValue('게임추가');
+    if (supplied === 'name') interaction.options.getRole.mockReturnValue(null);
+    else interaction.options.getString.mockReturnValue(null);
+    await expectValidationError('이름과 역할을 함께 입력');
+    expect(gameManager.showPanel).not.toHaveBeenCalled();
+    expect(repository.addGameRole).not.toHaveBeenCalled();
   });
 
   it('rejects granting a reserved gender role as a game', async () => {
