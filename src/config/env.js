@@ -42,6 +42,9 @@ export const config = {
   // 목록 출력 채널
   CALENDAR_LOG_CHANNEL_ID: process.env.CALENDAR_LOG_CHANNEL_ID,
 
+  // 개발·수정 완료 후 true로 변경하여 온보딩을 재개한다.
+  ONBOARDING_ENABLED: false,
+
   // 개인 가입 채널 카테고리 (미지정 시 명령어 선택/저장된 설정 사용)
   ONBOARDING_CATEGORY_ID: process.env.ONBOARDING_CATEGORY_ID?.trim() || '',
 

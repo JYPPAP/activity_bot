@@ -151,6 +151,7 @@ export class OnboardingManagementCommand {
       reviewManagerUserId: interaction.user.id,
       ...roleIds, rulesText
     });
+    await this.onboardingService.restrictWelcome(guild);
     return SafeInteraction.safeReply(interaction, {content: '개인 가입 채널 설정을 저장하고 본인을 심사 담당자로 등록했습니다. 게임 역할을 추가한 뒤 /가입관리 게시를 실행해 주세요.'});
   }
 }

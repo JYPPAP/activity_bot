@@ -56,7 +56,7 @@ describe('OnboardingManagementCommand', () => {
       getConfig: vi.fn().mockResolvedValue({enabled: true, category_id: 'category', stage_role_ids: {gender: 'legacy-stage'}, game_roles: []}),
       saveConfig: vi.fn().mockResolvedValue({}), addGameRole: vi.fn().mockResolvedValue([{}])
     };
-    service = {publishWelcome: vi.fn().mockResolvedValue({id: 'entry'})};
+    service = {publishWelcome: vi.fn().mockResolvedValue({id: 'entry'}), restrictWelcome: vi.fn().mockResolvedValue()};
     gameManager = {showPanel: vi.fn().mockResolvedValue(null)};
     command = new OnboardingManagementCommand(repository, service, gameManager);
   });

@@ -1,7 +1,7 @@
 # Activity Bot - Codebase Map
 > 이 파일은 AI 어시스턴트가 코드 구조를 빠르게 파악하기 위한 참조 파일입니다.
 > 수정 시 반드시 이 파일도 함께 업데이트할 것.
-> 마지막 업데이트: 2026-10-11
+> 마지막 업데이트: 2026-10-12
 
 ## 기술 스택
 - Runtime: Node.js (ESM)
@@ -247,6 +247,8 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 ## DB 테이블 (PostgreSQL)
 
 ### onboarding_configs / onboarding_progress
+
+현재 `src/config/env.js`의 `ONBOARDING_ENABLED: false`로 신입 온보딩을 일시 중지한다. 신규 가입의 자동 채널 생성과 일반 회원의 시작·미리보기·단계 진행·화면 복원을 차단한다. 관리자(Administrator)·사장 역할·DEV_ID는 수동 시작·미리보기·심사를 사용할 수 있다. `restrictWelcome(guild)`는 시작·안내 게시·설정 저장 후 온보딩 안내 채널을 관리자·사장·개발자·봇에게만 공개한다(일반 역할의 보기 허용 해제, 일반 회원 개별 보기 거부). 기존 메시지·채널·가입 데이터와 승인 채널 예약 정리·탈퇴 정리는 보존한다. 개발·수정 완료 후 값을 `true`로 변경하고 `/가입관리 설정`으로 안내 채널 공개 권한을 다시 설정하면 재개한다. 일시 중지 중 설정한 일반 회원 개별 보기 거부는 필요 시 수동 해제한다.
 
 | Table | Key / 주요 컬럼 | Description |
 |---|---|---|

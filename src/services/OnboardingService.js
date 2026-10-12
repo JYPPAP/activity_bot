@@ -1,10 +1,11 @@
-import {ChannelType, MessageFlags, PermissionFlagsBits} from 'discord.js';
+import {ChannelType, MessageFlags, PermissionFlagsBits, OverwriteType} from 'discord.js';
 import {SafeInteraction} from '../utils/SafeInteraction.js';
 import {logger} from '../config/logger-termux.js';
 import {DiscordConstants} from '../config/DiscordConstants.js';
 import {OnboardingUIBuilder} from '../ui/OnboardingUIBuilder.js';
 import {config as environment} from '../config/env.js';
 import {loadOnboardingRules} from '../config/OnboardingRules.js';
+import {hasCommandPermission, SUPER_ADMIN_ROLES} from '../config/commandPermissions.js';
 
 const IDS = DiscordConstants.CUSTOM_ID_PREFIXES;
 const CLEANUP_DELAY = 10 * 60 * 1000;
@@ -26,6 +27,32 @@ export class OnboardingService {
   async getConfig(repository, guildId) {
     const config = await repository.getConfig(guildId);
     return config ? {...config, category_id: environment.ONBOARDING_CATEGORY_ID || config.category_id} : null;
+  }
+
+  canManage(member) {
+    return member.permissions.has(PermissionFlagsBits.Administrator) || hasCommandPermission(member, '가입관리');
+  }
+
+  async restrictWelcome(guild) {
+    if (environment.ONBOARDING_ENABLED) return;
+    const config = await this.getConfig(this.onboardingRepository, guild.id);
+    if (!config?.welcome_channel_id) return;
+    const channel = await guild.channels.fetch(config.welcome_channel_id);
+    await channel.permissionOverwrites.edit(this.client.user.id, {ViewChannel: true});
+    if (environment.DEV_ID) await channel.permissionOverwrites.edit(environment.DEV_ID, {ViewChannel: true});
+    await channel.permissionOverwrites.edit(guild.id, {ViewChannel: false});
+    const roles = await guild.roles.fetch();
+    for (const role of roles.values()) {
+      if (role.id === guild.id || role.permissions.has(PermissionFlagsBits.Administrator)) continue;
+      await channel.permissionOverwrites.edit(role.id, {
+        ViewChannel: SUPER_ADMIN_ROLES.includes(role.name) ? true : null,
+      });
+    }
+    for (const overwrite of channel.permissionOverwrites.cache.values()) {
+      if (overwrite.type !== OverwriteType.Member || overwrite.id === this.client.user.id || overwrite.id === environment.DEV_ID) continue;
+      const member = await this.fetchOptional(guild.members, overwrite.id);
+      await channel.permissionOverwrites.edit(overwrite.id, {ViewChannel: member && this.canManage(member) ? true : false});
+    }
   }
 
   async loadRules(config) {
@@ -60,6 +87,7 @@ export class OnboardingService {
   }
 
   async initialize() {
+    for (const guild of this.client.guilds.cache.values()) await this.restrictWelcome(guild);
     for (const progress of await this.onboardingRepository.getActiveProgress()) await this.restoreProgress(progress);
     await this.maintenance();
     this.stop();
@@ -106,6 +134,7 @@ export class OnboardingService {
         if (!current || !config?.enabled || !config.category_id) return;
         const member = await this.fetchOptional(guild.members, progress.user_id);
         if (!member) return this.removeSessionChannel(guild, current, repository, true);
+        if (!environment.ONBOARDING_ENABLED && !this.canManage(member)) return;
         if (current.review_action) await this.completeReview(member, config, current, repository);
         else if (current.stage === 'approved') {
           await this.updateReviewMessage(guild, config, current);
@@ -117,7 +146,7 @@ export class OnboardingService {
   }
 
   async handleMemberAdd(member) {
-    if (member.user.bot) return;
+    if (member.user.bot || !environment.ONBOARDING_ENABLED) return;
     const config = await this.getConfig(this.onboardingRepository, member.guild.id);
     if (config?.enabled && config.category_id) await this.openSession(member);
   }
@@ -132,6 +161,7 @@ export class OnboardingService {
 
   async openSession(member) {
     if (member.user.bot) return null;
+    if (!environment.ONBOARDING_ENABLED && !this.canManage(member)) throw new Error('온보딩은 개발·수정 중으로 일시 중지되어 있습니다.');
     return this.onboardingRepository.withMemberLock(member.guild.id, member.id, async repository => {
       const config = await this.getConfig(repository, member.guild.id);
       if (!config?.enabled || !config.category_id) throw new Error('가입관리 설정을 먼저 완료해 주세요.');
@@ -248,6 +278,7 @@ export class OnboardingService {
   }
 
   async publishWelcome(guild) {
+    await this.restrictWelcome(guild);
     return this.onboardingRepository.withMemberLock(guild.id, 'welcome', async repository => {
       const config = await this.getConfig(repository, guild.id);
       if (!config?.enabled || !config.category_id) throw new Error('먼저 /가입관리 설정을 실행해 주세요.');
@@ -271,6 +302,7 @@ export class OnboardingService {
     else await SafeInteraction.safeDeferReply(interaction, {ephemeral: true});
     try {
       if (!interaction.guild || !interaction.member) return this.reply(interaction, '서버 안에서만 사용할 수 있습니다.');
+      if (!environment.ONBOARDING_ENABLED && !this.canManage(interaction.member)) return this.reply(interaction, '온보딩은 개발·수정 중으로 일시 중지되어 있습니다.');
       if (interaction.customId.startsWith(IDS.ONBOARDING_PREVIEW)) {
         const config = await this.getConfig(this.onboardingRepository, interaction.guildId);
         if (!config?.enabled || interaction.channelId !== config.welcome_channel_id) return this.reply(interaction, '가입 안내 채널에서 미리보기를 실행해 주세요.');

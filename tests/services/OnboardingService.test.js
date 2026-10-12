@@ -1,7 +1,7 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest';
-import {ChannelType, Collection, PermissionFlagsBits} from 'discord.js';
+import {ChannelType, Collection, PermissionFlagsBits, OverwriteType} from 'discord.js';
 
-vi.mock('../../src/config/env.js', () => ({config: {ONBOARDING_CATEGORY_ID: ''}}));
+vi.mock('../../src/config/env.js', () => ({config: {ONBOARDING_ENABLED: true, ONBOARDING_CATEGORY_ID: ''}}));
 vi.mock('../../src/config/OnboardingRules.js', () => ({
   loadOnboardingRules: vi.fn(async text => ({pages: [{title: '서버 규칙', content: text}], revision: 'rules-v1'})),
 }));
@@ -92,6 +92,7 @@ function createFixture() {
     channel.messages = {cache: messages, fetch: vi.fn(async idOrOptions => typeof idOrOptions === 'string'
       ? messages.get(idOrOptions) || null
       : new Collection([...messages.entries()].reverse().slice(0, 100)))};
+    channel.permissionOverwrites = {cache: new Collection(), edit: vi.fn(async () => {})};
     channel.send = vi.fn(async value => {events.push(['send', id]); return makeMessage(value);});
     channel.delete = vi.fn(async () => { channels.delete(id); });
     channel.makeMessage = makeMessage;
@@ -110,7 +111,7 @@ function createFixture() {
       }),
     },
     members: {fetch: vi.fn(async id => members.get(id) || null), fetchMe: vi.fn(async () => ({roles: {highest: {comparePositionTo: () => 1}}}))},
-    roles: {fetch: vi.fn(async id => ({id, managed: false, permissions: {has: () => false}}))},
+    roles: {fetch: vi.fn(async id => id ? {id, managed: false, permissions: {has: () => false}} : new Collection())},
   };
   const createMember = (id = 'user', admin = false) => {
     const member = {id, guild, user: {id, username: '새 회원', bot: false}, permissions: {has: () => admin}};
@@ -161,10 +162,67 @@ describe('OnboardingService private sessions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     environment.ONBOARDING_CATEGORY_ID = '';
+    environment.ONBOARDING_ENABLED = true;
+    environment.DEV_ID = '';
     loadOnboardingRules.mockImplementation(async text => ({pages: [{title: '서버 규칙', content: text}], revision: 'rules-v1'}));
     f = createFixture();
   });
   afterEach(() => { f.service.stop(); vi.useRealTimers(); });
+
+  it('does not create or restore onboarding screens while paused, even with enabled database settings', async () => {
+    await f.seed();
+    environment.ONBOARDING_ENABLED = false;
+    await f.service.handleMemberAdd(f.member);
+    await f.service.initialize();
+    expect(f.guild.channels.create).not.toHaveBeenCalled();
+    expect(f.repository.saveProgress).not.toHaveBeenCalled();
+    expect(f.member.roles.add).not.toHaveBeenCalled();
+    expect(f.config.enabled).toBe(true);
+    await expect(f.service.openSession(f.member)).rejects.toThrow('일시 중지');
+  });
+
+  it.each(['administrator', 'boss', 'developer'])('allows %s to preview and start onboarding while paused', async kind => {
+    environment.ONBOARDING_ENABLED = false;
+    const member = kind === 'administrator' ? f.reviewer : f.member;
+    if (kind === 'boss') member.roles.cache.set('boss', {id: 'boss', name: '사장'});
+    if (kind === 'developer') environment.DEV_ID = member.id;
+    const action = f.interaction('onboarding:preview:0', {member, channel: f.welcome, message: {embeds: []}});
+    await f.service.handleInteraction(action);
+    expect(SafeInteraction.safeReply).toHaveBeenCalledWith(action, expect.objectContaining({embeds: expect.any(Array)}));
+    await f.service.openSession(member);
+    expect(f.guild.channels.create).toHaveBeenCalledOnce();
+    await f.service.publishWelcome(f.guild);
+    expect(f.welcome.send).toHaveBeenCalledOnce();
+  });
+
+  it('hides the welcome channel from ordinary roles and explicit member access while keeping management access', async () => {
+    environment.ONBOARDING_ENABLED = false;
+    environment.DEV_ID = 'developer';
+    const role = (id, name) => ({id, name, permissions: {has: () => false}});
+    f.guild.roles.fetch.mockResolvedValue(new Collection([
+      ['guild', role('guild', '@everyone')], ['newcomer', role('newcomer', '신입')], ['boss', role('boss', '사장')],
+    ]));
+    f.welcome.permissionOverwrites.cache.set('user', {id: 'user', type: OverwriteType.Member});
+    await f.service.initialize();
+    const edit = f.welcome.permissionOverwrites.edit;
+    expect(edit).toHaveBeenCalledWith('guild', {ViewChannel: false});
+    expect(edit).toHaveBeenCalledWith('newcomer', {ViewChannel: null});
+    expect(edit).toHaveBeenCalledWith('user', {ViewChannel: false});
+    for (const id of ['boss', 'developer', 'bot']) expect(edit).toHaveBeenCalledWith(id, {ViewChannel: true});
+  });
+
+  it.each(['onboarding:start', 'onboarding:preview:0', 'onboarding:gender:male', 'onboarding:apply'])(
+    'blocks existing %s buttons while paused without changing progress or roles', async customId => {
+      environment.ONBOARDING_ENABLED = false;
+      const action = f.interaction(customId, {channel: f.welcome, message: {embeds: []}});
+      await f.service.handleInteraction(action);
+      expect(SafeInteraction.safeReply).toHaveBeenCalledWith(action,
+        expect.objectContaining({content: '온보딩은 개발·수정 중으로 일시 중지되어 있습니다.', flags: 64}));
+      expect(f.repository.withMemberLock).not.toHaveBeenCalled();
+      expect(f.repository.saveProgress).not.toHaveBeenCalled();
+      expect(f.guild.channels.create).not.toHaveBeenCalled();
+      expect(f.member.roles.add).not.toHaveBeenCalled();
+    });
 
   it('shows a private preview without creating channels or changing progress and roles', async () => {
     const action = f.interaction('onboarding:preview:0', {channel: f.welcome,
