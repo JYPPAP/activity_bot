@@ -3,8 +3,30 @@
 import { NicknameConstants } from '../config/NicknameConstants.js';
 
 export class PlatformTemplateService {
-  constructor(dbManager) {
+  constructor(dbManager, client) {
     this.dbManager = dbManager;
+    this.client = client;
+  }
+
+  resolvePlatformEmoji(platform, guildId) {
+    if (!platform) return null;
+    const value = platform.emoji_unicode?.trim() || NicknameConstants.DEFAULT_EMOJIS.PLATFORM;
+    const name = value.match(/^<a?:([^:]+):\d+>$/)?.[1] || value.replace(/^:|:$/g, '');
+    const game = name.replace(/^(?:99_gap_game_|N_Game_)/i, '');
+    if (game === name) return { ...platform, emoji_unicode: value };
+
+    // 구 이름의 밑줄과 새 이름의 대소문자 차이를 무시하고 현재 서버 ID를 사용한다.
+    const normalize = text => text.replace(/_/g, '').toLowerCase();
+    const emoji = this.client.guilds.cache.get(guildId)?.emojis.cache.find(candidate =>
+      candidate.name.startsWith('N_Game_') &&
+      normalize(candidate.name.slice('N_Game_'.length)) === normalize(game)
+    );
+    return {
+      ...platform,
+      emoji_unicode: emoji
+        ? `<${emoji.animated ? 'a' : ''}:${emoji.name}:${emoji.id}>`
+        : NicknameConstants.DEFAULT_EMOJIS.PLATFORM,
+    };
   }
 
   /**
@@ -147,7 +169,7 @@ export class PlatformTemplateService {
     `;
 
     const result = await this.dbManager.query(query, [platformId]);
-    return result.rows[0] || null;
+    return this.resolvePlatformEmoji(result.rows[0], result.rows[0]?.guild_id);
   }
 
   /**
@@ -163,7 +185,7 @@ export class PlatformTemplateService {
     `;
 
     const result = await this.dbManager.query(query, [guildId, platformName]);
-    return result.rows[0] || null;
+    return this.resolvePlatformEmoji(result.rows[0], guildId);
   }
 
   /**
@@ -179,7 +201,7 @@ export class PlatformTemplateService {
     `;
 
     const result = await this.dbManager.query(query, [guildId]);
-    return result.rows;
+    return result.rows.map(platform => this.resolvePlatformEmoji(platform, guildId));
   }
 
   /**

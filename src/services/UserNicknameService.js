@@ -1,7 +1,7 @@
 // src/services/UserNicknameService.js - 사용자 닉네임 관리 서비스
 
 import { NicknameConstants } from '../config/NicknameConstants.js';
-import { EmbedBuilder } from 'discord.js';
+import { codeBlock, EmbedBuilder } from 'discord.js';
 
 export class UserNicknameService {
   constructor(dbManager, platformTemplateService) {
@@ -178,7 +178,7 @@ export class UserNicknameService {
     `;
 
     const result = await this.dbManager.query(query, [guildId, userId, platformId]);
-    return result.rows;
+    return result.rows.map(nickname => this.platformTemplateService.resolvePlatformEmoji(nickname, guildId));
   }
 
   /**
@@ -257,7 +257,7 @@ export class UserNicknameService {
     `;
 
     const result = await this.dbManager.query(query, [guildId, userId]);
-    return result.rows;
+    return result.rows.map(nickname => this.platformTemplateService.resolvePlatformEmoji(nickname, guildId));
   }
 
   /**
@@ -337,8 +337,8 @@ export class UserNicknameService {
         if (platform.accounts.length === 1) {
           const account = platform.accounts[0];
           const value = account.full_url
-            ? `ID: \`${account.user_identifier}\`\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
-            : `ID: \`${account.user_identifier}\``;
+            ? `ID:\n${codeBlock(account.user_identifier)}\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
+            : `ID:\n${codeBlock(account.user_identifier)}`;
 
           embed.addFields({
             name: `${emoji} ${platform.platform_name}`,
@@ -352,7 +352,7 @@ export class UserNicknameService {
             const linkText = account.full_url
               ? `[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
               : '';
-            return `${index + 1}. ID: \`${account.user_identifier}\`${linkText ? ' ' + linkText : ''}`;
+            return `${index + 1}. ID:\n${codeBlock(account.user_identifier)}${linkText ? '\n' + linkText : ''}`;
           });
 
           embed.addFields({
@@ -413,8 +413,8 @@ export class UserNicknameService {
         if (platform.accounts.length === 1) {
           const account = platform.accounts[0];
           const value = account.full_url
-            ? `ID: \`${account.user_identifier}\`\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
-            : `ID: \`${account.user_identifier}\``;
+            ? `ID:\n${codeBlock(account.user_identifier)}\n[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
+            : `ID:\n${codeBlock(account.user_identifier)}`;
 
           embed.addFields({
             name: `${emoji} ${platform.platform_name}`,
@@ -428,7 +428,7 @@ export class UserNicknameService {
             const linkText = account.full_url
               ? `[프로필 보기 ${NicknameConstants.DEFAULT_EMOJIS.LINK}](${account.full_url})`
               : '';
-            return `${index + 1}. ID: \`${account.user_identifier}\`${linkText ? ' ' + linkText : ''}`;
+            return `${index + 1}. ID:\n${codeBlock(account.user_identifier)}${linkText ? '\n' + linkText : ''}`;
           });
 
           embed.addFields({

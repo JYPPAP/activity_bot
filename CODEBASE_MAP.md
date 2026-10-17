@@ -233,6 +233,8 @@ forumPostManager(client, forumChannelId, forumTagId, dbManager) ← asFunction
 mappingService(client, voiceChannelManager, forumPostManager, dbManager) ← asFunction
 recruitmentService(client, forumPostManager, voiceChannelManager, mappingService, participantTracker)
 emojiReactionService(client, forumPostManager)
+platformTemplateService(dbManager, client)
+userNicknameService(dbManager, platformTemplateService)
 onboardingRepository(dbManager)
 onboardingService(onboardingRepository, client)
 onboardingGameManager(onboardingRepository)
@@ -245,6 +247,8 @@ interactionRouter(buttonHandler, modalHandler, recruitmentService, nicknameButto
 ---
 
 ## DB 테이블 (PostgreSQL)
+
+닉네임 플랫폼·계정 조회 시 `PlatformTemplateService.resolvePlatformEmoji(platform, guildId)`가 DB의 `99_gap_game_*` / `N_Game_*` 이름을 현재 서버의 `N_Game_*` 커스텀 이모지 ID로 해석한다(밑줄·대소문자 차이 무시). 매칭 실패 시 🎮로 표시하며 DB 원본은 유지한다. 음성 채널·내 정보 Embed의 ID는 계정별 코드 블록으로 표시한다.
 
 ### onboarding_configs / onboarding_progress
 
